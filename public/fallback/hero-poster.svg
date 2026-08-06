@@ -71,10 +71,10 @@
   </g>
 
   <!-- Halo — the silent crown: one hair-thin band, no glare. -->
-  <g transform="translate(800 147.0) rotate(-5)">
-    <ellipse rx="172.0" ry="74.0" fill="none" stroke="url(#haloGrad)" stroke-width="2.4"
+  <g transform="translate(800 164.2) rotate(-5)">
+    <ellipse rx="258.0" ry="110.9" fill="none" stroke="url(#haloGrad)" stroke-width="2.4"
              opacity="0.3" filter="url(#soften)"/>
-    <ellipse rx="172.0" ry="74.0" fill="none" stroke="url(#haloGrad)" stroke-width="1.1"
+    <ellipse rx="258.0" ry="110.9" fill="none" stroke="url(#haloGrad)" stroke-width="1.1"
              opacity="0.85"/>
   </g>
 

@@ -276,7 +276,7 @@ void main() {
     vec3 filHue = signal(phi * 0.2 + w * 0.045 + vSeed * 0.4 + fresnel * 0.5);
     filHue = mix(filHue, PAL_MAGENTA, smoothstep(0.45, 0.75, b) * 0.4);
     color = base * mix(0.4, 1.0, uPsy)
-      + filHue * fil * density * (uPsy * 0.85) * uEmissive;
+      + filHue * fil * density * (uPsy * 0.42) * uEmissive;
 
     // --- The vision, THROUGHOUT -------------------------------------
     // The six-fold kaleidoscopic fold runs the whole corridor now and
@@ -299,8 +299,8 @@ void main() {
       }
       float kfil = exp(-8.0 * orbit);
       float kweb = clamp(acc * 0.22, 0.0, 1.0);
-      float dmt = (kfil * 1.5 + kweb * 0.55) * deep;
-      color += signal(ka * 1.4 + w * 0.07 + uTime * 0.03) * dmt * density * 1.25;
+      float dmt = (kfil * 0.8 + kweb * 0.32) * deep;
+      color += signal(ka * 1.4 + w * 0.07 + uTime * 0.03) * dmt * density * 0.6;
     }
 
     // --- The pull, made light ---------------------------------------
@@ -321,6 +321,15 @@ void main() {
     color += uCyan * fresnel * uPsy * 0.05;
 
     color *= mix(0.34, 1.0, vFocus);
+
+    // SOFT CEILING. Filaments, the vision fold and the pull light all
+    // add into the same pixel, and with nothing bounding the sum the
+    // interior ran far past the tonemapper's knee — the corridor
+    // flared to full-frame white-cyan and was painful to scroll
+    // through. A Reinhard knee lets bright detail keep rolling off
+    // instead of stacking, so the pattern stays legible and the frame
+    // never blows out. This is the last thing the tunnel branch does.
+    color = color / (1.0 + color * 0.62);
   }
 
   color = mix(color, color * 0.6 + uAmber * 0.4, uAmberMix * 0.3);

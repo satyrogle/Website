@@ -65,10 +65,17 @@ const RING_START_Z = -2.4;
 const RING_OUTER = 4.9;
 const RING_APERTURE = 1.55;
 /**
- * Far crown centre. Far enough past the last ring (-19.4) that the
- * finale can frame the whole entity from ~9.5 units out.
+ * Far crown centre.
+ *
+ * The crown's silhouette reaches ~4.5 units from its axis. The finale
+ * camera sits at z −23.5 with a 38° lens, which sees ±(distance ×
+ * tan 19°): at the old −33.6 that was ±3.5, so the entity overflowed
+ * the frame on every edge and the resolution read as a cropped
+ * rosette. At −39.5 the same shot sees ±5.5 and the whole crown
+ * composes with margin. The rail is unchanged — only the destination
+ * moved, and the camera still never reverses.
  */
-export const FAR_DOOR_Z = -33.6;
+export const FAR_DOOR_Z = -39.5;
 
 /**
  * The throat point: where the convergence light lives, gate-local.
@@ -196,7 +203,15 @@ export class LatticeModel {
    * frame, tilted just off horizontal so it reads as an ellipse, subtly
    * askew so it never looks machined onto the entity's axis.
    */
-  private static readonly HALO_Y = 3.5;
+  /**
+   * Halo rest pose. WIDER than the crown's upper mass and clear above
+   * it: at r 2.0 the band was smaller than the entity's silhouette,
+   * so the crown occluded all but a top arc and it read as a handle
+   * stuck on the head. The earlier note was about GLARE, not size —
+   * that is handled by the tube profile and the rest dimming, so the
+   * ring can be the width the sheet draws it.
+   */
+  private static readonly HALO_Y = 3.3;
   private static readonly HALO_Z = 0.35;
   private static readonly HALO_TILT = 1.12;
   private static readonly HALO_SKEW = 0.1;
@@ -287,18 +302,24 @@ export class LatticeModel {
         uArrive: { value: 0 },
         /** 0 = crown overhead, 1 = threshold facing the camera. */
         uGateway: { value: 0 },
+        // The halo lives in the same air as everything else.
+        uFogDensity: { value: 0.052 },
+        uFogColor: { value: new THREE.Color('#080b10') },
       },
     });
 
-    // The halo is a single hair-thin CONTINUOUS band — MAT_HALO on the
-    // founder's sheet: stable orbit, MINIMAL REACTION. On the sheet it
-    // spans barely over half the crown's width and carries no glare;
-    // the wide bright ring read as a lamp. It sits close over the
-    // apex, dim at rest (below the bloom threshold — glare belongs to
-    // the gateway and the arrival only).
-    const radial = Math.max(96, Math.round(240 * options.detail));
-    const tubular = Math.max(6, Math.round(12 * options.detail));
-    const ringGeometry = new THREE.TorusGeometry(2.0, 0.016, tubular, radial);
+    // MAT_HALO: stable orbit, minimal reaction. Spans barely over half
+    // the crown's width, sits close over the apex, and stays dim at
+    // rest — glare belongs to the gateway and the arrival only.
+    //
+    // The TUBE IS THICK and the thinness is done in light (a gaussian
+    // across the tube in the fragment stage). A hair-thin torus
+    // resolved to a hard aliased 1-px ellipse — the renderer runs with
+    // antialiasing off — which is exactly the "drawn in MS Paint"
+    // read. Geometry this size gives the profile something to shade.
+    const radial = Math.max(128, Math.round(280 * options.detail));
+    const tubular = Math.max(8, Math.round(16 * options.detail));
+    const ringGeometry = new THREE.TorusGeometry(3.0, 0.062, tubular, radial);
     this.ring = new THREE.Mesh(ringGeometry, this.ringMaterial);
     this.ring.frustumCulled = false;
     this.group.add(this.ring);
@@ -312,7 +333,7 @@ export class LatticeModel {
     this.ringFar = new THREE.Mesh(ringGeometry, this.ringMaterial);
     this.ringFar.rotation.x = LatticeModel.HALO_TILT;
     this.ringFar.rotation.z = -LatticeModel.HALO_SKEW;
-    this.ringFar.position.set(0, 3.2, FAR_DOOR_Z - LatticeModel.HALO_Z);
+    this.ringFar.position.set(0, LatticeModel.HALO_Y, FAR_DOOR_Z - LatticeModel.HALO_Z);
     this.ringFar.frustumCulled = false;
     this.group.add(this.ringFar);
 

@@ -43,12 +43,13 @@ const DESKTOP_PATH: CameraKeyframe[] = [
   // 04 — foundation. Ring thirds separate ahead; still inside them.
   { at: 0.655, position: [0, 0, -15.6], target: [0, 0, -26], fov: 50 },
   // 05 — accumulation. Clearing the final rings around ~80%.
-  { at: 0.775, position: [0, 0, -18.8], target: [0, 0, -27], fov: 46 },
-  // 06 — evidence. The far door and its halo burn ahead — the ending
+  { at: 0.775, position: [0, 0, -18.8], target: [0, 0, -30], fov: 46 },
+  // 06 — evidence. The far crown and its halo burn ahead — the ending
   // is visible for the whole documentary stretch.
-  { at: 0.885, position: [0, 0, -21.6], target: [0, 0, -33], fov: 42 },
-  // 07 — resolution. Arrived: the sealed twin, whole, halo above.
-  { at: 1.0, position: [0, 0, -23.5], target: [0, 0, -33], fov: 38 },
+  { at: 0.885, position: [0, 0, -21.6], target: [0, 0, -39.5], fov: 42 },
+  // 07 — resolution. Arrived: the sealed twin, whole, halo above. The
+  // 16-unit standoff is what lets a 38° lens hold the entire crown.
+  { at: 1.0, position: [0, 0, -23.5], target: [0, 0, -39.5], fov: 38 },
 ];
 
 /**
@@ -63,9 +64,9 @@ const MOBILE_PATH: CameraKeyframe[] = [
   { at: 0.45, position: [0, 0, -9.2], target: [0, 0, -17], fov: 58 },
   { at: 0.55, position: [0, 0, -12.8], target: [0, 0, -21], fov: 58 },
   { at: 0.655, position: [0, 0, -15.4], target: [0, 0, -26], fov: 56 },
-  { at: 0.775, position: [0, 0, -18.6], target: [0, 0, -27], fov: 50 },
-  { at: 0.885, position: [0, 0, -21.2], target: [0, 0, -33], fov: 46 },
-  { at: 1.0, position: [0, 0, -22.9], target: [0, 0, -33], fov: 42 },
+  { at: 0.775, position: [0, 0, -18.6], target: [0, 0, -30], fov: 50 },
+  { at: 0.885, position: [0, 0, -21.2], target: [0, 0, -39.5], fov: 46 },
+  { at: 1.0, position: [0, 0, -22.9], target: [0, 0, -39.5], fov: 42 },
 ];
 
 /** Composed still used for reduced motion and the WebGL poster frame. */

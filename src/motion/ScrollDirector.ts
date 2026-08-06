@@ -54,9 +54,20 @@ const BANDS: Band[] = [
   { id: 'brawler', from: 0.4, to: 0.5, preset: 'desk42', presetTo: 'brawler', separation: [0, 0] },
   { id: 'roguelite', from: 0.5, to: 0.6, preset: 'brawler', presetTo: 'roguelite', separation: [0, 0] },
   { id: 'foundation', from: 0.6, to: 0.71, preset: 'roguelite', separation: [0, 1] },
-  { id: 'accumulation', from: 0.71, to: 0.82, preset: 'roguelite', presetTo: 'resolved', separation: [1, 0.12] },
-  { id: 'evidence', from: 0.82, to: 0.93, preset: 'resolved', separation: [0.12, 0] },
-  { id: 'resolution', from: 0.93, to: 1.0, preset: 'resolved', separation: [0, 0] },
+  // The separation HOLDS until the camera is clear of every ring, and
+  // only closes during the resolution — by which point the last ring
+  // sits several units behind the lens and the move is unseen.
+  //
+  // It used to collapse across 0.71–0.82 (1 → 0.12). The third layer's
+  // rings sit at z −18.2/−19.9/−21.6 when separated, and the camera
+  // crosses exactly that span over exactly those frames — so as the
+  // visitor scrolled forward, the rings were simultaneously sliding
+  // ~2 units BACKWARD onto them. Geometry rushing the camera while
+  // the camera advances is motion the visitor did not cause, and it
+  // is what made the tunnel exit at ~80% feel wrong.
+  { id: 'accumulation', from: 0.71, to: 0.82, preset: 'roguelite', presetTo: 'resolved', separation: [1, 1] },
+  { id: 'evidence', from: 0.82, to: 0.93, preset: 'resolved', separation: [1, 1] },
+  { id: 'resolution', from: 0.93, to: 1.0, preset: 'resolved', separation: [1, 0] },
 ];
 
 interface MeasuredSection {

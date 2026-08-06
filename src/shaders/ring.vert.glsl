@@ -22,6 +22,7 @@ out vec2 vUv;
 out float vField;
 out vec3 vViewDir;
 out vec3 vNormal;
+out vec3 vWorldPos;
 
 void main() {
   vUv = uv;
@@ -36,6 +37,11 @@ void main() {
   vec4 worldPos = modelMatrix * vec4(pos, 1.0);
   vNormal = normalize(mat3(modelMatrix) * normal);
   vViewDir = normalize(cameraPosition - worldPos.xyz);
+  // The halo has to obey the same atmosphere as everything else. It
+  // was the one object in the scene rendered without fog or depth
+  // falloff, which is why it read as a flat overlay pasted on top of
+  // the render rather than a ring of light standing in the world.
+  vWorldPos = worldPos.xyz;
 
   gl_Position = projectionMatrix * viewMatrix * worldPos;
 }

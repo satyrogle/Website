@@ -100,9 +100,9 @@ for (const [k, r] of [[0, 1.58], [1, 1.28], [2, 1.0]]) {
 }
 
 // Halo geometry: matches HALO_Y / HALO_TILT / torus 2.0 in LatticeModel.
-const ringRx = (2.0 * SCALE).toFixed(1);
-const ringRy = (2.0 * SCALE * 0.43).toFixed(1);
-const haloCy = (CY - 3.5 * SCALE).toFixed(1);
+const ringRx = (3.0 * SCALE).toFixed(1);
+const ringRy = (3.0 * SCALE * 0.43).toFixed(1);
+const haloCy = (CY - 3.3 * SCALE).toFixed(1);
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
   <title>Dark Lattice</title>

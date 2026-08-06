@@ -71,19 +71,19 @@ const ARC: LightKeyframe[] = [
     at: 0.35,
     keyIntensity: 0.9, rimIntensity: 1.1, fillIntensity: 0.9,
     emissive: 1.3, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0, psy: 1.0,
-    fog: 0.03, exposure: 1.06, bloom: 0.5, vignette: 0.9,
+    fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.9,
   },
   {
     at: 0.45,
     keyIntensity: 0.9, rimIntensity: 1.15, fillIntensity: 0.9,
     emissive: 1.4, ring: 1.0, displace: 0.014, sharp: 0.5, amber: 0, psy: 1.0,
-    fog: 0.03, exposure: 1.06, bloom: 0.52, vignette: 0.92,
+    fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.92,
   },
   {
     at: 0.55,
     keyIntensity: 0.9, rimIntensity: 1.2, fillIntensity: 0.95,
     emissive: 1.35, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0, psy: 1.0,
-    fog: 0.03, exposure: 1.06, bloom: 0.5, vignette: 0.9,
+    fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.9,
   },
   // 04 — foundation. Trip eases while the thirds separate.
   {
@@ -215,6 +215,7 @@ export class Lighting {
     r.uIntensity.value = s.ring;
     r.uAmberMix.value = s.amber;
     r.uWake.value = this.wake;
+    r.uFogDensity.value = s.fog;
 
     this.post.exposure = s.exposure;
     this.post.bloom = s.bloom;
