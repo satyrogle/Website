@@ -68,9 +68,14 @@ def parse_args() -> argparse.Namespace:
 
 ARGS = parse_args()
 ROOT = Path(ARGS.root).resolve()
-BLEND_OUT = ROOT / "assets" / "blender" / "DL_CrownedConvergence_Clay_v01.blend"
-GLB_OUT = ROOT / "public" / "models" / "DL_CrownedConvergence_Clay_v01.glb"
-CAPTURE_DIR = ROOT / "captures" / "crowned-convergence-clay"
+
+# Approved versions are never overwritten. Bump this when the authored
+# tables change; v01 remains on disk for comparison.
+VERSION = "v02"
+
+BLEND_OUT = ROOT / "assets" / "blender" / f"DL_CrownedConvergence_Clay_{VERSION}.blend"
+GLB_OUT = ROOT / "public" / "models" / f"DL_CrownedConvergence_Clay_{VERSION}.glb"
+CAPTURE_DIR = ROOT / "captures" / f"crowned-convergence-clay-{VERSION}"
 MANIFEST_OUT = CAPTURE_DIR / "mesh-manifest.json"
 
 REFERENCE = Path(ARGS.reference)
@@ -83,14 +88,26 @@ if not REFERENCE.is_absolute():
 # Blender coordinates: X horizontal, Z vertical, +Y travels into the entity.
 # ---------------------------------------------------------------------------
 
+# v02 changes to this table, against the concept board:
+#   - half_angle_deg 19-30 -> 11-18. At 25-30 degrees each slab spanned
+#     ~55 degrees of the ring and read as a smooth pentagon facet; the
+#     board's shards are narrow.
+#   - inner_r ~1.0-1.2 -> 1.38-1.55, opening the hollow. This is the
+#     "Hollow Convergence": the cavity should dominate the face.
+#   - spike raised on 01/03/05 ONLY (1.09-1.13 -> 1.24-1.42) so three
+#     points break the outline. Raising all seven would restore the
+#     radial-symmetry problem the narrow slabs exist to remove.
+#   - a secondary tier added below, filling the gaps the narrower
+#     primaries open up, for the board's large/small hierarchy.
+
 CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_01",
         "angle_deg": 93.0,
-        "half_angle_deg": 27.0,
-        "inner_r": 1.03,
+        "half_angle_deg": 17.0,
+        "inner_r": 1.42,
         "outer_r": 2.55,
-        "spike": 1.13,
+        "spike": 1.42,
         "depth": 0.88,
         "y": -0.18,
         "rot": (-6.0, 4.0, -3.0),
@@ -102,10 +119,10 @@ CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_02",
         "angle_deg": 146.0,
-        "half_angle_deg": 25.0,
-        "inner_r": 1.05,
+        "half_angle_deg": 15.0,
+        "inner_r": 1.45,
         "outer_r": 2.40,
-        "spike": 1.08,
+        "spike": 1.10,
         "depth": 0.82,
         "y": -0.28,
         "rot": (5.0, -8.0, 3.0),
@@ -117,10 +134,10 @@ CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_03",
         "angle_deg": 35.0,
-        "half_angle_deg": 29.0,
-        "inner_r": 1.00,
+        "half_angle_deg": 18.0,
+        "inner_r": 1.38,
         "outer_r": 2.62,
-        "spike": 1.10,
+        "spike": 1.32,
         "depth": 1.02,
         "y": -0.10,
         "rot": (-2.0, 8.0, -2.0),
@@ -132,10 +149,10 @@ CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_04",
         "angle_deg": 201.0,
-        "half_angle_deg": 28.0,
-        "inner_r": 1.08,
+        "half_angle_deg": 16.0,
+        "inner_r": 1.48,
         "outer_r": 2.33,
-        "spike": 1.07,
+        "spike": 1.08,
         "depth": 0.88,
         "y": -0.12,
         "rot": (3.0, -5.0, -3.0),
@@ -147,10 +164,10 @@ CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_05",
         "angle_deg": 318.0,
-        "half_angle_deg": 30.0,
-        "inner_r": 1.00,
+        "half_angle_deg": 17.0,
+        "inner_r": 1.40,
         "outer_r": 2.56,
-        "spike": 1.09,
+        "spike": 1.24,
         "depth": 1.00,
         "y": -0.05,
         "rot": (-3.0, 7.0, 2.0),
@@ -162,10 +179,10 @@ CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_06",
         "angle_deg": 63.0,
-        "half_angle_deg": 19.0,
-        "inner_r": 1.22,
+        "half_angle_deg": 12.0,
+        "inner_r": 1.55,
         "outer_r": 2.34,
-        "spike": 1.06,
+        "spike": 1.07,
         "depth": 0.66,
         "y": 0.28,
         "rot": (7.0, 2.0, 4.0),
@@ -177,10 +194,10 @@ CROWN_SPECS = [
     {
         "name": "DL_CrownSlab_07",
         "angle_deg": 255.0,
-        "half_angle_deg": 22.0,
-        "inner_r": 1.18,
+        "half_angle_deg": 13.0,
+        "inner_r": 1.52,
         "outer_r": 2.35,
-        "spike": 1.05,
+        "spike": 1.06,
         "depth": 0.72,
         "y": 0.34,
         "rot": (-5.0, -2.0, 4.0),
@@ -189,6 +206,39 @@ CROWN_SPECS = [
         "open_translation": (-0.03, 0.04, -0.09),
         "open_rotation": (-3.0, -1.0, 3.0),
     },
+]
+
+# Secondary tier. Seated in the gaps between the primaries, at shorter
+# reach and greater depth, so the crown has two clear scales rather than
+# one row of equals. Angles sit at the primary midpoints, nudged off so
+# the ring never reads as evenly spaced.
+CROWN_SPECS += [
+    {
+        "name": "DL_CrownShard_%02d" % (index + 1),
+        "angle_deg": angle,
+        "half_angle_deg": half_angle,
+        "inner_r": inner_r,
+        "outer_r": outer_r,
+        "spike": spike,
+        "depth": depth,
+        "y": y,
+        "rot": rot,
+        "material": "MAT_CROWN_SECONDARY",
+        "layer": 3,
+        "open_translation": (0.0, 0.02, 0.05),
+        "open_rotation": (1.5, 0.0, 1.0),
+    }
+    for index, (angle, half_angle, inner_r, outer_r, spike, depth, y, rot) in enumerate(
+        [
+            ( 47.0, 11.0, 1.50, 1.92, 1.12, 0.54,  0.30, ( 4.0, -3.0,  2.0)),
+            ( 78.0, 13.0, 1.46, 2.02, 1.18, 0.62,  0.16, (-5.0,  2.0, -2.0)),
+            (117.0, 12.0, 1.52, 1.86, 1.09, 0.50,  0.34, ( 3.0,  5.0,  3.0)),
+            (171.0, 14.0, 1.44, 1.98, 1.14, 0.58,  0.12, (-2.0, -6.0, -3.0)),
+            (226.0, 11.0, 1.54, 1.78, 1.07, 0.48,  0.36, ( 6.0,  3.0,  2.0)),
+            (284.0, 13.0, 1.47, 1.95, 1.16, 0.56,  0.20, (-4.0,  4.0, -2.0)),
+            (352.0, 12.0, 1.51, 1.88, 1.10, 0.52,  0.28, ( 2.0, -5.0,  3.0)),
+        ]
+    )
 ]
 
 CAMERA_PATH_POINTS = [
@@ -468,7 +518,11 @@ def crown_polygon(spec: dict) -> tuple[list[tuple[float, float]], tuple[float, f
         polar(outer * 0.98, centre + half * 0.46),
         polar(outer * 0.90, centre + half),
         polar(inner * 1.03, centre + half * 0.72),
-        polar(inner * 0.80, centre + half * 0.10),
+        # The inner tail reached to 0.80 x inner_r, so raising inner_r
+        # alone would not have opened the cavity — the tails still
+        # closed across it. 0.93 keeps a shallow inner notch while
+        # letting inner_r actually set the aperture.
+        polar(inner * 0.93, centre + half * 0.10),
     ]
     local = [(x - pivot[0], z - pivot[1]) for x, z in world_points]
     return local, pivot
@@ -675,8 +729,10 @@ PRIMARY_RING_SPECS = [
     },
     {
         "name": "DL_Ring_C",
+        # 0.58 measured 0.517 clear against a 0.52 requirement — the
+        # bevel and the radial wobble eat ~0.06 off the nominal bore.
+        "inner_r": 0.64,
         "fin_count": 6,
-        "inner_r": 0.58,
         "outer_r": 1.28,
         "depth": 0.32,
         "y": 1.92,
@@ -700,7 +756,11 @@ for index in range(6):
     continuation_specs.append(
         {
             "fin_count": max(4, 8 - index // 2),
-            "inner_r": 0.66 - index * 0.035,
+            # Was 0.66 - index * 0.035, which closed to 0.485 by the
+            # last ring — measured 0.426 clear against a 0.52
+            # requirement, so the camera flew through the far fins.
+            # This holds 0.74 -> 0.66 nominal, ~0.68 -> 0.60 measured.
+            "inner_r": 0.74 - index * 0.016,
             "outer_r": 1.45 - index * 0.045,
             "depth": 0.30,
             "y": 2.60 + index * 0.76,
@@ -875,12 +935,16 @@ SEAM = create_prism_xz(
 # Halo
 # ---------------------------------------------------------------------------
 
+# 160 x 8 segments made the halo 2,560 triangles — a third of the whole
+# asset, spent on a ring 15 mm thick that never fills more than a couple
+# of pixels across. 72 x 6 is 864 and is indistinguishable at any
+# distance the site uses.
 bpy.ops.mesh.primitive_torus_add(
     align="WORLD",
     major_radius=1.90,
     minor_radius=0.015,
-    major_segments=160,
-    minor_segments=8,
+    major_segments=72,
+    minor_segments=6,
     location=(0.0, 0.42, 2.70),
 )
 HALO = bpy.context.active_object
@@ -1096,7 +1160,7 @@ def create_manifest() -> dict:
             }
         )
     return {
-        "asset": "DL_CrownedConvergence_Clay_v01",
+        "asset": f"DL_CrownedConvergence_Clay_{VERSION}",
         "coordinateSystem": "Blender Z-up; +Y travels into entity",
         "totalTriangles": total,
         "objects": items,
