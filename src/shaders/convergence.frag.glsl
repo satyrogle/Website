@@ -89,6 +89,11 @@ void main() {
   vec3 base = uStructure;
   float patternGain = 0.0;
   float rimGain = 1.0;
+  // How much direct key each class takes. Structural surfaces must
+  // stay near-black or they out-brighten the subject standing in front
+  // of them — which is exactly what the threshold chamber was doing to
+  // the Latent Form.
+  float keyGain = 1.0;
 
   if (isClass(CLASS_CROWN_PRIMARY)) {
     base = uRaisedBlack;
@@ -97,14 +102,17 @@ void main() {
     base = mix(uStructure, uRaisedBlack, 0.55);
     patternGain = 0.42;          // lower response, less coverage
     rimGain = 0.85;
+    keyGain = 0.75;
   } else if (isClass(CLASS_STRUCTURE)) {
     base = uStructure;
     patternGain = 0.06;          // near-black, creates separation
-    rimGain = 0.6;
+    rimGain = 0.55;
+    keyGain = 0.22;              // the chamber must recede, not glow
   } else if (isClass(CLASS_RING)) {
-    base = mix(uStructure, uCyan * 0.10, 0.5);
+    base = mix(uStructure, uCyan * 0.08, 0.5);
     patternGain = 0.55;
     rimGain = 0.9;
+    keyGain = 0.42;              // rings read by trace, never as metal
   } else if (isClass(CLASS_CORE)) {
     base = uRaisedBlack;
     patternGain = 0.8;
@@ -112,7 +120,8 @@ void main() {
   } else if (isClass(CLASS_LATENT)) {
     base = mix(uVoid, uStructure, 0.6);
     patternGain = 0.30;          // quieter than the crown
-    rimGain = 1.25;              // stronger rim definition than clay
+    rimGain = 1.9;               // stronger rim definition than clay
+    keyGain = 0.55;
   } else if (isClass(CLASS_HALO)) {
     // The halo is amber, minimal reaction, no pattern at all.
     float band = smoothstep(0.75, 0.15, abs(vFieldUv.y - 0.5) * 2.0);
@@ -134,7 +143,8 @@ void main() {
   // The key is what gives the masses readable form. It stays low —
   // the object must read as near-black stone — but at 0.05 the crown
   // was genuinely invisible against the void rather than merely dark.
-  vec3 color = base + ambient + uColdWhite * pow(NdotL, 1.4) * uKeyIntensity * 0.20;
+  vec3 color = base + ambient * mix(0.35, 1.0, keyGain)
+             + uColdWhite * pow(NdotL, 1.4) * uKeyIntensity * 0.20 * keyGain;
 
   // Rim carves the mass out of the void. This is what does most of the
   // legibility work, since the body itself stays black.

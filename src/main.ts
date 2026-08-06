@@ -174,6 +174,12 @@ async function boot(): Promise<void> {
 
   canvas.classList.add('is-live');
 
+  // Dev-only handle for the capture/QA harness. Stripped from
+  // production builds by the import.meta.env.DEV guard.
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).__dlScene = scene;
+  }
+
   // 5 — Hand off.
   director = new ScrollDirector(scene, motion.reduced);
   director.start();

@@ -342,7 +342,11 @@ export class SceneController {
     this.entity.update(time);
     this.lighting.setWake(1);
     this.lighting.update(this.progress, time, 1 / 60);
-    this.entity.setProgress(this.progress, smoothstep01((this.progress - 0.10) / 0.16));
+    this.entity.setProgress(
+      this.progress,
+      smoothstep01((this.progress - 0.10) / 0.16),
+      this.rig.camera.position.z
+    );
     this.entity.setLighting(this.lighting.entityState);
     this.rig.applyPoster();
     this.post.setState(
@@ -381,7 +385,7 @@ export class SceneController {
     const yieldTarget = smoothstep01((this.progress - 0.10) / 0.16);
     this.rip += (yieldTarget - this.rip) * (1 - Math.pow(0.0009, dt));
 
-    this.entity.setProgress(this.progress, this.rip);
+    this.entity.setProgress(this.progress, this.rip, this.rig.camera.position.z);
     this.entity.setSeparation(this.separation, this.focusTargets);
 
     // Idle pointer decay: if the pointer has been still for a while,

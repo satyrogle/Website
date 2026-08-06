@@ -73,6 +73,8 @@ interface Part {
   stage: string;
   stageFrom: number;
   stageTo: number;
+  /** World-space Z of the part's nearest face, cached at load. */
+  nearZ: number;
 }
 
 export interface ConvergenceOptions {
@@ -133,12 +135,14 @@ export class CrownedConvergenceModel {
     // group empties are what the loader walks to find part groups.
     this.group.add(root);
 
-    // The GLB is authored Y-up with +Y travelling into the entity; the
-    // site's world has the camera looking down -Z. Rotating the whole
-    // group once here keeps every authored coordinate, extras value and
-    // camera keyframe in the space it was written in.
-    this.group.rotation.x = -Math.PI / 2;
+    // NO rotation here. The Blender export runs with export_yup, which
+    // already maps Blender (x, y, z) to glTF (x, z, -y) — so "up" is
+    // +Y and "into the entity" is -Z, which is exactly the site's world
+    // and exactly what the camera rail was authored against. Rotating
+    // again double-transformed everything: depths came out as Blender's
+    // own axes and the whole entity culled itself out of frame.
     this.group.updateMatrixWorld(true);
+    this.cacheDepths();
   }
 
   private readRootExtras(root: THREE.Object3D): void {
@@ -168,8 +172,29 @@ export class CrownedConvergenceModel {
     }
   }
 
+  /**
+   * Resolves a mesh's authored extras.
+   *
+   * The glTF exporter splits any object with more than one material
+   * slot into separate primitives — `<name>_MESH`, `<name>_MESH_1` —
+   * and those children carry NO extras; the properties stay on the
+   * parent node. Reading `mesh.userData` alone therefore silently lost
+   * the role, stage and reaction weight for every multi-material part,
+   * which defaulted them to "crown slab, always visible" and left the
+   * corridor empty while stray crown masses hung in frame.
+   */
+  private resolveExtras(mesh: THREE.Mesh): PartExtras {
+    let node: THREE.Object3D | null = mesh;
+    while (node) {
+      const data = (node.userData ?? {}) as PartExtras;
+      if (data.dl_role) return data;
+      node = node.parent;
+    }
+    return (mesh.userData ?? {}) as PartExtras;
+  }
+
   private adoptMesh(mesh: THREE.Mesh): void {
-    const extras = (mesh.userData ?? {}) as PartExtras;
+    const extras = this.resolveExtras(mesh);
     const role = extras.dl_role ?? 'crown_slab';
     const stage = extras.dl_visibility_stage ?? 'exterior';
     const className = (extras.dl_material_class ?? 'MAT_STRUCTURE') as MaterialClass;
@@ -183,7 +208,13 @@ export class CrownedConvergenceModel {
       glslVersion: THREE.GLSL3,
       vertexShader: convergenceVert,
       fragmentShader: convergenceFrag,
-      side: THREE.FrontSide,
+      // Interior surfaces are single-skinned tubes and the camera flies
+      // down the inside of them, where front-face culling would leave
+      // the corridor completely empty.
+      side:
+        role === 'tunnel_shell' || role === 'threshold_chamber'
+          ? THREE.DoubleSide
+          : THREE.FrontSide,
       transparent: false,
       uniforms: {
         uField: { value: null },
@@ -235,6 +266,7 @@ export class CrownedConvergenceModel {
       stage,
       stageFrom: extras.dl_stage_from ?? 0,
       stageTo: extras.dl_stage_to ?? 1,
+      nearZ: 0,
     };
 
     this.parts.push(part);
@@ -258,12 +290,29 @@ export class CrownedConvergenceModel {
    * anyway. The margin lets a part appear slightly before its window so
    * it is never seen popping into an empty frame.
    */
-  private applyStages(progress: number): void {
+  private applyStages(progress: number, cameraZ: number): void {
     const margin = 0.04;
     for (const part of this.parts) {
-      const visible =
+      const inWindow =
         progress >= part.stageFrom - margin && progress <= part.stageTo + margin;
-      part.mesh.visible = visible;
+
+      // Behind-camera cull. A part stops mattering once the camera has
+      // passed it, and switching there is invisible — which is exactly
+      // why the directive asks for occlusion switches rather than
+      // crossfading transparent geometry. The slack keeps a part alive
+      // slightly past the lens so nothing blinks out at the edge.
+      const behind = part.nearZ > cameraZ + 1.2;
+
+      part.mesh.visible = inWindow && !behind;
+    }
+  }
+
+  /** Caches each part's nearest world Z once the graph is final. */
+  private cacheDepths(): void {
+    const box = new THREE.Box3();
+    for (const part of this.parts) {
+      box.setFromObject(part.mesh);
+      part.nearZ = box.max.z;
     }
   }
 
@@ -271,8 +320,8 @@ export class CrownedConvergenceModel {
    * Narrative update. Everything the site can change about the entity
    * passes through here.
    */
-  setProgress(progress: number, yieldAmount: number): void {
-    this.applyStages(progress);
+  setProgress(progress: number, yieldAmount: number, cameraZ = -99): void {
+    this.applyStages(progress, cameraZ);
 
     // Retained consequence only ever rises. The magenta a visitor sees
     // at the seam is the accumulation of the whole descent, which is
@@ -351,6 +400,20 @@ export class CrownedConvergenceModel {
     const spanX = Math.max(this.boundsMax.x - this.boundsMin.x, 0.001);
     const spanZ = Math.max(this.boundsMax.z - this.boundsMin.z, 0.001);
     return [(x - this.boundsMin.x) / spanX, (y - this.boundsMin.z) / spanZ];
+  }
+
+  /** Dev diagnostic: why each part is or is not on screen. */
+  describe(progress: number, cameraZ: number): unknown[] {
+    return this.parts.map((p) => ({
+      name: p.mesh.name,
+      role: p.role,
+      from: p.stageFrom,
+      to: p.stageTo,
+      nearZ: +p.nearZ.toFixed(2),
+      inWindow: progress >= p.stageFrom - 0.04 && progress <= p.stageTo + 0.04,
+      behind: p.nearZ > cameraZ + 1.2,
+      visible: p.mesh.visible,
+    }));
   }
 
   get partCount(): number {

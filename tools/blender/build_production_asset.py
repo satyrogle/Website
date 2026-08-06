@@ -60,12 +60,29 @@ REPORT_OUT = REPORT_DIR / "asset-report.json"
 # authored here rather than duplicated as a lookup table in TypeScript.
 # ---------------------------------------------------------------------------
 
-# Narrative windows, matching section 8 of the directive.
+# Narrative windows, section 8 of the directive.
+#
+# These are the COARSE gate — they stop a part appearing long before its
+# moment. The precise cut is made at runtime by a behind-camera cull,
+# because the honest answer to "is this still relevant" is geometric:
+# a part matters until the camera has passed it.
+#
+# The clay's windows were too tight for physical reality. Rings A/B/C
+# were tagged `exterior` and expired at 0.30, but they sit at z -0.56
+# to -7.36 and the camera is still travelling among them past 0.60 —
+# so the corridor rendered completely empty from 30% onward.
 STAGE_WINDOWS = {
-    "exterior": [0.00, 0.30],
-    "tunnel": [0.18, 0.86],
-    "threshold": [0.74, 0.96],
-    "revelation": [0.86, 1.00],
+    "exterior": [0.00, 0.34],
+    "tunnel": [0.14, 0.94],
+    "threshold": [0.58, 1.00],
+    "revelation": [0.60, 1.00],
+}
+
+# Rings A/B/C are authored as exterior — they are what the visitor sees
+# turning inside the cavity — but the camera passes through them, so
+# they need the corridor's window, not the crown's.
+ROLE_WINDOW_OVERRIDE = {
+    "convergence_ring": [0.00, 0.78],
 }
 
 # Per-role runtime hints. reaction is how strongly the Gray-Scott field
@@ -166,7 +183,9 @@ def annotate():
         obj["dl_projection"] = runtime["projection"]
 
         stage = obj.get("dl_visibility_stage", "exterior")
-        window = STAGE_WINDOWS.get(stage, STAGE_WINDOWS["exterior"])
+        window = ROLE_WINDOW_OVERRIDE.get(
+            role, STAGE_WINDOWS.get(stage, STAGE_WINDOWS["exterior"])
+        )
         obj["dl_stage_from"] = window[0]
         obj["dl_stage_to"] = window[1]
 
