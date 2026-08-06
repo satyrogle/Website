@@ -21,60 +21,67 @@ export interface CameraKeyframe {
 }
 
 /**
- * Desktop path. The camera starts close enough to crop the object, moves
- * through the plates at the premise, tracks laterally across the three
- * game states, pulls side-on for the layer separation, then withdraws
- * steadily into the documentary section and settles on the full
- * silhouette.
+ * Desktop path, authored against the Blender asset's real world extents:
+ *
+ *     crown        z  +1.09 .. -2.24, half-height 2.75
+ *     rings        z  -0.56 .. -7.36
+ *     tunnel shell z  -1.85 .. -7.80, bore radius ~1.4
+ *     chamber      z  -7.55 .. -11.10
+ *     Latent Form  z -11.22 .. -10.28 (after production fit)
+ *
+ * THE RAIL. x and y never leave zero; scroll maps to depth, and z
+ * decreases monotonically — the camera never reverses, never orbits and
+ * never rolls. FOV follows the directive's bands (hero 34-40, entry
+ * 44-50, tunnel 46-54, threshold 40-46, resolution 34-40) and widens
+ * inside the corridor to open it up, never as a zoom effect.
  */
 const DESKTOP_PATH: CameraKeyframe[] = [
-  // THE RAIL. x and y never leave zero; scroll maps to depth.
-  //
-  // 01 — cold open. The sealed monolith and its halo, whole.
-  { at: 0.0, position: [0, 0, 16.6], target: [0, 0, 0], fov: 40 },
-  { at: 0.085, position: [0, 0, 14.4], target: [0, 0, 0], fov: 41 },
-  // 02 — premise. The door swings open; the camera crosses through.
-  { at: 0.185, position: [0, 0, 8.0], target: [0, 0, -6], fov: 46 },
-  { at: 0.26, position: [0, 0, 1.4], target: [0, 0, -8], fov: 52 },
-  // 03 — the trip.
-  { at: 0.35, position: [0, 0, -4.6], target: [0, 0, -12], fov: 52 },
-  { at: 0.45, position: [0, 0, -9.4], target: [0, 0, -17], fov: 52 },
-  { at: 0.55, position: [0, 0, -13.0], target: [0, 0, -21], fov: 52 },
-  // 04 — foundation. Ring thirds separate ahead; still inside them.
-  { at: 0.655, position: [0, 0, -15.6], target: [0, 0, -26], fov: 50 },
-  // 05 — accumulation. Clearing the final rings around ~80%.
-  { at: 0.775, position: [0, 0, -18.8], target: [0, 0, -30], fov: 46 },
-  // 06 — evidence. The far crown and its halo burn ahead — the ending
-  // is visible for the whole documentary stretch.
-  { at: 0.885, position: [0, 0, -21.6], target: [0, 0, -39.5], fov: 42 },
-  // 07 — resolution. Arrived: the sealed twin, whole, halo above. The
-  // 16-unit standoff is what lets a 38° lens hold the entire crown.
-  { at: 1.0, position: [0, 0, -23.5], target: [0, 0, -39.5], fov: 38 },
+  // 01 — hero. Outside the crown, the whole entity composed.
+  { at: 0.0, position: [0, 0, 11.0], target: [0, 0, 0], fov: 38 },
+  { at: 0.085, position: [0, 0, 9.4], target: [0, 0, -0.4], fov: 39 },
+  // 02 — premise. The crown yields; the camera closes on the cavity.
+  { at: 0.185, position: [0, 0, 4.2], target: [0, 0, -1.6], fov: 45 },
+  { at: 0.26, position: [0, 0, -0.6], target: [0, 0, -3.5], fov: 50 },
+  // 03 — the corridor.
+  { at: 0.35, position: [0, 0, -2.0], target: [0, 0, -5.0], fov: 52 },
+  { at: 0.45, position: [0, 0, -3.2], target: [0, 0, -6.5], fov: 52 },
+  { at: 0.55, position: [0, 0, -3.9], target: [0, 0, -7.4], fov: 51 },
+  // 04 — foundation. The ring groups separate ahead of the camera.
+  { at: 0.655, position: [0, 0, -4.4], target: [0, 0, -8.4], fov: 49 },
+  // 05 — accumulation. Threshold approach; the Latent Form appears.
+  { at: 0.775, position: [0, 0, -4.9], target: [0, 0, -9.6], fov: 46 },
+  // 06 — evidence. Movement slows hard; the destination holds still.
+  { at: 0.885, position: [0, 0, -5.3], target: [0, 0, -10.6], fov: 42 },
+  // 07 — resolution. Arrived: 5.2 units off the Latent Form at 38
+  // degrees, framing it at roughly 73% of frame height.
+  { at: 1.0, position: [0, 0, -5.6], target: [0, 0, -10.8], fov: 38 },
 ];
 
 /**
- * Mobile: the same rail, pulled back for portrait framing.
+ * Mobile: same rail, same asset, pulled back for portrait and travelling
+ * less far. The directive is explicit that mobile should not attempt the
+ * full desktop corridor.
  */
 const MOBILE_PATH: CameraKeyframe[] = [
-  { at: 0.0, position: [0, 0, 19.8], target: [0, 0, 0], fov: 46 },
-  { at: 0.085, position: [0, 0, 17.2], target: [0, 0, 0], fov: 47 },
-  { at: 0.185, position: [0, 0, 9.6], target: [0, 0, -6], fov: 52 },
-  { at: 0.26, position: [0, 0, 1.8], target: [0, 0, -8], fov: 57 },
-  { at: 0.35, position: [0, 0, -4.4], target: [0, 0, -12], fov: 58 },
-  { at: 0.45, position: [0, 0, -9.2], target: [0, 0, -17], fov: 58 },
-  { at: 0.55, position: [0, 0, -12.8], target: [0, 0, -21], fov: 58 },
-  { at: 0.655, position: [0, 0, -15.4], target: [0, 0, -26], fov: 56 },
-  { at: 0.775, position: [0, 0, -18.6], target: [0, 0, -30], fov: 50 },
-  { at: 0.885, position: [0, 0, -21.2], target: [0, 0, -39.5], fov: 46 },
-  { at: 1.0, position: [0, 0, -22.9], target: [0, 0, -39.5], fov: 42 },
+  { at: 0.0, position: [0, 0, 13.6], target: [0, 0, 0], fov: 44 },
+  { at: 0.085, position: [0, 0, 11.8], target: [0, 0, -0.4], fov: 45 },
+  { at: 0.185, position: [0, 0, 5.6], target: [0, 0, -1.6], fov: 50 },
+  { at: 0.26, position: [0, 0, 0.4], target: [0, 0, -3.5], fov: 55 },
+  { at: 0.35, position: [0, 0, -1.4], target: [0, 0, -5.2], fov: 57 },
+  { at: 0.45, position: [0, 0, -2.6], target: [0, 0, -6.8], fov: 57 },
+  { at: 0.55, position: [0, 0, -3.4], target: [0, 0, -7.6], fov: 56 },
+  { at: 0.655, position: [0, 0, -3.9], target: [0, 0, -8.6], fov: 54 },
+  { at: 0.775, position: [0, 0, -4.4], target: [0, 0, -9.8], fov: 50 },
+  { at: 0.885, position: [0, 0, -4.8], target: [0, 0, -10.6], fov: 46 },
+  { at: 1.0, position: [0, 0, -5.1], target: [0, 0, -10.8], fov: 43 },
 ];
 
 /** Composed still used for reduced motion and the WebGL poster frame. */
 export const POSTER_FRAME: CameraKeyframe = {
   at: 0,
-  position: [0.4, 0.1, 16.2],
-  target: [0, 0, 0],
-  fov: 41,
+  position: [0.35, 0.15, 10.6],
+  target: [0, 0.1, 0],
+  fov: 39,
 };
 
 function smootherstep(t: number): number {
@@ -106,9 +113,7 @@ export class CameraRig {
 
   constructor(aspect: number, mobile: boolean) {
     this.path = mobile ? MOBILE_PATH : DESKTOP_PATH;
-    // Far plane pushed out: the corridor is ~17 units deep and the
-    // evidence movement watches it from 26 units behind.
-    this.camera = new THREE.PerspectiveCamera(46, aspect, 0.1, 120);
+      this.camera = new THREE.PerspectiveCamera(46, aspect, 0.1, 120);
     this.applyKeyframe(this.path[0]);
     this.smoothedPosition.copy(this.position);
     this.smoothedTarget.copy(this.target);

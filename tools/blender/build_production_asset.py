@@ -192,6 +192,44 @@ def annotate():
     return annotated
 
 
+def fit_latent_form():
+    """
+    The Latent Form arrives from clay at ~5.0 units tall — larger than
+    the threshold chamber that is supposed to contain it (4.97 across),
+    and it pokes out the chamber's far wall. At that size the finale
+    also cannot be framed inside the directive's 34-40 degree lens
+    without truncating the corridor journey to reach it.
+
+    Directive 12 allows a change when the final frame would be clearly
+    unreadable, which an overflowing subject is. Scaled about the
+    group's own centre so the authored composition — three masses,
+    their gaps, the recessed seam — is preserved exactly.
+    """
+    parts = [
+        obj for obj in bpy.data.objects
+        if obj.type == "MESH" and obj.get("dl_role", "") in {"latent_mass", "latent_seam"}
+    ]
+    if not parts:
+        return None
+
+    lo = [1e9] * 3
+    hi = [-1e9] * 3
+    for obj in parts:
+        for corner in obj.bound_box:
+            world = obj.matrix_world @ Vector(corner)
+            for axis in range(3):
+                lo[axis] = min(lo[axis], world[axis])
+                hi[axis] = max(hi[axis], world[axis])
+    centre = Vector([(lo[a] + hi[a]) * 0.5 for a in range(3)])
+
+    scale = 0.52
+    for obj in parts:
+        obj.location = centre + (obj.location - centre) * scale
+        obj.scale = obj.scale * scale
+    bpy.context.view_layer.update()
+    return {"scale": scale, "centre": list(centre), "heightBefore": hi[2] - lo[2]}
+
+
 def triangle_total():
     total = 0
     for obj in bpy.data.objects:
@@ -240,6 +278,7 @@ def export():
 def main():
     load_clay()
     removed = strip_review_objects()
+    latent = fit_latent_form()
     annotated = annotate()
     triangles = triangle_total()
     exported = export()
@@ -255,6 +294,7 @@ def main():
         "meshes": exported,
         "removedReviewObjects": removed,
         "annotatedObjects": annotated,
+        "latentFit": latent,
         "stageWindows": STAGE_WINDOWS,
     }
     REPORT_OUT.write_text(json.dumps(report, indent=2), encoding="utf-8")

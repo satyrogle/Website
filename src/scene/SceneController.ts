@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 import { QualityManager, type QualitySettings } from './QualityManager';
 import { ReactionField, type PresetName } from './ReactionField';
-import { LatticeModel } from './LatticeModel';
+import { CrownedConvergenceModel } from './CrownedConvergenceModel';
 import { CameraRig } from './CameraRig';
 import { Lighting } from './Lighting';
 import { PostPipeline } from './PostPipeline';
@@ -42,7 +42,7 @@ export class SceneController {
   readonly quality: QualityManager;
   readonly scene = new THREE.Scene();
   readonly rig: CameraRig;
-  readonly lattice: LatticeModel;
+  readonly entity: CrownedConvergenceModel;
   readonly field: ReactionField;
   readonly lighting: Lighting;
 
@@ -99,15 +99,15 @@ export class SceneController {
     this.field = new ReactionField(this.renderer, settings.simResolution);
     this.field.seed();
 
-    this.lattice = new LatticeModel(
-      { detail: settings.geometryDetail, veinCount: settings.veinCount },
-      settings.shedding && !this.reducedMotion
-    );
-    this.lattice.bindField(this.field.texture);
-    this.scene.add(this.lattice.group);
+    // The entity is the Blender-authored Crowned Convergence, loaded
+    // from a GLB. It is empty until loadEntity() resolves; the scene,
+    // the rig and the field are all live before then so the loader can
+    // report real progress against real work.
+    this.entity = new CrownedConvergenceModel({ reducedMotion: this.reducedMotion });
+    this.scene.add(this.entity.group);
 
     this.rig = new CameraRig(clientWidth / Math.max(clientHeight, 1), mobile);
-    this.lighting = new Lighting(this.lattice);
+    this.lighting = new Lighting();
 
     const dpr = this.renderer.getPixelRatio();
     this.post = new PostPipeline(
@@ -139,7 +139,7 @@ export class SceneController {
     this.renderer.setPixelRatio(this.quality.pixelRatio());
     this.post.enabled = settings.bloom;
     this.field.resize(settings.simResolution);
-    this.lattice.bindField(this.field.texture);
+    this.entity.bindField(this.field.texture);
     this.resize();
   }
 
@@ -211,7 +211,7 @@ export class SceneController {
   private disturbAtPointer(strength: number, discrete = false): void {
     this.raycaster.setFromCamera(this.pointerNdc, this.rig.camera);
     if (!this.raycaster.ray.intersectPlane(this.fieldPlane, this.hitPoint)) return;
-    const [u, v] = LatticeModel.fieldUvFromWorld(this.hitPoint.x, this.hitPoint.y);
+    const [u, v] = this.entity.fieldUvFromWorld(this.hitPoint.x, this.hitPoint.y);
     if (u < -0.1 || u > 1.1 || v < -0.1 || v > 1.1) return;
     if (discrete) {
       this.field.splat(u, v, 0.045, strength);
@@ -298,7 +298,18 @@ export class SceneController {
     }
 
     onProgress?.(1);
-    this.lattice.bindField(this.field.texture);
+    this.entity.bindField(this.field.texture);
+  }
+
+  /**
+   * Loads the Blender-authored entity. Separate from the constructor so
+   * the loader can report real network progress against real work, and
+   * so a failed fetch degrades to the poster instead of throwing during
+   * scene construction.
+   */
+  async loadEntity(url: string, onProgress?: (fraction: number) => void): Promise<void> {
+    await this.entity.load(url, onProgress);
+    this.entity.bindField(this.field.texture);
   }
 
   /** Drives the cold-open reveal out of near-darkness. */
@@ -327,10 +338,12 @@ export class SceneController {
     const time = this.clock.getElapsedTime();
     this.wake = 1;
     this.field.update(this.quality.settings.simStepsPerFrame, 1 / 60);
-    this.lattice.bindField(this.field.texture);
-    this.lattice.update(time);
+    this.entity.bindField(this.field.texture);
+    this.entity.update(time);
     this.lighting.setWake(1);
     this.lighting.update(this.progress, time, 1 / 60);
+    this.entity.setProgress(this.progress, smoothstep01((this.progress - 0.10) / 0.16));
+    this.entity.setLighting(this.lighting.entityState);
     this.rig.applyPoster();
     this.post.setState(
       this.lighting.post.exposure,
@@ -357,78 +370,34 @@ export class SceneController {
     this.wake += (this.wakeTarget - this.wake) * (1 - Math.pow(0.05, dt));
     this.lighting.setWake(this.wake);
 
-    // Layer separation, eased so a scrub feels physical.
-    //
-    // The three layers are Z-slabs of the lattice, so they pull straight
-    // apart along Z. The camera is side-on at this point in the
-    // narrative, which turns the separation into readable depth rather
-    // than an object getting quietly wider.
+    // Tunnel-group separation, eased so a scrub feels physical. This is
+    // the foundation movement's three layers; it separates groups WITHIN
+    // the corridor rather than exploding the entity.
     this.separation += (this.separationTarget - this.separation) * (1 - Math.pow(0.004, dt));
-    const s = this.separation;
-    // Inside a corridor, pulling the thirds apart along Z stretches the
-    // tunnel — the camera is side-on at that point, so it reads as the
-    // structure separating into three layers.
-    this.lattice.layers[0].offset.set(0, 0, s * 2.2);
-    this.lattice.layers[1].offset.set(0, 0, 0);
-    this.lattice.layers[2].offset.set(0, 0, s * -2.2);
-    this.lattice.material.uniforms.uSeparation.value = s;
 
-    // The crown yields once, early, and stays open — the far crown
-    // never yields at all, so there is no reseal choreography to
-    // mistime. The finale is arrival, not reassembly.
-    const ripTarget = smoothstep01((this.progress - 0.1) / 0.17);
-    // Anticipation: the convergence light surges from the throat just
-    // before and during the yield, then settles to a low burn — energy
-    // released by the opening, not a lamp that was always on.
-    this.lattice.material.uniforms.uTear.value = smoothstep01(
-      (this.progress - 0.05) / 0.22
-    );
-    this.rip += (ripTarget - this.rip) * (1 - Math.pow(0.0009, dt));
-    this.lattice.material.uniforms.uRip.value = this.rip;
+    // The crown yields once, early, and stays open. Pressure release,
+    // not a mechanism: the authored per-mass vectors are already
+    // clamped to 0.04-0.14 m and 5 degrees in the asset.
+    const yieldTarget = smoothstep01((this.progress - 0.10) / 0.16);
+    this.rip += (yieldTarget - this.rip) * (1 - Math.pow(0.0009, dt));
 
-    // The halo descends from crown to threshold as the yield completes,
-    // so the camera passes through the burning ring on its way in.
-    this.lattice.setGateway(this.rip);
-
-    // The pull. Gyre rings creep while dormant, spin up as the visitor
-    // approaches, and turn hardest while the crown is yielding.
-    this.lattice.material.uniforms.uGyre.value =
-      0.35 + smoothstep01((this.progress - 0.02) / 0.16) * 0.65 + this.rip * 0.7;
-
-    // Scroll drags the trip pattern through the tunnel. Driven from the
-    // rig's spring-smoothed progress so the stream never steps.
-    this.lattice.material.uniforms.uFlow.value = this.rig.smoothedProgress * 14.0;
-
-    // Arrival: the far door's engraved channels ignite as the camera
-    // closes on it, so the finale is an event rather than a shape.
-    const arrive = smoothstep01((this.progress - 0.85) / 0.13);
-    this.lattice.material.uniforms.uArrive.value = arrive;
-
-    // The halo shares the narrative state: a dial that rotates with
-    // scroll, surges at the tear, burns steady at the far threshold.
-    const ru = this.lattice.ringMaterial.uniforms;
-    ru.uFlow.value = this.rig.smoothedProgress;
-    ru.uRip.value = this.rip;
-    ru.uArrive.value = arrive;
-
-    const focusEase = 1 - Math.pow(0.006, dt);
-    for (let i = 0; i < 3; i++) {
-      const layer = this.lattice.layers[i];
-      layer.focus += (this.focusTargets[i] - layer.focus) * focusEase;
-    }
+    this.entity.setProgress(this.progress, this.rip);
+    this.entity.setSeparation(this.separation, this.focusTargets);
 
     // Idle pointer decay: if the pointer has been still for a while,
     // stop feeding the field so it can settle.
     if (this.pointerActive && performance.now() - this.lastPointerMove > 900) {
       this.pointerActive = false;
+      this.field.setPointer(0, 0, 0);
     }
 
     this.field.update(this.quality.settings.simStepsPerFrame, dt);
-    this.lattice.bindField(this.field.texture);
-    this.lattice.update(time);
+    this.entity.bindField(this.field.texture);
+    this.entity.update(time);
 
     this.rig.update(time, dt);
     this.lighting.update(this.progress, time, dt);
+    this.entity.setLighting(this.lighting.entityState);
 
     this.post.setState(
       this.lighting.post.exposure,
@@ -449,7 +418,7 @@ export class SceneController {
     window.removeEventListener('pointerleave', this.onPointerLeave);
     this.resizeObserver?.disconnect();
     this.field.dispose();
-    this.lattice.dispose();
+    this.entity.dispose();
     this.post.dispose();
     this.renderer.dispose();
   }

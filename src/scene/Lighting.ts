@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-import type { LatticeModel } from './LatticeModel';
 
 /**
  * Lighting
@@ -129,17 +127,40 @@ function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+export interface EntityLightState {
+  keyDir: [number, number, number];
+  emissive: number;
+  wake: number;
+  fog: number;
+  keyIntensity: number;
+  rimIntensity: number;
+  fillIntensity: number;
+  displace: number;
+}
+
 export class Lighting {
-  private lattice: LatticeModel;
   private state: LightKeyframe = { ...ARC[0] };
   readonly post: PostState = { exposure: 1.12, bloom: 0.72, vignette: 0.92 };
 
   /** 0..1 cold-open reveal, driven by the loader hand-off. */
   private wake = 0;
 
-  constructor(lattice: LatticeModel) {
-    this.lattice = lattice;
-  }
+  /**
+   * The arc is now pure data. Lighting samples the narrative and
+   * publishes a state object; the entity reads it. That inversion is
+   * what lets the Blender-authored model own its own uniforms without
+   * this class needing to know what parts exist.
+   */
+  readonly entityState: EntityLightState = {
+    keyDir: [0, 0.82, 0.42],
+    emissive: 1,
+    wake: 0,
+    fog: 0.05,
+    keyIntensity: 1,
+    rimIntensity: 1.35,
+    fillIntensity: 1,
+    displace: 0.014,
+  };
 
   setWake(value: number): void {
     this.wake = Math.min(Math.max(value, 0), 1);
@@ -180,42 +201,25 @@ export class Lighting {
       s[k] = lerp(s[k], goal[k], ease);
     });
 
-    const u = this.lattice.material.uniforms;
-    u.uKeyIntensity.value = s.keyIntensity;
-    u.uRimIntensity.value = s.rimIntensity;
-    u.uFillIntensity.value = s.fillIntensity;
-    u.uEmissive.value = s.emissive;
-    u.uDisplace.value = s.displace;
-    u.uFieldSharp.value = s.sharp;
-    u.uAmberMix.value = s.amber;
-    u.uPsy.value = s.psy;
-    u.uFogDensity.value = s.fog;
-    u.uWake.value = this.wake;
+    const entity = this.entityState;
+    entity.emissive = s.emissive;
+    entity.wake = this.wake;
+    entity.fog = s.fog;
+    entity.keyIntensity = s.keyIntensity;
+    entity.rimIntensity = s.rimIntensity;
+    entity.fillIntensity = s.fillIntensity;
+    entity.displace = s.displace;
 
-    // A very slow swing on the key direction. This is the "lighting
-    // changes subtly enough to reveal material depth" requirement: it is
-    // below the threshold of conscious notice but stops the object
-    // reading as a static render.
-    // The light rig is strictly bilateral: key from above-front, rim
-    // from above-behind, neither ever leaving the x = 0 plane. The old
-    // rig swung the key left-right, which shaded a mirrored object
-    // unevenly — the founder read the entity as "asymmetrical" and the
-    // geometry was never the culprit.
-    const key = u.uKeyDir.value as THREE.Vector3;
-    key.set(
+    // A very slow swing on the key direction — below the threshold of
+    // conscious notice, but it stops the entity reading as a static
+    // render. Strictly bilateral: the key never leaves the x = 0 plane,
+    // because swinging it left-right shades a near-symmetric object
+    // unevenly and reads as the geometry being crooked.
+    entity.keyDir = [
       0,
-      0.8 + Math.cos(time * 0.06) * 0.06,
-      0.45 + Math.sin(time * 0.08) * 0.1
-    ).normalize();
-
-    const rim = u.uRimDir.value as THREE.Vector3;
-    rim.set(0, 0.3 + Math.cos(time * 0.05) * 0.08, -0.9).normalize();
-
-    const r = this.lattice.ringMaterial.uniforms;
-    r.uIntensity.value = s.ring;
-    r.uAmberMix.value = s.amber;
-    r.uWake.value = this.wake;
-    r.uFogDensity.value = s.fog;
+      0.82 + Math.cos(time * 0.06) * 0.05,
+      0.42 + Math.sin(time * 0.08) * 0.09,
+    ];
 
     this.post.exposure = s.exposure;
     this.post.bloom = s.bloom;

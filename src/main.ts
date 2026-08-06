@@ -122,7 +122,24 @@ async function boot(): Promise<void> {
     reveals.revealHero();
     return;
   }
-  setLoaderProgress(0.55);
+  setLoaderProgress(0.45);
+
+  // 3b — The Blender-authored entity. Real network work, so it feeds
+  //      the loader directly. A failure here is not fatal: the site
+  //      drops to the poster and the DOM narrative is untouched.
+  try {
+    await scene.loadEntity(
+      `${import.meta.env.BASE_URL}models/DL_CrownedConvergence_Production_v01.glb`,
+      (fraction) => setLoaderProgress(0.45 + fraction * 0.18)
+    );
+  } catch (error) {
+    scene.dispose();
+    scene = null;
+    enterFallback(`entity load failed: ${String(error)}`);
+    reveals.revealHero();
+    return;
+  }
+  setLoaderProgress(0.63);
 
   // 4 — Grow the reaction field. This is the bulk of the real
   //     initialisation work and the main thing the loader is measuring:
@@ -133,7 +150,7 @@ async function boot(): Promise<void> {
     await scene.warmUpField(
       repeatVisit ? 800 : 2400,
       repeatVisit ? 600 : 1500,
-      (fraction) => setLoaderProgress(0.55 + fraction * 0.32)
+      (fraction) => setLoaderProgress(0.63 + fraction * 0.24)
     );
   } catch (error) {
     if (import.meta.env.DEV) console.warn('[dark-lattice] warm-up skipped', error);
