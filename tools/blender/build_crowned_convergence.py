@@ -71,7 +71,7 @@ ROOT = Path(ARGS.root).resolve()
 
 # Approved versions are never overwritten. Bump this when the authored
 # tables change; v01 remains on disk for comparison.
-VERSION = "v04"
+VERSION = "v05"
 
 BLEND_OUT = ROOT / "assets" / "blender" / f"DL_CrownedConvergence_Clay_{VERSION}.blend"
 GLB_OUT = ROOT / "public" / "models" / f"DL_CrownedConvergence_Clay_{VERSION}.glb"
@@ -89,137 +89,102 @@ if not REFERENCE.is_absolute():
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# v03 structural corrections
+# v05 — AUTHORED EXTERIOR
 #
-# 1. THE WHEEL/TURBINE READ. v02 put every slab on the same radial band,
-#    pointing straight out, at roughly even angular spacing. Those three
-#    properties ARE a turbine — the eye reads impeller blades no matter
-#    what the individual shapes do. All three are broken here:
-#      - outer_r spread 1.78 -> 2.92 instead of 2.33 -> 2.62;
-#      - a Z rotation per slab (up to +-32 degrees) swings each one off
-#        its own radial axis, so the pieces no longer agree on a hub;
-#      - angular spacing is dense above (17-28 degrees) and sparse below
-#        (39-43), so no rotational rhythm survives.
+# The radial system is gone. There is no angle_deg, half_angle_deg,
+# inner_r, outer_r, polar placement or shared crown_polygon() anywhere in
+# the exterior any more. Four versions proved the limit of that approach:
+# any set of pieces derived from one radial formula reads as a wreath,
+# because the formula itself is the rotational rhythm the eye picks up.
 #
-# 2. MASS HIERARCHY. Three explicit tiers — two dominant slabs, four
-#    medium, seven small — rather than one row of near-equals. Depth
-#    scales with the tier too, so hierarchy reads in silhouette AND in
-#    three-quarter.
+# Each of the seven masses below is an explicit 3D vertex layout — a
+# front loop and a back loop of hand-written (x, y, z) coordinates,
+# lofted between. The two loops differ in shape, size AND per-vertex
+# depth, so every mass is a genuine three-dimensional wedge rather than
+# a 2D profile pushed along an axis. No two share a construction.
 #
-# 3. CAVITY. Off-centre: the aperture is a circle centred at
-#    CAVITY_CENTRE, not at the origin, so each slab's inner radius is
-#    solved against it (cavity_inner_r). Two occluder slabs sit forward
-#    of the others and reach across the opening, so the hollow is never
-#    a clean readable disc.
+# Arrangement is by DEPTH, not by angle:
+#     3 foreground masses  (y ~ -0.95 .. 0.50)  conceal the convergence
+#     2 middle-depth       (y ~ -0.15 .. 1.08)  bridge front to back
+#     2 rear structural    (y ~  0.45 .. 2.02)  give the body its bulk
+#
+# The rear pair replaces DL_ExteriorRearShell, which was an annulus —
+# literally "plates attached to a backing ring", named in the brief as a
+# fail state. Their inner boundaries stay outside radius ~1.45 so the
+# convergence rings sit in the pocket they form rather than intersecting
+# them.
+#
+# Target: one compressed faceted body with a partially concealed
+# internal convergence. Compressed is real here — the mass spans ~4.9
+# across X and ~4.6 in Z against ~2.9 of depth.
 # ---------------------------------------------------------------------------
 
-# Cavity as an off-centre circle in the XZ face plane.
-#
-# v04 correction 2: the cavity has to survive the 128 px silhouette as a
-# readable landmark, so what matters is not this boundary but the CLEAR
-# BORE at the centre — the region no exterior-stage object occupies.
-# The primary rings' inner radii (RING_BORE) set that hole, and the
-# measured result is reported by analyse_silhouette() rather than
-# assumed. Displacement is kept to ~5-6% of entity width: enough to
-# read as deliberate, not enough to look like a mistake.
-CAVITY_CENTRE = (0.22, -0.14)
-# 1.42 -> 1.33: the visible cavity is not just the central bore, it also
-# spurs outward through each ring interruption as far as the crown's
-# inner edge. Those spurs set the measured bounding box, so the aperture
-# had to come in to land inside the 30-36% / 26-34% window.
-CAVITY_RADIUS = 1.25
-
-# Every exterior-stage object stays outside this radius, so the front
-# silhouette keeps an unbroken hole. 0.82 measures ~31% of entity width.
-RING_BORE = 0.73
-
-
-def cavity_inner_r(angle_deg: float) -> float:
-    """
-    Distance from the origin to the off-centre cavity boundary along
-    *angle_deg*. Solving this per slab is what makes the aperture sit
-    off-axis while the outer silhouette stays centred — moving every
-    slab bodily would have dragged the whole crown sideways instead.
-    """
-    angle = math.radians(angle_deg)
-    ux, uz = math.cos(angle), math.sin(angle)
-    cx, cz = CAVITY_CENTRE
-    proj = ux * cx + uz * cz
-    centre_sq = cx * cx + cz * cz
-    return proj + math.sqrt(max(proj * proj - centre_sq + CAVITY_RADIUS ** 2, 1e-6))
-
-
-# (angle, half_angle, outer_r, spike, depth, y, rot, tier, inner_scale)
-#   tier         1 dominant, 2 medium, 3 small
-#   inner_scale  <1 pulls the slab's inner edge across the cavity
-#
-# v04 correction 3 — HORNS. v03 reached 4.03 units off a median outer_r
-# of 2.22: a 1.81x overhang that read as spear points and pierced the
-# halo. Every reach (outer_r x spike) is now held under 1.12 x the
-# median outer_r, and the check is computed and printed at build time
-# rather than eyeballed. Mass comes from breadth and overhang instead:
-# spikes are 1.02-1.09 where they used to run to 1.38.
-#
-# v04 correction 4 — DEBRIS. Seven tier-3 shards became five, and the
-# two that survived nearest the cavity are the ones that frame it. The
-# gaps between 206 and 328 degrees are now deliberately empty.
-_CROWN_TABLE = [
-    # --- tier 1: the two dominant masses, both upper, crown leans left
-    (112.0, 21.0, 2.42, 1.02, 1.30, -0.30, (-6.0,  4.0,  -8.0), 1, 1.00),
-    ( 72.0, 19.0, 2.38, 1.03, 1.18, -0.20, (-3.0,  6.0,  14.0), 1, 1.00),
-    # --- tier 2: medium
-    (158.0, 16.0, 2.34, 1.04, 0.92, -0.05, ( 5.0, -8.0, -22.0), 2, 1.00),
-    (206.0, 15.0, 2.30, 1.05, 0.86,  0.12, ( 3.0, -5.0,  18.0), 2, 1.00),
-    (328.0, 17.0, 2.26, 1.06, 0.96, -0.12, (-3.0,  7.0, -15.0), 2, 1.00),
-    ( 27.0, 15.0, 2.22, 1.07, 0.88,  0.05, (-2.0,  8.0,  26.0), 2, 1.00),
-    # --- tier 3: five shards. One occluder only (92 deg, forward in y),
-    #     reaching to ~0.72 x the cavity boundary — it clips the ring
-    #     zone, never the clear bore, so cavity occlusion stays small.
-    ( 92.0, 11.0, 1.98, 1.08, 0.52, -0.58, ( 4.0, -3.0,  11.0), 3, 0.685),
-    (135.0, 11.0, 1.92, 1.09, 0.55,  0.30, ( 3.0,  5.0, -30.0), 3, 1.00),
-    (180.0,  9.0, 1.88, 1.08, 0.46,  0.38, (-2.0, -6.0,  20.0), 3, 1.00),
-    (285.0, 10.0, 1.85, 1.07, 0.44,  0.42, (-4.0,  4.0,  32.0), 3, 1.00),
-    (352.0, 11.0, 1.78, 1.09, 0.54,  0.18, ( 2.0, -5.0, -18.0), 3, 1.00),
+# (name, role_tier, front_loop, back_loop)
+# Loops must have equal length; they are lofted vertex-to-vertex.
+SLAB_SPECS = [
+    (
+        "DL_Slab_F1_UpperLeft", "foreground",
+        [(-2.45, -0.55,  0.35), (-2.05, -0.85,  1.65), (-0.75, -0.98,  2.30),
+         ( 0.45, -0.72,  1.75), ( 0.30, -0.50,  0.95), (-0.15, -0.42,  0.60),
+         (-1.25, -0.50,  0.15)],
+        [(-2.10,  0.32,  0.28), (-1.75,  0.10,  1.42), (-0.68,  0.02,  1.95),
+         ( 0.36,  0.26,  1.48), ( 0.24,  0.44,  0.82), (-0.14,  0.50,  0.52),
+         (-1.10,  0.42,  0.14)],
+    ),
+    (
+        "DL_Slab_F2_Right", "foreground",
+        [( 0.85, -0.68,  1.75), ( 2.05, -0.88,  1.25), ( 2.50, -0.60,  0.05),
+         ( 2.05, -0.42, -1.05), ( 0.95, -0.45, -0.95), ( 0.62, -0.52, -0.25),
+         ( 0.70, -0.58,  0.85)],
+        [( 0.76,  0.20,  1.48), ( 1.78,  0.04,  1.06), ( 2.16,  0.28,  0.04),
+         ( 1.78,  0.44, -0.88), ( 0.86,  0.42, -0.80), ( 0.58,  0.36, -0.22),
+         ( 0.64,  0.30,  0.74)],
+    ),
+    (
+        "DL_Slab_F3_LowerCentre", "foreground",
+        [(-1.55, -0.45, -0.85), (-0.35, -0.62, -0.62), ( 0.75, -0.55, -1.05),
+         ( 1.45, -0.42, -2.05), ( 0.15, -0.32, -2.45), (-1.35, -0.38, -1.95)],
+        [(-1.38,  0.36, -0.72), (-0.30,  0.24, -0.55), ( 0.66,  0.30, -0.92),
+         ( 1.24,  0.46, -1.78), ( 0.12,  0.52, -2.12), (-1.18,  0.46, -1.70)],
+    ),
+    (
+        "DL_Slab_M1_Left", "middle",
+        [(-2.60,  0.02, -0.55), (-2.30, -0.15,  0.75), (-1.25,  0.00,  0.55),
+         (-0.85,  0.16, -0.55), (-1.45,  0.22, -1.55), (-2.35,  0.14, -1.35)],
+        [(-2.22,  0.92, -0.48), (-1.98,  0.80,  0.62), (-1.12,  0.90,  0.46),
+         (-0.80,  1.02, -0.50), (-1.32,  1.06, -1.34), (-2.08,  0.98, -1.18)],
+    ),
+    (
+        "DL_Slab_M2_UpperRight", "middle",
+        [( 0.55, -0.18,  2.05), ( 1.85, -0.08,  1.75), ( 2.35,  0.08,  0.95),
+         ( 1.35,  0.20,  1.05), ( 0.45,  0.16,  1.55)],
+        [( 0.52,  0.74,  1.75), ( 1.62,  0.86,  1.48), ( 2.02,  0.98,  0.85),
+         ( 1.20,  1.06,  0.92), ( 0.42,  1.02,  1.34)],
+    ),
+    (
+        "DL_Slab_R1_RearLower", "rear",
+        [( 0.45,  0.52, -2.15), ( 2.05,  0.42, -1.65), ( 2.55,  0.58, -0.25),
+         ( 2.05,  0.74,  0.85), ( 1.25,  0.82, -0.45), ( 0.15,  0.68, -1.55)],
+        [( 0.40,  1.70, -1.80), ( 1.70,  1.60, -1.36), ( 2.10,  1.74, -0.20),
+         ( 1.68,  1.86,  0.68), ( 1.04,  1.92, -0.38), ( 0.14,  1.82, -1.30)],
+    ),
+    (
+        "DL_Slab_R2_RearUpper", "rear",
+        [(-2.45,  0.62,  0.65), (-1.65,  0.52,  2.05), (-0.35,  0.66,  1.95),
+         (-0.65,  0.84,  1.15), (-1.75,  0.88,  0.25)],
+        [(-2.02,  1.74,  0.56), (-1.38,  1.64,  1.70), (-0.32,  1.78,  1.62),
+         (-0.58,  1.92,  0.98), (-1.48,  1.98,  0.22)],
+    ),
 ]
 
-CROWN_SPECS = []
-for _index, (_angle, _half, _outer, _spike, _depth, _y, _rot, _tier, _inner_scale) in enumerate(
-    _CROWN_TABLE
-):
-    CROWN_SPECS.append(
-        {
-            "name": ("DL_CrownSlab_%02d" if _tier < 3 else "DL_CrownShard_%02d") % (_index + 1),
-            "angle_deg": _angle,
-            "half_angle_deg": _half,
-            "inner_r": cavity_inner_r(_angle) * _inner_scale,
-            "outer_r": _outer,
-            "spike": _spike,
-            "depth": _depth,
-            "y": _y,
-            "rot": _rot,
-            "material": "MAT_CROWN_PRIMARY" if _tier == 1 else "MAT_CROWN_SECONDARY",
-            "layer": _tier,
-            "open_translation": (
-                math.cos(math.radians(_angle)) * 0.05 * _tier,
-                -0.01 * _tier,
-                math.sin(math.radians(_angle)) * 0.05 * _tier,
-            ),
-            "open_rotation": (-2.0 + _tier, 2.0 - _tier, _rot[2] * 0.08),
-        }
-    )
+FOREGROUND_SLABS = [name for name, tier, _f, _b in SLAB_SPECS if tier == "foreground"]
 
-# Correction 3, verified rather than asserted.
-# The single forward slab that reaches across the cavity (92 deg,
-# inner_scale 0.72). Named here so the occlusion measurement can
-# difference it out.
-OCCLUDER_NAME = next(
-    spec["name"] for spec, row in zip(CROWN_SPECS, _CROWN_TABLE) if row[8] < 1.0
-)
-
-_OUTER_RS = sorted(spec["outer_r"] for spec in CROWN_SPECS)
-CROWN_MEDIAN_OUTER = _OUTER_RS[len(_OUTER_RS) // 2]
-CROWN_REACH_LIMIT = CROWN_MEDIAN_OUTER * 1.12
-CROWN_MAX_REACH = max(spec["outer_r"] * spec["spike"] for spec in CROWN_SPECS)
+SLAB_MATERIAL = {
+    "foreground": "MAT_CROWN_PRIMARY",
+    "middle": "MAT_CROWN_SECONDARY",
+    "rear": "MAT_STRUCTURE",
+}
+SLAB_LAYER = {"foreground": 1, "middle": 2, "rear": 3}
 
 CAMERA_PATH_POINTS = [
     (0.00, -8.20, 0.38),
@@ -482,56 +447,96 @@ def polar(radius: float, angle: float) -> tuple[float, float]:
     return radius * math.cos(angle), radius * math.sin(angle)
 
 
-def crown_polygon(spec: dict) -> tuple[list[tuple[float, float]], tuple[float, float]]:
-    centre = math.radians(spec["angle_deg"])
-    half = math.radians(spec["half_angle_deg"])
-    inner = spec["inner_r"]
-    outer = spec["outer_r"]
-    spike = spec["spike"]
+def authored_slab(
+    name: str,
+    front: Sequence[tuple[float, float, float]],
+    back: Sequence[tuple[float, float, float]],
+    parent: bpy.types.Object,
+    face_material: str,
+    layer: int,
+    reaction_weight: float,
+) -> bpy.types.Object:
+    """
+    Lofts one mass between two explicit 3D loops.
 
-    pivot = polar(inner, centre)
-    world_points = [
-        polar(inner * 1.04, centre - half * 0.68),
-        polar(outer * 0.91, centre - half),
-        polar(outer * 1.01, centre - half * 0.42),
-        polar(outer * spike, centre + half * 0.02),
-        polar(outer * 0.98, centre + half * 0.46),
-        polar(outer * 0.90, centre + half),
-        polar(inner * 1.03, centre + half * 0.72),
-        # The inner tail reached to 0.80 x inner_r, so raising inner_r
-        # alone would not have opened the cavity — the tails still
-        # closed across it. 0.93 keeps a shallow inner notch while
-        # letting inner_r actually set the aperture.
-        polar(inner * 0.93, centre + half * 0.10),
-    ]
-    local = [(x - pivot[0], z - pivot[1]) for x, z in world_points]
-    return local, pivot
+    This is the whole v05 change. There is no profile function and no
+    shared parameterisation: `front` and `back` are literal coordinate
+    lists, they differ in shape and in per-vertex depth, and the loft
+    between them produces a genuine wedge. Two masses built this way
+    have nothing in common except the loft, which is why the set stops
+    resolving into a wreath.
+
+    The object's origin is moved to its own centre afterwards, so each
+    mass still pivots about itself for the tear.
+    """
+    if len(front) != len(back):
+        raise ValueError(f"{name}: front and back loops must match in length")
+
+    n = len(front)
+    vertices = [tuple(v) for v in front] + [tuple(v) for v in back]
+    faces: list[tuple[int, ...]] = [tuple(range(n)), tuple(reversed(range(n, n * 2)))]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append((i, j, n + j, n + i))
+
+    mesh = bpy.data.meshes.new(f"{name}_MESH")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.materials.append(MATERIALS[face_material])
+    mesh.materials.append(MATERIALS["MAT_STRUCTURE"])
+    for index, polygon in enumerate(mesh.polygons):
+        polygon.material_index = 0 if index < 2 else 1
+        polygon.use_smooth = False
+    mesh.validate(verbose=False)
+    apply_region_mask(mesh, REGION_COLOURS[face_material])
+
+    obj = bpy.data.objects.new(name, mesh)
+    SCENE.collection.objects.link(obj)
+    obj.parent = parent
+
+    # Hand-written loops can be wound either way; normals are made
+    # consistent rather than assumed.
+    activate(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+
+    set_props(
+        obj,
+        "crown_slab",
+        layer,
+        face_material,
+        reaction_weight,
+        "exterior",
+        open_translation=(
+            obj.location.x * 0.06,
+            -0.02 * layer,
+            obj.location.z * 0.06,
+        ),
+        open_rotation_degrees=(-2.0 + layer, 2.0 - layer, 1.5 * layer),
+    )
+    apply_hard_surface_modifiers(obj, bevel=0.055)
+    return obj
 
 
 # ---------------------------------------------------------------------------
-# Exterior crown
+# Exterior masses — seven individually authored wedges
 # ---------------------------------------------------------------------------
 
 CROWN_OBJECTS: list[bpy.types.Object] = []
-for spec in CROWN_SPECS:
-    polygon, pivot = crown_polygon(spec)
-    obj = create_prism_xz(
-        name=spec["name"],
-        points_xz=polygon,
-        depth=spec["depth"],
-        parent=EXTERIOR,
-        location=(pivot[0], spec["y"], pivot[1]),
-        rotation_degrees=spec["rot"],
-        face_material=spec["material"],
-        role="crown_slab",
-        layer=spec["layer"],
-        reaction_weight=1.0 if spec["material"] == "MAT_CROWN_PRIMARY" else 0.55,
-        visibility_stage="exterior",
-        open_translation=spec["open_translation"],
-        open_rotation=spec["open_rotation"],
-        bevel=0.055,
+for _name, _tier, _front, _back in SLAB_SPECS:
+    CROWN_OBJECTS.append(
+        authored_slab(
+            name=_name,
+            front=_front,
+            back=_back,
+            parent=EXTERIOR,
+            face_material=SLAB_MATERIAL[_tier],
+            layer=SLAB_LAYER[_tier],
+            reaction_weight={"foreground": 1.0, "middle": 0.6, "rear": 0.35}[_tier],
+        )
     )
-    CROWN_OBJECTS.append(obj)
 
 
 def create_annulus(
@@ -587,18 +592,16 @@ def create_annulus(
     return obj
 
 
-REAR_SHELL = create_annulus(
-    "DL_ExteriorRearShell",
-    inner_r=1.12,
-    outer_r=2.30,
-    depth=0.38,
-    segments=14,
-    y=0.56,
-    parent=EXTERIOR,
-    material_name="MAT_STRUCTURE",
-    role="rear_shell",
-    visibility_stage="exterior",
-)
+# DL_ExteriorRearShell is GONE.
+#
+# It was an annulus sitting behind the crown — the literal definition of
+# "plates attached to a backing ring", which the brief names as a fail
+# state. Any set of slabs in front of a continuous ring will read as
+# mounted on it no matter how the slabs themselves are shaped.
+#
+# Its structural job — giving the body bulk behind the face so the
+# entity is a mass rather than a frame — now belongs to the two rear
+# authored wedges, DL_Slab_R1_RearLower and DL_Slab_R2_RearUpper.
 
 
 # ---------------------------------------------------------------------------
@@ -1469,7 +1472,7 @@ def produce_renders() -> None:
     # separate slab intrusion from the ring scalloping that is there by
     # design. (A crown-only pass does not work: with gaps deliberately
     # left between slabs, the crown alone encloses nothing.)
-    render_silhouette("11-cavity-without-occluder.png", 512, exclude={OCCLUDER_NAME})
+    render_silhouette("11-convergence-unconcealed.png", 512, exclude=set(FOREGROUND_SLABS))
 
 
 # ---------------------------------------------------------------------------
@@ -1481,6 +1484,38 @@ def triangle_count(obj: bpy.types.Object) -> int:
         return 0
     obj.data.calc_loop_triangles()
     return len(obj.data.loop_triangles)
+
+
+def _exterior_extents() -> dict:
+    """
+    World bounding box of the exterior-stage mass, and the depth ratio
+    that says whether it is compressed. v03's torpedo scored ~2.6; a
+    flat disc would score under ~0.25.
+    """
+    lo = [1e9, 1e9, 1e9]
+    hi = [-1e9, -1e9, -1e9]
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or not obj.get("dl_export", False):
+            continue
+        if obj.get("dl_visibility_stage", "") != "exterior":
+            continue
+        if obj.get("dl_role", "") == "halo":
+            continue
+        for corner in obj.bound_box:
+            world = obj.matrix_world @ Vector(corner)
+            for axis in range(3):
+                lo[axis] = min(lo[axis], world[axis])
+                hi[axis] = max(hi[axis], world[axis])
+
+    width = hi[0] - lo[0]
+    depth = hi[1] - lo[1]
+    height = hi[2] - lo[2]
+    return {
+        "widthX": round(width, 3),
+        "depthY": round(depth, 3),
+        "heightZ": round(height, 3),
+        "depthOverWidth": round(depth / max(width, 1e-6), 3),
+    }
 
 
 def create_manifest() -> dict:
@@ -1512,12 +1547,10 @@ def create_manifest() -> dict:
         "exteriorStageObjects": sorted(
             item["name"] for item in items if item["visibilityStage"] == "exterior"
         ),
-        "crownReach": {
-            "medianOuterR": round(CROWN_MEDIAN_OUTER, 3),
-            "limit_1_12x": round(CROWN_REACH_LIMIT, 3),
-            "maxReach": round(CROWN_MAX_REACH, 3),
-            "withinLimit": bool(CROWN_MAX_REACH <= CROWN_REACH_LIMIT),
-        },
+        # There is no outer_r to report any more. The equivalent check on
+        # an authored exterior is the bounding box: whether the mass is
+        # actually COMPRESSED rather than a flat disc or a long torpedo.
+        "exteriorExtents": _exterior_extents(),
         "objects": items,
         "cameraPath": CAMERA_PATH_POINTS,
         "reference": str(REFERENCE),
@@ -1614,16 +1647,20 @@ manifest = create_manifest()
 manifest["clearance"] = measure_clearance()
 if ARGS.render:
     _with = analyse_silhouette("09-silhouette-512.png")
-    _without = analyse_silhouette("11-cavity-without-occluder.png")
+    _without = analyse_silhouette("11-convergence-unconcealed.png")
     _open_with = _with.get("cavityAreaPx", 0)
     _open_without = _without.get("cavityAreaPx", 0) or 1
     manifest["silhouette"] = {
         "visibleCavity": [_with, analyse_silhouette("10-silhouette-128.png")],
-        "slabOcclusion": {
-            "occluder": OCCLUDER_NAME,
-            "cavityAreaWithoutOccluderPx": _open_without,
-            "cavityAreaWithOccluderPx": _open_with,
-            "slabOcclusionPct": round(
+        "concealment": {
+            "foregroundMasses": FOREGROUND_SLABS,
+            "openAreaWithoutForegroundPx": _open_without,
+            "openAreaWithForegroundPx": _open_with,
+            # How much of the internal convergence the three foreground
+            # masses hide. The v05 target is "partially concealed", so
+            # this wants to be materially above zero and well short of
+            # total — neither an open portal nor a sealed lump.
+            "concealmentPct": round(
                 max(0.0, (_open_without - _open_with) / float(_open_without)) * 100.0, 1
             ),
         },
@@ -1634,13 +1671,13 @@ print("MANIFEST_ASSET", manifest["asset"])
 print("OBJECT_COUNT", manifest["objectCount"])
 print("TRIANGLE_TOTAL", manifest["totalTriangles"])
 print("STAGES", json.dumps(manifest["objectsByStage"]))
-print("CROWN_REACH", json.dumps(manifest["crownReach"]))
+print("EXTERIOR_EXTENTS", json.dumps(manifest["exteriorExtents"]))
 print("CLEARANCE_VIOLATIONS", len(manifest["clearance"]["violations"]),
       json.dumps(manifest["clearance"]["tightest"][:3]))
 for entry in manifest.get("silhouette", {}).get("visibleCavity", []):
     print("VISIBLE_CAVITY", json.dumps(entry))
 if "silhouette" in manifest:
-    print("SLAB_OCCLUSION", json.dumps(manifest["silhouette"]["slabOcclusion"]))
+    print("CONCEALMENT", json.dumps(manifest["silhouette"]["concealment"]))
 
 save_blend()
 export_glb()

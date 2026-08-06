@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crowned Convergence — clay v05</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 32px 28px 64px;
+    background: #0a0d12; color: #dfe6ef;
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 20px; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 4px; }
+  .sub { color: #7d8794; margin: 0 0 28px; font-size: 13px; }
+  .metrics {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 32px;
+  }
+  .metric {
+    background: #121821; border: 1px solid #1f2937; border-radius: 6px;
+    padding: 8px 12px; font-size: 12px;
+  }
+  .metric b { color: #6ee7c0; font-weight: 600; }
+  .metric.warn b { color: #fbbf5a; }
+  h2 {
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: #7d8794; margin: 34px 0 12px; padding-bottom: 8px;
+    border-bottom: 1px solid #1c2430;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+  figure { margin: 0; }
+  figure img {
+    width: 100%; display: block; border-radius: 6px;
+    background: #05070a; border: 1px solid #1c2430;
+  }
+  figcaption { margin-top: 8px; font-size: 12px; color: #9aa5b1; }
+  figcaption span { color: #5d6773; }
+</style>
+</head>
+<body>
+  <h1>Crowned Convergence — clay v05</h1>
+  <p class="sub">20 objects &middot; 5,420 triangles &middot; 7 authored slabs &middot; Blender 5.1.2 &middot; not integrated into the site</p>
+
+  <div class="metrics">
+    <div class="metric">depth / width <b>0.572</b> <span>compressed</span></div>
+    <div class="metric">cavity <b>26.7% &times; 26.4%</b></div>
+    <div class="metric">concealment <b>13.9%</b> <span>partial</span></div>
+    <div class="metric">clearance <b>0 violations</b> <span>tightest 0.533</span></div>
+    <div class="metric warn">cavity off-centre <b>1.7%</b> <span>was 5&ndash;8 target in v04</span></div>
+  </div>
+
+  <h2>Exterior stage &mdash; 7 authored slabs + rings A/B/C + halo (no backing ring)</h2>
+  <div class="grid">
+    <figure><img src="01-exterior-front.png" alt="exterior front">
+      <figcaption>01 &middot; exterior front</figcaption></figure>
+    <figure><img src="02-exterior-three-quarter.png" alt="exterior three quarter">
+      <figcaption>02 &middot; exterior three-quarter</figcaption></figure>
+    <figure><img src="03-exterior-side.png" alt="exterior side">
+      <figcaption>03 &middot; exterior side <span>&mdash; compressed body, no rear tube</span></figcaption></figure>
+    <figure><img src="04-cavity-close.png" alt="cavity close">
+      <figcaption>04 &middot; cavity close</figcaption></figure>
+    <figure><img src="05-exterior-stage-visibility.png" alt="stage visibility diagnostic">
+      <figcaption>05 &middot; stage visibility diagnostic <span>&mdash; no corridor leaking into hero</span></figcaption></figure>
+  </div>
+
+  <h2>Silhouette gate</h2>
+  <div class="grid">
+    <figure><img src="09-silhouette-512.png" alt="silhouette 512">
+      <figcaption>09 &middot; silhouette 512</figcaption></figure>
+    <figure><img src="10-silhouette-128.png" alt="silhouette 128" style="image-rendering:pixelated">
+      <figcaption>10 &middot; silhouette 128 <span>&mdash; cavity survives</span></figcaption></figure>
+  </div>
+
+  <h2>Tunnel and threshold stages</h2>
+  <div class="grid">
+    <figure><img src="06-tunnel-entry.png" alt="tunnel entry">
+      <figcaption>06 &middot; tunnel entry</figcaption></figure>
+    <figure><img src="07-tunnel-midpoint.png" alt="tunnel midpoint">
+      <figcaption>07 &middot; tunnel midpoint</figcaption></figure>
+    <figure><img src="08-latent-form-from-threshold.png" alt="latent form">
+      <figcaption>08 &middot; Latent Form from threshold <span>&mdash; three masses, recessed seam</span></figcaption></figure>
+  </div>
+</body>
+</html>
