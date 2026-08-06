@@ -71,12 +71,12 @@ ROOT = Path(ARGS.root).resolve()
 
 # Approved versions are never overwritten. Bump this when the authored
 # tables change; v01 remains on disk for comparison.
-VERSION = "v05"
+VERSION = "v06"
 
 BLEND_OUT = ROOT / "assets" / "blender" / f"DL_CrownedConvergence_Clay_{VERSION}.blend"
 GLB_OUT = ROOT / "public" / "models" / f"DL_CrownedConvergence_Clay_{VERSION}.glb"
 CAPTURE_DIR = ROOT / "captures" / f"crowned-convergence-clay-{VERSION}"
-MANIFEST_OUT = CAPTURE_DIR / "mesh-manifest.json"
+MANIFEST_OUT = CAPTURE_DIR / f"mesh-manifest-{VERSION}.json"
 
 REFERENCE = Path(ARGS.reference)
 if not REFERENCE.is_absolute():
@@ -121,59 +121,104 @@ if not REFERENCE.is_absolute():
 
 # (name, role_tier, front_loop, back_loop)
 # Loops must have equal length; they are lofted vertex-to-vertex.
+# v06 role assignment. v05 put the dominant masses upper-left and the
+# middles right; the completion spec reverses that — dominant weight
+# goes upper-right and lower-right, middles carry the left. Re-authored
+# accordingly, still as explicit loft pairs, still no radial formula.
+#
+# The three foreground masses bound the cavity: FA caps its top-right,
+# FB carries its lower edge, FC frames it from the left. The cavity is
+# shifted right-and-down not by translating the crown but by where each
+# of those inner vertices individually sits.
+#
+# Surface orientation (spec section 6): FC, MA, RA and RB present an
+# edge or a strongly angled plane; only FA, FB and MB show a broad face
+# to the hero camera. That is 4 angled to 3 flat, measured and reported
+# in the manifest as surfaceOrientation.
 SLAB_SPECS = [
     (
-        "DL_Slab_F1_UpperLeft", "foreground",
-        [(-2.45, -0.55,  0.35), (-2.05, -0.85,  1.65), (-0.75, -0.98,  2.30),
-         ( 0.45, -0.72,  1.75), ( 0.30, -0.50,  0.95), (-0.15, -0.42,  0.60),
-         (-1.25, -0.50,  0.15)],
-        [(-2.10,  0.32,  0.28), (-1.75,  0.10,  1.42), (-0.68,  0.02,  1.95),
-         ( 0.36,  0.26,  1.48), ( 0.24,  0.44,  0.82), (-0.14,  0.50,  0.52),
-         (-1.10,  0.42,  0.14)],
+        # FOREGROUND A — upper-right dominant, largest exterior mass.
+        # Its inner run (1.02,0.30) -> (0.72,0.66) -> (0.05,0.78) caps
+        # the cavity without reaching past the cavity centre.
+        "DL_Slab_FA_UpperRightDominant", "foreground",
+        [( 0.95, -0.95,  0.30), ( 0.72, -1.00,  0.54), ( 0.05, -0.92,  0.58),
+         (-0.30, -0.85,  1.45), ( 0.60, -0.78,  2.35), ( 1.75, -0.70,  2.45),
+         ( 2.55, -0.62,  1.35), ( 2.35, -0.80,  0.45)],
+        [( 0.94,  0.30,  0.34), ( 0.76,  0.26,  0.52), ( 0.14,  0.34,  0.56),
+         (-0.18,  0.42,  1.38), ( 0.62,  0.50,  2.18), ( 1.62,  0.55,  2.26),
+         ( 2.28,  0.48,  1.28), ( 2.12,  0.36,  0.48)],
     ),
     (
-        "DL_Slab_F2_Right", "foreground",
-        [( 0.85, -0.68,  1.75), ( 2.05, -0.88,  1.25), ( 2.50, -0.60,  0.05),
-         ( 2.05, -0.42, -1.05), ( 0.95, -0.45, -0.95), ( 0.62, -0.52, -0.25),
-         ( 0.70, -0.58,  0.85)],
-        [( 0.76,  0.20,  1.48), ( 1.78,  0.04,  1.06), ( 2.16,  0.28,  0.04),
-         ( 1.78,  0.44, -0.88), ( 0.86,  0.42, -0.80), ( 0.58,  0.36, -0.22),
-         ( 0.64,  0.30,  0.74)],
+        # FOREGROUND B — lower-right anchor, downward pressure, carries
+        # the cavity's lower edge.
+        #
+        # Its first vertex meets FA's inner-right vertex at z 0.30-0.34.
+        # Widening the ring bore pushed the cavity out to x 1.055, past
+        # the seam between these two masses, and the hole drained out
+        # through it — the silhouette had no enclosed cavity at all.
+        "DL_Slab_FB_LowerRightAnchor", "foreground",
+        [( 0.95, -0.95,  0.34), ( 0.55, -1.05, -0.80), (-0.35, -1.10, -1.05),
+         (-0.55, -0.95, -2.05), ( 0.95, -0.80, -2.40), ( 2.25, -0.72, -1.55),
+         ( 2.50, -0.85, -0.35)],
+        [( 0.94,  0.28,  0.30), ( 0.60,  0.22, -0.74), (-0.28,  0.26, -0.96),
+         (-0.46,  0.40, -1.86), ( 0.88,  0.50, -2.16), ( 2.02,  0.44, -1.42),
+         ( 2.22,  0.34, -0.34)],
     ),
     (
-        "DL_Slab_F3_LowerCentre", "foreground",
-        [(-1.55, -0.45, -0.85), (-0.35, -0.62, -0.62), ( 0.75, -0.55, -1.05),
-         ( 1.45, -0.42, -2.05), ( 0.15, -0.32, -2.45), (-1.35, -0.38, -1.95)],
-        [(-1.38,  0.36, -0.72), (-0.30,  0.24, -0.55), ( 0.66,  0.30, -0.92),
-         ( 1.24,  0.46, -1.78), ( 0.12,  0.52, -2.12), (-1.18,  0.46, -1.70)],
+        # FOREGROUND C — left frame. Thin in X and deep in Y, so from
+        # the hero it shows an angled plane rather than a face.
+        "DL_Slab_FC_LeftFrame", "foreground",
+        [(-0.62, -1.08,  0.95), (-0.66, -1.02, -0.78), (-0.95, -0.95, -0.92),
+         (-0.88, -1.00,  1.05)],
+        [(-1.05,  0.85,  1.08), (-1.12,  0.90, -0.88), (-1.48,  0.80, -1.02),
+         (-1.38,  0.75,  1.18)],
     ),
     (
-        "DL_Slab_M1_Left", "middle",
-        [(-2.60,  0.02, -0.55), (-2.30, -0.15,  0.75), (-1.25,  0.00,  0.55),
-         (-0.85,  0.16, -0.55), (-1.45,  0.22, -1.55), (-2.35,  0.14, -1.35)],
-        [(-2.22,  0.92, -0.48), (-1.98,  0.80,  0.62), (-1.12,  0.90,  0.46),
-         (-0.80,  1.02, -0.50), (-1.32,  1.06, -1.34), (-2.08,  0.98, -1.18)],
+        # MIDDLE A — elevated upper-left. Crown height without a horn.
+        #
+        # Widened right to x 0.35 and down to z 0.95 so it overlaps FA
+        # and FC. The seven masses have to read as ONE body: at the
+        # narrower v06 sizing the silhouette broke into four separate
+        # chunks with daylight between them, which is both the "isolated
+        # floating chunk" failure and the reason no cavity could be
+        # enclosed — the opening simply drained out between masses.
+        "DL_Slab_MA_UpperLeftElevated", "middle",
+        [( 0.35, -0.24,  0.95), (-0.30, -0.28,  1.15), (-1.10, -0.30,  1.05),
+         (-2.00, -0.24,  1.35), (-2.35, -0.20,  1.95), (-1.45, -0.35,  2.78),
+         (-0.45, -0.26,  2.25)],
+        [( 0.32,  1.10,  0.98), (-0.28,  1.05,  1.18), (-1.02,  1.02,  1.08),
+         (-1.85,  1.08,  1.32), (-2.08,  1.14,  1.85), (-1.32,  1.00,  2.58),
+         (-0.46,  1.08,  2.12)],
     ),
     (
-        "DL_Slab_M2_UpperRight", "middle",
-        [( 0.55, -0.18,  2.05), ( 1.85, -0.08,  1.75), ( 2.35,  0.08,  0.95),
-         ( 1.35,  0.20,  1.05), ( 0.45,  0.16,  1.55)],
-        [( 0.52,  0.74,  1.75), ( 1.62,  0.86,  1.48), ( 2.02,  0.98,  0.85),
-         ( 1.20,  1.06,  0.92), ( 0.42,  1.02,  1.34)],
+        # MIDDLE B — lower-left counterweight. Extended right to x -0.35
+        # and up to z 0.95 so it closes onto FB, FC and MA. Deep in Y,
+        # so it is not a flat tile.
+        "DL_Slab_MB_LowerLeftCounter", "middle",
+        [(-0.35, -0.38, -0.85), (-0.75, -0.40,  0.25), (-1.35, -0.42,  0.95),
+         (-2.55, -0.55,  0.85), (-2.85, -0.45, -0.35), (-2.65, -0.40, -1.45),
+         (-1.85, -0.48, -2.05)],
+        [(-0.32,  1.25, -0.78), (-0.70,  1.22,  0.30), (-1.28,  1.20,  0.88),
+         (-2.30,  1.05,  0.78), (-2.55,  1.15, -0.30), (-2.38,  1.18, -1.32),
+         (-1.72,  1.12, -1.85)],
     ),
     (
-        "DL_Slab_R1_RearLower", "rear",
-        [( 0.45,  0.52, -2.15), ( 2.05,  0.42, -1.65), ( 2.55,  0.58, -0.25),
-         ( 2.05,  0.74,  0.85), ( 1.25,  0.82, -0.45), ( 0.15,  0.68, -1.55)],
-        [( 0.40,  1.70, -1.80), ( 1.70,  1.60, -1.36), ( 2.10,  1.74, -0.20),
-         ( 1.68,  1.86,  0.68), ( 1.04,  1.92, -0.38), ( 0.14,  1.82, -1.30)],
+        # REAR A — upper structural. Binds the upper silhouette from
+        # behind; an open arc, incapable of closing a circular frame.
+        "DL_Slab_RA_RearUpper", "rear",
+        [(-0.25,  1.05,  1.05), (-1.55,  0.85,  1.45), (-0.35,  0.75,  2.15),
+         ( 1.05,  0.85,  1.95), ( 1.35,  1.00,  0.95)],
+        [(-0.22,  2.25,  1.00), (-1.35,  2.15,  1.35), (-0.30,  2.05,  1.95),
+         ( 0.92,  2.15,  1.78), ( 1.18,  2.25,  0.92)],
     ),
     (
-        "DL_Slab_R2_RearUpper", "rear",
-        [(-2.45,  0.62,  0.65), (-1.65,  0.52,  2.05), (-0.35,  0.66,  1.95),
-         (-0.65,  0.84,  1.15), (-1.75,  0.88,  0.25)],
-        [(-2.02,  1.74,  0.56), (-1.38,  1.64,  1.70), (-0.32,  1.78,  1.62),
-         (-0.58,  1.92,  0.98), (-1.48,  1.98,  0.22)],
+        # REAR B — lower structural. Same, below; inner vertices stay
+        # beyond radius 1.0 so it never enters the camera tube.
+        "DL_Slab_RB_RearLower", "rear",
+        [(-0.35,  1.05, -0.95), (-1.25,  0.80, -1.35), ( 0.35,  0.75, -1.95),
+         ( 1.65,  0.85, -1.25), ( 1.25,  1.00, -0.35)],
+        [(-0.30,  2.25, -0.88), (-1.10,  2.10, -1.25), ( 0.32,  2.05, -1.80),
+         ( 1.48,  2.15, -1.15), ( 1.10,  2.25, -0.32)],
     ),
 ]
 
@@ -750,48 +795,72 @@ def create_ring_group(
 # Ys pulled forward (0.82/1.34/1.92 -> 0.74/1.18/1.62) as part of
 # correction 1: with the tunnel hidden at the hero, the exterior mass
 # has to close up into a compact near-spherical depth.
+# v06 spec 2/3. The cavity read in the silhouette is set by the ring
+# bore, not by the slabs — the rings sit inside the crown's aperture and
+# it is their inner edge the eye sees. So shifting the cavity right and
+# down, and widening it, is done here.
+#
+# Every ring now carries a wide interruption spanning roughly 340-28
+# degrees (right) and 248-302 degrees (down). Because all three align,
+# those become through-channels: the open region escapes the bore
+# outward in exactly those two directions, which grows the measured
+# cavity and moves its centre right-and-below without translating the
+# crown or shrinking the camera bore.
+#
+# Each ring still has three wide interruptions, uneven fin widths,
+# per-fin axial offsets and an off-axis centre.
+# v06 spec 2/3. The cavity in the silhouette is set by the RING BORE,
+# not by the slabs — the rings sit inside the crown's aperture and it is
+# their inner edge the eye reads as the hole. So the cavity is widened
+# and moved here, by scaling every bore radius ~1.13x and giving all
+# three rings a shared right-and-down centre offset.
+#
+# An earlier attempt instead aligned wide gaps at 0 and 270 degrees to
+# channel the opening outward. It moved the cavity, but the open region
+# then escaped the crown entirely and the silhouette had no enclosed
+# hole at all. Gap topology is therefore left exactly as it was.
+#
+# Bore 0.825 minimum against an offset of ~0.19 leaves 0.63 to the axis,
+# comfortably clear of the 0.52 camera tube.
 PRIMARY_RINGS = [
     {
         "name": "DL_Ring_A",
         "y": 0.74,
-        "offset": (0.09, -0.05),
-        # gaps at 118-150, 214-250, 326-368 degrees
+        "offset": (0.28, -0.10),
         "fins": [
-            (  8.0,  42.0, 0.765, 1.70, 0.26, -0.03),
-            ( 52.0,  74.0, 0.748, 1.52, 0.30,  0.05),
-            ( 86.0, 118.0, 0.783, 1.74, 0.24, -0.06),
-            (150.0, 178.0, 0.739, 1.46, 0.32,  0.07),
-            (192.0, 214.0, 0.774, 1.62, 0.27, -0.04),
-            (250.0, 288.0, 0.730, 1.68, 0.29,  0.06),
-            (300.0, 326.0, 0.756, 1.40, 0.25, -0.05),
+            (  8.0,  42.0, 0.942, 1.70, 0.26, -0.03),
+            ( 52.0,  74.0, 0.921, 1.52, 0.30,  0.05),
+            ( 86.0, 118.0, 0.965, 1.74, 0.24, -0.06),
+            (150.0, 178.0, 0.910, 1.46, 0.32,  0.07),
+            (192.0, 214.0, 0.954, 1.62, 0.27, -0.04),
+            (250.0, 288.0, 0.899, 1.68, 0.29,  0.06),
+            (300.0, 326.0, 0.931, 1.40, 0.25, -0.05),
         ],
     },
     {
         "name": "DL_Ring_B",
         "y": 1.18,
-        "offset": (-0.06, 0.08),
-        # gaps at 96-128, 204-238, 310-380 degrees
+        "offset": (0.28, -0.11),
         "fins": [
-            ( 20.0,  58.0, 0.748, 1.44, 0.28,  0.06),
-            ( 70.0,  96.0, 0.783, 1.26, 0.32, -0.05),
-            (128.0, 152.0, 0.730, 1.50, 0.24,  0.07),
-            (164.0, 204.0, 0.765, 1.34, 0.30, -0.06),
-            (238.0, 262.0, 0.739, 1.48, 0.26,  0.04),
-            (274.0, 310.0, 0.774, 1.30, 0.31, -0.07),
+            ( 20.0,  58.0, 0.921, 1.44, 0.28,  0.06),
+            ( 70.0,  96.0, 0.965, 1.26, 0.32, -0.05),
+            (128.0, 152.0, 0.899, 1.50, 0.24,  0.07),
+            (164.0, 204.0, 0.942, 1.34, 0.30, -0.06),
+            (238.0, 262.0, 0.910, 1.48, 0.26,  0.04),
+            (274.0, 310.0, 0.954, 1.30, 0.31, -0.07),
         ],
     },
     {
         "name": "DL_Ring_C",
         "y": 1.62,
-        "offset": (0.12, 0.04),
-        # gaps at 96-128, 158-196, 286-330 degrees
+        "offset": (0.28, -0.10),
         "fins": [
-            (  0.0,  44.0, 0.756, 1.22, 0.30, -0.05),
-            ( 56.0,  96.0, 0.730, 1.30, 0.25,  0.07),
-            (128.0, 158.0, 0.783, 1.14, 0.32, -0.06),
-            (196.0, 238.0, 0.748, 1.26, 0.27,  0.05),
-            (250.0, 286.0, 0.765, 1.10, 0.29, -0.04),
-            (330.0, 356.0, 0.739, 1.20, 0.24,  0.06),
+            (  0.0,  44.0, 0.932, 1.22, 0.30, -0.05),
+            ( 56.0,  96.0, 0.899, 1.30, 0.25,  0.07),
+            (128.0, 158.0, 0.965, 1.14, 0.32, -0.06),
+            (196.0, 238.0, 0.921, 1.26, 0.27,  0.05),
+            (250.0, 286.0, 0.942, 1.10, 0.29, -0.04),
+            (330.0, 356.0, 0.910, 1.20, 0.24,  0.06),
         ],
     },
 ]
@@ -978,29 +1047,45 @@ THRESHOLD = create_inward_tube(
 # every silhouette is angular with no closed curve (no orb), nothing is
 # lens or almond shaped (no eye), and the gaps are wedges of differing
 # width (no mouth).
+# v06 spec 8. Three masses, weights 45 / 35 / 20, A forward-left,
+# B rear-right, C elevated and RECESSED between them — v05 had C at
+# y 10.34, in front of both, which is the opposite of recessed. All
+# three overlap in depth with visible gaps between them, and the
+# combined silhouette is taller than wide (target h/w 1.25-1.55).
+# v06 spec 8. Three masses, weights 45 / 35 / 20, A forward-left,
+# B rear-right, C elevated and RECESSED behind both. v05 had C at
+# y 10.34 — in front of the pair, the opposite of recessed.
+#
+# The combined silhouette must be TALLER than wide (h/w 1.25-1.55). A
+# first pass measured 0.97 because A and B were pushed too far apart in
+# X; they are drawn in and stretched in Z instead.
 LATENT_MASS_SPECS = [
     {
-        # Largest — left, leaning out, the anchor.
+        # Mass A — 45%. Forward and left, tallest, the anchor.
         "name": "DL_LatentMass_A",
-        "points": [(-1.18, -1.52), (-0.22, -1.66), (0.16, -0.44), (0.02, 1.30), (-0.72, 1.62), (-1.36, 0.30)],
-        "depth": 0.78,
-        "location": (-0.98, 10.48, -0.22),
+        "points": [(-1.10, -1.90), (-0.16, -2.02), ( 0.20, -0.52), ( 0.04,  1.62),
+                   (-0.68,  2.00), (-1.02,  0.36)],
+        "depth": 0.82,
+        "location": (-0.72, 10.42, 0.05),
         "rotation": (5.0, -9.0, -7.0),
     },
     {
-        # Medium — right, shorter, tipped the other way.
+        # Mass B — 35%. Rear and right, shorter, tipped the other way.
         "name": "DL_LatentMass_B",
-        "points": [(-0.14, -1.10), (0.86, -0.94), (1.06, 0.18), (0.62, 1.16), (-0.16, 0.94), (-0.42, -0.08)],
-        "depth": 0.66,
-        "location": (0.88, 10.58, 0.08),
+        "points": [(-0.44, -1.40), ( 0.52, -1.22), ( 0.98,  0.18), ( 0.62,  1.34),
+                   (-0.16,  1.50), (-0.40, -0.06)],
+        "depth": 0.70,
+        "location": (0.68, 10.88, -0.15),
         "rotation": (-6.0, 8.0, 6.0),
     },
     {
-        # Smallest — high and to the right, breaking any centred axis.
+        # Mass C — 20%. Elevated and set furthest back, so it reads as
+        # the far shoulder rather than a third front plane.
         "name": "DL_LatentMass_C",
-        "points": [(-0.52, -0.62), (0.28, -0.74), (0.58, 0.06), (0.34, 0.86), (-0.30, 0.72), (-0.60, 0.10)],
-        "depth": 0.54,
-        "location": (0.34, 10.34, 1.44),
+        "points": [(-0.50, -0.60), ( 0.26, -0.72), ( 0.52,  0.08), ( 0.30,  0.80),
+                   (-0.28,  0.68), (-0.54,  0.10)],
+        "depth": 0.58,
+        "location": (0.02, 11.14, 1.92),
         "rotation": (9.0, 3.0, -11.0),
     },
 ]
@@ -1033,10 +1118,13 @@ for spec in LATENT_MASS_SPECS:
 # composition never resolves into a symmetrical figure.
 SEAM = create_prism_xz(
     name="DL_LatentSeam",
-    points_xz=[(-0.048, -0.92), (0.048, -0.80), (0.034, 0.86), (-0.034, 1.02)],
-    depth=0.12,
+    # Width kept under 8% of the combined silhouette, and set back to
+    # y 11.02 — behind A's front plane at ~10.0 and behind B's at
+    # ~10.5 — so it is glimpsed between the masses, never the subject.
+    points_xz=[(-0.038, -1.02), (0.038, -0.88), (0.026, 0.94), (-0.026, 1.12)],
+    depth=0.11,
     parent=LATENT_ROOT,
-    location=(-0.02, 10.86, 0.10),
+    location=(-0.04, 11.06, 0.10),
     rotation_degrees=(0.0, 0.0, 13.0),
     face_material="MAT_CORE",
     role="latent_seam",
@@ -1216,6 +1304,11 @@ def apply_stage(stages: set[str]) -> list[str]:
             continue
         stage = obj.get("dl_visibility_stage", "exterior")
         shown = stage in stages
+        # Spec 7: the halo belongs to the dormant exterior only. It is
+        # exterior-stage metadata, so without this it would follow the
+        # crown into every tunnel and revelation view.
+        if obj.get("dl_role", "") == "halo" and stages != STAGE_EXTERIOR:
+            shown = False
         obj.hide_render = not shown
         if shown:
             visible.append(obj.name)
@@ -1229,8 +1322,19 @@ def render_view(
     lens: float = 55.0,
     resolution: tuple[int, int] = (1200, 900),
     stages: set[str] | None = None,
+    neutral: bool = False,
 ) -> None:
     apply_stage(stages or STAGE_ALL)
+    original_engine = SCENE.render.engine
+    if neutral:
+        SCENE.render.engine = "BLENDER_WORKBENCH"
+        SCENE.display.shading.light = "STUDIO"
+        SCENE.display.shading.color_type = "SINGLE"
+        SCENE.display.shading.single_color = (0.42, 0.45, 0.50)
+        SCENE.display.shading.show_cavity = True
+        SCENE.display.shading.cavity_type = "BOTH"
+        SCENE.display.shading.show_shadows = False
+        SCENE.display.render_aa = "8"
     CAMERA.location = camera_location
     CAMERA.data.lens = lens
     look_at(CAMERA, target)
@@ -1245,6 +1349,9 @@ def render_silhouette(
     size: int = 512,
     roles: set[str] | None = None,
     exclude: set[str] | None = None,
+    include: set[str] | None = None,
+    stages: set[str] | None = None,
+    camera: tuple[Sequence[float], Sequence[float], float] | None = None,
 ) -> None:
     """
     *roles* restricts the render to objects with those dl_role values.
@@ -1267,6 +1374,8 @@ def render_silhouette(
             obj.hide_render = True
         if exclude is not None and obj.name in exclude:
             obj.hide_render = True
+        if include is not None and obj.name not in include:
+            obj.hide_render = True
     hidden = HALO.hide_render
     HALO.hide_render = True
     try:
@@ -1287,13 +1396,116 @@ def render_silhouette(
         # v03 reaches 4.03 units (dominant slab 2.92 x spike 1.38), and
         # 12.5 only saw +-3.87 — the crest horns were clipping the top
         # edge of the gate render.
-        CAMERA.location = (0.0, -14.5, 0.35)
-        CAMERA.data.lens = 58
-        look_at(CAMERA, (0.0, 0.0, 0.15))
+        if camera is not None:
+            CAMERA.location = camera[0]
+            CAMERA.data.lens = camera[2]
+            look_at(CAMERA, camera[1])
+        else:
+            CAMERA.location = (0.0, -14.5, 0.35)
+            CAMERA.data.lens = 58
+            look_at(CAMERA, (0.0, 0.0, 0.15))
         bpy.ops.render.render(write_still=True)
     finally:
         HALO.hide_render = hidden
         SCENE.render.engine = original_engine
+
+
+def solid_mask(filename: str) -> tuple[bytearray, int, int]:
+    """Binary mask of the rendered silhouette: 1 = geometry."""
+    image = bpy.data.images.load(str(CAPTURE_DIR / filename))
+    width, height = image.size
+    pixels = tuple(image.pixels)
+
+    def luminance(index: int) -> float:
+        base = index * 4
+        return 0.2126 * pixels[base] + 0.7152 * pixels[base + 1] + 0.0722 * pixels[base + 2]
+
+    threshold = luminance(0) * 0.5
+    mask = bytearray(width * height)
+    for index in range(width * height):
+        mask[index] = 1 if luminance(index) < threshold else 0
+
+    image.user_clear()
+    bpy.data.images.remove(image)
+    return mask, width, height
+
+
+def _largest_component(indices: list[int], width: int, height: int) -> list[int]:
+    """
+    Biggest connected run of enclosed background.
+
+    Small isolated gaps between masses are holes too, and taking the
+    bounding box over ALL of them inflated the cavity reading by
+    whatever stray chink happened to exist elsewhere in the silhouette.
+    The cavity is the largest one.
+    """
+    member = set(indices)
+    seen: set[int] = set()
+    best: list[int] = []
+    for seed in indices:
+        if seed in seen:
+            continue
+        stack = [seed]
+        seen.add(seed)
+        component = []
+        while stack:
+            i = stack.pop()
+            component.append(i)
+            x, y = i % width, i // width
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < width and 0 <= ny < height:
+                    j = ny * width + nx
+                    if j in member and j not in seen:
+                        seen.add(j)
+                        stack.append(j)
+        if len(component) > len(best):
+            best = component
+    return best
+
+
+def _convex_hull(xs: Sequence[int], ys: Sequence[int]) -> list[tuple[int, int]]:
+    points = sorted(set(zip(xs, ys)))
+    if len(points) < 3:
+        return points
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower = []
+    for point in points:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], point) <= 0:
+            lower.pop()
+        lower.append(point)
+    upper = []
+    for point in reversed(points):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], point) <= 0:
+            upper.pop()
+        upper.append(point)
+    return lower[:-1] + upper[:-1]
+
+
+def _hull_scanline(hull: Sequence[tuple[int, int]], width: int, height: int) -> bytearray:
+    """Fills a convex hull to a mask, one row at a time."""
+    mask = bytearray(width * height)
+    if len(hull) < 3:
+        return mask
+    ys = [p[1] for p in hull]
+    for y in range(max(0, min(ys)), min(height - 1, max(ys)) + 1):
+        crossings = []
+        for index, (x0, y0) in enumerate(hull):
+            x1, y1 = hull[(index + 1) % len(hull)]
+            if y0 == y1:
+                continue
+            if min(y0, y1) <= y < max(y0, y1):
+                t = (y - y0) / float(y1 - y0)
+                crossings.append(x0 + t * (x1 - x0))
+        if len(crossings) < 2:
+            continue
+        left, right = int(min(crossings)), int(max(crossings))
+        row = y * width
+        for x in range(max(0, left), min(width - 1, right) + 1):
+            mask[row + x] = 1
+    return mask
 
 
 def _hull_area(xs: Sequence[int], ys: Sequence[int]) -> float:
@@ -1379,7 +1591,10 @@ def analyse_silhouette(filename: str) -> dict:
                     stack.append(j)
 
     entity = [i for i in range(width * height) if solid[i]]
-    holes = [i for i in range(width * height) if not solid[i] and not outside[i]]
+    holes = _largest_component(
+        [i for i in range(width * height) if not solid[i] and not outside[i]],
+        width, height,
+    )
     image.user_clear()
     bpy.data.images.remove(image)
 
@@ -1410,14 +1625,14 @@ def analyse_silhouette(filename: str) -> dict:
             {
                 "cavityWidthPct": round(hole_w / entity_w * 100.0, 1),
                 "cavityHeightPct": round(hole_h / entity_h * 100.0, 1),
-                "cavityOffsetPct": round(
-                    math.dist(
-                        ((max(hx) + min(hx)) * 0.5, (max(hy) + min(hy)) * 0.5),
-                        (entity_cx, entity_cy),
-                    )
-                    / entity_w
-                    * 100.0,
-                    1,
+                # Signed, and reported on the axes the spec states them
+                # on. Blender image rows run bottom-up, so a cavity
+                # BELOW centre has the smaller row index.
+                "cavityOffsetRightPct": round(
+                    ((max(hx) + min(hx)) * 0.5 - entity_cx) / entity_w * 100.0, 1
+                ),
+                "cavityOffsetBelowPct": round(
+                    (entity_cy - (max(hy) + min(hy)) * 0.5) / entity_h * 100.0, 1
                 ),
                 # Occlusion measured against the cavity's CONVEX HULL,
                 # not its bounding box. A clean round hole fills only
@@ -1439,40 +1654,32 @@ def produce_renders() -> None:
     # the asset is ~2.9 units in radius and these were framed for
     # something half its size. The side view sits further out again now
     # that the body hull extends to y 8.4.
-    # --- exterior stage: crown, rear shell, rings A/B/C, halo only -----
     render_view("01-exterior-front.png", (0.0, -11.5, 0.35), (0.0, 0.0, 0.15), 58,
                 (1536, 1024), STAGE_EXTERIOR)
     render_view("02-exterior-three-quarter.png", (7.4, -8.6, 4.2), (0.0, 0.35, 0.15), 58,
                 (1200, 900), STAGE_EXTERIOR)
-    # With the corridor staged out, the side view only has to hold ~5
-    # units of mass, so it comes back in from 22.0 to 11.0 — the entity
-    # should read compact here, which is the whole point of correction 1.
     render_view("03-exterior-side.png", (11.0, 0.6, 0.60), (0.0, 0.60, 0.10), 55,
                 (1200, 900), STAGE_EXTERIOR)
-    render_view("04-cavity-close.png", (0.0, -4.20, 0.05), (0.0, 1.10, 0.0), 62,
+    render_silhouette("04-silhouette-512.png", 512)
+    render_silhouette("05-silhouette-128.png", 128)
+    render_view("06-cavity-close.png", (0.0, -4.20, 0.05), (0.0, 1.10, 0.0), 62,
                 (1200, 900), STAGE_EXTERIOR)
-    # The diagnostic: same exterior stage, high three-quarter-rear. If
-    # any corridor object were leaking into the hero, it would show here.
-    render_view("05-exterior-stage-visibility.png", (6.8, 6.2, 5.4), (0.0, 1.10, 0.10), 50,
+    render_view("07-exterior-stage-visibility.png", (6.8, 6.2, 5.4), (0.0, 1.10, 0.10), 50,
                 (1200, 900), STAGE_EXTERIOR)
-
-    # --- tunnel and threshold stages -----------------------------------
-    render_view("06-tunnel-entry.png", (0.0, -0.65, 0.0), (0.0, 4.2, 0.0), 50,
+    render_view("08-tunnel-entry.png", (0.0, -0.65, 0.0), (0.0, 4.2, 0.0), 50,
                 (1200, 900), STAGE_TUNNEL)
-    render_view("07-tunnel-midpoint.png", (0.0, 4.2, 0.0), (0.0, 8.7, 0.0), 47,
-                (1200, 900), STAGE_TUNNEL)
-    render_view("08-latent-form-from-threshold.png", (0.0, 7.4, 0.10), (0.0, 10.6, 0.25), 34,
-                (1200, 900), STAGE_ALL)
-
-    render_silhouette("09-silhouette-512.png", 512)
-    render_silhouette("10-silhouette-128.png", 128)
-    # Measurement pass, not a review image. Occlusion is the DIFFERENCE
-    # the forward slab makes to the open cavity area — rendering the
-    # same silhouette without it and differencing is the only way to
-    # separate slab intrusion from the ring scalloping that is there by
-    # design. (A crown-only pass does not work: with gaps deliberately
-    # left between slabs, the crown alone encloses nothing.)
-    render_silhouette("11-convergence-unconcealed.png", 512, exclude=set(FOREGROUND_SLABS))
+    # Spec 8: neutral diagnostic lighting strong enough to read all
+    # three masses. Workbench studio gives even, material-independent
+    # illumination — this is a diagnostic, not a lighting decision, and
+    # it touches no material in the asset.
+    # The group is ~4.6 tall and sits at y 10.4-11.5; a 34 mm lens at
+    # 3.2 units of standoff put the camera inside it. 20 mm from the
+    # threshold entrance holds the whole form.
+    render_view("09-latent-form-threshold-neutral.png", (0.0, 7.5, 0.40), (0.0, 10.7, 0.40), 20,
+                (1200, 900), STAGE_ALL, neutral=True)
+    render_silhouette("10-latent-form-silhouette.png", 512,
+                      roles={"latent_mass"}, stages=STAGE_ALL,
+                      camera=((0.0, 7.5, 0.40), (0.0, 10.7, 0.40), 20))
 
 
 # ---------------------------------------------------------------------------
@@ -1484,6 +1691,131 @@ def triangle_count(obj: bpy.types.Object) -> int:
         return 0
     obj.data.calc_loop_triangles()
     return len(obj.data.loop_triangles)
+
+
+def measure_ring_visibility() -> dict:
+    """
+    How much of each convergence ring is visibly readable at the dormant
+    hero. Spec: Ring A 20-35%, Ring B 5-12%, Ring C 0-5%.
+
+    Depth order matters and the first attempt got it backwards. Counting
+    "pixels only this ring contributes" penalises the NEAREST ring —
+    anything behind it fills in when it is removed — and flattered the
+    farthest, which reported A at 6.9% and C at 22.2%, exactly inverted.
+
+    A ring is readable where it is drawn, no slab covers it, and no
+    NEARER ring covers it. Rings are walked front to back, accumulating
+    an occlusion mask as they go.
+    """
+    order = ["DL_Ring_A", "DL_Ring_B", "DL_Ring_C"]
+
+    render_silhouette("_m-slabs.png", 512, exclude=set(order))
+    slabs, width, height = solid_mask("_m-slabs.png")
+
+    alone: dict[str, bytearray] = {}
+    for name in order:
+        render_silhouette(f"_m-{name}.png", 512, include={name})
+        alone[name], _w, _h = solid_mask(f"_m-{name}.png")
+
+    result = {}
+    nearer = bytearray(width * height)
+    for name in order:
+        mask = alone[name]
+        total = sum(mask)
+        visible = sum(
+            1 for i in range(width * height)
+            if mask[i] and not slabs[i] and not nearer[i]
+        )
+        result[name] = {
+            "unoccludedPx": total,
+            "visiblePx": visible,
+            "visiblePct": round(visible / max(total, 1) * 100.0, 1),
+        }
+        for i in range(width * height):
+            if mask[i]:
+                nearer[i] = 1
+    return result
+
+
+def measure_concealment() -> dict:
+    """
+    How much of the convergence aperture the three foreground masses
+    hide. Spec target 12-18%.
+
+    Two earlier definitions were wrong. Differencing the enclosed cavity
+    collapsed to 0% (without the foreground the opening is not enclosed
+    at all). Bounding the aperture by the silhouette's convex hull gave
+    59%, because it counted every pixel FA and FB occupy anywhere in the
+    entity, not just over the opening.
+
+    The aperture is the convergence itself: the open bore seen with the
+    rings alone. Concealment is how much of that bore the foreground
+    masses cover. Nothing else in the entity can influence the number.
+    """
+    rings = {"DL_Ring_A", "DL_Ring_B", "DL_Ring_C"}
+
+    render_silhouette("_m-rings.png", 512, include=rings)
+    open_alone = analyse_silhouette("_m-rings.png").get("cavityAreaPx", 0)
+
+    render_silhouette("_m-rings-fg.png", 512, include=rings | set(FOREGROUND_SLABS))
+    open_with = analyse_silhouette("_m-rings-fg.png").get("cavityAreaPx", 0)
+
+    return {
+        "foregroundMasses": FOREGROUND_SLABS,
+        "apertureAlonePx": open_alone,
+        "apertureWithForegroundPx": open_with,
+        "concealmentPct": round(
+            max(0.0, (open_alone - open_with) / float(max(open_alone, 1))) * 100.0, 1
+        ),
+    }
+
+
+def measure_surface_orientation() -> dict:
+    """
+    Spec section 6: at most three masses may present a broad face to the
+    hero camera. Frontality is the area-weighted mean of
+    dot(normal, -Y) over camera-facing polygons — 1.0 is dead flat-on.
+    """
+    view = Vector((0.0, -1.0, 0.0))
+    masses = []
+    flat = 0
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or obj.get("dl_role", "") != "crown_slab":
+            continue
+        matrix = obj.matrix_world
+        rotation = matrix.to_3x3()
+        weighted = 0.0
+        area_sum = 0.0
+        for polygon in obj.data.polygons:
+            normal = (rotation @ polygon.normal).normalized()
+            facing = normal.dot(view)
+            if facing <= 0.0:
+                continue
+            weighted += polygon.area * facing
+            area_sum += polygon.area
+        frontality = weighted / area_sum if area_sum else 0.0
+        broad = frontality > 0.80
+        flat += 1 if broad else 0
+        masses.append(
+            {"name": obj.name, "frontality": round(frontality, 3),
+             "presents": "broad face" if broad else "edge / angled plane"}
+        )
+    masses.sort(key=lambda m: -m["frontality"])
+    return {"masses": masses, "broadFaceCount": flat, "limit": 3,
+            "withinLimit": flat <= 3}
+
+
+def measure_latent_form() -> dict:
+    """Combined Latent Form silhouette ratio. Spec target 1.25-1.55."""
+    mask, width, height = solid_mask("10-latent-form-silhouette.png")
+    pixels = [i for i in range(width * height) if mask[i]]
+    if not pixels:
+        return {"error": "no latent pixels"}
+    xs = [i % width for i in pixels]
+    ys = [i // width for i in pixels]
+    w = max(xs) - min(xs) + 1
+    h = max(ys) - min(ys) + 1
+    return {"widthPx": w, "heightPx": h, "heightOverWidth": round(h / max(w, 1), 3)}
 
 
 def _exterior_extents() -> dict:
@@ -1555,13 +1887,6 @@ def create_manifest() -> dict:
         "cameraPath": CAMERA_PATH_POINTS,
         "reference": str(REFERENCE),
     }
-
-
-def save_manifest() -> dict:
-    manifest = create_manifest()
-    MANIFEST_OUT.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    print("TRIANGLE_TOTAL", manifest["totalTriangles"])
-    return manifest
 
 
 def save_blend() -> None:
@@ -1640,31 +1965,33 @@ def export_glb() -> None:
     print("GLTF_EXPORT", result, GLB_OUT)
 
 
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+
 if ARGS.render:
     produce_renders()
 
 manifest = create_manifest()
 manifest["clearance"] = measure_clearance()
+
 if ARGS.render:
-    _with = analyse_silhouette("09-silhouette-512.png")
-    _without = analyse_silhouette("11-convergence-unconcealed.png")
-    _open_with = _with.get("cavityAreaPx", 0)
-    _open_without = _without.get("cavityAreaPx", 0) or 1
     manifest["silhouette"] = {
-        "visibleCavity": [_with, analyse_silhouette("10-silhouette-128.png")],
-        "concealment": {
-            "foregroundMasses": FOREGROUND_SLABS,
-            "openAreaWithoutForegroundPx": _open_without,
-            "openAreaWithForegroundPx": _open_with,
-            # How much of the internal convergence the three foreground
-            # masses hide. The v05 target is "partially concealed", so
-            # this wants to be materially above zero and well short of
-            # total — neither an open portal nor a sealed lump.
-            "concealmentPct": round(
-                max(0.0, (_open_without - _open_with) / float(_open_without)) * 100.0, 1
-            ),
-        },
+        "visibleCavity": [
+            analyse_silhouette("04-silhouette-512.png"),
+            analyse_silhouette("05-silhouette-128.png"),
+        ],
+        "concealment": measure_concealment(),
     }
+    manifest["ringVisibility"] = measure_ring_visibility()
+    manifest["surfaceOrientation"] = measure_surface_orientation()
+    manifest["latentForm"] = measure_latent_form()
+
+    # Measurement renders are not deliverables; the capture folder must
+    # end up holding exactly the eleven required files.
+    for _temp in CAPTURE_DIR.glob("_m-*.png"):
+        _temp.unlink()
+
 MANIFEST_OUT.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 print("MANIFEST_ASSET", manifest["asset"])
@@ -1678,12 +2005,14 @@ for entry in manifest.get("silhouette", {}).get("visibleCavity", []):
     print("VISIBLE_CAVITY", json.dumps(entry))
 if "silhouette" in manifest:
     print("CONCEALMENT", json.dumps(manifest["silhouette"]["concealment"]))
+if "ringVisibility" in manifest:
+    print("RING_VISIBILITY", json.dumps(
+        {k: v["visiblePct"] for k, v in manifest["ringVisibility"].items()}))
+    print("SURFACE_ORIENTATION", json.dumps(manifest["surfaceOrientation"]["broadFaceCount"]))
+    print("LATENT_FORM", json.dumps(manifest["latentForm"]))
 
 save_blend()
 export_glb()
 
 print("CROWNED_CONVERGENCE_BUILD_OK")
-print("BLEND", BLEND_OUT)
 print("GLB", GLB_OUT)
-print("CAPTURES", CAPTURE_DIR)
-print("TRIANGLES", manifest["totalTriangles"])
