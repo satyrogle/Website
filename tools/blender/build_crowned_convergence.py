@@ -71,7 +71,7 @@ ROOT = Path(ARGS.root).resolve()
 
 # Approved versions are never overwritten. Bump this when the authored
 # tables change; v01 remains on disk for comparison.
-VERSION = "v02"
+VERSION = "v03"
 
 BLEND_OUT = ROOT / "assets" / "blender" / f"DL_CrownedConvergence_Clay_{VERSION}.blend"
 GLB_OUT = ROOT / "public" / "models" / f"DL_CrownedConvergence_Clay_{VERSION}.glb"
@@ -88,158 +88,100 @@ if not REFERENCE.is_absolute():
 # Blender coordinates: X horizontal, Z vertical, +Y travels into the entity.
 # ---------------------------------------------------------------------------
 
-# v02 changes to this table, against the concept board:
-#   - half_angle_deg 19-30 -> 11-18. At 25-30 degrees each slab spanned
-#     ~55 degrees of the ring and read as a smooth pentagon facet; the
-#     board's shards are narrow.
-#   - inner_r ~1.0-1.2 -> 1.38-1.55, opening the hollow. This is the
-#     "Hollow Convergence": the cavity should dominate the face.
-#   - spike raised on 01/03/05 ONLY (1.09-1.13 -> 1.24-1.42) so three
-#     points break the outline. Raising all seven would restore the
-#     radial-symmetry problem the narrow slabs exist to remove.
-#   - a secondary tier added below, filling the gaps the narrower
-#     primaries open up, for the board's large/small hierarchy.
+# ---------------------------------------------------------------------------
+# v03 structural corrections
+#
+# 1. THE WHEEL/TURBINE READ. v02 put every slab on the same radial band,
+#    pointing straight out, at roughly even angular spacing. Those three
+#    properties ARE a turbine — the eye reads impeller blades no matter
+#    what the individual shapes do. All three are broken here:
+#      - outer_r spread 1.78 -> 2.92 instead of 2.33 -> 2.62;
+#      - a Z rotation per slab (up to +-32 degrees) swings each one off
+#        its own radial axis, so the pieces no longer agree on a hub;
+#      - angular spacing is dense above (17-28 degrees) and sparse below
+#        (39-43), so no rotational rhythm survives.
+#
+# 2. MASS HIERARCHY. Three explicit tiers — two dominant slabs, four
+#    medium, seven small — rather than one row of near-equals. Depth
+#    scales with the tier too, so hierarchy reads in silhouette AND in
+#    three-quarter.
+#
+# 3. CAVITY. Off-centre: the aperture is a circle centred at
+#    CAVITY_CENTRE, not at the origin, so each slab's inner radius is
+#    solved against it (cavity_inner_r). Two occluder slabs sit forward
+#    of the others and reach across the opening, so the hollow is never
+#    a clean readable disc.
+# ---------------------------------------------------------------------------
 
-CROWN_SPECS = [
-    {
-        "name": "DL_CrownSlab_01",
-        "angle_deg": 93.0,
-        "half_angle_deg": 17.0,
-        "inner_r": 1.42,
-        "outer_r": 2.55,
-        "spike": 1.42,
-        "depth": 0.88,
-        "y": -0.18,
-        "rot": (-6.0, 4.0, -3.0),
-        "material": "MAT_CROWN_PRIMARY",
-        "layer": 1,
-        "open_translation": (-0.02, -0.01, 0.13),
-        "open_rotation": (-3.0, 1.0, -1.0),
-    },
-    {
-        "name": "DL_CrownSlab_02",
-        "angle_deg": 146.0,
-        "half_angle_deg": 15.0,
-        "inner_r": 1.45,
-        "outer_r": 2.40,
-        "spike": 1.10,
-        "depth": 0.82,
-        "y": -0.28,
-        "rot": (5.0, -8.0, 3.0),
-        "material": "MAT_CROWN_PRIMARY",
-        "layer": 1,
-        "open_translation": (-0.11, -0.01, 0.04),
-        "open_rotation": (1.0, -4.0, 2.0),
-    },
-    {
-        "name": "DL_CrownSlab_03",
-        "angle_deg": 35.0,
-        "half_angle_deg": 18.0,
-        "inner_r": 1.38,
-        "outer_r": 2.62,
-        "spike": 1.32,
-        "depth": 1.02,
-        "y": -0.10,
-        "rot": (-2.0, 8.0, -2.0),
-        "material": "MAT_CROWN_PRIMARY",
-        "layer": 2,
-        "open_translation": (0.12, 0.01, 0.06),
-        "open_rotation": (-1.0, 4.0, -2.0),
-    },
-    {
-        "name": "DL_CrownSlab_04",
-        "angle_deg": 201.0,
-        "half_angle_deg": 16.0,
-        "inner_r": 1.48,
-        "outer_r": 2.33,
-        "spike": 1.08,
-        "depth": 0.88,
-        "y": -0.12,
-        "rot": (3.0, -5.0, -3.0),
-        "material": "MAT_CROWN_SECONDARY",
-        "layer": 2,
-        "open_translation": (-0.09, 0.00, -0.08),
-        "open_rotation": (2.0, -3.0, -2.0),
-    },
-    {
-        "name": "DL_CrownSlab_05",
-        "angle_deg": 318.0,
-        "half_angle_deg": 17.0,
-        "inner_r": 1.40,
-        "outer_r": 2.56,
-        "spike": 1.24,
-        "depth": 1.00,
-        "y": -0.05,
-        "rot": (-3.0, 7.0, 2.0),
-        "material": "MAT_CROWN_PRIMARY",
-        "layer": 3,
-        "open_translation": (0.11, 0.01, -0.10),
-        "open_rotation": (-2.0, 4.0, 2.0),
-    },
-    {
-        "name": "DL_CrownSlab_06",
-        "angle_deg": 63.0,
-        "half_angle_deg": 12.0,
-        "inner_r": 1.55,
-        "outer_r": 2.34,
-        "spike": 1.07,
-        "depth": 0.66,
-        "y": 0.28,
-        "rot": (7.0, 2.0, 4.0),
-        "material": "MAT_CROWN_SECONDARY",
-        "layer": 3,
-        "open_translation": (0.04, 0.03, 0.08),
-        "open_rotation": (3.0, 1.0, 2.0),
-    },
-    {
-        "name": "DL_CrownSlab_07",
-        "angle_deg": 255.0,
-        "half_angle_deg": 13.0,
-        "inner_r": 1.52,
-        "outer_r": 2.35,
-        "spike": 1.06,
-        "depth": 0.72,
-        "y": 0.34,
-        "rot": (-5.0, -2.0, 4.0),
-        "material": "MAT_CROWN_SECONDARY",
-        "layer": 3,
-        "open_translation": (-0.03, 0.04, -0.09),
-        "open_rotation": (-3.0, -1.0, 3.0),
-    },
+# Cavity as an off-centre circle in the XZ face plane.
+CAVITY_CENTRE = (0.24, -0.16)
+CAVITY_RADIUS = 1.46
+
+
+def cavity_inner_r(angle_deg: float) -> float:
+    """
+    Distance from the origin to the off-centre cavity boundary along
+    *angle_deg*. Solving this per slab is what makes the aperture sit
+    off-axis while the outer silhouette stays centred — moving every
+    slab bodily would have dragged the whole crown sideways instead.
+    """
+    angle = math.radians(angle_deg)
+    ux, uz = math.cos(angle), math.sin(angle)
+    cx, cz = CAVITY_CENTRE
+    proj = ux * cx + uz * cz
+    centre_sq = cx * cx + cz * cz
+    return proj + math.sqrt(max(proj * proj - centre_sq + CAVITY_RADIUS ** 2, 1e-6))
+
+
+# (angle, half_angle, outer_r, spike, depth, y, rot, tier, inner_scale)
+#   tier         1 dominant, 2 medium, 3 small
+#   inner_scale  <1 pulls the slab's inner edge across the cavity; used
+#                only by the two occluders, and floored well outside the
+#                0.52 camera tube.
+_CROWN_TABLE = [
+    # --- tier 1: the two dominant masses, both upper, crown leans left
+    (112.0, 20.0, 2.92, 1.38, 1.30, -0.30, (-6.0,  4.0,  -8.0), 1, 1.00),
+    ( 72.0, 18.0, 2.78, 1.30, 1.18, -0.20, (-3.0,  6.0,  14.0), 1, 1.00),
+    # --- tier 2: medium
+    (158.0, 15.0, 2.40, 1.12, 0.90, -0.05, ( 5.0, -8.0, -22.0), 2, 1.00),
+    (206.0, 14.0, 2.28, 1.08, 0.85,  0.12, ( 3.0, -5.0,  18.0), 2, 1.00),
+    (328.0, 16.0, 2.45, 1.20, 0.95, -0.12, (-3.0,  7.0, -15.0), 2, 1.00),
+    ( 27.0, 14.0, 2.32, 1.10, 0.88,  0.05, (-2.0,  8.0,  26.0), 2, 1.00),
+    # --- tier 3: small shards, incl. two occluders (y forward of the rest)
+    ( 92.0, 10.0, 1.95, 1.14, 0.52, -0.62, ( 4.0, -3.0,  11.0), 3, 0.60),
+    ( 55.0, 10.0, 1.88, 1.10, 0.48, -0.55, (-5.0,  2.0, -13.0), 3, 0.63),
+    (135.0, 11.0, 2.02, 1.09, 0.55,  0.30, ( 3.0,  5.0, -30.0), 3, 1.00),
+    (180.0,  9.0, 1.85, 1.07, 0.46,  0.38, (-2.0, -6.0,  20.0), 3, 1.00),
+    (246.0, 10.0, 1.98, 1.16, 0.50,  0.26, ( 6.0,  3.0, -25.0), 3, 1.00),
+    (285.0,  9.0, 1.78, 1.06, 0.44,  0.42, (-4.0,  4.0,  32.0), 3, 1.00),
+    (352.0, 11.0, 2.05, 1.11, 0.54,  0.18, ( 2.0, -5.0, -18.0), 3, 1.00),
 ]
 
-# Secondary tier. Seated in the gaps between the primaries, at shorter
-# reach and greater depth, so the crown has two clear scales rather than
-# one row of equals. Angles sit at the primary midpoints, nudged off so
-# the ring never reads as evenly spaced.
-CROWN_SPECS += [
-    {
-        "name": "DL_CrownShard_%02d" % (index + 1),
-        "angle_deg": angle,
-        "half_angle_deg": half_angle,
-        "inner_r": inner_r,
-        "outer_r": outer_r,
-        "spike": spike,
-        "depth": depth,
-        "y": y,
-        "rot": rot,
-        "material": "MAT_CROWN_SECONDARY",
-        "layer": 3,
-        "open_translation": (0.0, 0.02, 0.05),
-        "open_rotation": (1.5, 0.0, 1.0),
-    }
-    for index, (angle, half_angle, inner_r, outer_r, spike, depth, y, rot) in enumerate(
-        [
-            ( 47.0, 11.0, 1.50, 1.92, 1.12, 0.54,  0.30, ( 4.0, -3.0,  2.0)),
-            ( 78.0, 13.0, 1.46, 2.02, 1.18, 0.62,  0.16, (-5.0,  2.0, -2.0)),
-            (117.0, 12.0, 1.52, 1.86, 1.09, 0.50,  0.34, ( 3.0,  5.0,  3.0)),
-            (171.0, 14.0, 1.44, 1.98, 1.14, 0.58,  0.12, (-2.0, -6.0, -3.0)),
-            (226.0, 11.0, 1.54, 1.78, 1.07, 0.48,  0.36, ( 6.0,  3.0,  2.0)),
-            (284.0, 13.0, 1.47, 1.95, 1.16, 0.56,  0.20, (-4.0,  4.0, -2.0)),
-            (352.0, 12.0, 1.51, 1.88, 1.10, 0.52,  0.28, ( 2.0, -5.0,  3.0)),
-        ]
+CROWN_SPECS = []
+for _index, (_angle, _half, _outer, _spike, _depth, _y, _rot, _tier, _inner_scale) in enumerate(
+    _CROWN_TABLE
+):
+    CROWN_SPECS.append(
+        {
+            "name": ("DL_CrownSlab_%02d" if _tier < 3 else "DL_CrownShard_%02d") % (_index + 1),
+            "angle_deg": _angle,
+            "half_angle_deg": _half,
+            "inner_r": cavity_inner_r(_angle) * _inner_scale,
+            "outer_r": _outer,
+            "spike": _spike,
+            "depth": _depth,
+            "y": _y,
+            "rot": _rot,
+            "material": "MAT_CROWN_PRIMARY" if _tier == 1 else "MAT_CROWN_SECONDARY",
+            "layer": _tier,
+            "open_translation": (
+                math.cos(math.radians(_angle)) * 0.05 * _tier,
+                -0.01 * _tier,
+                math.sin(math.radians(_angle)) * 0.05 * _tier,
+            ),
+            "open_rotation": (-2.0 + _tier, 2.0 - _tier, _rot[2] * 0.08),
+        }
     )
-]
 
 CAMERA_PATH_POINTS = [
     (0.00, -8.20, 0.38),
@@ -751,24 +693,28 @@ for ring in PRIMARY_RING_SPECS:
     RING_OBJECTS.append(obj)
 
 
-continuation_specs: list[dict] = []
-for index in range(6):
-    continuation_specs.append(
-        {
-            "fin_count": max(4, 8 - index // 2),
-            # Was 0.66 - index * 0.035, which closed to 0.485 by the
-            # last ring — measured 0.426 clear against a 0.52
-            # requirement, so the camera flew through the far fins.
-            # This holds 0.74 -> 0.66 nominal, ~0.68 -> 0.60 measured.
-            "inner_r": 0.74 - index * 0.016,
-            "outer_r": 1.45 - index * 0.045,
-            "depth": 0.30,
-            "y": 2.60 + index * 0.76,
-            "angular_fill": 0.63,
-            "twist_degrees": (6.0 + index * 1.5) * (-1 if index % 2 else 1),
-            "phase_degrees": index * 13.0,
-        }
-    )
+# v03 correction 5: the continuation rings were a linear ramp — every
+# parameter a fixed step per index, which is exactly how machinery is
+# specified and exactly why the corridor read as a manufactured duct.
+# Authored irregularly instead: the spacing skips (0.50, 0.90, 0.45,
+# 0.95, 0.95, 0.90), the fin counts jump 7-5-8-4-6-5-7, and the fills
+# and twists do not trend. Nothing here interpolates.
+#
+# Every inner_r stays >= 0.69 nominal, which measures ~0.63 against the
+# 0.52 camera tube.
+continuation_specs: list[dict] = [
+    {"fin_count": f, "inner_r": ir, "outer_r": orr, "depth": d,
+     "y": y, "angular_fill": fill, "twist_degrees": tw, "phase_degrees": ph}
+    for f, ir, orr, d, y, fill, tw, ph in [
+        (7, 0.76, 1.44, 0.30, 2.55, 0.62,   8.0,  0.0),
+        (5, 0.72, 1.30, 0.22, 3.05, 0.48, -14.0, 27.0),
+        (8, 0.74, 1.38, 0.34, 3.95, 0.66,   5.0, 11.0),
+        (4, 0.70, 1.22, 0.26, 4.40, 0.42, -19.0, 41.0),
+        (6, 0.73, 1.33, 0.30, 5.35, 0.58,  11.0,  6.0),
+        (5, 0.69, 1.18, 0.24, 6.30, 0.46,  -8.0, 33.0),
+        (7, 0.71, 1.28, 0.32, 7.20, 0.60,  15.0, 19.0),
+    ]
+]
 
 CONTINUATION_OBJECTS = [
     create_ring_group(
@@ -780,14 +726,14 @@ CONTINUATION_OBJECTS = [
     ),
     create_ring_group(
         "DL_TunnelContinuation_MID",
-        continuation_specs[2:4],
+        continuation_specs[2:5],
         CONVERGENCE,
         0.40,
         "tunnel",
     ),
     create_ring_group(
         "DL_TunnelContinuation_FAR",
-        continuation_specs[4:6],
+        continuation_specs[5:7],
         CONVERGENCE,
         0.28,
         "tunnel",
@@ -844,10 +790,93 @@ def create_inward_tube(
     return obj
 
 
+def create_body_hull(
+    name: str,
+    levels: Sequence[tuple[float, float, float, float, float, float]],
+    segments: int,
+    parent: bpy.types.Object,
+    material_name: str,
+    role: str,
+    visibility_stage: str,
+) -> bpy.types.Object:
+    """
+    The outward-facing body that closes over the tunnel.
+
+    v03 correction 4: the tunnel used to run naked from the back of the
+    crown, so from any three-quarter angle the entity was a crown stuck
+    on the end of a clean octagonal pipe. This wraps it.
+
+    A plain tapering tube would only replace one pipe with another, so
+    each level carries its own radius, its own angular wobble and phase,
+    its own elliptical squash, and its own lateral offset — the section
+    is never a circle, the taper never a cone, and the axis drifts, so
+    the mass reads as a body narrowing into dark rather than as duct.
+
+    levels: (y, radius, wobble, phase_deg, squash_x, drift_x)
+    """
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, ...]] = []
+
+    for level, (y, radius, wobble, phase_deg, squash_x, drift_x) in enumerate(levels):
+        phase = math.radians(phase_deg)
+        for index in range(segments):
+            angle = index / segments * math.tau
+            modulation = 1.0 + wobble * math.sin(3.0 * angle + phase) \
+                             + wobble * 0.45 * math.sin(5.0 * angle - phase * 1.7)
+            x, z = polar(radius * modulation, angle)
+            vertices.append((x * squash_x + drift_x, y, z))
+
+    for level in range(len(levels) - 1):
+        start = level * segments
+        nxt = (level + 1) * segments
+        for index in range(segments):
+            j = (index + 1) % segments
+            # Wound so the normals face OUT — this is seen from outside.
+            faces.append((start + index, start + j, nxt + j, nxt + index))
+
+    mesh = bpy.data.meshes.new(f"{name}_MESH")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.materials.append(MATERIALS[material_name])
+    for polygon in mesh.polygons:
+        polygon.material_index = 0
+        polygon.use_smooth = False
+    apply_region_mask(mesh, REGION_COLOURS[material_name])
+
+    obj = bpy.data.objects.new(name, mesh)
+    SCENE.collection.objects.link(obj)
+    obj.parent = parent
+    set_props(obj, role, 0, material_name, 0.18, visibility_stage)
+    return obj
+
+
+BODY_HULL = create_body_hull(
+    "DL_BodyHull",
+    levels=[
+        # y,    radius, wobble, phase, squash_x, drift_x
+        (0.30,  2.54,   0.075,   18.0, 1.03,  0.02),
+        (1.05,  2.47,   0.090,   52.0, 0.98,  0.05),
+        (2.05,  2.18,   0.110,   96.0, 1.05,  0.09),
+        (3.10,  1.97,   0.085,  141.0, 0.96,  0.13),
+        (4.35,  1.83,   0.105,  188.0, 1.04,  0.16),
+        (5.70,  1.72,   0.078,  233.0, 0.97,  0.18),
+        (7.10,  1.63,   0.095,  281.0, 1.02,  0.17),
+        (8.40,  1.56,   0.070,  326.0, 0.99,  0.15),
+    ],
+    segments=11,
+    parent=ROOT_OBJ,
+    material_name="MAT_STRUCTURE",
+    role="body_hull",
+    visibility_stage="exterior",
+)
+
+
 TUNNEL_SHELL = create_inward_tube(
     "DL_TunnelShell",
-    y_values=[1.85, 2.8, 4.0, 5.2, 6.5, 7.8],
-    radii=[1.72, 1.66, 1.58, 1.50, 1.43, 1.38],
+    # Extended forward from 1.85 to 0.55: the hull starts at y 0.30, and
+    # without this the stretch between them showed the hull's unlit
+    # interior through the cavity.
+    y_values=[0.55, 1.85, 2.8, 4.0, 5.2, 6.5, 7.8],
+    radii=[1.80, 1.72, 1.66, 1.58, 1.50, 1.43, 1.38],
     segments=14,
     parent=ROOT_OBJ,
     material_name="MAT_STRUCTURE",
@@ -871,27 +900,48 @@ THRESHOLD = create_inward_tube(
 # Latent Form
 # ---------------------------------------------------------------------------
 
+# v03 correction 6: the Latent Form was three masses about 0.5 units
+# across, arriving after an eleven-unit approach — too small to land as
+# the thing the journey was for. Scaled up roughly 2.4x, given a fifth
+# mass and a taller silhouette, and pushed back to y 10.3-11.0 so it
+# reads as standing at the end of the chamber rather than floating in
+# the camera's face. Vertical extents now exceed horizontal: the form
+# stands.
 LATENT_MASS_SPECS = [
     {
         "name": "DL_LatentMass_A",
-        "points": [(-0.42, -0.62), (0.04, -0.68), (0.20, -0.18), (0.08, 0.60), (-0.35, 0.50), (-0.52, 0.05)],
-        "depth": 0.54,
-        "location": (-0.19, 10.18, 0.05),
+        "points": [(-1.02, -1.35), (0.10, -1.48), (0.46, -0.32), (0.22, 1.42), (-0.84, 1.16), (-1.24, 0.14)],
+        "depth": 0.74,
+        "location": (-0.62, 10.62, 0.10),
         "rotation": (6.0, -8.0, -5.0),
     },
     {
         "name": "DL_LatentMass_B",
-        "points": [(-0.10, -0.55), (0.42, -0.48), (0.51, 0.10), (0.30, 0.64), (-0.12, 0.50), (-0.24, -0.05)],
-        "depth": 0.58,
-        "location": (0.20, 10.25, 0.03),
+        "points": [(-0.24, -1.28), (0.98, -1.10), (1.20, 0.24), (0.70, 1.52), (-0.28, 1.18), (-0.56, -0.10)],
+        "depth": 0.80,
+        "location": (0.58, 10.70, 0.06),
         "rotation": (-4.0, 7.0, 4.0),
     },
     {
         "name": "DL_LatentMass_C",
-        "points": [(-0.38, -0.16), (-0.05, -0.42), (0.36, -0.22), (0.42, 0.20), (0.05, 0.46), (-0.30, 0.34)],
-        "depth": 0.46,
-        "location": (0.01, 10.02, 0.28),
+        "points": [(-0.80, -0.34), (-0.10, -0.92), (0.78, -0.48), (0.92, 0.44), (0.10, 1.02), (-0.66, 0.74)],
+        "depth": 0.62,
+        "location": (0.02, 10.36, 0.72),
         "rotation": (8.0, 2.0, -3.0),
+    },
+    {
+        "name": "DL_LatentMass_D",
+        "points": [(-0.58, -1.02), (0.16, -1.18), (0.44, 0.10), (0.20, 1.86), (-0.42, 1.54), (-0.70, 0.22)],
+        "depth": 0.56,
+        "location": (-0.34, 10.94, -0.46),
+        "rotation": (3.0, -5.0, 7.0),
+    },
+    {
+        "name": "DL_LatentMass_E",
+        "points": [(-0.36, -0.88), (0.52, -0.74), (0.68, 0.28), (0.34, 1.62), (-0.30, 1.30), (-0.52, 0.16)],
+        "depth": 0.52,
+        "location": (0.46, 11.02, -0.38),
+        "rotation": (-6.0, 4.0, -8.0),
     },
 ]
 
@@ -915,12 +965,15 @@ for spec in LATENT_MASS_SPECS:
     )
     LATENT_OBJECTS.append(obj)
 
+# The seam scales with the masses it divides — a 0.9-unit slit between
+# 3-unit forms would read as a scratch. Kept forward of them at y 10.15
+# so it separates the group rather than sitting inside one mass.
 SEAM = create_prism_xz(
     name="DL_LatentSeam",
-    points_xz=[(-0.035, -0.43), (0.035, -0.36), (0.025, 0.38), (-0.025, 0.46)],
-    depth=0.12,
+    points_xz=[(-0.055, -1.06), (0.055, -0.92), (0.040, 1.02), (-0.040, 1.22)],
+    depth=0.14,
     parent=LATENT_ROOT,
-    location=(0.02, 9.88, 0.03),
+    location=(0.04, 10.15, 0.04),
     rotation_degrees=(0.0, 0.0, 2.0),
     face_material="MAT_CORE",
     role="latent_seam",
@@ -1107,7 +1160,10 @@ def render_silhouette(filename: str, size: int = 512) -> None:
         # original standoff cropped the entity on every edge and the
         # silhouette gate — the one test this asset exists to pass —
         # showed a black rectangle. 12.5 units gives +-3.9 and margin.
-        CAMERA.location = (0.0, -12.5, 0.35)
+        # v03 reaches 4.03 units (dominant slab 2.92 x spike 1.38), and
+        # 12.5 only saw +-3.87 — the crest horns were clipping the top
+        # edge of the gate render.
+        CAMERA.location = (0.0, -14.5, 0.35)
         CAMERA.data.lens = 58
         look_at(CAMERA, (0.0, 0.0, 0.15))
         bpy.ops.render.render(write_still=True)
@@ -1119,17 +1175,22 @@ def render_silhouette(filename: str, size: int = 512) -> None:
 def produce_renders() -> None:
     # Exterior standoffs widened for the same reason as the silhouette:
     # the asset is ~2.9 units in radius and these were framed for
-    # something half its size.
-    render_view("01-exterior-front.png", (0.0, -12.5, 0.35), (0.0, 0.0, 0.15), 58, (1536, 1024))
-    render_view("02-exterior-three-quarter.png", (8.0, -10.2, 4.6), (0.0, 0.25, 0.15), 58)
-    render_view("03-exterior-side.png", (12.0, 0.0, 0.35), (0.0, 0.3, 0.10), 58)
+    # something half its size. The side view sits further out again now
+    # that the body hull extends to y 8.4.
+    render_view("01-exterior-front.png", (0.0, -14.5, 0.35), (0.0, 0.0, 0.15), 58, (1536, 1024))
+    render_view("02-exterior-three-quarter.png", (8.6, -10.6, 4.8), (0.0, 1.20, 0.15), 58)
+    # The side view has to hold crown through Latent Form — about 13
+    # units of length — so it needs a much longer standoff than the
+    # front. At 14.5 the hull ran straight off the frame edge.
+    render_view("03-exterior-side.png", (22.0, 4.2, 1.40), (0.0, 4.20, 0.10), 52, (1536, 1024))
     render_view("04-cavity-close.png", (0.0, -3.65, 0.08), (0.0, 1.15, 0.0), 62)
     render_view("05-tunnel-entry.png", (0.0, -0.65, 0.0), (0.0, 4.2, 0.0), 50)
     render_view("06-tunnel-midpoint.png", (0.0, 4.2, 0.0), (0.0, 8.7, 0.0), 47)
-    render_view("07-threshold-latent-form.png", (0.0, 7.1, 0.0), (0.0, 10.2, 0.04), 52)
-    render_view("08-side-cutaway.png", (8.4, 4.7, 1.2), (0.0, 4.7, 0.0), 62, (1536, 768))
-    render_silhouette("09-silhouette-512.png", 512)
-    render_silhouette("10-silhouette-128.png", 128)
+    # The Latent Form is ~3 units tall in v03, so a 48 mm lens at 2.5
+    # units of standoff framed the seam alone. Backed off and widened.
+    render_view("07-latent-form-from-threshold.png", (0.0, 7.0, 0.0), (0.0, 10.7, 0.05), 32)
+    render_silhouette("08-silhouette-512.png", 512)
+    render_silhouette("09-silhouette-128.png", 128)
 
 
 # ---------------------------------------------------------------------------
