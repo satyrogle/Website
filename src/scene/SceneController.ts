@@ -239,6 +239,13 @@ export class SceneController {
   setProgress(p: number): void {
     this.progress = Math.min(Math.max(p, 0), 1);
     this.rig.setProgress(this.progress);
+
+    // Reduced motion does not run the loop, so scrolling has to draw
+    // the newly composed state itself.
+    if (this.reducedMotion) {
+      this.rig.applyReducedState(this.progress);
+      this.renderStill();
+    }
   }
 
   setFieldPreset(name: PresetName): void {
@@ -348,7 +355,7 @@ export class SceneController {
       this.rig.camera.position.z
     );
     this.entity.setLighting(this.lighting.entityState);
-    this.rig.applyPoster();
+    if (!this.reducedMotion) this.rig.applyPoster();
     this.post.setState(
       this.lighting.post.exposure,
       this.lighting.post.bloom,

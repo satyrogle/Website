@@ -175,6 +175,21 @@ export class ScrollDirector {
   private onReducedScroll = (): void => {
     const max = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
     this.docProgress = Math.min(Math.max(window.scrollY / max, 0), 1);
+
+    // Reduced motion still gets the whole narrative, just as composed
+    // states rather than travel. The bands drive it exactly as they do
+    // for the animated path; only the camera treatment differs.
+    const narrative = this.toNarrative(window.scrollY);
+    this.narrative = narrative;
+    this.scene.setProgress(narrative);
+
+    const { band, local } = this.currentBand(narrative);
+    if (band.presetTo) {
+      this.scene.blendFieldPresets(band.preset, band.presetTo, local);
+    } else {
+      this.scene.setFieldPreset(band.preset);
+    }
+
     this.updateReadout();
   };
 

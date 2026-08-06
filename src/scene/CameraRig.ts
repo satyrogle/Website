@@ -76,7 +76,24 @@ const MOBILE_PATH: CameraKeyframe[] = [
   { at: 1.0, position: [0, 0, -5.1], target: [0, 0, -10.8], fov: 43 },
 ];
 
-/** Composed still used for reduced motion and the WebGL poster frame. */
+/**
+ * Reduced motion gets composed STATES rather than travel.
+ *
+ * The directive is explicit: no long zoom, no continual rotation, no
+ * continuous camera flight. These four are stills of the same journey —
+ * outside the crown, the opened cavity, the corridor interior, the
+ * threshold and Latent Form — and the page cuts between them as the
+ * visitor scrolls. Every one is a composition that stands on its own,
+ * because a visitor who needs reduced motion still gets the whole story.
+ */
+export const REDUCED_STATES: CameraKeyframe[] = [
+  { at: 0.00, position: [0.35, 0.15, 10.6], target: [0, 0.1, 0], fov: 39 },
+  { at: 0.26, position: [0, 0, 3.4], target: [0, 0, -2.0], fov: 46 },
+  { at: 0.55, position: [0, 0, -3.4], target: [0, 0, -7.0], fov: 51 },
+  { at: 0.88, position: [0, 0, -5.4], target: [0, 0, -10.8], fov: 40 },
+];
+
+/** Composed still used for the WebGL poster frame. */
 export const POSTER_FRAME: CameraKeyframe = {
   at: 0,
   position: [0.35, 0.15, 10.6],
@@ -140,6 +157,25 @@ export class CameraRig {
   setMotionScale(idle: number, parallax: number): void {
     this.idleAmount = idle;
     this.parallaxAmount = parallax;
+  }
+
+  /**
+   * Snaps to the composed reduced-motion state for this progress. No
+   * interpolation: cutting between stills is the point.
+   */
+  applyReducedState(progress: number): void {
+    let chosen = REDUCED_STATES[0];
+    for (const state of REDUCED_STATES) {
+      if (progress >= state.at) chosen = state;
+    }
+    this.applyKeyframe(chosen);
+    this.smoothedPosition.copy(this.position);
+    this.smoothedTarget.copy(this.target);
+    this.camera.position.copy(this.position);
+    this.camera.fov = chosen.fov;
+    this.camera.rotation.z = 0;
+    this.camera.lookAt(this.target);
+    this.camera.updateProjectionMatrix();
   }
 
   /** Freezes the rig on the composed poster frame. */
