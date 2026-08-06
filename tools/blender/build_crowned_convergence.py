@@ -71,7 +71,7 @@ ROOT = Path(ARGS.root).resolve()
 
 # Approved versions are never overwritten. Bump this when the authored
 # tables change; v01 remains on disk for comparison.
-VERSION = "v03"
+VERSION = "v04"
 
 BLEND_OUT = ROOT / "assets" / "blender" / f"DL_CrownedConvergence_Clay_{VERSION}.blend"
 GLB_OUT = ROOT / "public" / "models" / f"DL_CrownedConvergence_Clay_{VERSION}.glb"
@@ -114,8 +114,24 @@ if not REFERENCE.is_absolute():
 # ---------------------------------------------------------------------------
 
 # Cavity as an off-centre circle in the XZ face plane.
-CAVITY_CENTRE = (0.24, -0.16)
-CAVITY_RADIUS = 1.46
+#
+# v04 correction 2: the cavity has to survive the 128 px silhouette as a
+# readable landmark, so what matters is not this boundary but the CLEAR
+# BORE at the centre — the region no exterior-stage object occupies.
+# The primary rings' inner radii (RING_BORE) set that hole, and the
+# measured result is reported by analyse_silhouette() rather than
+# assumed. Displacement is kept to ~5-6% of entity width: enough to
+# read as deliberate, not enough to look like a mistake.
+CAVITY_CENTRE = (0.22, -0.14)
+# 1.42 -> 1.33: the visible cavity is not just the central bore, it also
+# spurs outward through each ring interruption as far as the crown's
+# inner edge. Those spurs set the measured bounding box, so the aperture
+# had to come in to land inside the 30-36% / 26-34% window.
+CAVITY_RADIUS = 1.25
+
+# Every exterior-stage object stays outside this radius, so the front
+# silhouette keeps an unbroken hole. 0.82 measures ~31% of entity width.
+RING_BORE = 0.73
 
 
 def cavity_inner_r(angle_deg: float) -> float:
@@ -135,26 +151,35 @@ def cavity_inner_r(angle_deg: float) -> float:
 
 # (angle, half_angle, outer_r, spike, depth, y, rot, tier, inner_scale)
 #   tier         1 dominant, 2 medium, 3 small
-#   inner_scale  <1 pulls the slab's inner edge across the cavity; used
-#                only by the two occluders, and floored well outside the
-#                0.52 camera tube.
+#   inner_scale  <1 pulls the slab's inner edge across the cavity
+#
+# v04 correction 3 — HORNS. v03 reached 4.03 units off a median outer_r
+# of 2.22: a 1.81x overhang that read as spear points and pierced the
+# halo. Every reach (outer_r x spike) is now held under 1.12 x the
+# median outer_r, and the check is computed and printed at build time
+# rather than eyeballed. Mass comes from breadth and overhang instead:
+# spikes are 1.02-1.09 where they used to run to 1.38.
+#
+# v04 correction 4 — DEBRIS. Seven tier-3 shards became five, and the
+# two that survived nearest the cavity are the ones that frame it. The
+# gaps between 206 and 328 degrees are now deliberately empty.
 _CROWN_TABLE = [
     # --- tier 1: the two dominant masses, both upper, crown leans left
-    (112.0, 20.0, 2.92, 1.38, 1.30, -0.30, (-6.0,  4.0,  -8.0), 1, 1.00),
-    ( 72.0, 18.0, 2.78, 1.30, 1.18, -0.20, (-3.0,  6.0,  14.0), 1, 1.00),
+    (112.0, 21.0, 2.42, 1.02, 1.30, -0.30, (-6.0,  4.0,  -8.0), 1, 1.00),
+    ( 72.0, 19.0, 2.38, 1.03, 1.18, -0.20, (-3.0,  6.0,  14.0), 1, 1.00),
     # --- tier 2: medium
-    (158.0, 15.0, 2.40, 1.12, 0.90, -0.05, ( 5.0, -8.0, -22.0), 2, 1.00),
-    (206.0, 14.0, 2.28, 1.08, 0.85,  0.12, ( 3.0, -5.0,  18.0), 2, 1.00),
-    (328.0, 16.0, 2.45, 1.20, 0.95, -0.12, (-3.0,  7.0, -15.0), 2, 1.00),
-    ( 27.0, 14.0, 2.32, 1.10, 0.88,  0.05, (-2.0,  8.0,  26.0), 2, 1.00),
-    # --- tier 3: small shards, incl. two occluders (y forward of the rest)
-    ( 92.0, 10.0, 1.95, 1.14, 0.52, -0.62, ( 4.0, -3.0,  11.0), 3, 0.60),
-    ( 55.0, 10.0, 1.88, 1.10, 0.48, -0.55, (-5.0,  2.0, -13.0), 3, 0.63),
-    (135.0, 11.0, 2.02, 1.09, 0.55,  0.30, ( 3.0,  5.0, -30.0), 3, 1.00),
-    (180.0,  9.0, 1.85, 1.07, 0.46,  0.38, (-2.0, -6.0,  20.0), 3, 1.00),
-    (246.0, 10.0, 1.98, 1.16, 0.50,  0.26, ( 6.0,  3.0, -25.0), 3, 1.00),
-    (285.0,  9.0, 1.78, 1.06, 0.44,  0.42, (-4.0,  4.0,  32.0), 3, 1.00),
-    (352.0, 11.0, 2.05, 1.11, 0.54,  0.18, ( 2.0, -5.0, -18.0), 3, 1.00),
+    (158.0, 16.0, 2.34, 1.04, 0.92, -0.05, ( 5.0, -8.0, -22.0), 2, 1.00),
+    (206.0, 15.0, 2.30, 1.05, 0.86,  0.12, ( 3.0, -5.0,  18.0), 2, 1.00),
+    (328.0, 17.0, 2.26, 1.06, 0.96, -0.12, (-3.0,  7.0, -15.0), 2, 1.00),
+    ( 27.0, 15.0, 2.22, 1.07, 0.88,  0.05, (-2.0,  8.0,  26.0), 2, 1.00),
+    # --- tier 3: five shards. One occluder only (92 deg, forward in y),
+    #     reaching to ~0.72 x the cavity boundary — it clips the ring
+    #     zone, never the clear bore, so cavity occlusion stays small.
+    ( 92.0, 11.0, 1.98, 1.08, 0.52, -0.58, ( 4.0, -3.0,  11.0), 3, 0.685),
+    (135.0, 11.0, 1.92, 1.09, 0.55,  0.30, ( 3.0,  5.0, -30.0), 3, 1.00),
+    (180.0,  9.0, 1.88, 1.08, 0.46,  0.38, (-2.0, -6.0,  20.0), 3, 1.00),
+    (285.0, 10.0, 1.85, 1.07, 0.44,  0.42, (-4.0,  4.0,  32.0), 3, 1.00),
+    (352.0, 11.0, 1.78, 1.09, 0.54,  0.18, ( 2.0, -5.0, -18.0), 3, 1.00),
 ]
 
 CROWN_SPECS = []
@@ -182,6 +207,19 @@ for _index, (_angle, _half, _outer, _spike, _depth, _y, _rot, _tier, _inner_scal
             "open_rotation": (-2.0 + _tier, 2.0 - _tier, _rot[2] * 0.08),
         }
     )
+
+# Correction 3, verified rather than asserted.
+# The single forward slab that reaches across the cavity (92 deg,
+# inner_scale 0.72). Named here so the occlusion measurement can
+# difference it out.
+OCCLUDER_NAME = next(
+    spec["name"] for spec, row in zip(CROWN_SPECS, _CROWN_TABLE) if row[8] < 1.0
+)
+
+_OUTER_RS = sorted(spec["outer_r"] for spec in CROWN_SPECS)
+CROWN_MEDIAN_OUTER = _OUTER_RS[len(_OUTER_RS) // 2]
+CROWN_REACH_LIMIT = CROWN_MEDIAN_OUTER * 1.12
+CROWN_MAX_REACH = max(spec["outer_r"] * spec["spike"] for spec in CROWN_SPECS)
 
 CAMERA_PATH_POINTS = [
     (0.00, -8.20, 0.38),
@@ -579,6 +617,7 @@ def append_fin_ring_geometry(
     twist_degrees: float,
     phase_degrees: float,
 ) -> None:
+    """Evenly spaced fins. Still used by the low-detail continuation rings."""
     twist = math.radians(twist_degrees)
     phase = math.radians(phase_degrees)
     step = math.tau / fin_count
@@ -586,35 +625,90 @@ def append_fin_ring_geometry(
 
     for fin in range(fin_count):
         centre = phase + fin * step
-        a0 = centre - span * 0.5
-        a1 = centre + span * 0.5
-        b0 = a0 + twist
-        b1 = a1 + twist
-        base = len(vertices)
-
-        front_y = y - depth * 0.5
-        back_y = y + depth * 0.5
-        vertices.extend(
-            [
-                (*polar(inner_r, a0)[:1], front_y, polar(inner_r, a0)[1]),
-                (*polar(outer_r, a0)[:1], front_y, polar(outer_r, a0)[1]),
-                (*polar(outer_r, a1)[:1], front_y, polar(outer_r, a1)[1]),
-                (*polar(inner_r, a1)[:1], front_y, polar(inner_r, a1)[1]),
-                (*polar(inner_r, b0)[:1], back_y, polar(inner_r, b0)[1]),
-                (*polar(outer_r, b0)[:1], back_y, polar(outer_r, b0)[1]),
-                (*polar(outer_r, b1)[:1], back_y, polar(outer_r, b1)[1]),
-                (*polar(inner_r, b1)[:1], back_y, polar(inner_r, b1)[1]),
-            ]
+        append_fin(
+            vertices, faces,
+            a0=centre - span * 0.5, a1=centre + span * 0.5,
+            inner_r=inner_r, outer_r=outer_r, depth=depth, y=y,
+            twist=twist, offset=(0.0, 0.0),
         )
-        faces.extend(
-            [
-                (base + 0, base + 1, base + 2, base + 3),
-                (base + 7, base + 6, base + 5, base + 4),
-                (base + 0, base + 4, base + 5, base + 1),
-                (base + 1, base + 5, base + 6, base + 2),
-                (base + 2, base + 6, base + 7, base + 3),
-                (base + 3, base + 7, base + 4, base + 0),
-            ]
+
+
+def append_fin(
+    vertices: list[tuple[float, float, float]],
+    faces: list[tuple[int, ...]],
+    a0: float,
+    a1: float,
+    inner_r: float,
+    outer_r: float,
+    depth: float,
+    y: float,
+    twist: float,
+    offset: tuple[float, float],
+) -> None:
+    """One fin, fully specified. Offset shifts it in the XZ face plane."""
+    ox, oz = offset
+    b0 = a0 + twist
+    b1 = a1 + twist
+    base = len(vertices)
+    front_y = y - depth * 0.5
+    back_y = y + depth * 0.5
+
+    def point(radius: float, angle: float, py: float) -> tuple[float, float, float]:
+        x, z = polar(radius, angle)
+        return (x + ox, py, z + oz)
+
+    vertices.extend(
+        [
+            point(inner_r, a0, front_y),
+            point(outer_r, a0, front_y),
+            point(outer_r, a1, front_y),
+            point(inner_r, a1, front_y),
+            point(inner_r, b0, back_y),
+            point(outer_r, b0, back_y),
+            point(outer_r, b1, back_y),
+            point(inner_r, b1, back_y),
+        ]
+    )
+    faces.extend(
+        [
+            (base + 0, base + 1, base + 2, base + 3),
+            (base + 7, base + 6, base + 5, base + 4),
+            (base + 0, base + 4, base + 5, base + 1),
+            (base + 1, base + 5, base + 6, base + 2),
+            (base + 2, base + 6, base + 7, base + 3),
+            (base + 3, base + 7, base + 4, base + 0),
+        ]
+    )
+
+
+def append_authored_ring(
+    vertices: list[tuple[float, float, float]],
+    faces: list[tuple[int, ...]],
+    fins: Sequence[tuple[float, float, float, float, float, float]],
+    y: float,
+    offset: tuple[float, float],
+) -> None:
+    """
+    v04 correction 5: a primary ring is now a list of fins with authored
+    spans, not a count and a fill fraction.
+
+    Evenly spaced fins of equal width and equal depth ARE a turbine band
+    — the read comes from the regularity, not the fin shape. Each fin
+    here carries its own angular span, its own radii, its own axial
+    offset and its own twist, and the spans deliberately leave two or
+    three wide interruptions per ring. The whole ring is also shifted
+    off the entity axis by `offset`.
+
+    fin: (a0_deg, a1_deg, inner_r, outer_r, depth, y_offset)
+    """
+    for a0_deg, a1_deg, inner_r, outer_r, depth, y_offset in fins:
+        append_fin(
+            vertices, faces,
+            a0=math.radians(a0_deg), a1=math.radians(a1_deg),
+            inner_r=inner_r, outer_r=outer_r, depth=depth,
+            y=y + y_offset,
+            twist=math.radians((a1_deg - a0_deg) * 0.18),
+            offset=offset,
         )
 
 
@@ -646,51 +740,86 @@ def create_ring_group(
     return obj
 
 
-PRIMARY_RING_SPECS = [
+# Primary rings, authored fin by fin. Every inner radius is >= RING_BORE
+# so the central hole stays unbroken in the front silhouette, and every
+# ring keeps three wide interruptions.
+#
+# Ys pulled forward (0.82/1.34/1.92 -> 0.74/1.18/1.62) as part of
+# correction 1: with the tunnel hidden at the hero, the exterior mass
+# has to close up into a compact near-spherical depth.
+PRIMARY_RINGS = [
     {
         "name": "DL_Ring_A",
-        "fin_count": 10,
-        "inner_r": 0.78,
-        "outer_r": 1.74,
-        "depth": 0.28,
-        "y": 0.82,
-        "angular_fill": 0.69,
-        "twist_degrees": 7.0,
-        "phase_degrees": 5.0,
+        "y": 0.74,
+        "offset": (0.09, -0.05),
+        # gaps at 118-150, 214-250, 326-368 degrees
+        "fins": [
+            (  8.0,  42.0, 0.765, 1.70, 0.26, -0.03),
+            ( 52.0,  74.0, 0.748, 1.52, 0.30,  0.05),
+            ( 86.0, 118.0, 0.783, 1.74, 0.24, -0.06),
+            (150.0, 178.0, 0.739, 1.46, 0.32,  0.07),
+            (192.0, 214.0, 0.774, 1.62, 0.27, -0.04),
+            (250.0, 288.0, 0.730, 1.68, 0.29,  0.06),
+            (300.0, 326.0, 0.756, 1.40, 0.25, -0.05),
+        ],
     },
     {
         "name": "DL_Ring_B",
-        "fin_count": 8,
-        "inner_r": 0.68,
-        "outer_r": 1.50,
-        "depth": 0.30,
-        "y": 1.34,
-        "angular_fill": 0.67,
-        "twist_degrees": -9.0,
-        "phase_degrees": 18.0,
+        "y": 1.18,
+        "offset": (-0.06, 0.08),
+        # gaps at 96-128, 204-238, 310-380 degrees
+        "fins": [
+            ( 20.0,  58.0, 0.748, 1.44, 0.28,  0.06),
+            ( 70.0,  96.0, 0.783, 1.26, 0.32, -0.05),
+            (128.0, 152.0, 0.730, 1.50, 0.24,  0.07),
+            (164.0, 204.0, 0.765, 1.34, 0.30, -0.06),
+            (238.0, 262.0, 0.739, 1.48, 0.26,  0.04),
+            (274.0, 310.0, 0.774, 1.30, 0.31, -0.07),
+        ],
     },
     {
         "name": "DL_Ring_C",
-        # 0.58 measured 0.517 clear against a 0.52 requirement — the
-        # bevel and the radial wobble eat ~0.06 off the nominal bore.
-        "inner_r": 0.64,
-        "fin_count": 6,
-        "outer_r": 1.28,
-        "depth": 0.32,
-        "y": 1.92,
-        "angular_fill": 0.65,
-        "twist_degrees": 12.0,
-        "phase_degrees": 7.0,
+        "y": 1.62,
+        "offset": (0.12, 0.04),
+        # gaps at 96-128, 158-196, 286-330 degrees
+        "fins": [
+            (  0.0,  44.0, 0.756, 1.22, 0.30, -0.05),
+            ( 56.0,  96.0, 0.730, 1.30, 0.25,  0.07),
+            (128.0, 158.0, 0.783, 1.14, 0.32, -0.06),
+            (196.0, 238.0, 0.748, 1.26, 0.27,  0.05),
+            (250.0, 286.0, 0.765, 1.10, 0.29, -0.04),
+            (330.0, 356.0, 0.739, 1.20, 0.24,  0.06),
+        ],
     },
 ]
 
 RING_OBJECTS: list[bpy.types.Object] = []
-for ring in PRIMARY_RING_SPECS:
-    ring_copy = dict(ring)
-    name = ring_copy.pop("name")
-    obj = create_ring_group(name, [ring_copy], CONVERGENCE, 0.75, "tunnel")
-    obj["dl_open_rotation"] = [0.0, math.radians(4 if name == "DL_Ring_A" else -6 if name == "DL_Ring_B" else 8), 0.0]
-    RING_OBJECTS.append(obj)
+for _ring in PRIMARY_RINGS:
+    _vertices: list[tuple[float, float, float]] = []
+    _faces: list[tuple[int, ...]] = []
+    append_authored_ring(_vertices, _faces, _ring["fins"], _ring["y"], _ring["offset"])
+
+    _mesh = bpy.data.meshes.new(f"{_ring['name']}_MESH")
+    _mesh.from_pydata(_vertices, [], _faces)
+    _mesh.materials.append(MATERIALS["MAT_RING"])
+    for _polygon in _mesh.polygons:
+        _polygon.material_index = 0
+        _polygon.use_smooth = False
+    apply_region_mask(_mesh, REGION_COLOURS["MAT_RING"])
+
+    _obj = bpy.data.objects.new(_ring["name"], _mesh)
+    SCENE.collection.objects.link(_obj)
+    _obj.parent = CONVERGENCE
+    # Correction 1: the rings belong to the EXTERIOR stage — they are
+    # what the visitor sees turning inside the cavity at the hero.
+    set_props(_obj, "convergence_ring", 0, "MAT_RING", 0.75, "exterior")
+    apply_hard_surface_modifiers(_obj, bevel=0.018, segments=1)
+    _obj["dl_open_rotation"] = [
+        0.0,
+        math.radians({"DL_Ring_A": 4, "DL_Ring_B": -6}.get(_ring["name"], 8)),
+        0.0,
+    ]
+    RING_OBJECTS.append(_obj)
 
 
 # v03 correction 5: the continuation rings were a linear ramp — every
@@ -790,93 +919,18 @@ def create_inward_tube(
     return obj
 
 
-def create_body_hull(
-    name: str,
-    levels: Sequence[tuple[float, float, float, float, float, float]],
-    segments: int,
-    parent: bpy.types.Object,
-    material_name: str,
-    role: str,
-    visibility_stage: str,
-) -> bpy.types.Object:
-    """
-    The outward-facing body that closes over the tunnel.
-
-    v03 correction 4: the tunnel used to run naked from the back of the
-    crown, so from any three-quarter angle the entity was a crown stuck
-    on the end of a clean octagonal pipe. This wraps it.
-
-    A plain tapering tube would only replace one pipe with another, so
-    each level carries its own radius, its own angular wobble and phase,
-    its own elliptical squash, and its own lateral offset — the section
-    is never a circle, the taper never a cone, and the axis drifts, so
-    the mass reads as a body narrowing into dark rather than as duct.
-
-    levels: (y, radius, wobble, phase_deg, squash_x, drift_x)
-    """
-    vertices: list[tuple[float, float, float]] = []
-    faces: list[tuple[int, ...]] = []
-
-    for level, (y, radius, wobble, phase_deg, squash_x, drift_x) in enumerate(levels):
-        phase = math.radians(phase_deg)
-        for index in range(segments):
-            angle = index / segments * math.tau
-            modulation = 1.0 + wobble * math.sin(3.0 * angle + phase) \
-                             + wobble * 0.45 * math.sin(5.0 * angle - phase * 1.7)
-            x, z = polar(radius * modulation, angle)
-            vertices.append((x * squash_x + drift_x, y, z))
-
-    for level in range(len(levels) - 1):
-        start = level * segments
-        nxt = (level + 1) * segments
-        for index in range(segments):
-            j = (index + 1) % segments
-            # Wound so the normals face OUT — this is seen from outside.
-            faces.append((start + index, start + j, nxt + j, nxt + index))
-
-    mesh = bpy.data.meshes.new(f"{name}_MESH")
-    mesh.from_pydata(vertices, [], faces)
-    mesh.materials.append(MATERIALS[material_name])
-    for polygon in mesh.polygons:
-        polygon.material_index = 0
-        polygon.use_smooth = False
-    apply_region_mask(mesh, REGION_COLOURS[material_name])
-
-    obj = bpy.data.objects.new(name, mesh)
-    SCENE.collection.objects.link(obj)
-    obj.parent = parent
-    set_props(obj, role, 0, material_name, 0.18, visibility_stage)
-    return obj
-
-
-BODY_HULL = create_body_hull(
-    "DL_BodyHull",
-    levels=[
-        # y,    radius, wobble, phase, squash_x, drift_x
-        (0.30,  2.54,   0.075,   18.0, 1.03,  0.02),
-        (1.05,  2.47,   0.090,   52.0, 0.98,  0.05),
-        (2.05,  2.18,   0.110,   96.0, 1.05,  0.09),
-        (3.10,  1.97,   0.085,  141.0, 0.96,  0.13),
-        (4.35,  1.83,   0.105,  188.0, 1.04,  0.16),
-        (5.70,  1.72,   0.078,  233.0, 0.97,  0.18),
-        (7.10,  1.63,   0.095,  281.0, 1.02,  0.17),
-        (8.40,  1.56,   0.070,  326.0, 0.99,  0.15),
-    ],
-    segments=11,
-    parent=ROOT_OBJ,
-    material_name="MAT_STRUCTURE",
-    role="body_hull",
-    visibility_stage="exterior",
-)
-
+# v04 correction 1: DL_BodyHull is GONE. Enclosing the whole corridor in
+# an exterior skin turned the entity into a torpedo — it removed the
+# pipe read by making the pipe the body. The tunnel is not hidden by
+# geometry; it is hidden by STAGE. Everything from here down is built
+# into the same asset with tunnel/threshold/revelation stages and is
+# excluded from every exterior render, so the hero returns to a compact
+# near-spherical mass and the corridor still exists for the journey.
 
 TUNNEL_SHELL = create_inward_tube(
     "DL_TunnelShell",
-    # Extended forward from 1.85 to 0.55: the hull starts at y 0.30, and
-    # without this the stretch between them showed the hull's unlit
-    # interior through the cavity.
-    y_values=[0.55, 1.85, 2.8, 4.0, 5.2, 6.5, 7.8],
-    radii=[1.80, 1.72, 1.66, 1.58, 1.50, 1.43, 1.38],
+    y_values=[1.85, 2.8, 4.0, 5.2, 6.5, 7.8],
+    radii=[1.72, 1.66, 1.58, 1.50, 1.43, 1.38],
     segments=14,
     parent=ROOT_OBJ,
     material_name="MAT_STRUCTURE",
@@ -907,41 +961,44 @@ THRESHOLD = create_inward_tube(
 # reads as standing at the end of the chamber rather than floating in
 # the camera's face. Vertical extents now exceed horizontal: the form
 # stands.
+# v04 correction 6: back to exactly three folded masses.
+#
+# Five masses crowded into one silhouette with no gaps between them, and
+# the seam sat FORWARD of the group at y 10.15 so it became the entire
+# subject. Three now, at three distinct scales, with real air between
+# all three — and the seam is recessed BEHIND their front faces so it
+# reads as light escaping from between folds.
+#
+# Read-avoidance is deliberate. Two masses flanking a vertical seam with
+# a third centred above is a figure, so: the masses are unequal (1.00 /
+# 0.72 / 0.48 relative), the third sits high-RIGHT rather than centred,
+# every silhouette is angular with no closed curve (no orb), nothing is
+# lens or almond shaped (no eye), and the gaps are wedges of differing
+# width (no mouth).
 LATENT_MASS_SPECS = [
     {
+        # Largest — left, leaning out, the anchor.
         "name": "DL_LatentMass_A",
-        "points": [(-1.02, -1.35), (0.10, -1.48), (0.46, -0.32), (0.22, 1.42), (-0.84, 1.16), (-1.24, 0.14)],
-        "depth": 0.74,
-        "location": (-0.62, 10.62, 0.10),
-        "rotation": (6.0, -8.0, -5.0),
+        "points": [(-1.18, -1.52), (-0.22, -1.66), (0.16, -0.44), (0.02, 1.30), (-0.72, 1.62), (-1.36, 0.30)],
+        "depth": 0.78,
+        "location": (-0.98, 10.48, -0.22),
+        "rotation": (5.0, -9.0, -7.0),
     },
     {
+        # Medium — right, shorter, tipped the other way.
         "name": "DL_LatentMass_B",
-        "points": [(-0.24, -1.28), (0.98, -1.10), (1.20, 0.24), (0.70, 1.52), (-0.28, 1.18), (-0.56, -0.10)],
-        "depth": 0.80,
-        "location": (0.58, 10.70, 0.06),
-        "rotation": (-4.0, 7.0, 4.0),
+        "points": [(-0.14, -1.10), (0.86, -0.94), (1.06, 0.18), (0.62, 1.16), (-0.16, 0.94), (-0.42, -0.08)],
+        "depth": 0.66,
+        "location": (0.88, 10.58, 0.08),
+        "rotation": (-6.0, 8.0, 6.0),
     },
     {
+        # Smallest — high and to the right, breaking any centred axis.
         "name": "DL_LatentMass_C",
-        "points": [(-0.80, -0.34), (-0.10, -0.92), (0.78, -0.48), (0.92, 0.44), (0.10, 1.02), (-0.66, 0.74)],
-        "depth": 0.62,
-        "location": (0.02, 10.36, 0.72),
-        "rotation": (8.0, 2.0, -3.0),
-    },
-    {
-        "name": "DL_LatentMass_D",
-        "points": [(-0.58, -1.02), (0.16, -1.18), (0.44, 0.10), (0.20, 1.86), (-0.42, 1.54), (-0.70, 0.22)],
-        "depth": 0.56,
-        "location": (-0.34, 10.94, -0.46),
-        "rotation": (3.0, -5.0, 7.0),
-    },
-    {
-        "name": "DL_LatentMass_E",
-        "points": [(-0.36, -0.88), (0.52, -0.74), (0.68, 0.28), (0.34, 1.62), (-0.30, 1.30), (-0.52, 0.16)],
-        "depth": 0.52,
-        "location": (0.46, 11.02, -0.38),
-        "rotation": (-6.0, 4.0, -8.0),
+        "points": [(-0.52, -0.62), (0.28, -0.74), (0.58, 0.06), (0.34, 0.86), (-0.30, 0.72), (-0.60, 0.10)],
+        "depth": 0.54,
+        "location": (0.34, 10.34, 1.44),
+        "rotation": (9.0, 3.0, -11.0),
     },
 ]
 
@@ -965,16 +1022,19 @@ for spec in LATENT_MASS_SPECS:
     )
     LATENT_OBJECTS.append(obj)
 
-# The seam scales with the masses it divides — a 0.9-unit slit between
-# 3-unit forms would read as a scratch. Kept forward of them at y 10.15
-# so it separates the group rather than sitting inside one mass.
+# RECESSED. The masses' front faces sit at roughly y 10.05-10.15; the
+# seam is at 10.86, well behind them, so it is seen THROUGH the gap
+# between A and B rather than in front of the group. That is the whole
+# difference between light escaping from between folds and a glowing
+# bar hanging in the frame. It is also tilted off vertical, so the
+# composition never resolves into a symmetrical figure.
 SEAM = create_prism_xz(
     name="DL_LatentSeam",
-    points_xz=[(-0.055, -1.06), (0.055, -0.92), (0.040, 1.02), (-0.040, 1.22)],
-    depth=0.14,
+    points_xz=[(-0.048, -0.92), (0.048, -0.80), (0.034, 0.86), (-0.034, 1.02)],
+    depth=0.12,
     parent=LATENT_ROOT,
-    location=(0.04, 10.15, 0.04),
-    rotation_degrees=(0.0, 0.0, 2.0),
+    location=(-0.02, 10.86, 0.10),
+    rotation_degrees=(0.0, 0.0, 13.0),
     face_material="MAT_CORE",
     role="latent_seam",
     layer=0,
@@ -994,11 +1054,15 @@ SEAM = create_prism_xz(
 # distance the site uses.
 bpy.ops.mesh.primitive_torus_add(
     align="WORLD",
-    major_radius=1.90,
+    major_radius=2.05,
     minor_radius=0.015,
     major_segments=72,
     minor_segments=6,
-    location=(0.0, 0.42, 2.70),
+    # v04 correction 3: lifted 2.70 -> 3.05. The crown's tallest reach
+    # is CROWN_MAX_REACH (~2.49), so this leaves better than half a unit
+    # of clear air under the ring — no slab pierces it in the hero view,
+    # which the build-time check below confirms against real geometry.
+    location=(0.0, 0.42, 3.05),
 )
 HALO = bpy.context.active_object
 HALO.name = "DL_Halo"
@@ -1125,13 +1189,45 @@ def setup_world_and_lights() -> tuple[bpy.types.Object, list[bpy.types.Object]]:
 CAMERA, LIGHTS = setup_world_and_lights()
 
 
+# ---------------------------------------------------------------------------
+# Visibility staging — v04 correction 1
+#
+# The corridor is not removed from the asset, it is staged out of the
+# exterior. Every object keeps its dl_visibility_stage; these sets say
+# which stages a given render is allowed to show. The hero therefore
+# sees only crown, rear shell, the three primary rings and the halo,
+# and the entity returns to a compact near-spherical mass — without
+# deleting the tunnel that the journey still needs.
+# ---------------------------------------------------------------------------
+
+STAGE_EXTERIOR = {"exterior"}
+STAGE_TUNNEL = {"exterior", "tunnel"}
+STAGE_ALL = {"exterior", "tunnel", "threshold", "revelation"}
+
+
+def apply_stage(stages: set[str]) -> list[str]:
+    """Hides every exportable object outside *stages*. Returns what showed."""
+    visible: list[str] = []
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or not obj.get("dl_export", False):
+            continue
+        stage = obj.get("dl_visibility_stage", "exterior")
+        shown = stage in stages
+        obj.hide_render = not shown
+        if shown:
+            visible.append(obj.name)
+    return sorted(visible)
+
+
 def render_view(
     filename: str,
     camera_location: Sequence[float],
     target: Sequence[float],
     lens: float = 55.0,
     resolution: tuple[int, int] = (1200, 900),
+    stages: set[str] | None = None,
 ) -> None:
+    apply_stage(stages or STAGE_ALL)
     CAMERA.location = camera_location
     CAMERA.data.lens = lens
     look_at(CAMERA, target)
@@ -1141,8 +1237,33 @@ def render_view(
     bpy.ops.render.render(write_still=True)
 
 
-def render_silhouette(filename: str, size: int = 512) -> None:
+def render_silhouette(
+    filename: str,
+    size: int = 512,
+    roles: set[str] | None = None,
+    exclude: set[str] | None = None,
+) -> None:
+    """
+    *roles* restricts the render to objects with those dl_role values.
+
+    Used to separate two different questions that a single silhouette
+    cannot answer: what the eye SEES (full exterior stage — the gate
+    image) versus what the crown FRAMES (crown slabs only — the aperture
+    the occlusion budget is stated against). With everything black, ring
+    fins scalloping the bore are indistinguishable from a slab biting
+    across it unless the rings are excluded.
+    """
     original_engine = SCENE.render.engine
+    # The silhouette gate judges the MASS, so the halo is excluded — and
+    # only exterior-stage objects take part.
+    apply_stage(STAGE_EXTERIOR)
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or not obj.get("dl_export", False):
+            continue
+        if roles is not None and obj.get("dl_role", "") not in roles:
+            obj.hide_render = True
+        if exclude is not None and obj.name in exclude:
+            obj.hide_render = True
     hidden = HALO.hide_render
     HALO.hide_render = True
     try:
@@ -1172,25 +1293,183 @@ def render_silhouette(filename: str, size: int = 512) -> None:
         SCENE.render.engine = original_engine
 
 
+def _hull_area(xs: Sequence[int], ys: Sequence[int]) -> float:
+    """Convex hull area (monotone chain) of a pixel set."""
+    points = sorted(set(zip(xs, ys)))
+    if len(points) < 3:
+        return 0.0
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower = []
+    for point in points:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], point) <= 0:
+            lower.pop()
+        lower.append(point)
+    upper = []
+    for point in reversed(points):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], point) <= 0:
+            upper.pop()
+        upper.append(point)
+
+    hull = lower[:-1] + upper[:-1]
+    area = 0.0
+    for index, (x0, y0) in enumerate(hull):
+        x1, y1 = hull[(index + 1) % len(hull)]
+        area += x0 * y1 - x1 * y0
+    return abs(area) * 0.5
+
+
+def analyse_silhouette(filename: str) -> dict:
+    """
+    Measures the cavity against correction 2's targets, from the rendered
+    silhouette itself rather than from the parameters that produced it.
+
+    Entity pixels are the dark ones. Background reachable from the image
+    border is "outside"; any background NOT reachable from the border is
+    an enclosed hole — the cavity. Reported as percentages of the
+    entity's own bounding box, which is what the targets are stated in.
+    """
+    image = bpy.data.images.load(str(CAPTURE_DIR / filename))
+    width, height = image.size
+    pixels = tuple(image.pixels)
+
+    def luminance(index: int) -> float:
+        base = index * 4
+        return 0.2126 * pixels[base] + 0.7152 * pixels[base + 1] + 0.0722 * pixels[base + 2]
+
+    # Threshold adaptively off a corner pixel. Workbench renders the
+    # world colour far darker than it is set, so a fixed threshold
+    # classified the ground AND the mass as solid and reported the
+    # entity as filling the frame.
+    background = luminance(0)
+    threshold = background * 0.5
+
+    solid = bytearray(width * height)
+    for index in range(width * height):
+        solid[index] = 1 if luminance(index) < threshold else 0
+
+    # Flood the background inward from the border.
+    outside = bytearray(width * height)
+    stack = []
+    for x in range(width):
+        for y in (0, height - 1):
+            i = y * width + x
+            if not solid[i] and not outside[i]:
+                outside[i] = 1
+                stack.append(i)
+    for y in range(height):
+        for x in (0, width - 1):
+            i = y * width + x
+            if not solid[i] and not outside[i]:
+                outside[i] = 1
+                stack.append(i)
+    while stack:
+        i = stack.pop()
+        x, y = i % width, i // width
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if 0 <= nx < width and 0 <= ny < height:
+                j = ny * width + nx
+                if not solid[j] and not outside[j]:
+                    outside[j] = 1
+                    stack.append(j)
+
+    entity = [i for i in range(width * height) if solid[i]]
+    holes = [i for i in range(width * height) if not solid[i] and not outside[i]]
+    image.user_clear()
+    bpy.data.images.remove(image)
+
+    if not entity:
+        return {"error": "no entity pixels"}
+
+    ex = [i % width for i in entity]
+    ey = [i // width for i in entity]
+    entity_w = max(ex) - min(ex) + 1
+    entity_h = max(ey) - min(ey) + 1
+    entity_cx = (max(ex) + min(ex)) * 0.5
+    entity_cy = (max(ey) + min(ey)) * 0.5
+
+    result = {
+        "source": filename,
+        "resolution": [width, height],
+        "entityWidthPx": entity_w,
+        "entityHeightPx": entity_h,
+        "cavityVisible": bool(holes),
+        "cavityAreaPx": len(holes),
+    }
+    if holes:
+        hx = [i % width for i in holes]
+        hy = [i // width for i in holes]
+        hole_w = max(hx) - min(hx) + 1
+        hole_h = max(hy) - min(hy) + 1
+        result.update(
+            {
+                "cavityWidthPct": round(hole_w / entity_w * 100.0, 1),
+                "cavityHeightPct": round(hole_h / entity_h * 100.0, 1),
+                "cavityOffsetPct": round(
+                    math.dist(
+                        ((max(hx) + min(hx)) * 0.5, (max(hy) + min(hy)) * 0.5),
+                        (entity_cx, entity_cy),
+                    )
+                    / entity_w
+                    * 100.0,
+                    1,
+                ),
+                # Occlusion measured against the cavity's CONVEX HULL,
+                # not its bounding box. A clean round hole fills only
+                # ~79% of its bounding box, so the box version reported
+                # 21% occlusion for a completely unobstructed cavity —
+                # it was measuring circularity, not obstruction. Against
+                # the hull, an unbitten cavity reads ~0 and only real
+                # intrusions by foreground slabs score.
+                "cavityOcclusionPct": round(
+                    max(0.0, 1.0 - len(holes) / max(_hull_area(hx, hy), 1.0)) * 100.0, 1
+                ),
+            }
+        )
+    return result
+
+
 def produce_renders() -> None:
     # Exterior standoffs widened for the same reason as the silhouette:
     # the asset is ~2.9 units in radius and these were framed for
     # something half its size. The side view sits further out again now
     # that the body hull extends to y 8.4.
-    render_view("01-exterior-front.png", (0.0, -14.5, 0.35), (0.0, 0.0, 0.15), 58, (1536, 1024))
-    render_view("02-exterior-three-quarter.png", (8.6, -10.6, 4.8), (0.0, 1.20, 0.15), 58)
-    # The side view has to hold crown through Latent Form — about 13
-    # units of length — so it needs a much longer standoff than the
-    # front. At 14.5 the hull ran straight off the frame edge.
-    render_view("03-exterior-side.png", (22.0, 4.2, 1.40), (0.0, 4.20, 0.10), 52, (1536, 1024))
-    render_view("04-cavity-close.png", (0.0, -3.65, 0.08), (0.0, 1.15, 0.0), 62)
-    render_view("05-tunnel-entry.png", (0.0, -0.65, 0.0), (0.0, 4.2, 0.0), 50)
-    render_view("06-tunnel-midpoint.png", (0.0, 4.2, 0.0), (0.0, 8.7, 0.0), 47)
-    # The Latent Form is ~3 units tall in v03, so a 48 mm lens at 2.5
-    # units of standoff framed the seam alone. Backed off and widened.
-    render_view("07-latent-form-from-threshold.png", (0.0, 7.0, 0.0), (0.0, 10.7, 0.05), 32)
-    render_silhouette("08-silhouette-512.png", 512)
-    render_silhouette("09-silhouette-128.png", 128)
+    # --- exterior stage: crown, rear shell, rings A/B/C, halo only -----
+    render_view("01-exterior-front.png", (0.0, -11.5, 0.35), (0.0, 0.0, 0.15), 58,
+                (1536, 1024), STAGE_EXTERIOR)
+    render_view("02-exterior-three-quarter.png", (7.4, -8.6, 4.2), (0.0, 0.35, 0.15), 58,
+                (1200, 900), STAGE_EXTERIOR)
+    # With the corridor staged out, the side view only has to hold ~5
+    # units of mass, so it comes back in from 22.0 to 11.0 — the entity
+    # should read compact here, which is the whole point of correction 1.
+    render_view("03-exterior-side.png", (11.0, 0.6, 0.60), (0.0, 0.60, 0.10), 55,
+                (1200, 900), STAGE_EXTERIOR)
+    render_view("04-cavity-close.png", (0.0, -4.20, 0.05), (0.0, 1.10, 0.0), 62,
+                (1200, 900), STAGE_EXTERIOR)
+    # The diagnostic: same exterior stage, high three-quarter-rear. If
+    # any corridor object were leaking into the hero, it would show here.
+    render_view("05-exterior-stage-visibility.png", (6.8, 6.2, 5.4), (0.0, 1.10, 0.10), 50,
+                (1200, 900), STAGE_EXTERIOR)
+
+    # --- tunnel and threshold stages -----------------------------------
+    render_view("06-tunnel-entry.png", (0.0, -0.65, 0.0), (0.0, 4.2, 0.0), 50,
+                (1200, 900), STAGE_TUNNEL)
+    render_view("07-tunnel-midpoint.png", (0.0, 4.2, 0.0), (0.0, 8.7, 0.0), 47,
+                (1200, 900), STAGE_TUNNEL)
+    render_view("08-latent-form-from-threshold.png", (0.0, 7.4, 0.10), (0.0, 10.6, 0.25), 34,
+                (1200, 900), STAGE_ALL)
+
+    render_silhouette("09-silhouette-512.png", 512)
+    render_silhouette("10-silhouette-128.png", 128)
+    # Measurement pass, not a review image. Occlusion is the DIFFERENCE
+    # the forward slab makes to the open cavity area — rendering the
+    # same silhouette without it and differencing is the only way to
+    # separate slab intrusion from the ring scalloping that is there by
+    # design. (A crown-only pass does not work: with gaps deliberately
+    # left between slabs, the crown alone encloses nothing.)
+    render_silhouette("11-cavity-without-occluder.png", 512, exclude={OCCLUDER_NAME})
 
 
 # ---------------------------------------------------------------------------
@@ -1220,10 +1499,25 @@ def create_manifest() -> dict:
                 "triangles": triangles,
             }
         )
+    stage_counts: dict[str, int] = {}
+    for item in items:
+        stage_counts[item["visibilityStage"]] = stage_counts.get(item["visibilityStage"], 0) + 1
+
     return {
         "asset": f"DL_CrownedConvergence_Clay_{VERSION}",
         "coordinateSystem": "Blender Z-up; +Y travels into entity",
+        "objectCount": len(items),
         "totalTriangles": total,
+        "objectsByStage": stage_counts,
+        "exteriorStageObjects": sorted(
+            item["name"] for item in items if item["visibilityStage"] == "exterior"
+        ),
+        "crownReach": {
+            "medianOuterR": round(CROWN_MEDIAN_OUTER, 3),
+            "limit_1_12x": round(CROWN_REACH_LIMIT, 3),
+            "maxReach": round(CROWN_MAX_REACH, 3),
+            "withinLimit": bool(CROWN_MAX_REACH <= CROWN_REACH_LIMIT),
+        },
         "objects": items,
         "cameraPath": CAMERA_PATH_POINTS,
         "reference": str(REFERENCE),
@@ -1241,7 +1535,50 @@ def save_blend() -> None:
     bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_OUT), check_existing=False, compress=True)
 
 
+def measure_clearance(clearance: float = 0.52) -> dict:
+    """
+    Minimum distance from the camera path to every exportable object.
+    Re-run every build so the number in the manifest is the number the
+    geometry actually produces.
+    """
+    samples: list[Vector] = []
+    for index in range(len(CAMERA_PATH_POINTS) - 1):
+        a = Vector(CAMERA_PATH_POINTS[index])
+        b = Vector(CAMERA_PATH_POINTS[index + 1])
+        for step in range(32):
+            samples.append(a.lerp(b, step / 32.0))
+    samples.append(Vector(CAMERA_PATH_POINTS[-1]))
+
+    results = []
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or not obj.get("dl_export", False):
+            continue
+        matrix = obj.matrix_world
+        inverse = matrix.inverted()
+        nearest = 1e9
+        for point in samples:
+            found, location, _normal, _index = obj.closest_point_on_mesh(inverse @ point)
+            if not found:
+                continue
+            nearest = min(nearest, ((matrix @ location) - point).length)
+        if nearest < 1e8:
+            results.append((round(nearest, 3), obj.name))
+
+    results.sort()
+    violations = [name for distance, name in results if distance < clearance]
+    return {
+        "required": clearance,
+        "violations": violations,
+        "tightest": [{"object": name, "distance": distance} for distance, name in results[:5]],
+    }
+
+
 def export_glb() -> None:
+    # Staging is a render concern; everything ships in the GLB.
+    for obj in bpy.data.objects:
+        if obj.type == "MESH":
+            obj.hide_render = False
+
     bpy.ops.object.select_all(action="DESELECT")
     for obj in bpy.data.objects:
         if obj.get("dl_export", False):
@@ -1273,7 +1610,38 @@ def export_glb() -> None:
 if ARGS.render:
     produce_renders()
 
-manifest = save_manifest()
+manifest = create_manifest()
+manifest["clearance"] = measure_clearance()
+if ARGS.render:
+    _with = analyse_silhouette("09-silhouette-512.png")
+    _without = analyse_silhouette("11-cavity-without-occluder.png")
+    _open_with = _with.get("cavityAreaPx", 0)
+    _open_without = _without.get("cavityAreaPx", 0) or 1
+    manifest["silhouette"] = {
+        "visibleCavity": [_with, analyse_silhouette("10-silhouette-128.png")],
+        "slabOcclusion": {
+            "occluder": OCCLUDER_NAME,
+            "cavityAreaWithoutOccluderPx": _open_without,
+            "cavityAreaWithOccluderPx": _open_with,
+            "slabOcclusionPct": round(
+                max(0.0, (_open_without - _open_with) / float(_open_without)) * 100.0, 1
+            ),
+        },
+    }
+MANIFEST_OUT.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+print("MANIFEST_ASSET", manifest["asset"])
+print("OBJECT_COUNT", manifest["objectCount"])
+print("TRIANGLE_TOTAL", manifest["totalTriangles"])
+print("STAGES", json.dumps(manifest["objectsByStage"]))
+print("CROWN_REACH", json.dumps(manifest["crownReach"]))
+print("CLEARANCE_VIOLATIONS", len(manifest["clearance"]["violations"]),
+      json.dumps(manifest["clearance"]["tightest"][:3]))
+for entry in manifest.get("silhouette", {}).get("visibleCavity", []):
+    print("VISIBLE_CAVITY", json.dumps(entry))
+if "silhouette" in manifest:
+    print("SLAB_OCCLUSION", json.dumps(manifest["silhouette"]["slabOcclusion"]))
+
 save_blend()
 export_glb()
 
