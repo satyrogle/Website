@@ -1,0 +1,95 @@
+/* ============================================================
+   Dark Lattice — design tokens
+   Palette is locked by the brief (§3.2). Do not introduce new
+   hues. Amber is a prestige accent for decisive brand/evidence
+   moments only and must never compete with the teal/cyan system.
+   ============================================================ */
+
+:root {
+  /* --- Core ground ------------------------------------------------ */
+  --ground: #080b10;
+  --ground-raised: #0e131b;
+  --panel: #121923;
+  --text: #eef0f2;
+  --muted: #858d94;
+  --line: rgba(230, 235, 240, 0.14);
+
+  /* --- Reactive accents (the living system) ----------------------- */
+  --teal: #36e0b0;
+  --cyan: #4dd0ff;
+  --cold-white: #dff9ff;
+
+  /* --- Prestige accent (rationed) --------------------------------- */
+  --amber: #c9a24a;
+
+  /* The v3 indigo/magenta spectrum was rejected by the founder as
+     "looks AI" — the exact cliché the original brief warned against.
+     The v4 canvas palette is dark-prism monochrome (graphite + ice)
+     with thin-film spectral flashes computed in-shader; the DOM keeps
+     the original teal/cyan accents. */
+
+  /* --- Derived surfaces ------------------------------------------- */
+  --line-strong: rgba(230, 235, 240, 0.26);
+  --line-faint: rgba(230, 235, 240, 0.07);
+  --panel-veil: rgba(8, 11, 16, 0.72);
+  --panel-veil-solid: rgba(8, 11, 16, 0.87);
+
+  /* --- Type families ---------------------------------------------- */
+  /* Inter, not Space Grotesk. Space Grotesk's quirks (the R leg, the
+     single-storey a, the G spur) read as friendly-tech, and at display
+     size with tight tracking the whole page felt strained. Inter is
+     neutral, has a large x-height and gets out of the way — the object
+     should carry the tension, not the typography. */
+  --font-display: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* --- Fluid type scale -------------------------------------------
+     Clamped so 390px never overflows and 1920px never bloats.       */
+  --step--2: clamp(0.69rem, 0.66rem + 0.14vw, 0.78rem);
+  --step--1: clamp(0.81rem, 0.77rem + 0.19vw, 0.94rem);
+  --step-0: clamp(1rem, 0.95rem + 0.26vw, 1.19rem);
+  --step-1: clamp(1.19rem, 1.09rem + 0.5vw, 1.5rem);
+  --step-2: clamp(1.35rem, 1.18rem + 0.83vw, 1.92rem);
+  --step-3: clamp(1.62rem, 1.33rem + 1.4vw, 2.56rem);
+  --step-4: clamp(1.94rem, 1.48rem + 2.25vw, 3.41rem);
+  --step-5: clamp(2.33rem, 1.62rem + 3.5vw, 4.55rem);
+
+  /* Cinematic display sizes — deliberately viewport-cropping.       */
+  --display-xl: clamp(3.4rem, 15.5vw, 15rem);
+  --display-lg: clamp(2.6rem, 9.5vw, 8.5rem);
+  --display-md: clamp(2rem, 6.2vw, 5.2rem);
+
+  /* --- Rhythm ------------------------------------------------------ */
+  --gutter: clamp(1.25rem, 4.5vw, 5.5rem);
+  --movement-pad: clamp(5rem, 13vh, 11rem);
+  --measure: 58ch;
+  --measure-tight: 48ch;
+
+  /* --- Motion ------------------------------------------------------ */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+  --ease-mask: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 260ms;
+  --dur-mid: 620ms;
+  --dur-slow: 1100ms;
+
+  /* --- Layering ---------------------------------------------------- */
+  --z-canvas: 0;
+  --z-content: 2;
+  --z-chrome: 40;
+  --z-loader: 90;
+  --z-skip: 100;
+
+  color-scheme: dark;
+}
+
+/* The site is a single dark world; there is no light theme.
+   Honour forced-colors for assistive contrast instead. */
+@media (forced-colors: active) {
+  :root {
+    --line: CanvasText;
+    --line-strong: CanvasText;
+    --muted: CanvasText;
+  }
+}

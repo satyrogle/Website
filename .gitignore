@@ -1,0 +1,12 @@
+node_modules/
+dist/
+
+# QA output — regenerate with tools/capture.mjs
+captures/
+captures-live/
+delivery/qa/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.log

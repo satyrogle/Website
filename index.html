@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#080b10" />
+
+    <title>Dark Lattice — Systems Studio</title>
+    <meta
+      name="description"
+      content="Dark Lattice is a systems studio. We build rules that create consequences together, rather than difficulty assembled from hand-placed events. Three games, one accumulating systems stack."
+    />
+    <link rel="canonical" href="https://darklattice.co.uk/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Dark Lattice" />
+    <meta property="og:title" content="Dark Lattice — Systems Studio" />
+    <meta
+      property="og:description"
+      content="Systems that react to each other, not events we hand-placed. Three games, one accumulating systems stack."
+    />
+    <meta property="og:url" content="https://darklattice.co.uk/" />
+    <meta property="og:image" content="./social/og-dark-lattice.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <!-- Static poster. Shown for reduced motion, WebGL failure and no-JS.
+         Composed as a deliberate frame, never as an error state. -->
+    <div class="poster" aria-hidden="true">
+      <img
+        class="poster__art"
+        src="./fallback/hero-poster.svg"
+        alt=""
+        decoding="async"
+      />
+    </div>
+
+    <canvas id="lattice-canvas" aria-hidden="true"></canvas>
+
+    <!-- Loader. Removed immediately if JS never runs. -->
+    <div class="loader" id="loader" role="status" aria-live="polite">
+      <p class="loader__label">Initialising lattice</p>
+      <div class="loader__track"><span class="loader__bar" id="loader-bar"></span></div>
+      <p class="loader__count"><span id="loader-count">0</span>%</p>
+    </div>
+    <script>
+      // If module execution fails or JS is disabled, the loader must not
+      // be left covering the page. Hiding it here — before any bundle
+      // loads — means the worst case is a fully readable static site.
+      document.getElementById('loader').hidden = true;
+    </script>
+
+    <header class="chrome">
+      <a class="chrome__mark" href="#main">
+        <svg class="chrome__glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M8 1 L15 8 L8 15 L1 8 Z" fill="none" stroke="currentColor" stroke-width="1.2" />
+          <path d="M8 4.4 L11.6 8 L8 11.6 L4.4 8 Z" fill="currentColor" opacity="0.55" />
+        </svg>
+        <span>Dark Lattice</span>
+      </a>
+      <p class="chrome__progress" aria-hidden="true"><span data-progress>00</span>&thinsp;/&thinsp;100</p>
+    </header>
+
+    <main id="main">
+      <!-- ============================================================
+           MOVEMENT 01 — Cold open
+           ============================================================ -->
+      <section
+        class="movement hero"
+        data-movement="hero"
+        aria-labelledby="hero-title"
+        data-hero-reveal
+      >
+        <p class="label fade-in">
+          <span class="label__rule" aria-hidden="true"></span>
+          DL / Systems Studio
+        </p>
+
+        <h1 class="hero__title display display--xl" id="hero-title">
+          <span class="reveal-line"><span>Dark</span></span>
+          <span class="reveal-line"><span>Lattice</span></span>
+        </h1>
+
+        <div class="hero__foot">
+          <div>
+            <p class="hero__statement fade-in">
+              Systems that react to each other, not events we hand-placed.
+            </p>
+            <p class="hero__lockup fade-in">
+              Three games <b>·</b> One accumulating systems stack
+            </p>
+          </div>
+
+          <a class="action fade-in" href="#premise" data-magnetic data-scroll-to>
+            Enter the system
+            <span class="action__arrow" aria-hidden="true">↓</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           MOVEMENT 02 — The premise
+           ============================================================ -->
+      <section
+        class="movement movement--washed premise"
+        data-movement="premise"
+        id="premise"
+        aria-labelledby="premise-title"
+      >
+        <p class="movement__index">02 / Premise</p>
+
+        <div class="premise__statement" data-reveal>
+          <h2 class="display display--md" id="premise-title">
+            <span class="reveal-line"><span>We do not build</span></span>
+            <span class="reveal-line"><span>difficulty from</span></span>
+            <span class="reveal-line"><span>more hand-placed</span></span>
+            <span class="reveal-line"><span>events.</span></span>
+            <span class="reveal-line"><span>We build rules</span></span>
+            <span class="reveal-line"><span>that create</span></span>
+            <span class="reveal-line"><span>consequences</span></span>
+            <span class="reveal-line"><span>together.</span></span>
+          </h2>
+        </div>
+
+        <div class="premise__body">
+          <p class="label fade-in">
+            <span class="label__rule" aria-hidden="true"></span>
+            In plain English
+          </p>
+
+          <div class="premise__prose">
+            <p class="body fade-in">
+              In most games, the difficulty is placed by hand. A designer decides an enemy stands
+              here, a trap fires there, this consequence happens at that moment. It works — but
+              somebody has to build every situation individually, so the game can only ever contain
+              the situations there was time to build.
+            </p>
+            <p class="body fade-in">
+              <strong>We write the rules instead.</strong> We decide how the pieces behave and how
+              they affect each other, then let them run. The hard moments come out of those rules
+              colliding — situations nobody placed, and nobody could have placed.
+            </p>
+            <p class="body fade-in">
+              This is not the same as making it random. Every outcome follows from rules we wrote,
+              so we can test it, repeat it, and show you exactly why it happened.
+            </p>
+            <p class="body fade-in">
+              It matters commercially because of what it leaves behind. A hand-built game is worth
+              roughly what is in it. A rules-based one also leaves the rules, the tests that prove
+              them, and the knowledge of how to build them again — and that is what carries into the
+              next game.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           MOVEMENT 03 — Three states of one system
+           ============================================================ -->
+      <section aria-labelledby="states-title">
+        <h2 class="sr-only" id="states-title">Three games, one accumulating system</h2>
+
+        <!-- State A -->
+        <article
+          class="movement state"
+          data-movement="desk42"
+          aria-labelledby="desk42-title"
+        >
+          <p class="movement__index">03 / State A</p>
+
+          <div class="state__head" data-reveal>
+            <h3 class="state__name display" id="desk42-title">
+              <span class="reveal-line"><span>Desk42</span></span>
+            </h3>
+            <p class="state__role fade-in">Persistent systems proof</p>
+          </div>
+
+          <div class="state__meta">
+            <div class="state__prose">
+              <p class="lede fade-in">
+                You work a desk inside a bureaucracy, deciding people&rsquo;s claims.
+              </p>
+              <p class="body fade-in">
+                What you decide does not disappear when the case closes. A ruling you make in your
+                first week shapes what lands on your desk in your sixth. The system keeps its own
+                record of what really happened, separately from what was officially written down
+                &mdash; and those two things drift apart.
+              </p>
+              <p class="body fade-in">
+                Nothing here is random. Every consequence traces back to a decision you made, and
+                the game can show you the chain.
+              </p>
+            </div>
+
+            <dl class="state__facts fade-in">
+              <div class="state__fact"><dt>Engine</dt><dd>Unity</dd></div>
+              <div class="state__fact"><dt>Platform</dt><dd>Windows PC, single player</dd></div>
+              <div class="state__fact"><dt>Distribution</dt><dd>Steam PC first</dd></div>
+              <div class="state__fact">
+                <dt>Status</dt><dd>Bounded causal slice, not a finished product</dd>
+              </div>
+            </dl>
+          </div>
+
+          <p class="connector">
+            <span class="connector__stem" aria-hidden="true"></span>
+            Persists into
+          </p>
+        </article>
+
+        <!-- State B -->
+        <article
+          class="movement state"
+          data-movement="brawler"
+          aria-labelledby="brawler-title"
+        >
+          <p class="movement__index">03 / State B</p>
+
+          <div class="state__head" data-reveal>
+            <h3 class="state__name display" id="brawler-title">
+              <span class="reveal-line"><span>Brawler</span></span>
+            </h3>
+            <p class="state__role fade-in">Reactive simulation</p>
+          </div>
+
+          <div class="state__meta">
+            <div class="state__prose">
+              <p class="lede fade-in">
+                A fighting game where the ground itself is alive.
+              </p>
+              <p class="body fade-in">
+                Spread something across the floor and it keeps spreading &mdash; into enemies, into
+                you, into the next room. It is not an effect painted over the fight. It decides
+                where you can stand, what hurts you, and what your attacks do.
+              </p>
+              <p class="body fade-in">
+                So you stop treating the room as scenery and start using it.
+                <strong>You change the environment, the environment changes the fight.</strong>
+                The maths behind it is well established and we do not claim to own it. What is ours
+                is the implementation and the tools around it.
+              </p>
+            </div>
+
+            <dl class="state__facts fade-in">
+              <div class="state__fact"><dt>Engine</dt><dd>Unreal Engine</dd></div>
+              <div class="state__fact"><dt>System</dt><dd>Deterministic reactive field</dd></div>
+              <div class="state__fact">
+                <dt>Basis</dt><dd>Established reaction-diffusion methods</dd>
+              </div>
+              <div class="state__fact">
+                <dt>Status</dt><dd>In development; benchmarks not published</dd>
+              </div>
+            </dl>
+          </div>
+
+          <p class="connector">
+            <span class="connector__stem" aria-hidden="true"></span>
+            Combines into
+          </p>
+        </article>
+
+        <!-- State C -->
+        <article
+          class="movement state"
+          data-movement="roguelite"
+          aria-labelledby="roguelite-title"
+        >
+          <p class="movement__index">03 / State C</p>
+
+          <div class="state__head" data-reveal>
+            <h3 class="state__name display" id="roguelite-title">
+              <span class="reveal-line"><span>Roguelite</span></span>
+            </h3>
+            <p class="state__role fade-in">Persistent systems + reactive simulation</p>
+          </div>
+
+          <div class="state__meta">
+            <div class="state__prose">
+              <p class="lede fade-in">
+                A possible third game that runs both systems at once.
+              </p>
+              <p class="body fade-in">
+                A world that remembers what you did, inside an environment that reacts while you are
+                still standing in it.
+              </p>
+              <p class="body fade-in">
+                <strong>It is not committed.</strong> We build it only if the first two games show
+                us it is worth building &mdash; what they cost, how long they took, and whether
+                anyone wants it. We would rather say that plainly than put a third title on a
+                roadmap to make the plan look bigger.
+              </p>
+            </div>
+
+            <dl class="state__facts fade-in">
+              <div class="state__fact"><dt>Status</dt><dd>Roadmap direction</dd></div>
+              <div class="state__fact">
+                <dt>Commitment</dt><dd>Conditional on prior evidence</dd>
+              </div>
+              <div class="state__fact">
+                <dt>Dependency</dt><dd>Not a base-case revenue line</dd>
+              </div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ============================================================
+           MOVEMENT 04 — The reusable systems foundation
+           ============================================================ -->
+      <section
+        class="movement movement--washed foundation"
+        data-movement="foundation"
+        aria-labelledby="foundation-title"
+      >
+        <p class="movement__index">04 / Foundation</p>
+
+        <div class="foundation__head" data-reveal>
+          <h2 class="display display--md" id="foundation-title">
+            <span class="reveal-line"><span>The reusable</span></span>
+            <span class="reveal-line"><span>systems</span></span>
+            <span class="reveal-line"><span>foundation</span></span>
+          </h2>
+        </div>
+
+        <div class="layers" data-layers>
+          <div class="layers__list" data-layer-list>
+            <button class="layer-tab" data-layer-tab>
+              <span class="layer-tab__num">01</span>
+              <span>Source code</span>
+            </button>
+            <button class="layer-tab" data-layer-tab>
+              <span class="layer-tab__num">02</span>
+              <span>System design</span>
+            </button>
+            <button class="layer-tab" data-layer-tab>
+              <span class="layer-tab__num">03</span>
+              <span>Founder know-how</span>
+            </button>
+          </div>
+
+          <div>
+            <div class="layer-panel" data-layer-panel>
+              <h3 class="layer-panel__title">01 — Source code</h3>
+              <p class="lede">The code itself &mdash; and the least of the three.</p>
+              <p class="body">
+                Plain logic travels reasonably well: the maths, the rules, the decision-making, the
+                data handling. Anything written against a particular engine&rsquo;s objects and
+                tooling does not. That gets rewritten.
+              </p>
+              <p class="body">
+                <strong>We size this honestly.</strong> For gameplay code tied closely to an engine,
+                very little moves across.
+              </p>
+            </div>
+
+            <div class="layer-panel" data-layer-panel>
+              <h3 class="layer-panel__title">02 — System design</h3>
+              <p class="lede">The plans &mdash; and where most of the value actually is.</p>
+              <p class="body">
+                Typing the code is not the expensive part. Working out what the system has to do is:
+                how it should behave, what it does at the edges, what counts as correct, and what we
+                already tried that failed.
+              </p>
+              <p class="body">
+                <strong>None of that is tied to an engine.</strong> Change the engine and every one
+                of those answers still holds.
+              </p>
+            </div>
+
+            <div class="layer-panel" data-layer-panel>
+              <h3 class="layer-panel__title">03 — Founder know-how</h3>
+              <p class="lede">What we learned making it.</p>
+              <p class="body">
+                How long the work actually takes. What it costs. How to commission it, test it and
+                get it onto a store. What players understood without being told, and what they
+                did not.
+              </p>
+              <p class="body">
+                <strong>The codebase can change completely. This does not reset.</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <details class="evidence-disclosure" data-disclosure>
+          <summary>View cross-engine evidence</summary>
+
+          <div class="evidence-disclosure__body">
+            <p class="evidence-note">
+              Practical carry-over between Unity and Unreal, by area. These are practical ranges,
+              not guaranteed engineering measurements. They describe a Unity-to-Unreal transition
+              between two products, not a claim that any figure has been benchmarked.
+            </p>
+
+            <table class="ledger">
+              <caption>
+                Unity → Unreal carry-over
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Area</th>
+                  <th scope="col">Typical carry-over</th>
+                  <th scope="col"><span class="sr-only">Range</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Engine-specific gameplay code</th>
+                  <td class="ledger__range" data-col="Carry-over">0–20%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 0%; width: 20%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Algorithms and system logic</th>
+                  <td class="ledger__range" data-col="Carry-over">80–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 80%; width: 20%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Behaviour specifications</th>
+                  <td class="ledger__range" data-col="Carry-over">80–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 80%; width: 20%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Test cases / acceptance criteria</th>
+                  <td class="ledger__range" data-col="Carry-over">70–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 70%; width: 30%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Engine-independent game data</th>
+                  <td class="ledger__range" data-col="Carry-over">80–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 80%; width: 20%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Raw art assets</th>
+                  <td class="ledger__range" data-col="Carry-over">70–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 70%; width: 30%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Engine-specific shaders / VFX / UI</th>
+                  <td class="ledger__range" data-col="Carry-over">10–50%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 10%; width: 40%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Audio source assets</th>
+                  <td class="ledger__range" data-col="Carry-over">90–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 90%; width: 10%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Production workflows</th>
+                  <td class="ledger__range" data-col="Carry-over">70–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 70%; width: 30%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Commercial knowledge</th>
+                  <td class="ledger__range" data-col="Carry-over">90–100%</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 90%; width: 10%"></span
+                    ></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Company-owned IP</th>
+                  <td class="ledger__range" data-col="Carry-over">100% in principle</td>
+                  <td>
+                    <span class="ledger__band" aria-hidden="true"
+                      ><span style="left: 0%; width: 100%"></span
+                    ></span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- ============================================================
+           MOVEMENT 05 — Capability that accumulates
+           ============================================================ -->
+      <section
+        class="movement movement--washed"
+        data-movement="accumulation"
+        aria-labelledby="accumulation-title"
+      >
+        <p class="movement__index">05 / Accumulation</p>
+
+        <div class="foundation__head" data-reveal>
+          <h2 class="display display--md" id="accumulation-title">
+            <span class="reveal-line"><span>Capability that</span></span>
+            <span class="reveal-line"><span>accumulates</span></span>
+          </h2>
+        </div>
+
+        <div class="chapters">
+          <article class="chapter">
+            <p class="chapter__num fade-in">01</p>
+            <h3 class="chapter__title fade-in">A capability that accumulates</h3>
+            <div class="chapter__prose">
+              <p class="body fade-in">
+                Anyone can copy the idea. The idea is one sentence long.
+              </p>
+              <p class="body fade-in">
+                What is slow to copy is everything underneath it: the architecture, the tools that
+                check it works, the hundred decisions that made it behave. Each of those is cheap to
+                describe and expensive to build &mdash; and they stack. The longer we run, the wider
+                the gap between describing this work and reproducing it.
+              </p>
+            </div>
+          </article>
+
+          <article class="chapter">
+            <p class="chapter__num fade-in">02</p>
+            <h3 class="chapter__title fade-in">Every game leaves infrastructure behind</h3>
+            <div class="chapter__prose">
+              <p class="body fade-in">
+                Each game hands the next one a head start: how these systems should behave, what
+                broke last time, how to test them, how long production really takes, how to get a
+                game in front of people.
+              </p>
+              <p class="body fade-in">
+                <strong>That holds even when the engine changes and the code is rewritten from
+                scratch.</strong>
+              </p>
+            </div>
+          </article>
+
+          <article class="chapter">
+            <p class="chapter__num fade-in">03</p>
+            <h3 class="chapter__title fade-in">Designed to ship commercially</h3>
+            <div class="chapter__prose">
+              <p class="body fade-in">
+                We sell games. Paid PC games, downloaded, starting with Desk42 on Steam and then
+                Brawler. That is the whole business model.
+              </p>
+              <p class="body fade-in">
+                We are not selling an engine, licensing technology, chasing a patent or waiting on a
+                grant. The reusable technology is how we keep our own costs down &mdash;
+                <strong>it is not a product</strong>, and nothing in the plan depends on the third
+                game being made.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           MOVEMENT 06 — The evidence boundary
+           Deliberately calmer and flatter than every brand movement.
+           ============================================================ -->
+      <section
+        class="movement boundary"
+        data-movement="evidence"
+        aria-labelledby="boundary-title"
+      >
+        <div class="boundary__head">
+          <h2 class="boundary__title" id="boundary-title">
+            What we can support<br />
+            What transfers — and what does not
+          </h2>
+          <p class="boundary__note">
+            Everything above is what we are building. This is the part we can prove, and the part we
+            cannot. If a claim is not in the left column, we are not making it. We would rather be
+            checked than believed.
+          </p>
+        </div>
+
+        <div class="boundary__cols">
+          <div class="boundary__col boundary__col--supported">
+            <h3>What the evidence supports</h3>
+            <ul class="claims">
+              <li>
+                <span aria-hidden="true">01</span>
+                <span>
+                  <strong>Systems and specifications carry between engines; code often does
+                  not.</strong>
+                  Rules, state definitions, data structures, equations, edge cases, expected
+                  behaviour, test cases and architecture decisions survive an engine change.
+                  Engine-specific gameplay code is assessed separately and largely rewritten.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">02</span>
+                <span>
+                  <strong>Desk42 is a single-player Windows PC game built in Unity.</strong>
+                  The player operates inside an institutional claims system where evidence, policy,
+                  procedure, adjudication, queues, appeals and precedent create persistent
+                  consequences. Distribution is Steam PC first.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">03</span>
+                <span>
+                  <strong>Brawler is an action roguelite in development in Unreal Engine.</strong>
+                  Its system-level proposition is a spatial simulation whose state is authoritative
+                  for movement, hazards, actor exposure and combat consequences, rather than a
+                  cosmetic effect layer.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">04</span>
+                <span>
+                  <strong>The reaction-diffusion methods are established; the implementation is
+                  ours.</strong>
+                  We claim a gameplay implementation and toolchain built on established
+                  reaction-diffusion methods — not ownership of the underlying mathematics.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">05</span>
+                <span>
+                  <strong>Founder capability is inspectable in public.</strong>
+                  SatyBT is a founder-created behaviour-tree framework published under the MIT
+                  licence. It stands as evidence that we can design, test, document, package and
+                  maintain reusable technical infrastructure.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">06</span>
+                <span>
+                  <strong>The commercial model is deliberately narrow.</strong>
+                  Premium downloadable PC games through digital distribution, beginning with Desk42
+                  and followed by Brawler. Reusable technology is an internal margin and execution
+                  advantage, not a product.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="boundary__col boundary__col--limits">
+            <h3>What we do not claim</h3>
+            <ul class="claims">
+              <li>
+                <span aria-hidden="true">01</span>
+                <span>
+                  <strong>Not one proprietary engine.</strong>
+                  We do not sell, license or claim a named proprietary game engine. There is no
+                  separate customer, package, price, sales channel or licence revenue in the base
+                  case.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">02</span>
+                <span>
+                  <strong>Not direct code reuse across engines.</strong>
+                  We do not claim that every line of code transfers between Unity and Unreal, and we
+                  do not claim that changing engine is cheap.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">03</span>
+                <span>
+                  <strong>Not a finished product.</strong>
+                  The current Desk42 implementation is a bounded causal slice. It is not described
+                  as near-complete, production-ready or market-validated.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">04</span>
+                <span>
+                  <strong>No performance figures until measured.</strong>
+                  No runtime benchmark, frame budget or simulation-scale figure is published here.
+                  Those follow a frozen build and recorded measurements, not an estimate.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">05</span>
+                <span>
+                  <strong>No market validation yet.</strong>
+                  External playtests, store-page behaviour, wishlist data and purchase-intent work
+                  have not been completed. Comparable titles establish plausible categories and
+                  price bands; they do not evidence our demand.
+                </span>
+              </li>
+              <li>
+                <span aria-hidden="true">06</span>
+                <span>
+                  <strong>No price, date or scale commitments.</strong>
+                  No release date, sales figure, final price, team size, partner, award or press
+                  claim appears on this site, because none is currently supported by inspected
+                  evidence.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="boundary__pull">
+          <blockquote>
+            Dark Lattice does not depend on copying one engine-specific codebase across every
+            product. Its scalability comes from accumulating reusable technical knowledge, system
+            architecture, proprietary implementations, production infrastructure, IP and market
+            evidence across multiple releases. Where engine-specific code must be rewritten, the
+            underlying problem has already been designed, tested and understood, reducing repeated
+            discovery and development risk.
+          </blockquote>
+          <cite>Scalability position — Dark Lattice</cite>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           MOVEMENT 07 — Resolution
+           ============================================================ -->
+      <footer
+        class="movement resolution"
+        data-movement="resolution"
+        aria-labelledby="resolution-title"
+      >
+        <div class="resolution__mark" data-reveal data-reveal-stagger="0.12">
+          <h2 class="resolution__wordmark display" id="resolution-title">
+            <span class="reveal-line"><span>Dark Lattice</span></span>
+          </h2>
+          <p class="resolution__site fade-in">
+            <a class="link" href="https://darklattice.co.uk">darklattice.co.uk</a>
+          </p>
+        </div>
+
+        <div class="resolution__foot">
+          <p>Dark Lattice — Systems Studio</p>
+          <p>Three games · One accumulating systems stack</p>
+        </div>
+      </footer>
+    </main>
+
+    <noscript>
+      <style>
+        .loader { display: none !important; }
+        #lattice-canvas { display: none !important; }
+        .poster { display: block !important; }
+        .reveal-line > span, .fade-in { transform: none !important; opacity: 1 !important; }
+      </style>
+    </noscript>
+  </body>
+</html>

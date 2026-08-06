@@ -1,0 +1,267 @@
+/* ============================================================
+   Dark Lattice — global reset, shell, canvas/DOM boundary
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* No smooth-scroll here: the Lenis layer owns it, and reduced
+     motion must fall back to genuinely instant native scrolling. */
+  -webkit-text-size-adjust: 100%;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.62;
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  /* Acceptance 19: no horizontal overflow at 390px. */
+  overflow-x: hidden;
+}
+
+/* The lattice is a fixed backdrop the DOM travels over. One canvas,
+   one scene, for the whole document (brief §2.3 persistence). */
+#lattice-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: var(--z-canvas);
+  /* Never intercept scroll or clicks — pointer response is read
+     from window listeners instead (acceptance 20). */
+  pointer-events: none;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 1200ms var(--ease-out-expo);
+}
+
+#lattice-canvas.is-live {
+  opacity: 1;
+}
+
+/* Static poster shown when WebGL fails, JS is off, or reduced
+   motion is requested. Composed, not an error state. */
+.poster {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-canvas);
+  display: none;
+  background:
+    radial-gradient(120% 80% at 50% 42%, rgba(77, 208, 255, 0.09), transparent 62%),
+    radial-gradient(80% 55% at 50% 55%, rgba(54, 224, 176, 0.07), transparent 70%),
+    var(--ground);
+}
+
+.poster::after {
+  /* Vignette so the poster reads as a deliberate frame. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(100% 70% at 50% 45%, transparent 40%, rgba(4, 6, 9, 0.85) 100%);
+}
+
+.poster__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
+}
+
+:root.no-webgl .poster,
+:root.reduced-motion .poster {
+  display: block;
+}
+
+:root.no-webgl #lattice-canvas {
+  display: none;
+}
+
+main {
+  position: relative;
+  z-index: var(--z-content);
+}
+
+/* --- Focus ------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+/* Only suppress the ring for pointer users, never for keyboard. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: var(--gutter);
+  z-index: var(--z-skip);
+  transform: translateY(-140%);
+  padding: 0.8rem 1.3rem;
+  background: var(--cold-white);
+  color: var(--ground);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: transform var(--dur-fast) var(--ease-out-expo);
+}
+
+.skip-link:focus {
+  transform: translateY(0.75rem);
+}
+
+/* --- Screen-reader utility --------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Site chrome -------------------------------------------------- */
+
+.chrome {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-chrome);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(1rem, 2.4vh, 1.75rem) var(--gutter);
+  pointer-events: none;
+  mix-blend-mode: difference;
+}
+
+.chrome > * {
+  pointer-events: auto;
+}
+
+.chrome__mark {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.chrome__glyph {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+}
+
+.chrome__progress {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .chrome__progress {
+    display: none;
+  }
+}
+
+/* --- Loader ------------------------------------------------------- */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-loader);
+  display: grid;
+  place-content: center;
+  gap: 1.4rem;
+  background: var(--ground);
+  transition: opacity 900ms var(--ease-out-expo), visibility 900ms;
+}
+
+.loader[hidden] {
+  display: none;
+}
+
+.loader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader__label {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+.loader__track {
+  width: min(42vw, 320px);
+  height: 1px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.loader__bar {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--teal), var(--cyan), var(--cold-white));
+  transition: transform 200ms linear;
+}
+
+.loader__count {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Reduced motion ---------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

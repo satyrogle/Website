@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#080b10" />
+    <title>Not found — Dark Lattice</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #080b10;
+        --text: #eef0f2;
+        --muted: #858d94;
+        --line: rgba(230, 235, 240, 0.14);
+        --teal: #36e0b0;
+        --cyan: #4dd0ff;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        align-content: center;
+        gap: 2rem;
+        padding: clamp(1.5rem, 6vw, 6rem);
+        background: var(--ground);
+        color: var(--text);
+        font-family: 'Inter', system-ui, sans-serif;
+        line-height: 1.6;
+        overflow-x: hidden;
+      }
+      .code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 0.78rem;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+      }
+      .code::before {
+        content: '';
+        width: 3rem;
+        height: 1px;
+        background: linear-gradient(90deg, var(--teal), var(--cyan));
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.4rem, 10vw, 7rem);
+        line-height: 0.86;
+        letter-spacing: -0.045em;
+        text-transform: uppercase;
+        font-weight: 500;
+      }
+      p { margin: 0; max-width: 46ch; color: var(--muted); }
+      a {
+        display: inline-flex;
+        align-items: center;
+        gap: 1ch;
+        margin-top: 0.5rem;
+        padding: 0.9rem 1.5rem;
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 0.82rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        text-decoration: none;
+        width: fit-content;
+        transition: border-color 260ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      a:hover, a:focus-visible { border-color: var(--cyan); }
+      :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <p class="code">Error 404 / No record</p>
+    <h1>Nothing<br />here</h1>
+    <p>That page does not exist. The system is still running — everything else is where you left it.</p>
+    <a href="/">Return to Dark Lattice</a>
+  </body>
+</html>
