@@ -52,7 +52,11 @@ without earning its place.
 
 ```
 public/
-  fallback/hero-poster.svg     composed still — GENERATED, see tools/poster.mjs
+  fallback/crowned-convergence-hero.png
+                               composed still — CAPTURED from the real
+                               hero by tools/poster-capture.mjs
+  models/DL_CrownedConvergence_Production_v01.glb
+                               the entity — authored in Blender
   social/og-dark-lattice.jpg   generated from the live hero, not drawn separately
   favicon.svg
 src/
@@ -60,13 +64,13 @@ src/
   styles/                      tokens, global, typography, sections
   scene/
     SceneController.ts         renderer, frame loop, the narrative surface
-    LatticeModel.ts            procedural brand object
+    CrownedConvergenceModel.ts GLB entity: parts, staging, extras
     ReactionField.ts           Gray–Scott simulation, ping-ponged
     CameraRig.ts               keyframed path + idle drift + parallax
     Lighting.ts                the lighting arc across the seven movements
     PostPipeline.ts            bright pass + composite
     QualityManager.ts          device tiering and runtime demotion
-  shaders/                     reaction, seed, lattice, ring, bloom, composite
+  shaders/                     reaction, seed, convergence, bloom, composite
   motion/
     ScrollDirector.ts          document scroll → narrative timeline
     TextReveals.ts             masked headline choreography
@@ -77,6 +81,9 @@ src/
   accessibility/
     AccessibilityController.ts layer tablist, magnetic controls, print
 tools/                         QA harness and capture scripts
+  blender/build_production_asset.py
+                               v06 clay -> production GLB + extras
+docs/FINAL_BUILD_DEFECTS.md    open defects by severity
 index.html                     the entire narrative, static
 404.html
 ```
