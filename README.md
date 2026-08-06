@@ -83,183 +83,104 @@ index.html                     the entire narrative, static
 
 ---
 
-## The object — ENTITY v7: THE CROWNED CONVERGENCE
+## The object — THE CROWNED CONVERGENCE
 
-Generated in code, not loaded from a `.glb`. There is no Blender stage in
-this project and no mesh asset to maintain.
+The entity is **authored in Blender and shipped as a GLB**, not generated
+procedurally at runtime. `public/models/DL_CrownedConvergence_Production_v01.glb`,
+5,400 triangles across 20 meshes, 470 KB.
 
-Rebuilt (Aug 2026) to the founder's reference sheet — "Entity Hybrid //
-04 Hollow Convergence + 10 Silent Crown". The v5 kite-door monolith is
-dead and must not return: its tall almond silhouette with a central
-vertical seam read as anatomy, and its two swinging leaves swept the
-lens as a pale wall — the "white door" that survived every dimming pass
-because it was geometry, not lighting. Scroll mapping, camera rail and
-tunnel structure are untouched (locked).
+Seven exterior masses, each an explicit 3D vertex layout — a front loop
+and a back loop of hand-written coordinates, lofted. There is no radial
+formula anywhere in the exterior. Four earlier versions established why:
+any set of pieces derived from one radial parameterisation reads as a
+wreath, because the formula itself is the rotational rhythm the eye
+picks up, and reshaping the pieces never addresses that.
 
-**The outer crown: rugged, COHERENT armour.** Seven major plates on a
-near-regular heptagon, seven half-scale infill shards seated in the
-gaps behind them — the sheet's big/small fidelity hierarchy. Placement
-variance is deliberately SMALL: uniform steep lean, near-zero roll,
-tight radius band, so the plates read as one suit of armour wrapping
-the throat. Random thetas/rolls/scales were tried twice and read as
-debris both times ("slabs are shit, they are asymmetrical"); a back
-shell read as "rotating glass" and is banned. Material identity
-follows the hierarchy (sheet 03): majors are MAT_PRIMARY (dense
-iridescent veins, high response); infills and gyres are MAT_STRUCTURE
-(darker base, muted veins, low response). Spike vertices always point
-OUTWARD; inner vertices are fixed short so no plate can cross the
-mouth and hide the recessed core. The dormant corridor is INVISIBLE
-(tunnel skin gated to zero by `psy`) — nothing may hang behind the
-sealed crown as a lit backdrop.
+Arranged by depth rather than angle — three foreground masses that
+conceal the convergence, two middle-depth, two rear structural.
 
-**The throat.** Three nested faceted gyre rings turning against each
-other (`uGyre`: they creep while dormant, spin up as the visitor
-approaches), stepping down to a pupil ring of eleven small shards and
-the KERNEL — a burning cyan icosahedron on an uneven heartbeat, deep
-in the socket. From the hero rail the entity is a dark crowned mass
-with a cold eye looking back.
+**One entity at three scales.** The crown is the containment structure,
+the corridor is its internal anatomy, and the Latent Form is the system
+at its origin. There is no second world, no portal scene and no
+duplicate crown at the far end.
 
-**The TEAR.** At the premise the crown is torn open (`uRip`, 10–27% of
-the narrative): each plate waits its seeded beat then SNAPS over a
-short window — hinge, radial throw, and a tangential SHEAR, so the
-plates wrench sideways as the seams give. Infills rip slightly later
-and faster than their majors: the small pieces give last. It must read
-as tearing into the being, never as a mechanism blooming. The gyre
-apertures widen for the rail, the pupil parts late, and the kernel
-collapses toward nothing as the camera closes: the light WITHDRAWS
-down the corridor, and the finale is meeting it again. No piece ever
-presents a face to the lens at close range — the white door is
-structurally impossible, not dimmed.
+### Metadata travels with the asset
 
-**The tunnel is the ORGANIC INSIDE of the entity** (sheet camera
-journey: enter presence → confront — "completely organic, feels like
-inside of something alive"). Eleven rings, but the architecture is
-dissolved twice over: a slow travelling vertex undulation displaces
-the ring surfaces along their normals (peristalsis — sampled on the
-unit circle so the angular wrap cannot crack a seam), and the crack
-domain is warped by two drifting fbm fields before ridging, so no
-straight line survives — flowing branched veins, iridescent
-ferrofluid, hue sliding with view angle. No spoke mandala, no crisp
-aperture rims (structural edge lines re-drew the octagons). The
-streaming coordinate is CONICAL (`z − r·0.55`) and drifts deeper on
-its own clock — the inevitable pull, stated continuously; scroll
-accelerates it. The six-fold DMT fold runs the WHOLE corridor,
-crescendoing toward the deep end. The far core faintly lights every
-face that looks toward it. The ENTIRE tunnel skin is gated by `psy`:
-dormant zero (nothing behind the sealed crown), materializing as the
-crown tears. Rings dissolve on a longer near-fade than the crown
-pieces. The reaction field modulates brightness — and paints the
-magenta reaction — never gates.
+The runtime resolves parts by name, but everything else — stage window,
+reaction weight, reaction projection mode, yield vector, ring spin —
+arrives as glTF `extras` written by `tools/blender/build_production_asset.py`.
+Restaging a part or adding a mass is an asset change, not a TypeScript
+change, which is the only way the two stay in step across revisions.
 
-**The far crown.** The same build, mirrored and sealed forever, at the
-far end of the tunnel, its kernel visible down the corridor from
-mid-trip — the destination burns ahead for the whole documentary
-stretch. The finale is arrival: the corridor is bracketed by the crown
-that yielded and a crown that never does. At `uArrive` its seams and
-kernel ignite toward gold — the arrival ignition.
+One caveat worth knowing: the glTF exporter splits any object with two
+or more material slots into separate primitives whose `userData` is
+empty — the extras stay on the parent node. `CrownedConvergenceModel`
+resolves extras up the ancestor chain for exactly that reason.
 
-**The convergence light** is cyan and physically anchored: it radiates
-from the throat point of each gate, so it can only appear on faces
-that look into the socket, and it falls off with real distance. There
-is no configuration of camera and geometry that can produce a white
-wall. The infall particles are sampled from the crown's own vertices
-and spiral endlessly into the throat — the pull, made visible.
+### Coordinates
 
-### The rail
+The export runs with `export_yup`, which already maps Blender
+`(x, y, z)` → glTF `(x, z, −y)`. "Up" is +Y and "into the entity" is −Z,
+which is the site's world space. **Do not rotate the group at runtime** —
+doing so double-transforms everything and the entity culls itself out of
+frame.
 
-From crown to finale the camera moves only forward along the corridor
-axis — x and y never leave zero. This is the founder-chosen fix for
-"scroll going everywhere": scroll maps to depth one-to-one. The
-foundation movement's three-layer separation happens *ahead* of the
-camera (ring thirds part along Z, gaps opening between clusters) instead
-of being viewed from a side orbit.
+Measured world extents the camera rail is authored against:
 
-### The palette: LIGHT LANGUAGE (v5, from the sheet)
+```text
+crown         z  +1.09 .. -2.24, half-height 2.75
+rings A/B/C   z  -0.56 .. -1.80
+tunnel shell  z  -1.85 .. -7.80, bore radius ~1.4
+chamber       z  -7.55 .. -11.10
+Latent Form   z -11.22 .. -10.28
+```
 
-The reference sheet's section 08, implemented literally: PRIMARY
-cyan/teal (the standing colour of every filament crack), SECONDARY
-magenta — **the reaction colour**, appearing only where the system is
-answering something (field response, the yield surge, deep-vision
-crossings) — ACCENT amber, owned exclusively by the halo and the far
-crown's arrival ignition, and a near-black environment. Hue always
-means state, never decoration. The constants live in one block at the
-top of `lattice.frag.glsl` (`PAL_*` + the `signal()` ramp) so the
-whole grade swaps in minutes. Prior palettes, all dead: v4
-teal/violet/gold jewel-obsidian, pure monochrome ("palette is bad"),
-indigo/magenta washes ("looks AI").
+### Visibility staging
 
-**The yield carries anticipation** instead of a lamp: the throat's
-convergence light holds a visible low burn at rest, surges as the
-crown gives way (`uTear` — and the rim, veins and luminance floor
-surge with it, so the event reads on the outer faces too), then
-settles to a sustained glow. Cyan, never white.
+Parts are switched, never crossfaded. The stage windows in the asset are
+a coarse gate; the precise cut is a **behind-camera cull** — a part
+matters until the camera has passed it, which is the geometric answer
+rather than a guessed number. Switching there is invisible, which is why
+the directive asks for occlusion switches over transparent fades.
 
-**The DMT bloom** (founder request): a six-fold kaleidoscopic Kali
-fold blooms across the DEEP half of the tunnel only (z < −8), in jewel
-hues, while the registered spokes ease back — front of tunnel is the
-instrument, the back is the vision.
+### Material identity
 
-### The Blender pipeline (superseded)
+Seven classes — `MAT_CROWN_PRIMARY`, `MAT_CROWN_SECONDARY`,
+`MAT_STRUCTURE`, `MAT_RING`, `MAT_CORE`, `MAT_LATENT`, `MAT_HALO` —
+served by ONE shader. What differs is uniforms, not code paths.
 
-`tools/blender/entity_v6.py` blocked out THE STRATIFIED GATE for a
-mesh-based v6. The founder's reference sheet redirected the entity to
-the procedural crowned convergence before the blockout was approved;
-the script and `public/models/entity-v6.glb` remain as tooling but are
-NOT wired into the site and are not the current direction.
+The object stays predominantly black and the reaction field earns
+brightness rather than being painted on. Pattern is thresholded per
+class, not multiplied across every face, so `MAT_STRUCTURE` stays
+near-black by construction — that is what creates depth between the
+classes. Each class also carries its own key gain, because a single key
+intensity let the threshold chamber out-brighten the Latent Form
+standing in front of it.
 
-**The halo is the threshold, not an ornament — and it is QUIET.** One
-hair-thin CONTINUOUS band (torus r 2.0, tube 0.016 — barely over half
-the crown's width, close over the apex, per the sheet), dimmed at rest
-BELOW the bloom threshold so it carries zero glare: a clean gold line,
-nothing more. MAT_HALO is "minimal reaction" — it is allowed to burn
-at exactly two events, the gateway crossing and the arrival
-(`mix(0.55, 1, max(uGateway, uArrive))`). A wide bright ring read as
-"shining, big, has glare" and died. All motion on it is light (two
-counter-travelling charges), never structure. During the tear it tilts
-down, descends the axis and widens (`setGateway`, riding the first
-half of `uRip`), ending face-on at the rail so the camera passes
-THROUGH it into the corridor. The far crown keeps its halo overhead
-the whole journey and it ignites at the arrival.
+Locked palette:
 
-**The back half stays alive.** The evidence movement's DOM is
-semi-opaque (`rgba(14,19,27,0.84)`) rather than solid, and the arc
-keeps `psy`/emissive up through it — documentation reads cleanly with
-the entity still turning behind it, per founder note.
+```text
+Void #010204   Structure #020406   Raised black #081016
+Teal #36E0B0   Cyan #4DD0FF        Cold white #DFF9FF
+Magenta #FF2B9A                    Amber #C9A24A
+```
 
-### Rules that survived seven failed forms
+The rule that keeps it honest: **cyan/teal is the baseline active
+system, magenta means active response or retained consequence, amber
+belongs to the halo and rare accumulated traces.** Magenta is never
+decoration.
 
-- **A wireframe cannot loom** (the node-and-strut grid was a chandelier).
-- **Patterns live in the surface, not in front of it** (filaments read
-  as tendrils).
-- **No stripes** (axis + lip rails read as "3 lines").
-- **No gloss** (mirror-finish ooze read as glare/residue).
-- **Never gate the trip by chemistry** (it kept disappearing); modulate
-  with it instead.
-- **The entity must be self-luminous** (near-black stone corridors went
-  invisible from 30% on).
-- **The camera never reverses, and off the rail is off the table.**
-- **Near geometry fades** (`smoothstep(0.45, 2.2, depth)`).
-- **`FIELD_EXTENT` covers the object's XY footprint.**
-- **Orient, then translate.** The far gate was once rotated *after*
-  translation, which spun it around the world origin to +33 — behind
-  the hero camera. The tunnel had no ending, and nobody could see why.
-- **No vertical seam, no almond silhouette.** A tall marquise outline
-  split by a central vertical seam reads as anatomy from every
-  distance. The mouth is an irregular ring with a RECESSED core.
-- **Asymmetry must be composed, not random.** The sheet's "asymmetric
-  harmony": top-heavy scale, spikes always outward, inner edges
-  clearance-capped. (The v5-era "strict bilateral symmetry" rule was
-  the fix for a lighting artifact, and died with the doors.)
-- **Steep lean beats big faces.** Slabs presenting their faces to the
-  rail read as petals; menace is edges, bevels and foreshortening.
-- **The pull never stops.** Gyres creep at idle, filaments stream
-  deeper at idle, infall particles fall at idle, the far core glows at
-  idle. Scroll strengthens the pull; it never causes it.
-- **Capture tooling needs wall-clock headroom.** Under SwiftShader the
-  camera/rip springs converge in sim-time while the wall clock
-  stretches with the frame rate — a short settle screenshots the
-  camera mid-flight and the storyboard lies. `tools/shot.mjs` settles
-  6 s (override with `SETTLE=`).
+### One persistent reaction field
+
+The Gray–Scott simulation is never reseeded. Crown and Latent Form
+sample it by planar object-space projection normalised against the
+authored exterior bounds; rings and tunnel sample the SAME texture by
+cylindrical coordinates around the travel axis with a depth phase
+offset. There is no second simulation.
+
+Retained consequence only ever rises, so the magenta at the seam is the
+accumulation of the whole descent — which is the point of a field that
+survives the journey.
 
 ## The field
 
