@@ -73,6 +73,9 @@ def parse_args():
     # the reference sheet is explicit that it is not a scaled clone.
     p.add_argument("--latent-src", default="")
     p.add_argument("--latent-faces", type=int, default=60000)
+    # Gyres: one broken annulus, instanced three times inside each shell.
+    p.add_argument("--gyre-src", default="")
+    p.add_argument("--gyre-faces", type=int, default=9000)
     return p.parse_args(argv)
 
 
@@ -81,6 +84,7 @@ ROOT = Path(ARGS.root).resolve()
 SRC = Path(ARGS.src).resolve()
 TUNNEL_SRC = Path(ARGS.tunnel_src).resolve() if ARGS.tunnel_src else None
 LATENT_SRC = Path(ARGS.latent_src).resolve() if ARGS.latent_src else None
+GYRE_SRC = Path(ARGS.gyre_src).resolve() if ARGS.gyre_src else None
 BLEND = ROOT / "assets" / "blender" / "DL_CrownedConvergence_Production_v01.blend"
 GLB_OUT = ROOT / "public" / "models" / ARGS.out
 
@@ -238,6 +242,96 @@ def build_tunnel(existing_names):
     bpy.data.objects.remove(template, do_unlink=True)
     log(f"tunnel: {count} instances sharing one mesh, "
         f"y {near_y:.2f} -> {far_y:.2f}, taper 1.00 -> 0.54")
+
+
+def build_gyres():
+    """
+    The internal ring system — three broken annuli turning inside each
+    shell, independently.
+
+    The reference sheet has called for this since the first board
+    ("RING SYSTEM / 3 NESTED RINGS") and it has never existed. It is the
+    difference between a shell with a hole in it and a thing with
+    working anatomy: the silhouette belongs to the shell, the sense of
+    depth and of something operating belongs to these.
+
+    Scales, speeds and directions are the handoff pack's — its
+    GyreController is the one file in that pack whose numbers are
+    correct as written, because it is the only one authored against a
+    seconds clock.
+
+    No hub, no spokes: those read as a gear, and a gear reads as
+    machinery rather than as a body.
+    """
+    before = {o.name for o in bpy.data.objects}
+    bpy.ops.import_scene.gltf(filepath=str(GYRE_SRC))
+    imported = [o for o in bpy.data.objects
+                if o.name not in before and o.type == "MESH"]
+    if not imported:
+        raise SystemExit(f"No mesh imported from {GYRE_SRC}")
+
+    template = max(imported, key=lambda o: len(o.data.polygons))
+    for obj in imported:
+        if obj is not template:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+    faces = decimate_to(template, ARGS.gyre_faces)
+    bpy.ops.object.select_all(action="DESELECT")
+    template.select_set(True)
+    bpy.context.view_layer.objects.active = template
+    try:
+        bpy.ops.object.shade_auto_smooth(angle=math.radians(24.0))
+    except (AttributeError, RuntimeError):
+        bpy.ops.object.shade_flat()
+    # Pivot exactly at the aperture centre — the pack is explicit, and a
+    # gyre pivoted anywhere else wobbles instead of turning.
+    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
+
+    dims = template.dimensions
+    radial = max(dims.x, dims.z) or 1.0
+    mesh_data = template.data
+
+    # host role, stage window, activity scale, aperture width, depth bias
+    HOSTS = [
+        ("crown_slab", 0.0, 0.48, 1.0, 1.55, 0.30),
+        ("latent_mass", 0.52, 1.0, 0.15, 1.15, 0.0),
+    ]
+    TIERS = [(1.00, "A"), (0.80, "B"), (0.62, "C")]
+
+    made = 0
+    for role, stage_from, stage_to, activity, width, bias in HOSTS:
+        hosts = [o for o in bpy.data.objects if o.get("dl_role", "") == role]
+        if not hosts:
+            log(f"WARNING no {role} to host gyres")
+            continue
+        h_lo, h_hi = world_bounds(hosts)
+        centre = (h_lo + h_hi) / 2.0
+        # Seated just inside the cavity, on the travel axis. The viewer
+        # is at -Y, so a positive bias sets them back behind the mouth.
+        depth_y = centre.y + (h_hi.y - h_lo.y) * bias
+
+        for tier, (rel, label) in enumerate(TIERS):
+            g = bpy.data.objects.new(f"DL_Gyre_{role[:5]}_{label}", mesh_data)
+            bpy.context.collection.objects.link(g)
+            scale = (width * rel) / radial
+            g.location = (centre.x, depth_y + tier * 0.12, centre.z)
+            g.scale = (scale, scale, scale)
+            g["dl_role"] = "gyre"
+            g["dl_material_class"] = "MAT_RING"
+            g["dl_visibility_stage"] = "gyre"
+            g["dl_stage_from"] = stage_from
+            g["dl_stage_to"] = stage_to
+            g["dl_reaction"] = round(0.85 - tier * 0.12, 3)
+            g["dl_projection"] = "cylindrical"
+            g["dl_open_translation"] = [0.0, 0.0, 0.0]
+            g["dl_open_rotation"] = [0.0, 0.0, 0.0]
+            g["dl_yield_spin_deg"] = 0.0
+            g["dl_gyre_tier"] = tier
+            g["dl_gyre_activity"] = activity
+            made += 1
+
+    bpy.data.objects.remove(template, do_unlink=True)
+    log(f"gyres: {made} instances, {faces} faces each, sharing one mesh")
 
 
 def build_latent():
@@ -534,6 +628,8 @@ def main():
         build_tunnel(existing)
     if LATENT_SRC:
         build_latent()
+    if GYRE_SRC:
+        build_gyres()
 
     # ---- The convergence light ---------------------------------------
     # There was no core object in the scene at all. MAT_CORE existed as

@@ -81,6 +81,28 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/**
+ * Gyre tiers, from the handoff pack's GyreController — the one file in
+ * that pack whose numbers are correct as written, because it is the
+ * only one authored against a seconds clock rather than milliseconds.
+ * Three speeds, opposing directions, offset phases: never synchronised,
+ * because synchronised rings read as a loading spinner.
+ */
+const GYRE_TIERS = [
+  { speed: 0.085, direction: 1, phase: 0.0 },
+  { speed: 0.053, direction: -1, phase: 2.1 },
+  { speed: 0.110, direction: 1, phase: 4.4 },
+];
+
+interface GyreInstance {
+  part: Part;
+  tier: number;
+  /** 1 inside the Crowned shell, ~0.15 inside the quieter Latent Form. */
+  activity: number;
+  baseQuaternion: THREE.Quaternion;
+  baseZ: number;
+}
+
 interface RingInstance {
   part: Part;
   /** Ordered near to far — this is what staggers the iris. */
@@ -106,6 +128,8 @@ interface PartExtras {
   dl_open_translation?: number[];
   dl_open_rotation?: number[];
   dl_yield_spin_deg?: number;
+  dl_gyre_tier?: number;
+  dl_gyre_activity?: number;
 }
 
 interface Part {
@@ -136,6 +160,7 @@ export class CrownedConvergenceModel {
   private retained = 0;
 
   private rings: RingInstance[] = [];
+  private gyres: GyreInstance[] = [];
   /** Last narrative progress, so update() can drive the portal. */
   private progress = 0;
 
@@ -577,6 +602,18 @@ export class CrownedConvergenceModel {
   private cacheRings(): void {
     const rings = (this.byRole.get('convergence_ring') ?? []).slice();
     rings.sort((a, b) => b.nearZ - a.nearZ); // nearest (largest Z) first
+    const gyreParts = this.byRole.get('gyre') ?? [];
+    this.gyres = gyreParts.map((part) => {
+      const extras = this.resolveExtras(part.mesh) as PartExtras;
+      return {
+        part,
+        tier: extras.dl_gyre_tier ?? 0,
+        activity: extras.dl_gyre_activity ?? 1,
+        baseQuaternion: part.mesh.quaternion.clone(),
+        baseZ: part.mesh.position.z,
+      };
+    });
+
     this.rings = rings.map((part, index) => ({
       part,
       index,
@@ -642,11 +679,41 @@ export class CrownedConvergenceModel {
     }
   }
 
+  /**
+   * The internal ring system.
+   *
+   * Barely turning at rest, rising with approach. The Latent Form runs
+   * the same system at about 15%: it is the same species, older and
+   * quieter. Rotation composes onto each gyre's authored orientation
+   * about its own axis, so it survives whatever the exporter baked in.
+   */
+  private updateGyres(time: number, progress: number): void {
+    if (!this.gyres.length) return;
+    const spin = new THREE.Quaternion();
+    // Activity rises across the approach and holds once inside.
+    const approach = smoothstep(0.02, 0.42, progress);
+
+    for (const gyre of this.gyres) {
+      const tier = GYRE_TIERS[gyre.tier % GYRE_TIERS.length];
+      const act = gyre.activity * Math.max(approach, 0.08);
+      const angle =
+        tier.phase + time * tier.speed * tier.direction * (0.08 + 0.92 * act);
+      spin.setFromAxisAngle(RING_AXIS, angle);
+      gyre.part.mesh.quaternion.copy(gyre.baseQuaternion).multiply(spin);
+      // A shallow asynchronous bob, so the tiers never sit as a stack.
+      gyre.part.mesh.position.z =
+        gyre.baseZ + Math.sin(time * 0.31 + tier.phase) * 0.018 * act;
+    }
+  }
+
   update(time: number): void {
     for (const material of this.materials) {
       material.uniforms.uTime.value = time;
     }
-    if (!this.reducedMotion) this.updateTunnel(time, this.progress);
+    if (!this.reducedMotion) {
+      this.updateTunnel(time, this.progress);
+      this.updateGyres(time, this.progress);
+    }
   }
 
   /** Maps a world XY point into the planar field's UV space. */
