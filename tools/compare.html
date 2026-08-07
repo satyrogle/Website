@@ -1,0 +1,127 @@
+<!doctype html>
+<!--
+  Candidate contact sheet.
+
+  One row per mesh, same lighting, same camera, same scale
+  normalisation — so the comparison is about the FORM and nothing else.
+
+  The silhouette column is the honest one for judging shape, and the
+  section column answers the only question an outside view cannot:
+  whether the throat is a real opening the camera can fly through, or
+  a dimple it would crash into.
+
+  Usage: /tools/compare.html?src=/models/a.glb&src=/models/b.glb
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; background: #08090c; font: 11px/1.4 monospace; color: #8a95a0; }
+      .row { display: grid; grid-template-columns: 200px repeat(4, 380px); gap: 2px;
+             align-items: center; border-bottom: 1px solid #14171c; }
+      .meta { padding: 12px; }
+      .meta b { color: #dff9ff; display: block; font-size: 12px; margin-bottom: 6px; }
+      .head { display: grid; grid-template-columns: 200px repeat(4, 380px); gap: 2px;
+              padding: 8px 0; color: #4f5a66; letter-spacing: .14em; }
+      .head div { padding-left: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <div>CANDIDATE</div><div>FRONT</div><div>THREE-QUARTER</div>
+      <div>SILHOUETTE</div><div>SECTION — IS THE THROAT OPEN?</div>
+    </div>
+    <div id="sheet"></div>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+      const SRCS = new URLSearchParams(location.search).getAll('src');
+      const W = 380, H = 380;
+
+      const VIEWS = [
+        { dir: [0, 0, 1],          flat: false, clip: false },
+        { dir: [0.72, 0.28, 0.8],  flat: false, clip: false },
+        { dir: [0, 0, 1],          flat: true,  clip: false },
+        { dir: [1, 0.10, 0.38],    flat: false, clip: true  },
+      ];
+
+      const sheet = document.getElementById('sheet');
+      const loader = new GLTFLoader();
+
+      for (const src of SRCS) {
+        const gltf = await loader.loadAsync(src);
+
+        let geo = null;
+        gltf.scene.traverse((o) => { if (o.isMesh && !geo) geo = o.geometry; });
+        // Meshy ships positions only. Smooth-computed normals are what
+        // make its output look melted rather than cut — but for a like
+        // for like comparison every candidate gets the same treatment.
+        if (!geo.attributes.normal) geo.computeVertexNormals();
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
+
+        const bb = geo.boundingBox;
+        const size = bb.getSize(new THREE.Vector3());
+        const centre = bb.getCenter(new THREE.Vector3());
+        const radius = geo.boundingSphere.radius;
+        const tri = geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.innerHTML =
+          `<b>${src.split('/').pop().replace('.glb', '')}</b>` +
+          `${Math.round(tri).toLocaleString()} tris<br>` +
+          `${size.x.toFixed(2)} w × ${size.y.toFixed(2)} h × ${size.z.toFixed(2)} d<br>` +
+          `depth ratio ${(size.z / size.y).toFixed(2)}`;
+        row.append(meta);
+        sheet.append(row);
+
+        for (const view of VIEWS) {
+          const renderer = new THREE.WebGLRenderer({ antialias: true });
+          renderer.setSize(W, H);
+          renderer.setClearColor(view.flat ? 0x000000 : 0x0b0d11, 1);
+          renderer.localClippingEnabled = view.clip;
+          row.append(renderer.domElement);
+
+          const material = view.flat
+            ? new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide })
+            : new THREE.MeshStandardMaterial({
+                color: 0x8d99a6, roughness: 0.62, metalness: 0.08,
+                side: THREE.DoubleSide,
+                clippingPlanes: view.clip
+                  ? [new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0)]
+                  : [],
+              });
+
+          const scene = new THREE.Scene();
+          const mesh = new THREE.Mesh(geo, material);
+          mesh.position.sub(centre);
+          scene.add(mesh);
+
+          if (!view.flat) {
+            const key = new THREE.DirectionalLight(0xdff9ff, 2.4);
+            key.position.set(0.3, 1.0, 0.8);
+            scene.add(key);
+            const rim = new THREE.DirectionalLight(0x66ccff, 1.8);
+            rim.position.set(-0.6, 0.2, -0.9);
+            scene.add(rim);
+            scene.add(new THREE.AmbientLight(0x1a2430, 1.1));
+          }
+
+          const cam = new THREE.PerspectiveCamera(34, W / H, 0.01, 100);
+          cam.position.copy(
+            new THREE.Vector3(...view.dir).normalize().multiplyScalar(radius * 3.0)
+          );
+          cam.lookAt(0, 0, 0);
+          renderer.render(scene, cam);
+        }
+      }
+
+      document.title = 'compare-ready';
+    </script>
+  </body>
+</html>

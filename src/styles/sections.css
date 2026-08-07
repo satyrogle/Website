@@ -59,11 +59,25 @@
   padding-inline: var(--gutter);
 }
 
+/* The type clears the cavity.
+   `align-self: center` put both display lines straight across the
+   middle of the entity, which is exactly where its throat is — the
+   strongest feature of the object, and the thing the whole descent is
+   about entering. Anchoring to the start keeps the viewport-cropped
+   type the brief asks for while leaving the cavity in open frame.
+   The type still crops against the VIEWPORT as the brief asks; it is
+   not clipped against a container, which cut 'LATTICE' to 'LATTIC'. */
 .hero__title {
-  align-self: center;
-  /* Deliberately allowed to crop against the viewport edge at the
-     largest sizes — the brief asks for viewport-cropped type. */
+  align-self: start;
   margin-inline-start: -0.06em;
+}
+
+@media (max-width: 900px) {
+  /* No room to sit beside it on a phone, so the type goes back to
+     owning the frame and the entity sits behind it. */
+  .hero__title {
+    align-self: center;
+  }
 }
 
 .hero__title .reveal-line > span {
@@ -791,22 +805,34 @@
   padding-block: var(--movement-pad) clamp(2rem, 5vh, 3rem);
 }
 
+/* The mark sits BELOW the eye, not across it.
+   It used to be centred, with a dark veil behind it to keep the type
+   legible over "the brightest part of the resolved lattice" — which was
+   fine when the brightest part was an abstract glow. It is now the eye,
+   and the eye is the payoff of the entire scroll: the composition put
+   the wordmark over the one thing the visitor came down twelve units to
+   meet, and then dimmed it to make the type readable. */
 .resolution__mark {
   position: relative;
-  align-self: center;
+  align-self: end;
   justify-self: center;
   text-align: center;
+  padding-bottom: clamp(1rem, 4vh, 3rem);
 }
 
-/* The final composition puts the wordmark directly over the brightest
-   part of the resolved lattice. A soft ground veil keeps the mark and
-   the URL legible without dimming the object itself. */
+/* A short veil under the type only — enough for contrast, nowhere near
+   the eye. */
 .resolution__mark::before {
   content: '';
   position: absolute;
-  inset: -30% -14%;
+  inset: -8% -10% -20%;
   z-index: -1;
-  background: radial-gradient(58% 58% at 50% 52%, rgba(8, 11, 16, 0.88), transparent 72%);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(8, 11, 16, 0.72) 32%,
+    rgba(8, 11, 16, 0.86)
+  );
   pointer-events: none;
 }
 

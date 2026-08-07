@@ -30,7 +30,16 @@ interface LightKeyframe {
   displace: number;
   /** Channel edge hardness. */
   sharp: number;
-  /** Prestige accent. Non-zero only at decisive moments. */
+  /**
+   * DIVINITY. Re-authored, and the spine of the whole site.
+   *
+   * This was "prestige accent, non-zero only at decisive moments" — a
+   * little gold at the arrival. It is now the opposite shape: the
+   * entity presents itself as salvation at the top of the page, gold
+   * and whole and radiant, and that presentation DECAYS as the visitor
+   * descends into it until nothing of it is left. The lie coming apart
+   * is one curve, and this is it.
+   */
   amber: number;
   /**
    * Ferrofluid / psychedelic intensity. Zero outside the corridor so
@@ -51,7 +60,7 @@ const ARC: LightKeyframe[] = [
   {
     at: 0.0,
     keyIntensity: 0.7, rimIntensity: 1.5, fillIntensity: 0.95,
-    emissive: 1.0, ring: 1.3, displace: 0.012, sharp: 0.5, amber: 0, psy: 0,
+    emissive: 1.0, ring: 1.3, displace: 0.012, sharp: 0.5, amber: 1.0, psy: 0,
     // Fog raised so the corridor behind the crown drowns at the hero:
     // the entity hangs in void, not in front of visible machinery.
     fog: 0.058, exposure: 1.1, bloom: 0.62, vignette: 0.9,
@@ -60,7 +69,7 @@ const ARC: LightKeyframe[] = [
   {
     at: 0.2,
     keyIntensity: 0.85, rimIntensity: 1.3, fillIntensity: 1.0,
-    emissive: 1.15, ring: 1.1, displace: 0.012, sharp: 0.5, amber: 0, psy: 0.6,
+    emissive: 1.15, ring: 1.1, displace: 0.012, sharp: 0.5, amber: 0.82, psy: 0.6,
     fog: 0.038, exposure: 1.06, bloom: 0.4, vignette: 0.9,
   },
   // 03a/b/c — the trip. Full pattern, moderate bloom so the colour
@@ -68,47 +77,47 @@ const ARC: LightKeyframe[] = [
   {
     at: 0.35,
     keyIntensity: 0.9, rimIntensity: 1.1, fillIntensity: 0.9,
-    emissive: 1.3, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0, psy: 1.0,
+    emissive: 1.3, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0.34, psy: 1.0,
     fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.9,
   },
   {
     at: 0.45,
     keyIntensity: 0.9, rimIntensity: 1.15, fillIntensity: 0.9,
-    emissive: 1.4, ring: 1.0, displace: 0.014, sharp: 0.5, amber: 0, psy: 1.0,
+    emissive: 1.4, ring: 1.0, displace: 0.014, sharp: 0.5, amber: 0.14, psy: 1.0,
     fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.92,
   },
   {
     at: 0.55,
     keyIntensity: 0.9, rimIntensity: 1.2, fillIntensity: 0.95,
-    emissive: 1.35, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0, psy: 1.0,
+    emissive: 1.35, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0.06, psy: 1.0,
     fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.9,
   },
   // 04 — foundation. Trip eases while the thirds separate.
   {
     at: 0.655,
     keyIntensity: 1.0, rimIntensity: 1.2, fillIntensity: 1.05,
-    emissive: 1.2, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.1, psy: 0.8,
+    emissive: 1.2, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.0, psy: 0.8,
     fog: 0.028, exposure: 1.06, bloom: 0.48, vignette: 0.86,
   },
   // 05 — accumulation. Calming; the pattern slows its claim.
   {
     at: 0.775,
     keyIntensity: 1.0, rimIntensity: 1.25, fillIntensity: 1.0,
-    emissive: 1.05, ring: 0.95, displace: 0.01, sharp: 0.65, amber: 0.08, psy: 0.5,
+    emissive: 1.05, ring: 0.95, displace: 0.01, sharp: 0.65, amber: 0.0, psy: 0.5,
     fog: 0.026, exposure: 1.05, bloom: 0.46, vignette: 0.84,
   },
   // 06 — evidence. Documentary. The far door, plainly lit.
   {
     at: 0.885,
     keyIntensity: 0.85, rimIntensity: 1.0, fillIntensity: 0.85,
-    emissive: 1.0, ring: 0.8, displace: 0.008, sharp: 0.7, amber: 0.05, psy: 0.45,
+    emissive: 1.0, ring: 0.8, displace: 0.008, sharp: 0.7, amber: 0.0, psy: 0.45,
     fog: 0.022, exposure: 1.0, bloom: 0.36, vignette: 0.8,
   },
   // 07 — resolution. The sealed twin, iridescent and still.
   {
     at: 1.0,
     keyIntensity: 0.95, rimIntensity: 1.35, fillIntensity: 0.95,
-    emissive: 1.15, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.14, psy: 0.35,
+    emissive: 1.15, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.16, psy: 0.35,
     fog: 0.022, exposure: 1.06, bloom: 0.5, vignette: 0.88,
   },
 ];
@@ -136,6 +145,23 @@ export interface EntityLightState {
   rimIntensity: number;
   fillIntensity: number;
   displace: number;
+  /**
+   * Corridor interior intensity.
+   *
+   * The ARC has keyframed this since the first build and it was
+   * interpolated every frame, but it was never published here — so the
+   * entity never received it and the whole psychedelic layer went dark
+   * when the corridor moved to the authored mesh. The tunnel rendered
+   * as lit plates: nothing streaming, nothing folding, nothing moving
+   * unless the visitor scrolled it.
+   */
+  psy: number;
+  /** The divinity curve — see `amber` on LightKeyframe. */
+  divinity: number;
+  /** Halo brightness. Keyframed since the first build, never published. */
+  ring: number;
+  /** Channel edge hardness. Same. */
+  sharp: number;
 }
 
 export class Lighting {
@@ -160,6 +186,10 @@ export class Lighting {
     rimIntensity: 1.35,
     fillIntensity: 1,
     displace: 0.014,
+    psy: 0,
+    divinity: 1,
+    ring: 1.3,
+    sharp: 0.5,
   };
 
   setWake(value: number): void {
@@ -209,6 +239,10 @@ export class Lighting {
     entity.rimIntensity = s.rimIntensity;
     entity.fillIntensity = s.fillIntensity;
     entity.displace = s.displace;
+    entity.psy = s.psy;
+    entity.divinity = s.amber;
+    entity.ring = s.ring;
+    entity.sharp = s.sharp;
 
     // A very slow swing on the key direction — below the threshold of
     // conscious notice, but it stops the entity reading as a static

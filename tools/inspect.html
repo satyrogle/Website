@@ -1,0 +1,134 @@
+<!doctype html>
+<!--
+  Mesh inspector.
+
+  Renders a candidate entity GLB from the four angles the reference
+  sheet uses for its silhouette studies, plus a flat silhouette pass.
+  The silhouette is the one that matters: it is how the shape reads
+  before any material is on it, and it is the view every previous
+  version was (wrongly) judged on alone.
+
+  Usage:  /tools/inspect.html?src=/models/<file>.glb
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; background: #08090c; font: 11px/1.4 monospace; color: #7a8590; }
+      #grid { display: grid; grid-template-columns: repeat(3, 460px); gap: 2px; }
+      .cell { position: relative; }
+      .cell span { position: absolute; left: 8px; top: 6px; letter-spacing: .12em; }
+      #stats { padding: 10px 12px; color: #9fb0bd; }
+    </style>
+  </head>
+  <body>
+    <div id="grid"></div>
+    <div id="stats">loading…</div>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+      const SRC = new URLSearchParams(location.search).get('src');
+      const W = 460, H = 460;
+
+      // front, three-quarter, side, top, and two silhouette passes
+      const VIEWS = [
+        { name: 'FRONT',        dir: [0, 0, 1],        flat: false },
+        { name: 'THREE-QUARTER',dir: [0.72, 0.28, 0.8],flat: false },
+        { name: 'SIDE',         dir: [1, 0, 0.05],     flat: false },
+        { name: 'SILHOUETTE',   dir: [0, 0, 1],        flat: true },
+        { name: 'SIL 3/4',      dir: [0.72, 0.28, 0.8],flat: true },
+        { name: 'TOP',          dir: [0, 1, 0.12],     flat: false },
+        // Cross-section: the camera has to fly INTO this thing, so the
+        // question "is the throat a real opening or a dimple" is not
+        // answerable from any outside view.
+        { name: 'SECTION x>0',  dir: [1, 0.12, 0.42],  flat: false, clip: 'x' },
+        { name: 'SECTION y>0',  dir: [0.2, 1, 0.35],   flat: false, clip: 'y' },
+      ];
+
+      const gltf = await new GLTFLoader().loadAsync(SRC);
+
+      let geo = null;
+      gltf.scene.traverse((o) => { if (o.isMesh && !geo) geo = o.geometry; });
+      if (!geo.attributes.normal) geo.computeVertexNormals();
+      geo.computeBoundingBox();
+
+      const bb = geo.boundingBox;
+      const size = bb.getSize(new THREE.Vector3());
+      const centre = bb.getCenter(new THREE.Vector3());
+      const radius = geo.boundingSphere
+        ? geo.boundingSphere.radius
+        : (geo.computeBoundingSphere(), geo.boundingSphere.radius);
+
+      const lit = new THREE.MeshStandardMaterial({
+        color: 0x8d99a6, roughness: 0.62, metalness: 0.08,
+        flatShading: false, side: THREE.DoubleSide,
+      });
+      const flat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+
+      const grid = document.getElementById('grid');
+
+      for (const view of VIEWS) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const label = document.createElement('span');
+        label.textContent = view.name;
+        grid.append(cell);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(W, H);
+        renderer.setClearColor(view.flat ? 0x000000 : 0x0b0d11, 1);
+        renderer.localClippingEnabled = !!view.clip;
+        cell.append(renderer.domElement, label);
+
+        const material = view.flat
+          ? flat
+          : view.clip
+            ? new THREE.MeshStandardMaterial({
+                color: 0x8d99a6, roughness: 0.62, metalness: 0.08,
+                side: THREE.DoubleSide,
+                clippingPlanes: [
+                  new THREE.Plane(
+                    view.clip === 'x'
+                      ? new THREE.Vector3(-1, 0, 0)
+                      : new THREE.Vector3(0, -1, 0),
+                    0
+                  ),
+                ],
+              })
+            : lit;
+
+        const scene = new THREE.Scene();
+        const mesh = new THREE.Mesh(geo, material);
+        mesh.position.sub(centre);
+        scene.add(mesh);
+
+        if (!view.flat) {
+          const key = new THREE.DirectionalLight(0xdff9ff, 2.4);
+          key.position.set(0.3, 1.0, 0.8);
+          scene.add(key);
+          const rim = new THREE.DirectionalLight(0x66ccff, 1.8);
+          rim.position.set(-0.6, 0.2, -0.9);
+          scene.add(rim);
+          scene.add(new THREE.AmbientLight(0x1a2430, 1.1));
+        }
+
+        const cam = new THREE.PerspectiveCamera(34, W / H, 0.01, 100);
+        const d = new THREE.Vector3(...view.dir).normalize().multiplyScalar(radius * 3.1);
+        cam.position.copy(d);
+        cam.lookAt(0, 0, 0);
+        renderer.render(scene, cam);
+      }
+
+      const tri = geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3;
+      document.getElementById('stats').textContent =
+        `triangles ${Math.round(tri).toLocaleString()} · vertices ${geo.attributes.position.count.toLocaleString()}` +
+        ` · size ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}` +
+        ` · centre ${centre.x.toFixed(2)},${centre.y.toFixed(2)},${centre.z.toFixed(2)}` +
+        ` · normals ${gltf.parser.json.meshes[0].primitives[0].attributes.NORMAL != null ? 'authored' : 'COMPUTED (absent in file)'}` +
+        ` · groups ${gltf.scene.children.length}`;
+      document.title = 'inspect-ready';
+    </script>
+  </body>
+</html>

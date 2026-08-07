@@ -53,21 +53,26 @@ const BANDS: Band[] = [
   { id: 'desk42', from: 0.26, to: 0.4, preset: 'desk42', separation: [0, 0] },
   { id: 'brawler', from: 0.4, to: 0.5, preset: 'desk42', presetTo: 'brawler', separation: [0, 0] },
   { id: 'roguelite', from: 0.5, to: 0.6, preset: 'brawler', presetTo: 'roguelite', separation: [0, 0] },
-  { id: 'foundation', from: 0.6, to: 0.71, preset: 'roguelite', separation: [0, 1] },
-  // The separation HOLDS until the camera is clear of every ring, and
-  // only closes during the resolution — by which point the last ring
-  // sits several units behind the lens and the move is unseen.
+  // Layer separation is retired, held at zero across the whole descent.
   //
-  // It used to collapse across 0.71–0.82 (1 → 0.12). The third layer's
-  // rings sit at z −18.2/−19.9/−21.6 when separated, and the camera
-  // crosses exactly that span over exactly those frames — so as the
-  // visitor scrolled forward, the rings were simultaneously sliding
-  // ~2 units BACKWARD onto them. Geometry rushing the camera while
-  // the camera advances is motion the visitor did not cause, and it
-  // is what made the tunnel exit at ~80% feel wrong.
-  { id: 'accumulation', from: 0.71, to: 0.82, preset: 'roguelite', presetTo: 'resolved', separation: [1, 1] },
-  { id: 'evidence', from: 0.82, to: 0.93, preset: 'resolved', separation: [1, 1] },
-  { id: 'resolution', from: 0.93, to: 1.0, preset: 'resolved', separation: [1, 0] },
+  // It slid the three ring groups apart along the travel axis and
+  // dimmed the two not being focused, to literalise "three games, one
+  // accumulating stack". It only ever read as that if you already knew
+  // that was the intent — there is no label, no camera beat and no
+  // framing that says "look, three layers" — so on screen it was
+  // shards drifting and dimming for no stated reason, in the exact
+  // stretch that was hardest to follow.
+  //
+  // The narrative for this stretch is not missing and never was: the
+  // four bands below each have their DOM copy, their camera keyframes
+  // and their lighting keyframes, all authored against this timeline.
+  // What was missing is that Lighting's `psy` — keyframed 0.8 / 0.5 /
+  // 0.45 / 0.35 across exactly these four bands — was never published
+  // to the entity, so all four rendered identically. They differ now.
+  { id: 'foundation', from: 0.6, to: 0.71, preset: 'roguelite', separation: [0, 0] },
+  { id: 'accumulation', from: 0.71, to: 0.82, preset: 'roguelite', presetTo: 'resolved', separation: [0, 0] },
+  { id: 'evidence', from: 0.82, to: 0.93, preset: 'resolved', separation: [0, 0] },
+  { id: 'resolution', from: 0.93, to: 1.0, preset: 'resolved', separation: [0, 0] },
 ];
 
 interface MeasuredSection {

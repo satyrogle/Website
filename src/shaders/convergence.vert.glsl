@@ -42,6 +42,8 @@ uniform vec2 uTunnelSpan;
 uniform float uProjection;
 uniform float uReaction;
 uniform float uDisplace;
+// Per-part seed, so the breath is not synchronised across masses.
+uniform float uSeed;
 
 // Yield: how far this part has opened, 0..1, and its authored vector.
 uniform float uYield;
@@ -66,28 +68,49 @@ vec3 rotateEuler(vec3 p, vec3 e) {
   return p;
 }
 
-vec2 fieldCoords(vec3 objectPos) {
+/**
+ * Field coordinates, in WORLD space.
+ *
+ * This takes the rest world position, not the raw `position` attribute.
+ * The bounds are measured across the whole entity, but every part's
+ * vertices are local to that part's own origin — the Blender build put
+ * each mass's origin at its own centre so it could rotate in place. So
+ * sampling `position` against entity-wide bounds mapped every single
+ * plate onto the same ~10% patch at the middle of the texture: all the
+ * masses drew the same smear, and none of them varied across their own
+ * surface. That is why the entity looked untextured rather than dim.
+ *
+ * The planar plane is X/Y, not X/Z. The crown spreads across the screen
+ * plane and faces the camera down -Z, so X/Z projected along the view
+ * axis and squashed every plate's pattern into streaks.
+ */
+vec2 fieldCoords(vec3 worldRest) {
   if (uProjection > 1.5) {
-    return vec2(0.5);
+    // Halo: no reaction field. Carry the angle around the ring instead,
+    // so the fragment stage can run a charge along the band.
+    return vec2(fract(atan(worldRest.z, worldRest.x) / 6.2831853 + 0.5), 0.5);
   }
   if (uProjection > 0.5) {
     // Cylindrical: angle around the travel axis, and normalised depth
-    // along it. The depth phase offset keeps the corridor from reading
-    // as one repeated band without needing a second simulation.
-    float angle = atan(objectPos.z, objectPos.x);
-    float depth = (objectPos.y - uTunnelSpan.x)
+    // along it. The corridor runs along world Z — the span baked into
+    // the GLB is in Blender's axes, where depth is Y, so the runtime
+    // measures its own from the loaded geometry. The depth phase offset
+    // keeps the corridor from reading as one repeated band without
+    // needing a second simulation.
+    float angle = atan(worldRest.y, worldRest.x);
+    float depth = (worldRest.z - uTunnelSpan.x)
                 / max(uTunnelSpan.y - uTunnelSpan.x, 0.001);
     return vec2(
       fract(angle / 6.2831853 + 0.5),
       fract(depth * 0.85 + 0.12)
     );
   }
-  // Planar: X/Z against the authored exterior bounds.
+  // Planar: X/Y against the measured exterior bounds.
   vec3 span = max(uBoundsMax - uBoundsMin, vec3(0.001));
   return clamp(
     vec2(
-      (objectPos.x - uBoundsMin.x) / span.x,
-      (objectPos.z - uBoundsMin.z) / span.z
+      (worldRest.x - uBoundsMin.x) / span.x,
+      (worldRest.y - uBoundsMin.y) / span.y
     ),
     0.001, 0.999
   );
@@ -109,13 +132,20 @@ void main() {
     }
   }
 
-  vec2 uv = fieldCoords(position);
+  // Sampled at REST — before the yield moves the mass and before the
+  // field displaces the surface. A part that opens carries its pattern
+  // with it instead of swimming through a fixed projection.
+  vec3 restWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+  vec2 uv = fieldCoords(restWorld);
   float b = texture(uField, uv).g;
 
   // Very small displacement — the directive allows the field to move
   // the surface, but only barely. Anything larger reads as wobble.
   vec3 n = normalize(normal);
   pos += n * (b - 0.35) * uDisplace * uReaction;
+  // Breath. Barely above the threshold of notice on any single frame,
+  // and the difference between a body and a prop across several.
+  pos *= 1.0 + sin(uTime * 0.34 + uSeed * 6.28) * 0.0055;
 
   vec4 worldPos = modelMatrix * vec4(pos, 1.0);
   vWorldPos = worldPos.xyz;

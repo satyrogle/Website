@@ -1,3 +1,13 @@
+/* The display type is deliberately cropped against the viewport edge,
+   which is what the brief asks for — but a cropped glyph still extends
+   the scroll area, and at 390px that gave the page 20px of horizontal
+   drag. Clipping the root keeps the crop and removes the sideways
+   scroll; `clip` rather than `hidden` so it does not create a scroll
+   container and break position: sticky further down the page. */
+html {
+  overflow-x: clip;
+}
+
 /* ============================================================
    Dark Lattice — global reset, shell, canvas/DOM boundary
    ============================================================ */

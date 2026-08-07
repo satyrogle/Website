@@ -71,6 +71,7 @@ export class SceneController {
   private separation = 0;
   private separationTarget = 0;
   private focusTargets: [number, number, number] = [1, 1, 1];
+  private pointerNormal = new THREE.Vector3();
 
   private resizeObserver: ResizeObserver | null = null;
   private disposed = false;
@@ -209,7 +210,19 @@ export class SceneController {
    * coordinate.
    */
   private disturbAtPointer(strength: number, discrete = false): void {
-    this.raycaster.setFromCamera(this.pointerNdc, this.rig.camera);
+    const cam = this.rig.camera;
+    this.raycaster.setFromCamera(this.pointerNdc, cam);
+    // The plane FOLLOWS the camera. It used to be world-fixed at z = 0,
+    // and the rail crosses z = 0 at about 24% and never comes back — so
+    // Ray.intersectPlane returned null for every pointer event after
+    // that and the disturbance died for the last three quarters of the
+    // page. "The field remembers what you disturbed" only worked in the
+    // hero, which is the one place nobody thinks to test it.
+    cam.getWorldDirection(this.pointerNormal);
+    this.fieldPlane.setFromNormalAndCoplanarPoint(
+      this.pointerNormal.clone().negate(),
+      cam.position.clone().addScaledVector(this.pointerNormal, 3.2)
+    );
     if (!this.raycaster.ray.intersectPlane(this.fieldPlane, this.hitPoint)) return;
     const [u, v] = this.entity.fieldUvFromWorld(this.hitPoint.x, this.hitPoint.y);
     if (u < -0.1 || u > 1.1 || v < -0.1 || v > 1.1) return;

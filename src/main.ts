@@ -122,6 +122,16 @@ async function boot(): Promise<void> {
     reveals.revealHero();
     return;
   }
+
+  // Dev-only probe. Every P0 this build has hit — the entity not
+  // rendering, the double transform, the empty corridor, extras lost to
+  // primitive splitting — was invisible in a screenshot and only
+  // findable by asking the live scene what it thought it was drawing.
+  // Stripped from production by the `import.meta.env.DEV` guard.
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).DL = { scene };
+  }
+
   setLoaderProgress(0.45);
 
   // 3b — The Blender-authored entity. Real network work, so it feeds
@@ -129,7 +139,7 @@ async function boot(): Promise<void> {
   //      drops to the poster and the DOM narrative is untouched.
   try {
     await scene.loadEntity(
-      `${import.meta.env.BASE_URL}models/DL_CrownedConvergence_Production_v01.glb`,
+      `${import.meta.env.BASE_URL}models/DL_Crown_Meshy_v01.glb`,
       (fraction) => setLoaderProgress(0.45 + fraction * 0.18)
     );
   } catch (error) {

@@ -37,10 +37,17 @@ export interface CameraKeyframe {
  */
 const DESKTOP_PATH: CameraKeyframe[] = [
   // 01 — hero. Outside the crown, the whole entity composed.
-  { at: 0.0, position: [0, 0, 11.0], target: [0, 0, 0], fov: 38 },
-  { at: 0.085, position: [0, 0, 9.4], target: [0, 0, -0.4], fov: 39 },
+  // Standoff raised from 11.0. The entity filled the frame at the
+  // hero and the display type had nowhere to go that was not across
+  // its cavity. This is along the rail — no lateral move, which reads
+  // as the scroll going everywhere.
+  // Target dropped below the entity so the mass rides HIGHER in frame
+  // and its cavity clears the display type. Vertical only — the rail
+  // stays dead straight on x.
+  { at: 0.0, position: [0, 0, 13.2], target: [0, -0.72, 0], fov: 38 },
+  { at: 0.085, position: [0, 0, 11.0], target: [0, -0.45, -0.4], fov: 39 },
   // 02 — premise. The crown yields; the camera closes on the cavity.
-  { at: 0.185, position: [0, 0, 4.2], target: [0, 0, -1.6], fov: 45 },
+  { at: 0.185, position: [0, 0, 4.2], target: [0, -0.2, -1.6], fov: 45 },
   { at: 0.26, position: [0, 0, -0.6], target: [0, 0, -3.5], fov: 50 },
   // 03 — the corridor.
   { at: 0.35, position: [0, 0, -2.0], target: [0, 0, -5.0], fov: 52 },
