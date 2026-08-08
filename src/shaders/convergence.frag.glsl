@@ -26,15 +26,33 @@ uniform vec3 cameraPosition;
 uniform sampler2D uField;
 uniform float uTime;
 
-// Locked palette (directive 6.2).
+// Locked palette. Two OPPOSING systems: the entity is cold, the halo
+// alone is warm. uAmber / uHaloWarm are HALO-ONLY and must never reach
+// an entity surface — a warm shell kills both systems at once.
 uniform vec3 uVoid;
 uniform vec3 uStructure;
+// Structural blacks, recess -> exposed. Face variation lerps these.
+uniform vec3 uObsidian;
+uniform vec3 uShell;
+uniform vec3 uGraphite;
 uniform vec3 uRaisedBlack;
+uniform vec3 uRingBlack;
+// Primary reactive field.
 uniform vec3 uTeal;
 uniform vec3 uCyan;
-uniform vec3 uColdWhite;
+// Secondary reactive field, independently distributed.
+uniform vec3 uIndigo;
+uniform vec3 uViolet;
 uniform vec3 uMagenta;
+// Cold edge response.
+uniform vec3 uColdSilver;
+uniform vec3 uColdWhite;
+// Convergence light.
+uniform vec3 uCoreGlow;
+uniform vec3 uCoreInner;
+// HALO ONLY.
 uniform vec3 uAmber;
+uniform vec3 uHaloWarm;
 
 // Material class, 0..6 in the order of MATERIAL_CLASSES.
 uniform float uClass;
@@ -98,6 +116,8 @@ uniform float uCoreZ;
 
 in vec3 vWorldPos;
 in vec3 vObjectPos;
+/** Part-relative position in WORLD units — see the vertex stage. */
+in vec3 vCrackPos;
 in vec3 vNormal;
 in vec3 vViewDir;
 in vec2 vFieldUv;
@@ -134,6 +154,32 @@ bool isClass(float which) {
 //  how hot — but it no longer has to carry detail it does not have the
 //  resolution to carry.
 // ---------------------------------------------------------------------
+
+/**
+ * pow() with a base that can legitimately reach zero.
+ *
+ * THIS IS NOT COSMETIC. HLSL compiles pow(x, y) as exp2(y * log2(x)),
+ * and log2(0) is -Inf — so on ANGLE/D3D11 pow(0.0, y) returns NaN where
+ * SwiftShader returns 0. Every masked term in this shader has a base
+ * that is exactly zero across most of the surface: activeCrack is 0 in
+ * every cell interior, nodeEnergy is 0 everywhere but the junctions,
+ * fresnel is 0 dead-on to a face.
+ *
+ * A single NaN pixel does not stay local. It is written into the scene
+ * target, the bloom pass blurs that target at quarter resolution, and
+ * NaN propagates through every tap of the blur — so one bad pixel takes
+ * out a whole low-resolution block. That is exactly how this presented:
+ * the entity rendered as a solid black silhouette with chunky
+ * rectangular edges, on a machine where the shader compiled and linked
+ * without a single error, while headless SwiftShader captures of the
+ * same commit looked correct.
+ *
+ * The floor is far below anything visible — pow(1e-6, 1.25) is ~2e-8 —
+ * so it changes no output except the undefined one.
+ */
+float safePow(float x, float k) {
+  return pow(max(x, 1e-6), k);
+}
 
 vec2 hash2(vec2 p) {
   p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -180,6 +226,121 @@ vec3 signal(float t) {
   return mix(c, uTeal, smoothstep(0.86, 1.0, t));
 }
 
+/**
+ * Per-FACE identity.
+ *
+ * uSeed is per-part, so with six crown masses it gives six variations —
+ * every polygon within a mass still answered the light identically,
+ * which is what made the shell read as one moulded object rather than as
+ * cut crystal. Quantising the face normal buckets the surface by facing,
+ * and on a flat/auto-smoothed mesh that is genuinely per-face: each
+ * plate draws a different constant. A low-frequency positional term is
+ * added on top so a large plate is not one flat swatch either.
+ *
+ * Returns 0..1, used to lerp the four structural blacks and to decide
+ * which faces carry which reactive field.
+ */
+float facetKey(vec3 n, vec3 objPos, float seed) {
+  vec3 bucket = floor(n * 6.0);
+  float k = fract(
+    sin(dot(bucket, vec3(12.9898, 78.233, 37.719)) + seed * 31.0) * 43758.5453
+  );
+  // The positional term is deliberately WEAK. At 0.55 it smeared the
+  // per-face constant into a gradient and the planes stopped reading as
+  // separate cut surfaces — the whole point of quantising the normal is
+  // that each facet gets one value. It survives only to stop a large
+  // plane being a perfectly flat swatch.
+  return fract(k + fbm(objPos.xy * uCrackScale * 2.6 + seed * 17.0) * 0.22);
+}
+
+/**
+ * CELLULAR CRACKLE — the entity's surface identity.
+ *
+ * Cell boundaries, not branching smears. `filaments()` is ridged fbm:
+ * it produces soft blobby veins that read as staining or corrosion on
+ * dark rock — "diseased iron" was the accurate description. The
+ * reference is a crackle NETWORK: near-black polygonal cells divided by
+ * thin bright lines, which is what makes the surface read as charged
+ * crystal rather than as weathered metal.
+ *
+ * Worley cellular noise gives that directly. F1 is the distance to the
+ * nearest feature point and F2 to the second nearest; where they are
+ * equal you are exactly on a boundary between two cells, so F2 - F1
+ * approaches zero along every edge of the diagram and nowhere else.
+ * Thresholding it draws the network in one step, with no drawn lines
+ * anywhere in the code.
+ *
+ * The domain is warped by fbm first, or the cells settle into a visibly
+ * regular lattice — the giveaway that turns crystal back into wallpaper.
+ */
+vec2 cellEdge(vec2 q, float seed) {
+  // Domain warp, low frequency and low amplitude. Noise WARPS the
+  // lattice; it is never the crack itself. Push it further and the
+  // network stops being structural and becomes the mottled noise the
+  // reference explicitly rules out.
+  vec2 warp = vec2(
+    fbm(q * 0.55 + seed * 3.1),
+    fbm(q * 0.55 + vec2(4.3, 1.7) - seed * 2.3)
+  );
+  q += (warp - 0.5) * 0.44;
+
+  vec2 ip = floor(q);
+  vec2 fp = fract(q);
+  float f1 = 8.0;
+  float f2 = 8.0;
+  float f3 = 8.0;
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j));
+      vec2 offset = hash2(ip + g + seed * 17.0);
+      float d = length(g + offset - fp);
+      if (d < f1) { f3 = f2; f2 = f1; f1 = d; }
+      else if (d < f2) { f3 = f2; f2 = d; }
+      else if (d < f3) { f3 = d; }
+    }
+  }
+  // x: distance to the nearest cell BORDER. Zero along an edge, rising
+  //    into the cell interiors.
+  // y: distance to the nearest VERTEX. Three cells meet at a junction,
+  //    so all three feature distances converge there and F3 - F1 falls
+  //    to zero; along a plain edge only the first two are equal and F3
+  //    stays well clear. Two thresholds off one search, which is what
+  //    lets energy pool at the junctions instead of running evenly along
+  //    every fissure.
+  return vec2(f2 - f1, f3 - f1);
+}
+
+/**
+ * The energy ramp — the whole locked emissive palette in order.
+ *
+ *   teal -> cyan -> indigo -> violet -> magenta
+ *
+ * Energy travelling the lattice shifts along this, which is what gives
+ * the network colour VARIETY rather than one hue with a brightness
+ * gradient on it. Two earlier revisions ran teal->cyan only, with violet
+ * bolted on as a binary region swap, and the entity came out monochrome.
+ *
+ * Deliberately weighted: the first 55% of the ramp is the teal/cyan
+ * primary, so cyan/teal dominates and violet stays restrained exactly as
+ * the brief asks. Indigo earns its place here as the TRANSITION between
+ * the two families — passing through it is what stops a cyan-to-violet
+ * blend averaging into a muddy blue, because indigo IS that region of
+ * the spectrum, deliberately chosen rather than accidentally mixed.
+ */
+vec3 energyRamp(float t) {
+  t = clamp(t, 0.0, 1.0);
+  // Stops spread EVENLY across the range, so the whole emissive palette
+  // is present at once rather than cyan holding two-thirds of it. That
+  // is the difference between a restrained material and a psychedelic
+  // one, and it is a deliberate move away from the "cyan dominant,
+  // violet restrained" balance the earlier revision was built to.
+  vec3 c = mix(uTeal, uCyan, smoothstep(0.0, 0.27, t));
+  c = mix(c, uIndigo, smoothstep(0.25, 0.49, t));
+  c = mix(c, uViolet, smoothstep(0.47, 0.71, t));
+  c = mix(c, uMagenta, smoothstep(0.69, 1.0, t));
+  return c;
+}
+
 float filaments(vec2 q, float seed) {
   float ridge = 1.0 - abs(fbm(q + seed * 7.0) * 2.0 - 1.0);
   float fine = 1.0 - abs(fbm(q * 2.3 - seed * 3.0) * 2.0 - 1.0);
@@ -195,7 +356,7 @@ void main() {
   if (!gl_FrontFacing) N = -N;
 
   float NdotV = clamp(dot(N, V), 0.0, 1.0);
-  float fresnel = pow(1.0 - NdotV, 3.0);
+  float fresnel = safePow(1.0 - NdotV, 3.0);
   // Per-pixel, not the vertex-interpolated vField. vField is still what
   // drives the vertex displacement, where per-vertex is all it can be.
   float b = texture(uField, vFieldUv).g;
@@ -210,11 +371,32 @@ void main() {
   // the Latent Form.
   float keyGain = 1.0;
 
+  // Per-face identity, and how strongly this face answers the secondary
+  // (violet) field rather than the primary (cyan) one. Faces are meant
+  // to disagree: some almost pure black, some graphite with cyan cracks,
+  // some carrying violet instead. Uniform response is what reads as a
+  // moulded prop.
+  float facet = facetKey(N, vCrackPos, uSeed);
+  // Dark-biased so the majority of the shell stays near-black: the
+  // target distribution is roughly two-thirds structural black, and a
+  // linear ramp across the four blacks lands far too bright.
+  // Dark-biased hard: the target is 90-95% near-black, and the previous
+  // 1.7 exponent still carried most faces up into graphite and raised
+  // mineral. Only the most exposed facets reach the top of the ramp now,
+  // which is what "subtle roughness variation, facet normal detail"
+  // means — variation you read as surface, not as tone.
+  float exposure = safePow(facet, 2.1);
+
   if (isClass(CLASS_CROWN_PRIMARY)) {
-    base = uRaisedBlack;
+    // Recess -> exposed across the four structural blacks. The bright end
+    // is reached by a small minority of facets by construction.
+    base = mix(uObsidian, uShell, smoothstep(0.0, 0.55, exposure));
+    base = mix(base, uGraphite, smoothstep(0.62, 0.90, exposure));
+    base = mix(base, uRaisedBlack, smoothstep(0.90, 1.0, exposure));
     patternGain = 1.0;
   } else if (isClass(CLASS_CROWN_SECONDARY)) {
-    base = mix(uStructure, uRaisedBlack, 0.78);
+    base = mix(uObsidian, uShell, smoothstep(0.0, 0.70, exposure));
+    base = mix(base, uGraphite, smoothstep(0.78, 1.0, exposure));
     patternGain = 0.62;          // lower response, less coverage
     rimGain = 0.9;
     keyGain = 0.8;
@@ -224,8 +406,15 @@ void main() {
     rimGain = 0.55;
     keyGain = 0.22;              // the chamber must recede, not glow
   } else if (isClass(CLASS_RING)) {
-    base = mix(uStructure, uCyan * 0.08, 0.5);
-    patternGain = 0.85;
+    // Gyres and corridor rings sit DARKER than the shell, so they read
+    // as cavity depth rather than as more entity, and so a gyre turning
+    // through the cavity disappears into the dark and returns.
+    base = mix(uRingBlack, uObsidian, exposure * 0.6);
+    // Full response. The corridor rings are most of what the visitor
+    // sees down the throat at the hero, and at 0.85 they carried a
+    // weaker lattice than the plates in front of them — so the entity's
+    // material identity stopped at its own front face.
+    patternGain = 1.0;
     rimGain = 0.95;
     keyGain = 0.42;              // rings read by trace, never as metal
   } else if (isClass(CLASS_CORE)) {
@@ -252,18 +441,23 @@ void main() {
     // screen than the last ring's aperture and reading as a ball
     // plugging the shaft. The sheet shows an intense POINT: the hot
     // region has to stay far smaller than the sphere carrying it.
-    float falloff = pow(NdotV, 4.0);
+    float falloff = safePow(NdotV, 4.0);
     // Kept lean: once the spokes and the scatter halo add on top, the
     // centre was summing past the knee and crushing to white — the
     // convergence has to stay CYAN, not read as a lens flare.
-    vec3 core = (uCyan * (1.05 + pulse * 0.45) + uColdWhite * 0.18) * falloff;
+    // Cyan outer -> cyan-white inner -> white-hot centre. Never warm:
+    // a gold core would put a second warm source in frame and collapse
+    // the halo's separation from the entity.
+    vec3 core = (uCoreGlow * (0.85 + pulse * 0.40)
+               + uCoreInner * (0.45 + pulse * 0.20) * safePow(NdotV, 2.0)
+               + uColdWhite * 0.20 * safePow(NdotV, 6.0)) * falloff;
     core *= uEmissive * mix(0.25, 1.0, uWake);
     // Scatter. A light at the far end of a fogged corridor gains a
     // halo rather than fading to fog colour, so distance ADDS glow
     // here instead of subtracting brightness.
     float depth = length(vWorldPos - cameraPosition);
     float scatter = 1.0 - exp(-uFogDensity * depth * 0.55);
-    core += uCyan * pow(1.0 - NdotV, 2.0) * (0.5 + scatter * 1.4) * 0.6;
+    core += uCoreGlow * safePow(1.0 - NdotV, 2.0) * (0.5 + scatter * 1.4) * 0.6;
 
     // Spokes. Every core panel on the reference sheet radiates; a bare
     // sphere reads as a bead. The rays live in the OUTER glow volume,
@@ -273,8 +467,8 @@ void main() {
     // than as stripes painted on a ball.
     float rad = 1.0 - NdotV;               // 0 at centre, 1 at silhouette
     float ang = atan(vObjectPos.y, vObjectPos.x);
-    float spoke = pow(abs(cos(ang * 5.0 + uTime * 0.10)), 8.0) * 0.60
-                + pow(abs(cos(ang * 11.0 - uTime * 0.06)), 14.0) * 0.35;
+    float spoke = safePow(abs(cos(ang * 5.0 + uTime * 0.10)), 8.0) * 0.60
+                + safePow(abs(cos(ang * 11.0 - uTime * 0.06)), 14.0) * 0.35;
     float shell = smoothstep(0.04, 0.34, rad) * (1.0 - smoothstep(0.55, 0.98, rad));
     core += mix(uCyan, uColdWhite, 0.25) * spoke * shell * (0.9 + scatter * 1.3);
 
@@ -310,7 +504,11 @@ void main() {
     // finale it rendered black-on-black and the whole scroll paid off
     // to a shape you could not see. It stays dark stone, but it is now
     // lit enough to read as a mass rather than as an absence.
-    base = mix(uStructure, uRaisedBlack, 0.9);
+    // Same material family as the Crowned — unmistakably the same
+    // species — but quieter: more black surface, thinner veins, less
+    // secondary reaction. The difference is temperament, not material.
+    base = mix(uObsidian, uShell, smoothstep(0.0, 0.60, exposure));
+    base = mix(base, uGraphite, smoothstep(0.68, 1.0, exposure) * 0.7);
     patternGain = 0.75;
     rimGain = 2.1;               // stronger rim definition than clay
     keyGain = 0.9;
@@ -328,8 +526,16 @@ void main() {
     //
     // t = 0 along the band's visible centre line, 1 at its silhouette.
     float t = 1.0 - NdotV;
-    float core = exp(-(t * t) / (0.30 * 0.30));
-    float spread = exp(-(t * t) / 0.85) * 0.30;
+    // A HOT centre inside a WIDE soft glow, rather than one even band.
+    //
+    // The old profile put a 0.30-sigma core against a 0.30-weight spread
+    // — near enough the same brightness across the whole tube, which is
+    // what made it read as a drawn outline. A light source is bright in
+    // the middle and falls off gradually; the falloff is most of what
+    // reads as luminous, and it is what gives the bloom pass something
+    // wide to work with instead of a hairline.
+    float core = exp(-(t * t) / (0.22 * 0.22));
+    float spread = exp(-(t * t) / 1.35) * 0.62;
 
     // A slow charge travelling the circumference — persistence, not
     // decoration. A slower counter-charge stops it reading as a
@@ -341,9 +547,15 @@ void main() {
                 + smoothstep(0.0, 0.3, travelB) * smoothstep(0.62, 0.3, travelB) * 0.28;
 
     float energy = core * (0.85 + pulse * 0.4) + spread;
+    // The one warm object in frame. Deep gold at the band's edge rising
+    // to a lighter gold along its centre line.
     vec3 halo = mix(uAmber * 0.42, uAmber, clamp(energy * 1.1, 0.0, 1.0));
-    halo += uColdWhite * core * 0.16;
-    halo *= energy * uEmissive * uRingGain * mix(0.20, 1.0, uWake);
+    halo = mix(halo, uHaloWarm, core * 0.62);
+    // White-hot along the centre line. A gold light this bright goes
+    // pale at its heart — without it the ring stays the colour of paint
+    // rather than the colour of something burning.
+    halo += uColdWhite * safePow(core, 2.2) * 0.55;
+    halo *= energy * uEmissive * uRingGain * mix(0.20, 1.0, uWake) * 1.55;
     // Gold and brightest while the entity is still presenting itself as
     // salvation — the halo is the single loudest part of that claim.
     halo *= 1.0 + uDivinity * 0.75;
@@ -367,95 +579,246 @@ void main() {
   // The key is what gives the masses readable form. It stays low —
   // the object must read as near-black stone — but at 0.05 the crown
   // was genuinely invisible against the void rather than merely dark.
+  // Each crystal plane answers the light differently.
+  //
+  // Facet variation drove ALBEDO only, which is why the shell read as
+  // one moulded surface with tonal noise on it rather than as cut
+  // planes. Real faceting shows up in the SPECULAR response — two
+  // adjacent planes at the same angle still catch the key differently
+  // because their finish differs. This is the cheap stand-in for the
+  // roughness variation a PBR pipeline would carry, and it is what makes
+  // an edge between two facets legible without a crack drawn on it.
+  float facetLight = 0.45 + 1.15 * facet;
+
+  // Light leaking THROUGH the fractures is accumulated separately from
+  // light falling ON the surface, so the atmosphere can treat them
+  // differently at the end of main. Lit stone loses to distance fast;
+  // a light source seen through a gap does not.
+  vec3 emissive = vec3(0.0);
+
   vec3 color = base + ambient * mix(0.35, 1.0, keyGain)
-             + uColdWhite * pow(NdotL, 1.4) * uKeyIntensity * 0.20 * keyGain;
+             + uColdWhite * safePow(NdotL, 1.4) * uKeyIntensity * 0.20
+               * keyGain * facetLight;
 
   // Rim carves the mass out of the void. This is what does most of the
   // legibility work, since the body itself stays black.
-  float rimShape = 0.5 + 0.5 * pow(clamp(dot(N, normalize(uRimDir)), 0.0, 1.0), 1.5);
+  float rimShape = 0.5 + 0.5 * safePow(clamp(dot(N, normalize(uRimDir)), 0.0, 1.0), 1.5);
   color += uColdWhite * uRimIntensity * fresnel * rimShape * 0.40 * rimGain;
   // A tight specular glint along edges, so facets separate from each
   // other rather than merging into one silhouette.
-  color += uColdWhite * pow(fresnel, 6.0) * 0.22 * rimGain;
+  // Tight glint, also facet-dependent — polished planes flare at the
+  // edge, matte ones stay dry. "Hard, dry obsidian" is the brief, so the
+  // range runs from almost nothing to a crisp highlight, never to wet.
+  color += uColdWhite * safePow(fresnel, 6.0) * 0.22 * rimGain
+         * (0.35 + 1.30 * facet);
 
-  // ---- Reaction ---------------------------------------------------
-  // Thresholded, not multiplied: below the threshold the surface stays
-  // black. That is the difference between a field that lives IN the
-  // material and one that wallpapers it.
+  // ---- The fracture network ---------------------------------------
+  //
+  // The surface is 90-95% near-black obsidian. Energy is NOT painted on
+  // it: it is visible only THROUGH microscopic fractures in an otherwise
+  // opaque material. The crack network is structural, built from Worley
+  // cell borders — noise only ever warps that lattice, never stands in
+  // for it. Most of the object stays dark; only the lattice leaks light.
+  //
+  // The previous revision drew the network everywhere and lit all of it,
+  // which measured 24% coloured surface against a 4-8% target and read
+  // as glowing veins rather than as stressed crystal. Two masks fix
+  // that: a sparse REGION mask deciding where the network exists at all,
+  // and a travelling ACTIVITY field deciding which fissures are live.
+  // Most cracks are dormant and emit nothing.
   float response = patternGain * uReaction;
   if (response > 0.001) {
-    // Widened from 0.28..0.62. With the sampling fixed there is real
-    // variation across a face to threshold against, and the narrow band
-    // was leaving most of the surface below the floor.
-    float trace = smoothstep(0.18, 0.55, b);
-    float hot = smoothstep(0.54, 0.78, b);
+    // The NETWORK gets a compressed version of the authored response.
+    //
+    // dl_reaction tapers to 0.35 down the corridor and the deeper crown
+    // tiers sit low too, so the lattice was already half strength before
+    // the atmosphere touched it — and then fog took another 70%. The
+    // surface shading still honours the authored value in full; only the
+    // fracture light is floored, because the material identity has to
+    // survive to the back of the entity.
+    float netResponse = mix(0.55, 1.0, response);
+    vec2 crackUv = vCrackPos.xy * uCrackScale;
+    // Cell density. 15 gave five or six polygons per plate — the brief
+    // asks for a capillary network, and at that scale each "crack" was a
+    // band the width of a facet rather than a hairline in it.
+    vec2 p = crackUv * 48.0;
 
-    // Pixel-resolution fracture, in the part's own space so it stays
-    // locked to the surface when the mass yields and turns.
-    // Roughly 18 vein features across the entity, whatever the entity
-    // happens to measure. Fixed world-unit frequencies read as wide
-    // blobs on a small mesh and as dense camouflage on a large one —
-    // both of which this build has now shipped at least once.
-    vec2 crackUv = vObjectPos.xy * uCrackScale;
-    float veins = filaments(crackUv * 18.0, uSeed);
-    float micro = 1.0 - abs(fbm(crackUv * 46.0 + uSeed * 11.0) * 2.0 - 1.0);
-    // Hairline layer, kept light: at full strength it fills the gaps
-    // between the veins and the face reads as speckled granite.
-    veins += smoothstep(0.88, 0.99, micro) * 0.16;
-    // Charges running the veins. The entity is alive whether or not the
-    // visitor is scrolling — this is the thing whose absence made the
-    // whole build read as a still render.
-    float charge = 0.5 + 0.5 * sin(
-      (vObjectPos.y + vObjectPos.x * 0.35) * uCrackScale * 26.0
-      - uTime * 1.25 + uSeed * 6.28
-    );
-    veins *= 0.5 + 0.85 * charge;
+    // TWO NETWORKS, not one.
+    //
+    // The reference has a coarse system of bright structural CHANNELS
+    // running along the major facet boundaries, and a much finer, denser
+    // CAPILLARY web covering the facet interiors. They are different
+    // things: the channels are energy, the capillaries are fracture in
+    // the glass catching light. Merging them into a single mask at a
+    // single brightness — which is what the last revision did — gives an
+    // even lattice that reads as a lit wireframe, because nothing on the
+    // surface is subordinate to anything else.
+    vec2 channelField = cellEdge(p * 0.55, uSeed);
+    // Wide enough to CARRY colour.
+    //
+    // Per-part hue assignment was verified working — thirty parts, all
+    // distinct seeds, landing across teal / cyan / indigo / violet /
+    // magenta — and none of it was visible, because a hairline at 48
+    // cells on a 500px entity is one or two pixels. Hue variety needs
+    // surface to live on. This is deliberately past the reference
+    // sheet's hairline figure: that sheet describes a close-up, and the
+    // hero is not one.
+    float channel = 1.0 - smoothstep(0.0, 0.125, channelField.x);
+    // Junctions. Wider threshold than the edge: F3 - F1 falls off far
+    // more gradually than F2 - F1, so the same number would produce
+    // points too small to survive at hero distance.
+    float nodes = 1.0 - smoothstep(0.0, 0.170, channelField.y);
 
-    // Baseline system colour: cyan through teal. The hue slides with
-    // viewing angle — oil on black — so a mass is never a flat swatch.
-    vec3 signalColor = mix(uCyan, uTeal, smoothstep(0.3, 0.7, b + fresnel * 0.35));
+    // The capillary web. Dense, hairline, and NOT energy — it is pale
+    // and dim, so it describes the surface as fractured without claiming
+    // any of the emissive budget.
+    float web = 1.0 - smoothstep(0.0, 0.030,
+      cellEdge(p * 3.4 + 8.3, uSeed + 3.1).x);
 
-    // Magenta is response and consequence only. `hot` is the field
-    // actively reacting here; uRetained is what the journey has
-    // accumulated. Neither is a decorative gradient.
-    float consequence = clamp(hot + uRetained * 0.55, 0.0, 1.0);
-    signalColor = mix(signalColor, uMagenta, consequence * 0.7);
-    // While divine, the veins are gold and cold white — the reaction
-    // colours are what the truth looks like, and they arrive as the
-    // presentation decays.
-    signalColor = mix(signalColor, mix(uAmber, uColdWhite, 0.5), uDivinity * 0.78);
+    // REGION MASK — modulates PROMINENCE, not presence.
+    //
+    // As a 0..1 gate this deleted the network across half the shell and
+    // the entity came out featureless black. "Very low coverage" in the
+    // brief means hairline WIDTH; its own panels show the lattice
+    // reaching the whole surface, denser in some regions than others.
+    // Floored at 0.35 so every part of the shell carries some structure.
+    // Floor raised to 0.62: the lattice now reaches essentially the
+    // whole shell and the mask only varies how prominent it is, which
+    // is what "denser" means here — more surface carrying network, not
+    // just finer cells in the places that already had it.
+    float regionMask = mix(0.62, 1.0, smoothstep(0.30, 0.70,
+      fbm(p * 0.18 + uSeed * 11.0) / 0.875));
 
-    // The cracks carry the colour; the field decides how hot they burn.
-    // The mass stays obsidian — the veins light it, they do not coat it.
-    color += signalColor * veins * (0.34 + b * 0.62) * response * uEmissive * 0.55;
-    // A much fainter wide wash, so the mass is not only cracks.
-    color += signalColor * trace * response * uEmissive * 0.10;
+    // Only the CHANNELS carry energy. The capillary web is lit
+    // separately and stays pale, which is what keeps the emissive budget
+    // on the structure that is meant to have it.
+    float crackMask = channel * regionMask;
 
-    // Rare amber accumulation, only where consequence has really built.
-    color += uAmber * smoothstep(0.82, 1.0, consequence) * 0.12 * response;
+    // TRAVELLING ACTIVITY. Energy moves through the lattice; the object
+    // does not pulse. Dormant fissures keep a tenth of the intensity, so
+    // they read as dark hairline structure rather than vanishing.
+    float moving = fbm(p * 0.7 + vec2(uTime * 0.035, uTime * 0.021) + uSeed * 5.0) / 0.875;
+    moving = smoothstep(0.54, 0.78, moving);
+    // Dormant fissures keep HALF the intensity. The gap between dormant
+    // and live is what killed the last revision: at a tenth, dormant
+    // emission worked out around 0.09 while a live fissure hit 2.6, so
+    // the surface was either black or blazing and live cracks are rare
+    // by design. A dormant fissure has to be a legible dark line, not an
+    // absent one — travelling energy is then a brightening of something
+    // already there, which is the whole point of a structural lattice.
+    float activeCrack = crackMask * mix(0.62, 1.0, moving);
+    // The reaction field decides how hot a live fissure burns.
+    activeCrack *= 0.55 + 0.45 * smoothstep(0.18, 0.62, b);
+
+    // WHERE ON THE RAMP this stretch of lattice sits.
+    //
+    // Low frequency, so a run of fissure holds one colour rather than
+    // speckling, and drifting slowly on its own clock so the charge
+    // changes character as it moves — "energy travels through the
+    // lattice" is a colour behaviour as much as a brightness one.
+    //
+    // Biased toward the cyan end: the field averages 0.5 and the power
+    // pulls that down to roughly 0.35, which lands in the teal/cyan half
+    // of the ramp. Violet and magenta are what the upper tail reaches,
+    // which is how they stay restrained without being absent.
+    float hueField = fbm(p * 0.30 + uSeed * 29.0
+                         + vec2(uTime * 0.040, uTime * -0.026)) / 0.875;
+    // TRIANGLE WRAP, not a clamp.
+    //
+    // Multiplying past 1 and folding back sweeps the ramp several times
+    // across a single shard, so one fissure runs teal to magenta and
+    // back rather than holding one hue. A fract() would do the same but
+    // with a hard seam where magenta meets teal; the triangle is
+    // continuous, so the cycle reads as colour FLOWING through the
+    // lattice instead of as banding.
+    // PER-PART OFFSET is what spreads the layers.
+    //
+    // The sweep depends on how far the hue field travels across a
+    // surface, and the deeper tiers are scaled to 0.83 and 0.66 — a
+    // smaller part covers less of the field, so its hue collapses toward
+    // one value. With no per-part term every layer behind the front
+    // landed in the same place on the ramp and the depth of the entity
+    // read as uniformly cyan while only the front plates had range.
+    //
+    // uSeed is a stable per-part hash, so multiplying it across several
+    // cycles gives every plate its own starting point regardless of how
+    // large it is or how much field it covers. Depth now has colour.
+    float swept = hueField * 2.4 + uSeed * 3.7
+                + fresnel * 0.22 + uTime * 0.021;
+    hueField = abs(fract(swept) * 2.0 - 1.0);
+    vec3 hue = energyRamp(hueField);
+
+    // Colour lives INSIDE the fissure. A dormant crack is a dimmer
+    // version of its own hue, not a different colour.
+    vec3 crackColor = mix(hue * 0.42, hue, activeCrack);
+
+    // Rare SPECTRAL EVENTS on top of the ramp — a stretch of lattice
+    // flaring to full magenta. Independent of the ramp field, so they
+    // can fire on a cyan run and read as an event rather than as more
+    // gradient. Thresholded high: this is the "<1-2% luminous" tail.
+    float spectral = smoothstep(0.74, 0.88,
+      fbm(p * 0.16 + uSeed * 47.0 + vec2(0.0, uTime * 0.021)) / 0.875);
+    crackColor = mix(crackColor, uMagenta, spectral * 0.85);
+
+    // Retained consequence still earns magenta, but only where the
+    // journey has genuinely accumulated it.
+    float consequence = clamp(smoothstep(0.54, 0.78, b) + uRetained * 0.55, 0.0, 1.0);
+    crackColor = mix(crackColor, uMagenta, smoothstep(0.75, 1.0, consequence) * 0.5);
+
+    // EMISSION, confined to the hairline core. The 2.5 power is what
+    // keeps the glow inside the fissure instead of bleeding onto the
+    // surface either side of it — broad surface glow is the single
+    // fastest way back to the plague-skin look.
+    // 1.25, not 1.9. A steep power crushes the whole mid-range: it is
+    // what made dormant fissures vanish while live ones blew out, and no
+    // amount of extra gain fixes that because gain scales both ends.
+    // Flattening the curve is what puts a readable network on screen.
+    float core = safePow(activeCrack, 1.25);
+    emissive += crackColor * core * netResponse * uEmissive * 3.40;
+    // A white-hot centre on the live fissures only, very sparse. This is
+    // the <1-2% luminous energy; the term above is the 4-8% network.
+    emissive += mix(crackColor, uColdWhite, 0.45)
+           * safePow(activeCrack, 6.0) * netResponse * uEmissive * 0.75;
+
+    // NODES. Energy pools where fissures meet rather than running evenly
+    // along them — it is most of what makes the reference read as
+    // electrical rather than as a lit wireframe. Gated on the same
+    // travelling field, so junctions brighten and fade as charge moves
+    // through the lattice instead of all glowing at once.
+    float nodeEnergy = nodes * crackMask * mix(0.30, 1.0, moving);
+    emissive += mix(crackColor, uColdWhite, 0.40)
+           * safePow(nodeEnergy, 1.7) * netResponse * uEmissive * 3.30;
+
+    // THE CAPILLARY WEB, lit last and lit differently.
+    //
+    // Cold silver rather than cyan, and an order of magnitude fainter
+    // than the channels: this is hairline fracture in the glass catching
+    // the key, not energy leaking out. Keeping it colourless is what
+    // stops it competing with the channels — the reference reads as one
+    // bright system laid over a dense pale one, and if both are cyan the
+    // hierarchy collapses and the whole surface turns into a wireframe.
+    emissive += mix(uColdSilver, uColdWhite, 0.5)
+           * web * regionMask * netResponse * uEmissive * 0.19;
   }
 
-  // ---- Radiance ----------------------------------------------------
-  // Salvation reads as light coming OFF a whole body, not as an edge cut
-  // out of blackness. Applied to the shell classes only: the corridor
-  // has its own treatment and must never look holy.
+  // ---- Cold edge response ------------------------------------------
+  // This block used to wash mix(uAmber * 1.75, uColdWhite, 0.22) across
+  // the crown and the Latent Form, weighted by fresnel AND by luminance.
+  // At the hero uDivinity is 1.0, so it ran at full strength over every
+  // lit pixel — that single term is what turned a black obsidian entity
+  // into a bronze statue, and the luminance weight is what spread it off
+  // the edges and across the body as a beige cast.
+  //
+  // Amber is a HALO-ONLY colour. The edge response is cold silver, it is
+  // strictly a silhouette term with no body component, and it is kept
+  // small: the target is a trace of cold reflection on the rim, not a
+  // second light source competing with the core.
   if (uDivinity > 0.001
       && (isClass(CLASS_CROWN_PRIMARY) || isClass(CLASS_CROWN_SECONDARY)
           || isClass(CLASS_LATENT))) {
-    // Additive, and weighted by what is ALREADY lit. Multiplying the
-    // whole surface lifted the cavity out of the dark along with
-    // everything else and the entity read as a white blob — salvation
-    // has to be light coming off a form, not the form washing out.
-    // Gold-weighted too: an even mix with the cold white came out
-    // silver, which reads as ice rather than as anything holy.
-    vec3 divine = mix(uAmber * 1.75, uColdWhite, 0.22);
-    float lum = dot(color, vec3(0.299, 0.587, 0.114));
-    // Weighted hard toward the EDGES. An even lift across the body came
-    // out as sandstone: warm, but flat and lifeless. Salvation reads as
-    // brilliant light over a dark mass, so the body stays dark and the
-    // silhouette burns — which is also what feeds the bloom pass.
-    color += divine * uDivinity * (fresnel * 2.4 * rimGain + lum * 0.42);
-    color += divine * pow(fresnel, 6.0) * uDivinity * 2.6;
+    vec3 coldEdge = mix(uColdSilver, uColdWhite, 0.35);
+    color += coldEdge * uDivinity * fresnel * 0.30 * rimGain;
+    color += coldEdge * safePow(fresnel, 6.0) * uDivinity * 0.45;
   }
 
   // ---- The corridor interior ---------------------------------------
@@ -560,6 +923,12 @@ void main() {
 
   float fog = 1.0 - exp(-uFogDensity * uFogDensity * depth * depth);
   color = mix(color, uFogColor, clamp(fog, 0.0, 0.92));
+  // The fracture light is added AFTER the fog and keeps most of itself.
+  // Fogging it as hard as the stone is what left the front plates
+  // colourful and everything behind them reading as flat cyan: at the
+  // throat the atmosphere was removing about 70% of the network.
+  emissive *= smoothstep(0.22, 1.5, depth) * mix(0.30, 1.0, uWake);
+  color += emissive * (1.0 - clamp(fog, 0.0, 1.0) * 0.40);
 
   outColor = vec4(color, uOpacity);
 }

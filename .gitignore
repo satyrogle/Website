@@ -22,3 +22,5 @@ public/models/meshy-*.glb
 public/models/cand-*.glb
 public/models/ring-*.glb
 !public/models/DL_Crown_Meshy_v01.glb
+public/models/divine-*.glb
+public/models/volume-*.glb

@@ -35,16 +35,60 @@ export const MATERIAL_CLASSES = [
 
 export type MaterialClass = (typeof MATERIAL_CLASSES)[number];
 
-/** Locked palette, directive 6.2. */
+/**
+ * Locked palette — entity material correction.
+ *
+ * Two deliberately OPPOSING colour systems, and they must never be
+ * blended: the entity is cold (black / cyan / teal / violet), the halo
+ * alone is warm. The halo's gold reads as powerfully as it does only
+ * because nothing else in frame is warm — the moment amber touches the
+ * shell, both systems die at once and the entity reads as a bronze
+ * statue. Amber is therefore a HALO-ONLY colour and is not permitted as
+ * a base, a vein tint or an edge response anywhere else.
+ *
+ * The four structural blacks are a gradient of surface exposure, not
+ * four arbitrary greys: deepest obsidian sits in the recesses, raised
+ * mineral face catches the key. Face variation lerps between them, which
+ * is what stops every polygon answering the light identically.
+ */
 const PALETTE = {
+  // Background and fog. Not entity material — kept near-pure black so
+  // the silhouette stays readable against it.
   void: new THREE.Color('#010204'),
+  // The threshold chamber. Must stay recessive or it out-brightens the
+  // Latent Form standing in front of it.
   structure: new THREE.Color('#020406'),
-  raisedBlack: new THREE.Color('#081016'),
+
+  // Structural blacks, recess -> exposed.
+  obsidian: new THREE.Color('#080B10'),
+  shell: new THREE.Color('#0D1219'),
+  graphite: new THREE.Color('#121923'),
+  raisedBlack: new THREE.Color('#1C2634'),
+  // Gyres and corridor rings sit darker than the shell so they read as
+  // cavity depth rather than as more entity.
+  ringBlack: new THREE.Color('#070A0E'),
+
+  // Primary reactive field.
   teal: new THREE.Color('#36E0B0'),
   cyan: new THREE.Color('#4DD0FF'),
+
+  // Secondary reactive field. Its own irregular distribution, never a
+  // rainbow interpolation off the primary.
+  indigo: new THREE.Color('#4634D8'),
+  violet: new THREE.Color('#A638C6'),
+  magenta: new THREE.Color('#E14BFF'),
+
+  // Cold edge response.
+  coldSilver: new THREE.Color('#BFEFFF'),
   coldWhite: new THREE.Color('#DFF9FF'),
-  magenta: new THREE.Color('#FF2B9A'),
+
+  // The convergence light.
+  coreGlow: new THREE.Color('#36DDF2'),
+  coreInner: new THREE.Color('#7EEBFF'),
+
+  // HALO ONLY. Never applied to any entity surface.
   amber: new THREE.Color('#C9A24A'),
+  haloWarm: new THREE.Color('#F5C978'),
 };
 
 /**
@@ -407,12 +451,22 @@ export class CrownedConvergenceModel {
 
         uVoid: { value: PALETTE.void },
         uStructure: { value: PALETTE.structure },
+        uObsidian: { value: PALETTE.obsidian },
+        uShell: { value: PALETTE.shell },
+        uGraphite: { value: PALETTE.graphite },
         uRaisedBlack: { value: PALETTE.raisedBlack },
+        uRingBlack: { value: PALETTE.ringBlack },
         uTeal: { value: PALETTE.teal },
         uCyan: { value: PALETTE.cyan },
-        uColdWhite: { value: PALETTE.coldWhite },
+        uIndigo: { value: PALETTE.indigo },
+        uViolet: { value: PALETTE.violet },
         uMagenta: { value: PALETTE.magenta },
+        uColdSilver: { value: PALETTE.coldSilver },
+        uColdWhite: { value: PALETTE.coldWhite },
+        uCoreGlow: { value: PALETTE.coreGlow },
+        uCoreInner: { value: PALETTE.coreInner },
         uAmber: { value: PALETTE.amber },
+        uHaloWarm: { value: PALETTE.haloWarm },
 
         uClass: { value: classIndex },
         uSeed: { value: seedFromName(mesh.name) },

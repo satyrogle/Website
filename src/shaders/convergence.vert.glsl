@@ -53,6 +53,25 @@ uniform float uYieldSpin;
 
 out vec3 vWorldPos;
 out vec3 vObjectPos;
+/**
+ * Surface-detail coordinates: part-relative, but in WORLD units.
+ *
+ * The crack layer used the raw `position` attribute, which assumes local
+ * vertex magnitudes bear some relation to the part's real size. They do
+ * not — local space is whatever the source authored, and a part-
+ * segmented import arrived with local coordinates of 4,290 and 9,145
+ * units carried by a node scale of 0.0003. Crack frequency came out
+ * around 11,000 instead of 6, which is noise sampled far past any
+ * coherent scale, so it averaged to a flat tone and the veins vanished.
+ * Worse, it differed per part, so no two shards were even wrong in the
+ * same way.
+ *
+ * Measuring from the part's own origin in world units removes the
+ * assumption entirely: the coordinates rotate with the part and stay
+ * locked to its surface, exactly as object space did, but their SCALE is
+ * now real and identical across every part of every asset.
+ */
+out vec3 vCrackPos;
 out vec3 vNormal;
 out vec3 vViewDir;
 out vec2 vFieldUv;
@@ -150,6 +169,9 @@ void main() {
   vec4 worldPos = modelMatrix * vec4(pos, 1.0);
   vWorldPos = worldPos.xyz;
   vObjectPos = position;
+  // Both terms are taken PRE-yield, so a mass that opens carries its
+  // fracture with it instead of swimming through a fixed pattern.
+  vCrackPos = restWorld - (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   vNormal = normalize(normalMatrix * n);
   vViewDir = normalize(cameraPosition - worldPos.xyz);
   vFieldUv = uv;

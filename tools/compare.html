@@ -49,6 +49,7 @@
 
       const sheet = document.getElementById('sheet');
       const loader = new GLTFLoader();
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
 
       for (const src of SRCS) {
         const gltf = await loader.loadAsync(src);
@@ -81,11 +82,20 @@
         sheet.append(row);
 
         for (const view of VIEWS) {
-          const renderer = new THREE.WebGLRenderer({ antialias: true });
+          // ONE shared renderer, blitted into a 2D canvas per cell.
+          //
+          // This used to build a WebGLRenderer per cell. Browsers cap
+          // live WebGL contexts at about 16, so at six candidates x four
+          // views the first two rows silently lost their context and
+          // rendered as blank white boxes — the sheet looked like the
+          // meshes had failed when it was the harness that had.
           renderer.setSize(W, H);
           renderer.setClearColor(view.flat ? 0x000000 : 0x0b0d11, 1);
           renderer.localClippingEnabled = view.clip;
-          row.append(renderer.domElement);
+          const cell = document.createElement('canvas');
+          cell.width = W;
+          cell.height = H;
+          row.append(cell);
 
           const material = view.flat
             ? new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide })
@@ -118,6 +128,8 @@
           );
           cam.lookAt(0, 0, 0);
           renderer.render(scene, cam);
+          cell.getContext('2d').drawImage(renderer.domElement, 0, 0);
+          scene.clear();
         }
       }
 

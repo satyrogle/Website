@@ -6,6 +6,7 @@ import { CrownedConvergenceModel } from './CrownedConvergenceModel';
 import { CameraRig } from './CameraRig';
 import { Lighting } from './Lighting';
 import { PostPipeline } from './PostPipeline';
+import { EnvironmentStages } from './EnvironmentStages';
 
 /**
  * SceneController
@@ -45,6 +46,13 @@ export class SceneController {
   readonly entity: CrownedConvergenceModel;
   readonly field: ReactionField;
   readonly lighting: Lighting;
+
+  /**
+   * The two environment backplates. Null until loadEnvironment resolves,
+   * and null forever if the plates are missing — the world is complete
+   * without them, so their absence must not take the site down.
+   */
+  private environment: EnvironmentStages | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private post: PostPipeline;
@@ -239,6 +247,7 @@ export class SceneController {
     this.renderer.setSize(clientWidth, clientHeight, false);
     this.rig.resize(clientWidth / Math.max(clientHeight, 1));
     this.rig.setPath(window.innerWidth < 820);
+    this.environment?.layout(clientWidth / Math.max(clientHeight, 1));
 
     const dpr = this.renderer.getPixelRatio();
     this.post.setSize(Math.floor(clientWidth * dpr), Math.floor(clientHeight * dpr));
@@ -252,6 +261,11 @@ export class SceneController {
   setProgress(p: number): void {
     this.progress = Math.min(Math.max(p, 0), 1);
     this.rig.setProgress(this.progress);
+    // Same progress value that drives the rig, the lighting arc and the
+    // entity. There is deliberately no second scroll calculation for the
+    // backplates — one source is what keeps the fade, the camera and the
+    // narrative from drifting apart.
+    this.environment?.setProgress(this.progress);
 
     // Reduced motion does not run the loop, so scrolling has to draw
     // the newly composed state itself.
@@ -330,6 +344,31 @@ export class SceneController {
   async loadEntity(url: string, onProgress?: (fraction: number) => void): Promise<void> {
     await this.entity.load(url, onProgress);
     this.entity.bindField(this.field.texture);
+  }
+
+  /**
+   * Loads the two environment backplates into the existing world.
+   *
+   * Optional by design: a missing or failed plate leaves `environment`
+   * null and every call site is guarded, so the site runs exactly as it
+   * does today rather than failing on a decorative asset. That matters
+   * because these are the only two files in the build that are authored
+   * outside the repo.
+   */
+  async loadEnvironment(crownedUrl: string, latentUrl: string): Promise<void> {
+    const loader = new THREE.TextureLoader();
+    const load = (url: string) =>
+      new Promise<THREE.Texture>((resolve, reject) => {
+        loader.load(url, resolve, undefined, () => reject(new Error(`missing ${url}`)));
+      });
+
+    const [crowned, latent] = await Promise.all([load(crownedUrl), load(latentUrl)]);
+
+    this.environment = new EnvironmentStages(crowned, latent);
+    const { clientWidth, clientHeight } = this.canvasSize();
+    this.environment.layout(clientWidth / Math.max(clientHeight, 1));
+    this.environment.setProgress(this.progress);
+    this.scene.add(this.environment.group);
   }
 
   /** Drives the cold-open reveal out of near-darkness. */
@@ -443,6 +482,7 @@ export class SceneController {
     this.resizeObserver?.disconnect();
     this.field.dispose();
     this.entity.dispose();
+    this.environment?.dispose();
     this.post.dispose();
     this.renderer.dispose();
   }

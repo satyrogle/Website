@@ -61,6 +61,75 @@ def parse_args():
     # behind the funnel leaves the spiral intact and leaves only a dark
     # aperture at its base, which is what the reference shows.
     p.add_argument("--bore-start", type=float, default=0.38)
+    # Fit axis. Meshy candidates fit on HEIGHT so their depth ratio — the
+    # property that separated them from wreaths — survived. A procedural
+    # spire is the opposite case: its height IS the idea, and fitting it
+    # into the old crown's squat 5.13 envelope halves it and throws away
+    # the whole point. Those fit on WIDTH instead, so the footprint still
+    # matches the corridor mouth and the thing is allowed to be tall.
+    p.add_argument("--fit", choices=["height", "width"], default="height")
+    # Post-fit trim. A form whose base deliberately runs out of frame
+    # cannot also be centred on the old crown's centroid — it overflows
+    # at BOTH ends. These place the composed mass: scale trims it into
+    # the hero frustum, offset drops it so the plinth leaves the bottom
+    # of frame while the spires stay inside the top.
+    p.add_argument("--fit-scale", type=float, default=1.0)
+    p.add_argument("--fit-offset-z", type=float, default=0.0)
+    # Degrees about X, applied to the source before anything else.
+    #
+    # A candidate's own "up" is whatever the generator felt like. The
+    # columnar monolith carries a crater down its Z axis — a natural
+    # funnel mouth — and the site needs that mouth pointing at the
+    # camera, not at the sky. Continuing an existing crater reads as a
+    # throat; drilling a fresh hole through the side of a solid reads as
+    # a drilled hole, which this build has already proven twice.
+    p.add_argument("--src-rotate-x", type=float, default=0.0)
+    # A SECOND ring, concentric with the crown and set behind it.
+    #
+    # This is depth, not decoration: one ring at one radius is a wreath
+    # whichever way it is lit, and the entity has never had anything for
+    # the eye to travel past on its way to the throat. It is kept as
+    # crown geometry rather than replacing the halo — the gold filament
+    # halo is the one element of this build that already works.
+    p.add_argument("--outer-src", default="")
+    p.add_argument("--outer-faces", type=int, default=26000)
+    p.add_argument("--outer-scale", type=float, default=1.34)
+    # Depth behind the crown, as a fraction of the crown's own depth.
+    p.add_argument("--outer-offset", type=float, default=0.55)
+    # Shard budget. 0 keeps every island.
+    #
+    # A part-segmented candidate arrives with as many pieces as the
+    # generator felt like — the Aurora ring came in at 45 — and shipping
+    # all of them reads as gravel: no piece is large enough to be a
+    # feature and the whole thing is busy without being detailed. Keeping
+    # only the largest and letting the gaps be black is what makes each
+    # remaining plate legible AS a plate.
+    p.add_argument("--crown-parts", type=int, default=0)
+    # Kept parts are distributed into concentric LAYERS: each tier is
+    # pulled toward the axis, set deeper, and scaled down, so the shell
+    # recedes instead of sitting on one shallow sphere.
+    p.add_argument("--crown-tiers", type=int, default=1)
+    # Grows each surviving plate about its own centre. Fewer parts leave
+    # bigger gaps; this puts the mass back without adding pieces.
+    p.add_argument("--part-scale", type=float, default=1.0)
+    # Smallest N islands kept as free-floating debris around the mass.
+    p.add_argument("--debris", type=int, default=0)
+    # HALO. Diameter as a multiple of the crown's width; 0 leaves the
+    # authored ring untouched.
+    #
+    # The shipped halo measured 4.31 across against a 6.25-wide crown, so
+    # it sat INSIDE the silhouette of the thing it is supposed to crown,
+    # and being a horizontal ring seen near edge-on the only thickness
+    # ever visible was its 0.42 tube foreshortened into a wire. Scaling
+    # uniformly fixes both at once — a bigger ring is also a thicker one.
+    p.add_argument("--halo-scale", type=float, default=0.0)
+    # Height above the crown centre, as a fraction of crown height.
+    p.add_argument("--halo-lift", type=float, default=0.0)
+    # Thickens the TUBE without changing the ring's diameter. Uniform
+    # scale grows both together, so it cannot make a fat ring of a given
+    # size — and the tube is the only dimension visible on a ring seen
+    # near edge-on.
+    p.add_argument("--halo-tube", type=float, default=1.0)
     # Tunnel. One authored ring module, instanced down the corridor.
     p.add_argument("--tunnel-src", default="")
     p.add_argument("--tunnel-count", type=int, default=11)
@@ -85,6 +154,7 @@ SRC = Path(ARGS.src).resolve()
 TUNNEL_SRC = Path(ARGS.tunnel_src).resolve() if ARGS.tunnel_src else None
 LATENT_SRC = Path(ARGS.latent_src).resolve() if ARGS.latent_src else None
 GYRE_SRC = Path(ARGS.gyre_src).resolve() if ARGS.gyre_src else None
+OUTER_SRC = Path(ARGS.outer_src).resolve() if ARGS.outer_src else None
 BLEND = ROOT / "assets" / "blender" / "DL_CrownedConvergence_Production_v01.blend"
 GLB_OUT = ROOT / "public" / "models" / ARGS.out
 
@@ -334,6 +404,177 @@ def build_gyres():
     log(f"gyres: {made} instances, {faces} faces each, sharing one mesh")
 
 
+def place_halo(crown_lo, crown_hi):
+    """
+    Sizes and seats the halo against the MEASURED crown.
+
+    Authored numbers cannot survive an entity swap: the ring was built
+    for a crown of one width and every candidate since has been a
+    different size, so it ended up smaller than the mass it crowns. Both
+    the diameter and the height are derived here, which means the halo
+    stays correct for whatever entity is dropped in front of it.
+    """
+    halo = [o for o in bpy.data.objects
+            if o.type == "MESH" and o.get("dl_role", "") == "halo"]
+    if not halo:
+        log("WARNING no halo object found")
+        return
+
+    crown_centre = (crown_lo + crown_hi) / 2.0
+    crown_size = crown_hi - crown_lo
+
+    # Thicken the tube in the mesh's own space, before any placement.
+    #
+    # Each vertex is pushed away from the nearest point on the ring's
+    # CENTRELINE — the circle of radius R about the local Z axis — so the
+    # tube fattens while the diameter is untouched. A plain scale cannot
+    # do this: it moves the centreline too.
+    # Computed in WORLD space about the world Z axis. The first attempt
+    # assumed the ring lay in the mesh's own XY plane; the authored torus
+    # carries its orientation on the object, so the maths ran against the
+    # wrong axis and the tube came out 0.61 instead of 1.18.
+    if abs(ARGS.halo_tube - 1.0) > 1e-4:
+        h_lo, h_hi = world_bounds(halo)
+        axis = (h_lo + h_hi) / 2.0
+        for obj in halo:
+            mesh = obj.data
+            mw = obj.matrix_world
+            mwi = mw.inverted()
+            world_co = [mw @ v.co for v in mesh.vertices]
+            radials = [math.hypot(w.x - axis.x, w.y - axis.y) for w in world_co]
+            if not radials:
+                continue
+            ring_r = (max(radials) + min(radials)) * 0.5
+            if ring_r < 1e-5:
+                log("WARNING halo is not a ring about world Z — tube skipped")
+                continue
+            for v, w in zip(mesh.vertices, world_co):
+                dx, dy = w.x - axis.x, w.y - axis.y
+                r = math.hypot(dx, dy)
+                if r < 1e-6:
+                    continue
+                cx = axis.x + dx / r * ring_r
+                cy = axis.y + dy / r * ring_r
+                w.x = cx + (w.x - cx) * ARGS.halo_tube
+                w.y = cy + (w.y - cy) * ARGS.halo_tube
+                w.z = axis.z + (w.z - axis.z) * ARGS.halo_tube
+                v.co = mwi @ w
+            mesh.update()
+        log(f"halo tube x{ARGS.halo_tube:.2f} about centreline r={ring_r:.2f}")
+
+    lo, hi = world_bounds(halo)
+    size = hi - lo
+    centre = (lo + hi) / 2.0
+    # Ring plane is X/Y in Blender (Z is up), so the diameter is the
+    # larger horizontal extent.
+    diameter = max(size.x, size.y)
+    scale = (crown_size.x * ARGS.halo_scale) / max(diameter, 1e-6)
+
+    place = Vector((
+        crown_centre.x,
+        crown_centre.y,
+        crown_centre.z + crown_size.z * ARGS.halo_lift,
+    ))
+    xform = (
+        Matrix.Translation(place)
+        @ Matrix.Diagonal((scale, scale, scale, 1.0))
+        @ Matrix.Translation(-centre)
+    )
+    for obj in halo:
+        obj.matrix_world = xform @ obj.matrix_world
+    bpy.context.view_layer.update()
+
+    lo2, hi2 = world_bounds(halo)
+    s2 = hi2 - lo2
+    log(f"halo: scaled x{scale:.2f} -> "
+        f"{max(s2.x, s2.y):.2f} across, tube {min(s2.x, s2.y, s2.z):.2f}, "
+        f"z {place.z:.2f} (crown {crown_size.x:.2f} wide)")
+
+
+def build_outer_ring(crown_lo, crown_hi):
+    """
+    A second broken ring, concentric with the crown and set behind it.
+
+    Fitted from the crown's MEASURED bounds rather than authored numbers,
+    so it stays concentric whatever entity stands in front of it. It sits
+    deeper along the travel axis, which is what turns a flat wreath into
+    something the eye passes through on its way to the throat.
+
+    Deliberately NOT the halo. The gold filament halo is the one element
+    of this build that already works, and this is rock — it joins the
+    crown as geometry rather than replacing the one thing that landed.
+    """
+    before = {o.name for o in bpy.data.objects}
+    bpy.ops.import_scene.gltf(filepath=str(OUTER_SRC))
+    imported = [o for o in bpy.data.objects
+                if o.name not in before and o.type == "MESH"]
+    if not imported:
+        log(f"WARNING no mesh imported from {OUTER_SRC}")
+        return []
+
+    total = sum(len(o.data.polygons) for o in imported)
+    ratio = min(ARGS.outer_faces / max(total, 1), 1.0)
+    if ratio < 0.999:
+        for obj in imported:
+            bpy.context.view_layer.objects.active = obj
+            mod = obj.modifiers.new("dec", "DECIMATE")
+            mod.ratio = ratio
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+
+    for obj in imported:
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        try:
+            bpy.ops.object.shade_auto_smooth(angle=math.radians(24.0))
+        except (AttributeError, RuntimeError):
+            bpy.ops.object.shade_flat()
+
+    crown_centre = (crown_lo + crown_hi) / 2.0
+    crown_size = crown_hi - crown_lo
+
+    lo, hi = world_bounds(imported)
+    size = hi - lo
+    centre = (lo + hi) / 2.0
+    scale = (crown_size.z / max(size.z, 1e-6)) * ARGS.outer_scale
+    # The viewer stands at -Y, so deeper into the scene is +Y.
+    place = crown_centre + Vector((0.0, crown_size.y * ARGS.outer_offset, 0.0))
+
+    xform = (
+        Matrix.Translation(place)
+        @ Matrix.Diagonal((scale, scale, scale, 1.0))
+        @ Matrix.Translation(-centre)
+    )
+    for obj in imported:
+        obj.matrix_world = xform @ obj.matrix_world
+    bpy.context.view_layer.update()
+
+    for index, obj in enumerate(imported):
+        obj.name = f"DL_OuterRing_{index + 1:02d}"
+        obj["dl_role"] = "crown_slab"
+        # Secondary throughout: this is depth BEHIND the subject and must
+        # never out-read the mass in front of it.
+        obj["dl_material_class"] = "MAT_CROWN_SECONDARY"
+        obj["dl_visibility_stage"] = "exterior"
+        obj["dl_stage_from"] = 0.0
+        obj["dl_stage_to"] = 0.34
+        obj["dl_reaction"] = 0.5
+        obj["dl_projection"] = "planar"
+        c = sum((obj.matrix_world @ Vector(v) for v in obj.bound_box),
+                Vector()) / 8.0
+        away = c - place
+        if away.length > 1e-5:
+            away.normalize()
+        obj["dl_open_translation"] = [round(v, 4) for v in (away * 0.18)]
+        obj["dl_open_rotation"] = [0.0, 0.0, 0.0]
+        obj["dl_yield_spin_deg"] = 0.0
+
+    faces = sum(len(o.data.polygons) for o in imported)
+    log(f"outer ring: {len(imported)} parts, {faces} faces, scale "
+        f"{scale:.3f}, set back {crown_size.y * ARGS.outer_offset:.2f}")
+    return imported
+
+
 def build_latent():
     """
     Replaces the three flat Latent slabs with the authored end entity.
@@ -442,27 +683,89 @@ def main():
     log(f"imported {len(imported)} object(s), "
         f"{sum(len(o.data.polygons) for o in imported)} faces")
 
-    # ---- Decimate before splitting -----------------------------------
+    # WELD BEFORE ANYTHING ELSE.
+    #
+    # glTF stores a separate vertex per face corner to carry flat
+    # normals, so an imported candidate frequently shares no topology at
+    # all. The loose-part split downstream then treats every triangle as
+    # its own island: the columnar monolith came in at 94k faces and sat
+    # for twelve minutes trying to create thirty thousand objects before
+    # it was killed. Welding first restores the real connectivity and the
+    # split returns the handful of islands the candidate actually has.
     for obj in imported:
-        bpy.context.view_layer.objects.active = obj
-        mod = obj.modifiers.new("dec", "DECIMATE")
-        mod.ratio = ARGS.decimate
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-    log(f"decimated to {sum(len(o.data.polygons) for o in imported)} faces")
-
-    # ---- Split into islands ------------------------------------------
-    bpy.ops.object.select_all(action="DESELECT")
-    for obj in imported:
+        bpy.ops.object.select_all(action="DESELECT")
         obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.separate(type="LOOSE")
-    bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.remove_doubles(threshold=0.0004)
+        bpy.ops.object.mode_set(mode="OBJECT")
+    log(f"welded: {sum(len(o.data.polygons) for o in imported)} faces")
 
-    parts = [o for o in bpy.data.objects
-             if o.name not in existing and o.type == "MESH"]
-    log(f"split into {len(parts)} islands")
+    if abs(ARGS.src_rotate_x) > 1e-6:
+        # Composed in WORLD space, not written to rotation_euler.
+        #
+        # The glTF importer parents its meshes under a scene empty that
+        # carries the Y-up conversion, so setting a child's own
+        # rotation_euler is composed away by the parent and does
+        # precisely nothing — two builds came out identically oriented
+        # and the logged bounds never changed. Assigning matrix_world
+        # goes through the parent correctly whatever the hierarchy is.
+        before = world_bounds(imported)
+        rot = Matrix.Rotation(math.radians(ARGS.src_rotate_x), 4, "X")
+        for obj in imported:
+            obj.matrix_world = rot @ obj.matrix_world
+        bpy.context.view_layer.update()
+
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in imported:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = imported[0]
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+        after = world_bounds(imported)
+        log(f"rotated source {ARGS.src_rotate_x:+.0f} deg about X: "
+            f"{tuple(round(v, 2) for v in (before[1] - before[0]))} -> "
+            f"{tuple(round(v, 2) for v in (after[1] - after[0]))}")
+
+    # ---- Decimate before splitting -----------------------------------
+    # Skipped at ratio 1: a Meshy candidate arrives at ~1.5M triangles
+    # and must be collapsed, but procedurally-built geometry is already
+    # at its final budget and decimating it only rounds off the cut edges
+    # that give it its facets.
+    if ARGS.decimate < 0.999:
+        for obj in imported:
+            bpy.context.view_layer.objects.active = obj
+            mod = obj.modifiers.new("dec", "DECIMATE")
+            mod.ratio = ARGS.decimate
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+        log(f"decimated to {sum(len(o.data.polygons) for o in imported)} faces")
+    else:
+        log(f"decimation skipped, {sum(len(o.data.polygons) for o in imported)} faces")
+
+    # ---- Split into islands ------------------------------------------
+    # Only when the source arrived as ONE object. Meshy exports a single
+    # merged mesh that has to be broken apart; a procedurally-built
+    # entity already arrives as named parts, and splitting it again is
+    # actively destructive — glTF duplicates vertices per face to carry
+    # flat normals, so nothing shares topology on re-import and "separate
+    # by loose parts" separated all 6,480 individual FACES.
+    if len(imported) > 1:
+        parts = list(imported)
+        log(f"source arrived as {len(parts)} parts — loose split skipped")
+    else:
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in imported:
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.separate(type="LOOSE")
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        parts = [o for o in bpy.data.objects
+                 if o.name not in existing and o.type == "MESH"]
+        log(f"split into {len(parts)} islands")
 
     # ---- Drop Meshy's own halo ---------------------------------------
     kept = []
@@ -477,8 +780,86 @@ def main():
             kept.append(obj)
     log(f"kept {len(kept)} islands after ring strip")
 
-    kept.sort(key=lambda o: -len(o.data.polygons))
+    # Ordered by PHYSICAL size, not face count: on a segmented candidate
+    # the densest island is not the biggest one, and the largest plate is
+    # what the eye reads as the face of the being.
+    kept.sort(key=lambda o: -max(island_dims(o)))
+
+    if ARGS.crown_parts > 0 and len(kept) > ARGS.crown_parts:
+        keep_n = ARGS.crown_parts
+        survivors = kept[:keep_n]
+        # A few of the smallest survive as debris drifting around the
+        # mass — the reference has them, and they give the silhouette an
+        # edge that is not a hard boundary.
+        floaters = kept[-ARGS.debris:] if ARGS.debris > 0 else []
+        doomed = [o for o in kept[keep_n:] if o not in floaters]
+        for obj in doomed:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        kept = survivors + floaters
+        log(f"culled to {len(survivors)} plates"
+            + (f" + {len(floaters)} debris" if floaters else "")
+            + f" (dropped {len(doomed)})")
+
     body = kept[0]
+
+    # ---- Concentric layers -------------------------------------------
+    # All the plates arriving on one shallow sphere is what made the
+    # first assembly read as gravel: everything at the same radius, the
+    # same depth and the same size, so nothing was in front of anything
+    # else and the eye had no route into the throat.
+    #
+    # Sorted largest first, so tier 0 keeps the biggest plates at full
+    # radius and each deeper tier is drawn toward the axis, set back and
+    # scaled down. That is what produces the recession — the shell reads
+    # as layers the visitor passes THROUGH rather than a surface they
+    # stop at.
+    #
+    # This and the grow below run BEFORE the fit, deliberately. Run after
+    # it they change the bounds the fit just solved for, and the entity
+    # walks out of frame and off centre — which is exactly what the first
+    # layered build did.
+    if ARGS.crown_tiers > 1:
+        lo, hi = world_bounds(kept)
+        axis = (lo + hi) / 2.0
+        depth = hi.y - lo.y
+        tiers = max(ARGS.crown_tiers, 1)
+        counts = [0] * tiers
+        for index, obj in enumerate(kept):
+            tier = min(index * tiers // max(len(kept), 1), tiers - 1)
+            counts[tier] += 1
+            t = tier / max(tiers - 1, 1)
+            pull = 1.0 - 0.42 * t          # toward the travel axis
+            back = depth * 0.42 * t        # deeper; the viewer is at -Y
+            shrink = 1.0 - 0.34 * t
+
+            c = obj.matrix_world.translation.copy()
+            radial = Vector((c.x - axis.x, 0.0, c.z - axis.z))
+            target = Vector((
+                axis.x + radial.x * pull,
+                c.y + back,
+                axis.z + radial.z * pull,
+            ))
+            local = (
+                Matrix.Translation(target)
+                @ Matrix.Diagonal((shrink, shrink, shrink, 1.0))
+                @ Matrix.Translation(-c)
+            )
+            obj.matrix_world = local @ obj.matrix_world
+        bpy.context.view_layer.update()
+        log(f"layered into {tiers} tiers: {counts}")
+
+    # Grows each plate about its own centre — mass without more pieces.
+    if abs(ARGS.part_scale - 1.0) > 1e-4:
+        for obj in kept:
+            c = obj.matrix_world.translation.copy()
+            grow = (
+                Matrix.Translation(c)
+                @ Matrix.Diagonal((ARGS.part_scale,) * 3 + (1.0,))
+                @ Matrix.Translation(-c)
+            )
+            obj.matrix_world = grow @ obj.matrix_world
+        bpy.context.view_layer.update()
+        log(f"plates grown x{ARGS.part_scale:.2f} about their own centres")
 
     # ---- Fit to the authored crown's footprint -----------------------
     lo, hi = world_bounds(kept)
@@ -487,23 +868,34 @@ def main():
     # Uniform, driven by height, so proportions survive the fit — the
     # depth ratio is the property that separates this candidate from the
     # ones that read as wreaths, and a non-uniform fit would destroy it.
-    scale = target_size.z / max(size.z, 1e-6)
-    log(f"fitting: candidate {tuple(round(v, 2) for v in size)} "
-        f"-> scale {scale:.3f}")
+    if ARGS.fit == "width":
+        scale = target_size.x / max(size.x, 1e-6)
+    else:
+        scale = target_size.z / max(size.z, 1e-6)
+    scale *= ARGS.fit_scale
+    place = target_centre + Vector((0.0, 0.0, ARGS.fit_offset_z))
+    log(f"fitting on {ARGS.fit}: candidate {tuple(round(v, 2) for v in size)} "
+        f"-> scale {scale:.3f}, centre z {place.z:.2f}")
 
     xform = (
-        Matrix.Translation(target_centre)
+        Matrix.Translation(place)
         @ Matrix.Diagonal((scale, scale, scale, 1.0))
         @ Matrix.Translation(-centre)
     )
     for obj in kept:
         obj.matrix_world = xform @ obj.matrix_world
+    bpy.context.view_layer.update()
 
     # ---- Bore the throat ---------------------------------------------
     lo, hi = world_bounds(kept)
     size = hi - lo
     centre = (lo + hi) / 2.0
+    # Boring is skipped at 0. A colonnade's throat is the space its
+    # columns leave, and drilling a second hole through the middle of it
+    # would cut the far wall out of its own nave.
     radius = ARGS.bore * max(size.x, size.z) * 0.5
+    if ARGS.bore <= 0.0:
+        log("throat boring skipped — aperture comes from the arrangement")
     # The viewer stands at -Y, so depth into the entity runs +Y. The cut
     # begins behind the funnel and runs out through the back.
     front = lo.y
@@ -511,29 +903,30 @@ def main():
     back = hi.y + size.y * 0.35
     depth = back - start
 
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=radius,
-        depth=depth,
-        vertices=48,
-        location=(centre.x, start + depth * 0.5, centre.z),
-    )
-    cutter = bpy.context.active_object
-    cutter.name = "DL_ThroatCutter"
-    # Stand the cylinder along the facing axis (-Y): default is +Z.
-    cutter.rotation_euler = (math.radians(90.0), 0.0, 0.0)
-    bpy.context.view_layer.update()
+    if ARGS.bore > 0.0:
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=radius,
+            depth=depth,
+            vertices=48,
+            location=(centre.x, start + depth * 0.5, centre.z),
+        )
+        cutter = bpy.context.active_object
+        cutter.name = "DL_ThroatCutter"
+        # Stand the cylinder along the facing axis (-Y): default is +Z.
+        cutter.rotation_euler = (math.radians(90.0), 0.0, 0.0)
+        bpy.context.view_layer.update()
 
-    bpy.context.view_layer.objects.active = body
-    boolean = body.modifiers.new("throat", "BOOLEAN")
-    boolean.operation = "DIFFERENCE"
-    boolean.object = cutter
-    boolean.solver = "EXACT"
-    try:
-        bpy.ops.object.modifier_apply(modifier=boolean.name)
-        log(f"bored throat: radius {radius:.3f}, from {ARGS.bore_start:.0%} depth")
-    except RuntimeError as exc:
-        log(f"WARNING throat boolean failed ({exc}); mesh left closed")
-    bpy.data.objects.remove(cutter, do_unlink=True)
+        bpy.context.view_layer.objects.active = body
+        boolean = body.modifiers.new("throat", "BOOLEAN")
+        boolean.operation = "DIFFERENCE"
+        boolean.object = cutter
+        boolean.solver = "EXACT"
+        try:
+            bpy.ops.object.modifier_apply(modifier=boolean.name)
+            log(f"bored throat: radius {radius:.3f}, from {ARGS.bore_start:.0%} depth")
+        except RuntimeError as exc:
+            log(f"WARNING throat boolean failed ({exc}); mesh left closed")
+        bpy.data.objects.remove(cutter, do_unlink=True)
 
     # Meshy output is not manifold, and an exact boolean against
     # non-manifold input leaves slivers and stray verts behind. Weld and
@@ -571,7 +964,15 @@ def main():
     # shards read as debris and answer the field more quietly.
     for index, obj in enumerate(kept):
         obj.name = f"DL_MeshyCrown_{index + 1:02d}"
-        primary = obj is body or len(obj.data.polygons) > 2000
+        # GEOMETRIC, not by face count.
+        #
+        # Face count tracks surface detail, not importance. On a
+        # part-segmented ring the chunks are all much the same size but
+        # their densities differ by 4x, so a face-count threshold made
+        # one slab primary and the other forty-four debris. Physical size
+        # is what decides whether a piece is the face of the being.
+        biggest = max(max(island_dims(o)) for o in kept)
+        primary = obj is body or max(island_dims(obj)) > biggest * 0.45
         obj["dl_role"] = "crown_slab"
         obj["dl_material_class"] = (
             "MAT_CROWN_PRIMARY" if primary else "MAT_CROWN_SECONDARY"
@@ -601,6 +1002,18 @@ def main():
 
     faces = sum(len(o.data.polygons) for o in kept)
     log(f"crown: {len(kept)} parts, {faces} faces")
+
+    # The outer ring joins `kept`, so it is included in the exterior
+    # bounds the whole runtime samples the reaction field against — left
+    # out, the field would be normalised to the inner mass only and the
+    # outer ring would sample off the end of the texture.
+    # Both are sized from the crown's own bounds, so they are measured
+    # BEFORE the outer ring joins `kept` and inflates them.
+    crown_bounds = world_bounds(kept)
+    if ARGS.halo_scale > 0.0:
+        place_halo(*crown_bounds)
+    if OUTER_SRC:
+        kept.extend(build_outer_ring(*crown_bounds))
 
     # ---- Drop authoring guides ---------------------------------------
     # DL_CameraPath and DL_CameraClearance are layout aids. They carry

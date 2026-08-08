@@ -139,7 +139,7 @@ async function boot(): Promise<void> {
   //      drops to the poster and the DOM narrative is untouched.
   try {
     await scene.loadEntity(
-      `${import.meta.env.BASE_URL}models/DL_Crown_Meshy_v01.glb`,
+      `${import.meta.env.BASE_URL}models/DL_Aurora_v01.glb`,
       (fraction) => setLoaderProgress(0.45 + fraction * 0.18)
     );
   } catch (error) {
@@ -149,6 +149,20 @@ async function boot(): Promise<void> {
     reveals.revealHero();
     return;
   }
+  // 3c — The two environment backplates. Not fatal if absent: they are
+  //      the only assets authored outside the repo, and the world is
+  //      composed and complete without them.
+  try {
+    await scene.loadEnvironment(
+      `${import.meta.env.BASE_URL}environment/crowned-heavenly.webp`,
+      `${import.meta.env.BASE_URL}environment/latent-menacing.webp`
+    );
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[dark-lattice] environment plates not loaded —', String(error));
+    }
+  }
+
   setLoaderProgress(0.63);
 
   // 4 — Grow the reaction field. This is the bulk of the real
