@@ -23,7 +23,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import monolith_v2_form as form  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-OUT = os.path.join(ROOT, "design", "clay")
+OUT = os.path.join(ROOT, "design", "clay", os.environ.get("DL_CLAY_DIR", "r1"))
+# DL_FAST=1 renders only the hero object-ID mask, for tuning the
+# mass hierarchy without paying for the whole contact sheet.
+FAST = os.environ.get("DL_FAST") == "1"
 
 CLAY = (0.52, 0.52, 0.53, 1.0)
 TIER_COLOUR = {
@@ -149,6 +152,24 @@ def shading():
     return bpy.context.scene.display.shading
 
 
+def clay_object_mode():
+    """Clay shading, but per-object colour, so the spine can be told from
+    the masses in the recess close view without adding a material."""
+    s = shading()
+    s.light = "STUDIO"
+    s.studio_light = "Default"
+    s.color_type = "OBJECT"
+    s.show_cavity = True
+    s.cavity_type = "BOTH"
+    s.curvature_ridge_factor = 1.4
+    s.curvature_valley_factor = 1.4
+    s.show_shadows = True
+    s.shadow_intensity = 0.42
+    s.show_object_outline = False
+    bpy.context.scene.view_settings.view_transform = "Standard"
+    set_background((0.012, 0.012, 0.014))
+
+
 def clay_mode():
     s = shading()
     s.light = "STUDIO"
@@ -175,6 +196,14 @@ def flat_mode(background):
     s.show_object_outline = False
     bpy.context.scene.view_settings.view_transform = "Raw"
     set_background(background)
+
+
+def id_colours():
+    ids = {}
+    for index, obj in enumerate(masses()):
+        ids[obj.name] = ((index + 1) * 25 / 255.0, 0.0, 0.0, 1.0)
+    ids[spine().name] = (0.0, 200 / 255.0, 0.0, 1.0)
+    return ids
 
 
 def set_colours(mapping, default=(0.0, 0.0, 0.0, 1.0)):
@@ -206,6 +235,13 @@ def main():
     scene.camera = camera
     subj = subject()
     set_visible(subj)
+
+    if FAST:
+        flat_mode((0.0, 0.0, 0.0))
+        set_colours(id_colours(), default=(0.0, 0.0, 0.0, 1.0))
+        hero_frame(camera)
+        render("A00-mask-hero", 1440, 900)
+        return
 
     # ---- Clay elevations -------------------------------------------
     clay_mode()
@@ -255,12 +291,7 @@ def main():
     # Black ground: the measurement pass reads identity out of the pixel
     # values, so anything non-zero in the background is a false mass.
     flat_mode((0.0, 0.0, 0.0))
-    ids = {}
-    for index, obj in enumerate(masses()):
-        value = (index + 1) * 25 / 255.0
-        ids[obj.name] = (value, 0.0, 0.0, 1.0)
-    ids[spine().name] = (0.0, 200 / 255.0, 0.0, 1.0)
-    set_colours(ids, default=(0.0, 0.0, 0.0, 1.0))
+    set_colours(id_colours(), default=(0.0, 0.0, 0.0, 1.0))
 
     frame(camera, subj, 90.0, 0.0, 32.0, 1440, 900)
     render("A00-mask-elevation", 1440, 900)
@@ -281,6 +312,26 @@ def main():
     clay_mode()
     hero_frame(camera)
     render("A09-hero-type-safe-zone", 1440, 900)
+
+    # ---- A12: the hero recess, close -----------------------------------
+    # Proves the recess is real depth and that the spine is glimpsed
+    # through it. Clay shading with two tones, not a material.
+    clay_object_mode()
+    set_colours(
+        {o.name: (0.44, 0.44, 0.45, 1.0) for o in masses()},
+        default=(0.80, 0.80, 0.82, 1.0),
+    )
+    profile = form.RECESS["profile"]
+    cx = sum(p[0] for p in profile) / len(profile)
+    cy = sum(p[1] for p in profile) / len(profile)
+    camera.data.angle_y = math.radians(30.0)
+    camera.data.shift_x = 0.0
+    look_at(
+        camera,
+        form.to_blender((cx + 1.15, cy + 0.55, 3.60)),
+        form.to_blender((cx - 0.05, cy, 0.15)),
+    )
+    render("A12-spine-recess-close", 1200, 900)
 
 
 main()

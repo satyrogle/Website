@@ -1,0 +1,230 @@
+{
+  "asset": "design/clay/DL_FullForm_v03_clay.glb",
+  "observations": {
+    "longestApertureEdge": {
+      "side": "gap-right-edge",
+      "x": 822,
+      "from": 467,
+      "to": 822
+    },
+    "longestStraightOuterEdgePercent": 93.9,
+    "silhouetteFill": 0.765
+  },
+  "authored": {
+    "width": 2.54,
+    "depth": 1.48,
+    "height": 7.5,
+    "haloRadius": 1.9
+  },
+  "areas": [
+    {
+      "name": "DL_FullForm_Outer_03",
+      "tier": "front",
+      "role": "dominant_a",
+      "percent": 29.608065124804572,
+      "pixels": 43936,
+      "centroid": [
+        851,
+        650
+      ]
+    },
+    {
+      "name": "DL_FullForm_Outer_04",
+      "tier": "front",
+      "role": "dominant_b",
+      "percent": 19.653350584937193,
+      "pixels": 29164,
+      "centroid": [
+        970,
+        625
+      ]
+    },
+    {
+      "name": "DL_FullForm_Outer_02",
+      "tier": "mid",
+      "role": "supporting",
+      "percent": 13.871367728718528,
+      "pixels": 20584,
+      "centroid": [
+        854,
+        335
+      ]
+    },
+    {
+      "name": "DL_FullForm_Outer_06",
+      "tier": "mid",
+      "role": "supporting",
+      "percent": 10.638039786511403,
+      "pixels": 15786,
+      "centroid": [
+        961,
+        279
+      ]
+    },
+    {
+      "name": "DL_FullForm_Outer_05",
+      "tier": "mid",
+      "role": "supporting",
+      "percent": 10.290312146207341,
+      "pixels": 15270,
+      "centroid": [
+        924,
+        346
+      ]
+    },
+    {
+      "name": "DL_FullForm_Outer_01",
+      "tier": "rear",
+      "role": "rear_structural",
+      "percent": 7.070462019515878,
+      "pixels": 10492,
+      "centroid": [
+        788,
+        580
+      ]
+    },
+    {
+      "name": "DL_FullForm_Outer_07",
+      "tier": "rear",
+      "role": "rear_structural",
+      "percent": 6.601434039570867,
+      "pixels": 9796,
+      "centroid": [
+        799,
+        331
+      ]
+    }
+  ],
+  "gaps": {
+    "count": 37,
+    "min": 1,
+    "max": 27
+  },
+  "silhouette": {
+    "at512": {
+      "components": 1,
+      "largestFraction": 1,
+      "holePixels": 0,
+      "height": 446,
+      "width": 174,
+      "longestEdgeRun": 419,
+      "fill": 0.7646255347662492
+    },
+    "at128": {
+      "components": 1,
+      "largestFraction": 1,
+      "holePixels": 0,
+      "height": 111,
+      "width": 43,
+      "longestEdgeRun": 104,
+      "fill": 0.7770794049863817
+    },
+    "mobile": {
+      "components": 1,
+      "largestFraction": 1,
+      "holePixels": 0,
+      "height": 734,
+      "width": 287,
+      "longestEdgeRun": 690,
+      "fill": 0.7650931842132745
+    }
+  },
+  "checks": [
+    {
+      "id": "height-to-width",
+      "target": "2.5 - 3.0",
+      "value": "2.95",
+      "pass": true
+    },
+    {
+      "id": "seven-separate-masses",
+      "target": "7 masses present",
+      "value": "7",
+      "pass": true
+    },
+    {
+      "id": "straight-aperture-edge",
+      "target": "< 40% of height",
+      "value": "47.8%",
+      "pass": false
+    },
+    {
+      "id": "top-bridge-span",
+      "target": "< 45% of width",
+      "value": "0.0%",
+      "pass": true
+    },
+    {
+      "id": "centre-not-enclosed",
+      "target": "no enclosed hole in the silhouette",
+      "value": "0 px",
+      "pass": true
+    },
+    {
+      "id": "depth-tiers",
+      "target": ">= 3 tiers",
+      "value": "3",
+      "pass": true
+    },
+    {
+      "id": "gaps-not-uniform",
+      "target": "max/min > 1.2",
+      "value": "27.00",
+      "pass": true
+    },
+    {
+      "id": "no-two-leaf-split",
+      "target": "no full-height central slit",
+      "value": "1 component(s)",
+      "pass": true
+    },
+    {
+      "id": "coherent-at-128",
+      "target": "1 component, >= 97% in the largest",
+      "value": "1 component(s), 100.0%",
+      "pass": true
+    },
+    {
+      "id": "halo-diameter",
+      "target": "1.35 - 1.70x the form width",
+      "value": "1.50x geometric, 1.23x projected",
+      "pass": true
+    },
+    {
+      "id": "dominant-a-area",
+      "target": "27 - 30%, and the largest mass",
+      "value": "29.6% (03, dominant_a)",
+      "pass": true
+    },
+    {
+      "id": "dominant-b-area",
+      "target": "19 - 22%",
+      "value": "19.7% (04, dominant_b)",
+      "pass": true
+    },
+    {
+      "id": "supporting-areas",
+      "target": "8 - 14% each, three of them",
+      "value": "13.9% / 10.6% / 10.3%",
+      "pass": true
+    },
+    {
+      "id": "rear-areas",
+      "target": "5 - 8% each, two of them",
+      "value": "7.1% / 6.6%",
+      "pass": true
+    },
+    {
+      "id": "spine-recessed",
+      "target": "1.5 - 3.0% of visible structure",
+      "value": "2.27%",
+      "pass": true
+    },
+    {
+      "id": "mobile-silhouette",
+      "target": "1 component at 390x844",
+      "value": "1 component(s)",
+      "pass": true
+    }
+  ]
+}

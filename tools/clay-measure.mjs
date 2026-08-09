@@ -16,7 +16,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { launch } from './browser.mjs';
 
-const CLAY = path.resolve('design/clay');
+const CLAY = path.resolve('design/clay', process.env.DL_CLAY_DIR ?? 'r1');
+const OUT_JSON = path.resolve('design/clay', process.env.DL_MEASURE_OUT ?? 'gate-a-r1-measurements.json');
 const FORM = path.resolve('tools/blender/monolith_v2_form.py');
 
 const MASS_NAMES = [
@@ -44,7 +45,8 @@ async function authored() {
     (m) => [Number(m[1]), Number(m[2]), Number(m[3])]
   );
   const tiers = [...text.matchAll(/"tier": TIER_(\w+)/g)].map((m) => m[1].toLowerCase());
-  return { plan, ground, apex, width, depth, haloRadius, offsets, tiers };
+  const roles = [...text.matchAll(/"role": "(\w+)"/g)].map((m) => m[1]);
+  return { plan, ground, apex, width, depth, haloRadius, offsets, tiers, roles };
 }
 
 async function decode(page, file) {
@@ -66,7 +68,7 @@ async function decode(page, file) {
 /** Per-mass pixel counts and boxes from an ID mask. */
 function readMask(image) {
   const { width, height, data } = image;
-  const masses = MASS_NAMES.map(() => ({ pixels: 0, minX: 1e9, maxX: -1, minY: 1e9, maxY: -1 }));
+  const masses = MASS_NAMES.map(() => ({ pixels: 0, minX: 1e9, maxX: -1, minY: 1e9, maxY: -1, sumX: 0, sumY: 0 }));
   let spine = 0;
   let structure = 0;
   const owner = new Int16Array(width * height).fill(-1);
@@ -87,6 +89,8 @@ function readMask(image) {
       if (id < 0 || id >= masses.length) continue;
       const m = masses[id];
       m.pixels++;
+      m.sumX += x;
+      m.sumY += y;
       if (x < m.minX) m.minX = x;
       if (x > m.maxX) m.maxX = x;
       if (y < m.minY) m.minY = y;
@@ -238,27 +242,44 @@ function longestApertureEdge(mask, box) {
   let longest = 0;
   const edges = new Map();
   for (let y = box.minY; y <= box.maxY; y++) {
-    let previousOwner = -1;
+    // Only boundaries with structure on BOTH sides count: the outer
+    // silhouette is not an aperture edge, and counting it made the
+    // measurement stricter than the criterion it stands for.
+    let first = -1;
+    let last = -1;
     for (let x = box.minX; x <= box.maxX; x++) {
+      if (owner[y * width + x] >= 0) {
+        if (first < 0) first = x;
+        last = x;
+      }
+    }
+    if (first < 0) continue;
+    let previousOwner = -1;
+    for (let x = first; x <= last; x++) {
       const id = owner[y * width + x];
       if (id < 0 && previousOwner >= 0) edges.set(`o${y}`, x);
-      if (id >= 0 && previousOwner < 0 && x > box.minX) edges.set(`i${y}`, x);
+      if (id >= 0 && previousOwner < 0) edges.set(`i${y}`, x);
       previousOwner = id;
     }
   }
+  let where = null;
   for (const key of ['o', 'i']) {
     let previous = null;
     let run = 0;
+    let start = 0;
     for (let y = box.minY; y <= box.maxY; y++) {
       const value = edges.get(key + y);
       if (value === undefined) { previous = null; run = 0; continue; }
       if (previous !== null && Math.abs(value - previous) <= 1) run++;
-      else run = 1;
+      else { run = 1; start = y; }
       previous = value;
-      if (run > longest) longest = run;
+      if (run > longest) {
+        longest = run;
+        where = { side: key === 'o' ? 'gap-left-edge' : 'gap-right-edge', x: value, from: start, to: y };
+      }
     }
   }
-  return longest;
+  return { longest, where };
 }
 
 /** Widest horizontal run of a single mass in the top quarter of the form. */
@@ -370,15 +391,20 @@ async function main() {
   const areas = maskHero.masses.map((m, i) => ({
     name: MASS_NAMES[i],
     tier: spec.tiers[i],
+    role: spec.roles[i],
     percent: (m.pixels / totalHero) * 100,
     pixels: m.pixels,
+    centroid: m.pixels
+      ? [Math.round(m.sumX / m.pixels), Math.round(m.sumY / m.pixels)]
+      : null,
   }));
   areas.sort((a, b) => b.percent - a.percent);
 
   const elevationBox = maskBox(maskElevation);
   const bridges = topBridge(maskElevation, elevationBox);
   const gaps = gapWidths(maskElevation, elevationBox);
-  const apertureEdge = longestApertureEdge(maskElevation, elevationBox);
+  const aperture = longestApertureEdge(maskElevation, elevationBox);
+  const apertureEdge = aperture.longest;
   const gapMin = gaps.length ? Math.min(...gaps) : 0;
   const gapMax = gaps.length ? Math.max(...gaps) : 0;
 
@@ -451,33 +477,44 @@ async function main() {
     },
     {
       id: 'dominant-a-area',
-      target: '24 - 31% of visible structure',
-      value: areas[0].percent.toFixed(1) + '% (' + areas[0].name.slice(-2) + ')',
-      pass: areas[0].percent >= 24 && areas[0].percent <= 31,
+      target: '27 - 30%, and the largest mass',
+      value: areas[0].percent.toFixed(1) + '% (' + areas[0].name.slice(-2) + ', ' + areas[0].role + ')',
+      pass:
+        areas[0].percent >= 27 &&
+        areas[0].percent <= 30 &&
+        areas[0].role === 'dominant_a',
     },
     {
       id: 'dominant-b-area',
-      target: '17 - 24%',
-      value: areas[1].percent.toFixed(1) + '% (' + areas[1].name.slice(-2) + ')',
-      pass: areas[1].percent >= 17 && areas[1].percent <= 24,
+      target: '19 - 22%',
+      value: areas[1].percent.toFixed(1) + '% (' + areas[1].name.slice(-2) + ', ' + areas[1].role + ')',
+      pass:
+        areas[1].percent >= 19 &&
+        areas[1].percent <= 22 &&
+        areas[1].role === 'dominant_b',
     },
     {
       id: 'supporting-areas',
-      target: '8 - 16% each, three of them',
+      target: '8 - 14% each, three of them',
       value: areas.slice(2, 5).map((a) => a.percent.toFixed(1) + '%').join(' / '),
-      pass: areas.slice(2, 5).every((a) => a.percent >= 8 && a.percent <= 16),
+      pass: areas
+        .slice(2, 5)
+        .every((a) => a.percent >= 8 && a.percent <= 14 && a.role === 'supporting'),
     },
     {
       id: 'rear-areas',
-      target: '4 - 10% each, two of them',
+      target: '5 - 8% each, two of them',
       value: areas.slice(5, 7).map((a) => a.percent.toFixed(1) + '%').join(' / '),
-      pass: areas.slice(5, 7).every((a) => a.percent >= 4 && a.percent <= 10),
+      pass: areas
+        .slice(5, 7)
+        .every((a) => a.percent >= 5 && a.percent <= 8 && a.role === 'rear_structural'),
     },
     {
       id: 'spine-recessed',
-      target: 'visible but under 6% of structure',
-      value: ((maskHero.spine / totalHero) * 100).toFixed(1) + '%',
-      pass: maskHero.spine / totalHero > 0 && maskHero.spine / totalHero < 0.06,
+      target: '1.5 - 3.0% of visible structure',
+      value: ((maskHero.spine / totalHero) * 100).toFixed(2) + '%',
+      pass:
+        maskHero.spine / totalHero >= 0.015 && maskHero.spine / totalHero <= 0.03,
     },
     {
       id: 'mobile-silhouette',
@@ -488,8 +525,9 @@ async function main() {
   ];
 
   const result = {
-    asset: 'design/clay/DL_FullForm_v02_clay.glb',
+    asset: 'design/clay/DL_FullForm_v03_clay.glb',
     observations: {
+      longestApertureEdge: aperture.where,
       longestStraightOuterEdgePercent: Number(
         ((sil512.longestEdgeRun / sil512.height) * 100).toFixed(1)
       ),
@@ -510,10 +548,7 @@ async function main() {
   delete result.silhouette.at128.box;
   delete result.silhouette.mobile.box;
 
-  await writeFile(
-    path.join(CLAY, 'gate-a-measurements.json'),
-    JSON.stringify(result, null, 2)
-  );
+  await writeFile(OUT_JSON, JSON.stringify(result, null, 2));
 
   console.log('\nGATE A — measured checks\n');
   for (const c of checks) {

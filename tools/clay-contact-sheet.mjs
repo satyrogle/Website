@@ -12,7 +12,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { launch } from './browser.mjs';
 
-const CLAY = path.resolve('design/clay');
+const CLAY = path.resolve('design/clay', process.env.DL_CLAY_DIR ?? 'r1');
+const SHEET = path.resolve('design/clay', process.env.DL_SHEET ?? 'GATE-A-R1-contact-sheet.png');
+const MEASURE = path.resolve('design/clay', process.env.DL_MEASURE ?? 'gate-a-r1-measurements.json');
 
 const TILES = [
   ['A01-front-1440x900.png', 'A01 front elevation'],
@@ -25,6 +27,8 @@ const TILES = [
   ['A05-silhouette-512.png', 'A05 silhouette 512'],
   ['A06-silhouette-128.png', 'A06 silhouette 128'],
   ['A10-mobile-silhouette-390x844.png', 'A10 mobile silhouette 390×844'],
+  ['A11-mass-area-overlay.png', 'A11 measured projected area per mass'],
+  ['A12-spine-recess-close.png', 'A12 hero recess and inner spine, close'],
 ];
 
 async function dataUrl(file) {
@@ -34,11 +38,12 @@ async function dataUrl(file) {
 
 async function main() {
   const images = {};
-  for (const [file] of TILES) images[file] = await dataUrl(file);
+  for (const [file] of TILES) {
+    if (file === 'A11-mass-area-overlay.png') continue;
+    images[file] = await dataUrl(file);
+  }
   images['A00-halo-hero.png'] = await dataUrl('A00-halo-hero.png');
-  const measurements = JSON.parse(
-    await readFile(path.join(CLAY, 'gate-a-measurements.json'), 'utf8')
-  );
+  const measurements = JSON.parse(await readFile(MEASURE, 'utf8'));
 
   const browser = await launch();
   const context = await browser.newContext({
@@ -124,6 +129,65 @@ async function main() {
   );
   images['A09-hero-type-safe-zone.png'] = overlay;
 
+  // ---- A11: measured area per mass -----------------------------------
+  const overlayAreas = await page.evaluate(
+    async ({ hero, areas }) => {
+      const load = (src) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = src;
+        });
+      const base = await load(hero);
+      const c = document.createElement('canvas');
+      c.width = base.width;
+      c.height = base.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(base, 0, 0);
+      ctx.font = '600 20px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      for (const a of areas) {
+        if (!a.centroid) continue;
+        const [x, y] = a.centroid;
+        const label = `${a.name.slice(-2)}  ${a.percent.toFixed(1)}%`;
+        const width = ctx.measureText(label).width + 16;
+        ctx.fillStyle = 'rgba(5, 7, 10, 0.78)';
+        ctx.fillRect(x - width / 2, y - 17, width, 26);
+        ctx.fillStyle =
+          a.role === 'dominant_a' || a.role === 'dominant_b'
+            ? 'rgba(74, 201, 245, 0.98)'
+            : a.role === 'rear_structural'
+              ? 'rgba(201, 154, 82, 0.98)'
+              : 'rgba(238, 240, 242, 0.95)';
+        ctx.fillText(label, x, y + 3);
+        ctx.font = '400 13px ui-monospace, monospace';
+        ctx.fillStyle = 'rgba(153, 161, 169, 0.95)';
+        ctx.fillText(a.role, x, y + 22);
+        ctx.font = '600 20px ui-monospace, monospace';
+      }
+      // Cropped to the subject: at hero framing the form sits in the
+      // right-hand third, and uncropped labels are unreadable.
+      const xs = areas.filter((a) => a.centroid).map((a) => a.centroid[0]);
+      const ys = areas.filter((a) => a.centroid).map((a) => a.centroid[1]);
+      const pad = 190;
+      const x0 = Math.max(0, Math.min(...xs) - pad);
+      const x1 = Math.min(c.width, Math.max(...xs) + pad);
+      const y0 = Math.max(0, Math.min(...ys) - pad);
+      const y1 = Math.min(c.height, Math.max(...ys) + pad);
+      const crop = document.createElement('canvas');
+      crop.width = x1 - x0;
+      crop.height = y1 - y0;
+      crop.getContext('2d').drawImage(c, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      return crop.toDataURL('image/png');
+    },
+    { hero: images['A09-hero-type-safe-zone.png'], areas: measurements.areas }
+  );
+  await writeFile(
+    path.join(CLAY, 'A11-mass-area-overlay.png'),
+    Buffer.from(overlayAreas.split(',')[1], 'base64')
+  );
+  images['A11-mass-area-overlay.png'] = overlayAreas;
+
   // ---- Sheet --------------------------------------------------------
   const rows = measurements.checks
     .map(
@@ -157,8 +221,8 @@ async function main() {
       td:nth-child(2) { font-family: ui-monospace, monospace; color: #c3c9cf; width: 220px; }
       td:nth-child(4) { color: #858d94; }
     </style>
-    <h1>Gate A — Full Form clay</h1>
-    <p class="sub">design/clay/DL_FullForm_v02_clay.glb · clay only, no material, no fissures, no emission</p>
+    <h1>Gate A R1 — Full Form clay, correction pass</h1>
+    <p class="sub">design/clay/DL_FullForm_v03_clay.glb · clay only, no material, no fissures, no emission</p>
     <div class="grid">${tiles}</div>
     <table>${rows}</table>
   `);
@@ -168,11 +232,11 @@ async function main() {
     return { width: Math.ceil(r.width), height: Math.ceil(r.height) + 34 };
   });
   await page.screenshot({
-    path: path.join(CLAY, 'GATE-A-contact-sheet.png'),
+    path: SHEET,
     clip: { x: 0, y: 0, ...box },
   });
   await browser.close();
-  console.log('wrote design/clay/GATE-A-contact-sheet.png');
+  console.log('wrote ' + SHEET);
 }
 
 main().catch((error) => {

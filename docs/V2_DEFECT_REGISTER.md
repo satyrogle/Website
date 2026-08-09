@@ -82,22 +82,30 @@ fixed until the gate that owns it has founder approval.
 | N-01 | All five prologue beats remain in the accessibility tree at opacity 0; a screen-reader user hears every statement regardless of scroll position. Deliberate in v1, but should be reconciled with the `inert` work in D-07. | D | open |
 | N-02 | Violet retained network covers most of the latent core rather than concentrating into one seam | C | open |
 
-## Observed at Gate A
+## Observed at Gate A — closed by the R1 correction pass
 
-Measured against `design/clay/gate-a-measurements.json`. 14 of 16
-quantitative checks pass; these are the two that do not, plus what the
-renders show that no check covers.
+The founder review of 2026-08-09 did not approve Gate A and required one
+clay correction pass. Measured against
+`design/clay/gate-a-r1-measurements.json`; 15 of 16 checks pass.
 
 | ID | Defect | Gate | Status |
 | --- | --- | --- | --- |
-| GA-01 | `DL_FullForm_Outer_03` holds 48.3% of the visible projected area against a 24–31% target for the dominant mass. One mass carries too much of the frontal read. | A | open |
-| GA-02 | The two rear structural masses hold 3.7% and 2.2% against a 4–10% target. They are more concealed than intended. | A | open |
-| GA-03 | The base still reads as a slightly separate plinth ring in the front elevation, a weaker version of the same problem the v1 setbacks had. | A | open |
-| GA-04 | The `role` labels in the form table (dominant / supporting / rear) no longer match the measured areas after the fracture tree was re-authored as a frontal mosaic. Labels need re-assigning to the masses that actually carry the composition. | A | open |
-| GA-05 | The 128px silhouette resolves to five connected components, 99.9% of area in the largest. It reads as one building, but two sliver masses detach under anti-aliasing and should be thickened. | A | open |
-| GA-06 | No passage is cut through the form, so the camera cannot enter it. Deferred to Gate B by design, but the recessed front channel from the first iteration was lost when the grammar changed and needs re-authoring as a real void. | B | open |
-| GA-07 | The inner spine reads at only 0.5% of structure from the hero framing, glimpsed through the crown shear rather than through a front recess. | A/B | open |
-| GA-08 | The clay renders are Workbench studio lighting. They prove silhouette, mass and depth, but not how the form behaves under the site's own key/rim arc. | C | open |
+| GA-01 | One mass held 48.3% of the visible projected area. | A | corrected — dominant A is now 29.6%, and still the largest |
+| GA-02 | The two rear masses held 3.7% and 2.2%. | A | corrected — 7.1% and 6.6%, inside the preferred bands |
+| GA-03 | The base read as a separate plinth ring. | A | corrected — the plinth setback is gone, the base is sheared on a tilted plane and the three ground-touching masses terminate at different heights |
+| GA-04 | Declared roles did not match measured areas. | A | corrected — hierarchy was fixed first, then `role` and `tier` were written to describe the measured result, and the checks now assert the role of each band |
+| GA-05 | Two sliver masses detached at 128px. | A | corrected — one connected component, 100% of area in the largest |
+| GA-06 | No recess at all; the front channel had been lost. | A/B | corrected for Gate A — an irregular, off-centre, tapered recess is cut into the front wall. The full camera passage remains Gate B work and has not been cut |
+| GA-07 | The inner spine read at 0.5% of the hero projection. | A | corrected — 2.27%, inside the required 1.5–3.0% band, seen through the recess rather than over the crown |
+| GA-08 | Clay renders are Workbench studio lighting and do not show behaviour under the site's own key/rim arc. | C | open — Gate C |
+
+## Observed at Gate A R1
+
+| ID | Defect | Gate | Status |
+| --- | --- | --- | --- |
+| R1-01 | `straight-aperture-edge` is 47.8% against a < 40% target, and it passed at 38.0% in the submitted v02. The fracture between dominant A and dominant B projects as one near-straight boundary over roughly half the height. Two single-mass notch planes shorten it but cannot break it: a planar cut always projects to a straight line, so removing this needs a stepped fracture built as a union of two convex cells rather than one half-space chain. That is a pipeline change, not a tuning move, and it was not attempted inside a correction pass. | A | open |
+| R1-02 | The three depth tiers correlate with height — the front tier is the lower half and the mid tier the upper half — rather than interleaving up the form. Depth reads, but not as independently of height as intended. | A | open |
+| R1-03 | Two labels overlap in `A11-mass-area-overlay.png` where two mass centroids are close. Diagnostic legibility only. | A | open |
 
 ## Introduced during v2
 

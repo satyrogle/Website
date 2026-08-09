@@ -24,8 +24,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import monolith_v2_form as form  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-BLEND_OUT = os.path.join(ROOT, "assets", "blender", "DL_Monolith_Workbench_v2.blend")
-GLB_OUT = os.path.join(ROOT, "design", "clay", "DL_FullForm_v02_clay.glb")
+BLEND_OUT = os.path.join(ROOT, "assets", "blender", "DL_Monolith_Workbench_v3.blend")
+GLB_OUT = os.path.join(ROOT, "design", "clay", "DL_FullForm_v03_clay.glb")
 
 COLLECTIONS = [
     "00_REFERENCE",
@@ -130,93 +130,117 @@ def build_mother():
     void = [form.void_ring(y) for y in heights]
     obj = tube("DL_MotherVolume", outer, void, heights, "01_MOTHER_VOLUME")
 
-    # Shear the crown before fracturing, so every mass inherits the same
-    # broken top rather than each being capped level.
-    point, normal = form.CROWN_CUT
-    cell = plane_cell("DL_CrownShear", [(point, normal, False)])
-    modifier = obj.modifiers.new("crown", "BOOLEAN")
-    modifier.operation = "INTERSECT"
+    # Shear the crown and the base before fracturing, so every mass
+    # inherits the same broken top and the same compressed bottom rather
+    # than each being capped level.
+    crown_point, crown_normal = form.CROWN_CUT
+    base_point, base_normal = form.BASE_CUT
+    carve(obj, crown_point, crown_normal, False, "crown")
+    carve(obj, base_point, base_normal, True, "base")
+
+    recess = build_recess_cutter()
+    apply_boolean(obj, recess, "DIFFERENCE", "recess")
+    bpy.data.objects.remove(recess, do_unlink=True)
+
+    obj["dl_note"] = "authored mother volume; the seven masses are cut from this"
+    return obj
+
+
+def apply_boolean(obj, cutter, operation, name):
+    modifier = obj.modifiers.new(name, "BOOLEAN")
+    modifier.operation = operation
     modifier.solver = "EXACT"
-    modifier.object = cell
+    modifier.object = cutter
     depsgraph = bpy.context.evaluated_depsgraph_get()
     mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(depsgraph))
     obj.modifiers.remove(modifier)
     obj.data = mesh
     for polygon in obj.data.polygons:
         polygon.use_smooth = False
-    bpy.data.objects.remove(cell, do_unlink=True)
 
-    obj["dl_note"] = "authored mother volume; the seven masses are cut from this"
+
+def build_recess_cutter():
+    """
+    The hero recess: an irregular frontal profile swept back and tapered,
+    so the channel narrows as it goes in and never shows parallel sides.
+    """
+    spec = form.RECESS
+    profile = spec["profile"]
+    cx = sum(p[0] for p in profile) / len(profile)
+    cy = sum(p[1] for p in profile) / len(profile)
+    taper = spec["taper"]
+
+    verts = []
+    front = []
+    back = []
+    for x, y in profile:
+        front.append(len(verts))
+        verts.append((x, y, spec["z_front"]))
+    for x, y in profile:
+        back.append(len(verts))
+        verts.append((cx + (x - cx) * taper, cy + (y - cy) * taper, spec["z_back"]))
+
+    n = len(profile)
+    faces = []
+    for j in range(n):
+        k = (j + 1) % n
+        faces.append([front[j], front[k], back[k], back[j]])
+    faces.append(list(reversed(front)))
+    faces.append(list(back))
+
+    obj = make_object("DL_RecessCutter", verts, faces, "99_ARCHIVE")
     return obj
 
 
-def plane_cell(name, planes):
+def half_space_box(name, point, normal, keep_positive):
     """
-    The convex cell carved out of a large cube by a list of half-spaces.
-    A convex solid stays convex under a plane cut, so every cut closes
-    with a single loop and the cell is always solid.
+    A half-space as a large box with one face lying on the plane.
+
+    Cutting a cube with bisect_plane and capping it with triangle_fill
+    can leave a non-manifold cell, and an EXACT boolean against a
+    non-manifold operand produces garbage rather than an error — which is
+    how a mass silently lost most of its volume. A box is manifold by
+    construction, so the intersection is always well defined.
     """
+    n = Vector(form.to_blender(normal)).normalized()
+    if not keep_positive:
+        n = -n
+    co = Vector(form.to_blender(point))
+
     mesh = bpy.data.meshes.new(name + "_MESH")
     bm = bmesh.new()
-    bmesh.ops.create_cube(bm, size=40.0)
-    for point, normal, keep_positive in planes:
-        co = Vector(form.to_blender(point))
-        no = Vector(form.to_blender(normal)).normalized()
-        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
-        result = bmesh.ops.bisect_plane(
-            bm,
-            geom=geom,
-            dist=1e-6,
-            plane_co=co,
-            plane_no=no,
-            clear_outer=not keep_positive,
-            clear_inner=keep_positive,
-        )
-        cut_edges = [e for e in result["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
-        if cut_edges:
-            bmesh.ops.triangle_fill(bm, edges=cut_edges, normal=no, use_beauty=True)
+    bmesh.ops.create_cube(bm, size=60.0)
     bm.to_mesh(mesh)
     bm.free()
+
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     link(obj, "99_ARCHIVE")
+    obj.rotation_mode = "QUATERNION"
+    obj.rotation_quaternion = n.to_track_quat("Z", "Y")
+    obj.location = co + n * 30.0
     return obj
 
 
-def half_space_cell(name, path):
-    planes = []
-    for index, keep_positive in path:
-        _, point, normal = form.CUTS[index]
-        planes.append((point, normal, keep_positive))
-    return plane_cell(name, planes)
+def carve(obj, point, normal, keep_positive, label):
+    box = half_space_box(label + "_BOX", point, normal, keep_positive)
+    apply_boolean(obj, box, "INTERSECT", label)
+    bpy.data.objects.remove(box, do_unlink=True)
 
 
 def build_masses(mother):
-    depsgraph = bpy.context.evaluated_depsgraph_get()
     objects = []
     for index, mass in enumerate(form.MASSES):
-        cell = half_space_cell(mass["name"] + "_CELL", mass["path"])
-
         source = mother.copy()
         source.data = mother.data.copy()
         bpy.context.scene.collection.objects.link(source)
         source.name = mass["name"]
 
-        modifier = source.modifiers.new("fracture", "BOOLEAN")
-        modifier.operation = "INTERSECT"
-        modifier.solver = "EXACT"
-        modifier.object = cell
-
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-        evaluated = source.evaluated_get(depsgraph)
-        mesh = bpy.data.meshes.new_from_object(evaluated)
-        source.modifiers.remove(modifier)
-        source.data = mesh
-        for polygon in source.data.polygons:
-            polygon.use_smooth = False
+        for cut_index, keep_positive in mass["path"]:
+            _, point, normal = form.CUTS[cut_index]
+            carve(source, point, normal, keep_positive, "cut%d" % cut_index)
 
         link(source, "02_OUTER_MASSES")
-        bpy.data.objects.remove(cell, do_unlink=True)
 
         source.location = Vector(form.to_blender(mass["offset"]))
         source["dl_role"] = "outer_mass"
@@ -238,6 +262,10 @@ def build_spine():
     heights = [level[0] for level in spec["levels"]]
     rings = [form.spine_ring(y) for y in heights]
     obj = solid(spec["name"], rings, heights, "03_INNER_SPINE")
+    # The spine takes the same base shear as the masses, or its foot
+    # protrudes below the form's sheared bottom.
+    base_point, base_normal = form.BASE_CUT
+    carve(obj, base_point, base_normal, True, "spine_base")
     obj["dl_role"] = "inner_spine"
     obj["dl_material_class"] = "MAT_SPINE"
     obj["dl_visibility_stage"] = "full"

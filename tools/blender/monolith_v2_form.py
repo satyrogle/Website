@@ -66,17 +66,16 @@ PLAN = [
 LEVELS = [
     # y,     scale,  dx,    dz,   twist,  void scale
     (-3.40,  1.00,  0.00,  0.00,   0.0,   0.46),
-    (-2.90,  0.99,  0.03,  0.00,   0.4,   0.47),
-    (-2.85,  0.95, -0.08,  0.04,   0.4,   0.50),   # setback, east face
+    (-2.60,  0.97,  0.02,  0.01,   0.4,   0.49),
     (-1.20,  0.90, -0.04,  0.02,   1.2,   0.54),
     ( 0.10,  0.85,  0.00,  0.00,   1.8,   0.56),
     ( 1.20,  0.80,  0.04, -0.03,   2.4,   0.56),
     ( 1.25,  0.68,  0.16, -0.06,   2.4,   0.62),   # setback, west face
     ( 2.40,  0.65,  0.18, -0.09,   3.0,   0.62),
     ( 3.10,  0.60,  0.16, -0.12,   3.4,   0.64),
-    ( 3.15,  0.50, -0.10, -0.16,   3.4,   0.68),   # setback, east face
-    ( 3.80,  0.47, -0.20, -0.19,   3.8,   0.68),
-    ( 4.10,  0.44, -0.28, -0.22,   4.0,   0.70),
+    ( 3.15,  0.52, -0.06, -0.16,   3.4,   0.66),   # setback, upper works
+    ( 3.80,  0.49, -0.12, -0.19,   3.8,   0.66),
+    ( 4.10,  0.46, -0.16, -0.22,   4.0,   0.68),
 ]
 
 # The core void sits back of the plan's centre, so the front wall is deep
@@ -86,7 +85,40 @@ VOID_OFFSET = (0.0, -0.20)
 # The crown is sheared off at an angle before the form is fractured. A
 # level top on a tapering plan reads as a lighthouse or a chess piece;
 # an angled shear reads as something broken off.
-CROWN_CUT = ((0.0, 3.05, -0.20), (0.30, 0.90, 0.32))
+CROWN_CUT = ((0.0, 3.20, -0.20), (0.24, 0.94, 0.24))
+
+# The base is sheared for the same reason. A level bottom shared by every
+# ground-touching mass reads as a plinth, a ring or a platform however
+# the plan is drawn; a tilted cut plus per-mass height variation reads as
+# compression into the ground.
+BASE_CUT = ((0.0, -3.14, 0.0), (0.26, 0.93, -0.26))
+
+# ---------------------------------------------------------------------
+#  Hero recess
+#
+#  A shallow, irregular, off-centre channel cut into the front wall. It
+#  opens far enough to glimpse the inner spine and no further: it is not
+#  a camera passage, not a rectangle and not centred. Gate B derives the
+#  real route from here.
+# ---------------------------------------------------------------------
+
+RECESS = {
+    # Frontal profile, in (x, y). Seven unequal points, leaning.
+    "profile": [
+        (-0.50, -0.24),
+        (-0.12, -0.40),
+        ( 0.14,  0.06),
+        ( 0.04,  0.94),
+        (-0.24,  1.48),
+        (-0.56,  1.02),
+        (-0.62,  0.26),
+    ],
+    "z_front": 1.20,
+    "z_back": 0.17,
+    # The cut narrows as it goes in, so the recess is a wedge rather than
+    # a box and never presents four parallel sides.
+    "taper": 0.58,
+}
 
 # ---------------------------------------------------------------------
 #  Fracture planes
@@ -101,13 +133,21 @@ CROWN_CUT = ((0.0, 3.05, -0.20), (0.30, 0.90, 0.32))
 #  hides four of the seven masses behind the other three, which is the
 #  same mistake as separating them in depth alone.
 CUTS = [
-    # name,                point,                    normal
-    ("split-east-west",   ( 0.34, -0.10,  0.00), ( 0.90,  0.34,  0.28)),
-    ("east-stack",        ( 0.80,  0.05, -0.10), ( 0.18,  0.94, -0.28)),
-    ("east-upper-split",  ( 0.60,  1.60, -0.05), ( 0.90,  0.30,  0.32)),
-    ("west-columns",      (-0.52, -0.10, -0.05), ( 0.94, -0.18,  0.28)),
-    ("far-west-stack",    (-0.90, -0.30, -0.10), ( 0.14,  0.96, -0.24)),
-    ("mid-west-stack",    (-0.10,  0.15,  0.05), ( 0.22,  0.93, -0.30)),
+    # name,               point,                    normal
+    ("primary-split",       (  0.45,  -0.10,   0.00), (  0.88,   0.14,   0.45)),
+    ("east-stack",          (  0.75,   0.20,  -0.10), (  0.18,   0.94,  -0.26)),
+    ("east-upper-split",    (  1.00,   1.40,  -0.05), (  0.62,   0.24,   0.75)),
+    ("west-columns",        ( -0.82,  -0.10,  -0.05), (  0.80,  -0.10,  -0.59)),
+    ("outer-stack",         ( -0.95,   0.25,  -0.10), (  0.14,   0.96,  -0.24)),
+    ("inner-stack",         ( -0.20,   0.12,   0.05), (  0.22,   0.93,  -0.30)),
+    # A seventh plane used by one mass only. It creates no eighth mass:
+    # it takes a wedge out of dominant A so the long fracture it shares
+    # with dominant B steps instead of running straight.
+    ("inner-notch",         (  0.28,  -1.70,   0.00), (  0.98,   0.20,   0.05)),
+    # The other side of the same fracture. Dominant B keeps a wedge back
+    # so its edge steps too; without it the two masses simply traded one
+    # straight line for another.
+    ("flank-notch",         (  0.71,  -1.70,   0.00), (  0.86,   0.22,   0.46)),
 ]
 
 TIER_FRONT = "front"
@@ -120,59 +160,59 @@ TIER_REAR = "rear"
 MASSES = [
     {
         "name": "DL_FullForm_Outer_01",
-        "note": "far west, lower - the heavy shoulder the form stands on",
+        "note": "outer stack, lower - rear structural, partly concealed",
         "path": [(0, False), (3, False), (4, False)],
-        "tier": TIER_MID,
-        "offset": (-0.20, -0.03, -0.06),
-        "role": "supporting",
+        "tier": TIER_REAR,
+        "offset": (-0.17, -0.07, -0.25),
+        "role": "rear_structural",
     },
     {
         "name": "DL_FullForm_Outer_02",
-        "note": "mid west, upper - dominant A, carries the apex",
+        "note": "inner stack, upper - supporting mass above the shoulder",
         "path": [(0, False), (3, True), (5, True)],
-        "tier": TIER_FRONT,
-        "offset": (-0.10, 0.06, 0.20),
-        "role": "dominant",
-    },
-    {
-        "name": "DL_FullForm_Outer_03",
-        "note": "mid west, lower - dominant B, the face the visitor meets",
-        "path": [(0, False), (3, True), (5, False)],
-        "tier": TIER_FRONT,
-        "offset": (0.02, -0.02, 0.34),
-        "role": "dominant",
-    },
-    {
-        "name": "DL_FullForm_Outer_04",
-        "note": "east, lower - the broad supporting flank",
-        "path": [(0, True), (1, False)],
         "tier": TIER_MID,
-        "offset": (0.16, 0.01, -0.04),
+        "offset": (-0.09, 0.05, -0.03),
         "role": "supporting",
     },
     {
+        "name": "DL_FullForm_Outer_03",
+        "note": "inner stack, lower - dominant A, the face the visitor meets",
+        "path": [(0, False), (3, True), (5, False), (6, False)],
+        "tier": TIER_FRONT,
+        "offset": (0.02, 0.03, 0.26),
+        "role": "dominant_a",
+    },
+    {
+        "name": "DL_FullForm_Outer_04",
+        "note": "east flank, lower - dominant B, the second reading mass",
+        "path": [(0, True), (1, False), (7, True)],
+        "tier": TIER_FRONT,
+        "offset": (0.14, -0.13, 0.16),
+        "role": "dominant_b",
+    },
+    {
         "name": "DL_FullForm_Outer_05",
-        "note": "east, upper inner - supporting, sheared off the flank",
+        "note": "east flank, upper inner - supporting",
         "path": [(0, True), (1, True), (2, False)],
-        "tier": TIER_REAR,
-        "offset": (0.10, -0.06, -0.18),
+        "tier": TIER_MID,
+        "offset": (0.12, -0.05, -0.07),
         "role": "supporting",
     },
     {
         "name": "DL_FullForm_Outer_06",
-        "note": "east, upper outer - structural, partly concealed",
+        "note": "east flank, upper outer - supporting",
         "path": [(0, True), (1, True), (2, True)],
-        "tier": TIER_REAR,
-        "offset": (0.26, 0.04, -0.30),
-        "role": "rear",
+        "tier": TIER_MID,
+        "offset": (0.21, 0.04, -0.11),
+        "role": "supporting",
     },
     {
         "name": "DL_FullForm_Outer_07",
-        "note": "far west, upper - structural, partly concealed",
+        "note": "outer stack, upper - rear structural, partly concealed",
         "path": [(0, False), (3, False), (4, True)],
         "tier": TIER_REAR,
-        "offset": (-0.28, 0.09, -0.26),
-        "role": "rear",
+        "offset": (-0.24, 0.08, -0.28),
+        "role": "rear_structural",
     },
 ]
 
@@ -184,8 +224,8 @@ TIER_DEPTH = {TIER_FRONT: 0, TIER_MID: 1, TIER_REAR: 2}
 
 SPINE = {
     "name": "DL_FullForm_Spine",
-    "centre": (0.02, -0.24),
-    "plan_scale": 0.30,
+    "centre": (0.02, -0.32),
+    "plan_scale": 0.222,
     "levels": [
         # y,     scale
         (-3.40,  1.00),
