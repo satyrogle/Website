@@ -20,6 +20,13 @@
       "runtimeArgs": ["run", "dev", "--", "--port", "5342", "--strictPort"],
       "port": 5342,
       "autoPort": false
+    },
+    {
+      "name": "dark-lattice-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--port", "4183", "--strictPort"],
+      "port": 4183,
+      "autoPort": false
     }
   ]
 }

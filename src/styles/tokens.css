@@ -1,96 +1,74 @@
 /* ============================================================
    Dark Lattice — design tokens
-   Palette is locked by the brief (§3.2). Do not introduce new
-   hues. Amber is a prestige accent for decisive brand/evidence
-   moments only and must never compete with the teal/cyan system.
    ============================================================ */
 
 :root {
-  /* --- Core ground ------------------------------------------------ */
+  /* --- Ground ------------------------------------------------------ */
+  --void: #010204;
   --ground: #080b10;
   --ground-raised: #0e131b;
-  --panel: #121923;
   --text: #eef0f2;
   --muted: #858d94;
-  --line: rgba(230, 235, 240, 0.14);
 
-  /* --- Reactive accents (the living system) ----------------------- */
-  --teal: #36e0b0;
-  --cyan: #4dd0ff;
-  --cold-white: #dff9ff;
+  /* --- Accents ------------------------------------------------------
+     Teal and cyan are the baseline active system. Violet marks retained
+     consequence and is never decorative. Amber belongs to the halo and
+     does not appear in the DOM. */
+  --teal: #2fd8ac;
+  --cyan: #4ac9f5;
+  --violet: #8a5cd8;
 
-  /* --- Prestige accent (rationed) --------------------------------- */
-  --amber: #c9a24a;
-
-  /* The v3 indigo/magenta spectrum was rejected by the founder as
-     "looks AI" — the exact cliché the original brief warned against.
-     The v4 canvas palette is dark-prism monochrome (graphite + ice)
-     with thin-film spectral flashes computed in-shader; the DOM keeps
-     the original teal/cyan accents. */
-
-  /* --- Derived surfaces ------------------------------------------- */
+  /* --- Lines -------------------------------------------------------- */
+  --line: rgba(230, 235, 240, 0.13);
   --line-strong: rgba(230, 235, 240, 0.26);
   --line-faint: rgba(230, 235, 240, 0.07);
-  --panel-veil: rgba(8, 11, 16, 0.72);
-  --panel-veil-solid: rgba(8, 11, 16, 0.87);
 
-  /* --- Type families ---------------------------------------------- */
-  /* Inter, not Space Grotesk. Space Grotesk's quirks (the R leg, the
-     single-storey a, the G spur) read as friendly-tech, and at display
-     size with tight tracking the whole page felt strained. Inter is
-     neutral, has a large x-height and gets out of the way — the object
-     should carry the tension, not the typography. */
-  --font-display: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* --- Type families ------------------------------------------------
+     Three distinct roles. Antonio is condensed and vertical, which is
+     the building; Inter reads; Plex Mono is reserved for real metadata
+     such as engine, platform and status. */
+  --font-display: 'Antonio', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif;
   --font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
-  /* --- Fluid type scale -------------------------------------------
-     Clamped so 390px never overflows and 1920px never bloats.       */
-  --step--2: clamp(0.69rem, 0.66rem + 0.14vw, 0.78rem);
-  --step--1: clamp(0.81rem, 0.77rem + 0.19vw, 0.94rem);
-  --step-0: clamp(1rem, 0.95rem + 0.26vw, 1.19rem);
-  --step-1: clamp(1.19rem, 1.09rem + 0.5vw, 1.5rem);
-  --step-2: clamp(1.35rem, 1.18rem + 0.83vw, 1.92rem);
-  --step-3: clamp(1.62rem, 1.33rem + 1.4vw, 2.56rem);
-  --step-4: clamp(1.94rem, 1.48rem + 2.25vw, 3.41rem);
-  --step-5: clamp(2.33rem, 1.62rem + 3.5vw, 4.55rem);
+  /* --- Type scale ---------------------------------------------------
+     Body sits at 17px on a small laptop and 20px on a wide desktop, and
+     never drops below 16px on a phone. */
+  --step--2: clamp(0.75rem, 0.72rem + 0.12vw, 0.82rem);
+  --step--1: clamp(0.88rem, 0.85rem + 0.14vw, 0.97rem);
+  --step-0: clamp(1rem, 0.96rem + 0.22vw, 1.25rem);
+  --step-1: clamp(1.15rem, 1.06rem + 0.42vw, 1.45rem);
+  --step-2: clamp(1.35rem, 1.2rem + 0.7vw, 1.85rem);
+  --step-3: clamp(1.6rem, 1.35rem + 1.15vw, 2.4rem);
 
-  /* Cinematic display sizes — deliberately viewport-cropping.       */
-  /* Sized to a COLUMN. At 15.5vw the second line ran the full width of
-     the page and printed straight through the entity, so the object
-     could never be read as a silhouette and the type sat on a busy,
-     high-contrast surface. The entity is shifted right by 18% of the
-     frame; this is what leaves it clear. */
-  --display-xl: clamp(3.4rem, 11vw, 11rem);
-  --display-lg: clamp(2.6rem, 9.5vw, 8.5rem);
-  --display-md: clamp(2rem, 6.2vw, 5.2rem);
+  /* Display sizes. Sized to a column, not to the viewport, so the
+     subject on the right always has clear air beside the type. */
+  --display-xl: clamp(3.6rem, 8.4vw, 8rem);
+  --display-lg: clamp(2.4rem, 5.4vw, 4.6rem);
+  --display-md: clamp(2rem, 4vw, 3.4rem);
 
-  /* --- Rhythm ------------------------------------------------------ */
-  --gutter: clamp(1.25rem, 4.5vw, 5.5rem);
-  --movement-pad: clamp(5rem, 13vh, 11rem);
+  /* --- Rhythm ------------------------------------------------------- */
+  --gutter: clamp(1.25rem, 4vw, 4.5rem);
+  --shell: 1280px;
+  --section-pad: clamp(4.5rem, 11vh, 9rem);
   --measure: 58ch;
-  --measure-tight: 48ch;
 
-  /* --- Motion ------------------------------------------------------ */
+  /* --- Motion ------------------------------------------------------- */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
-  --ease-mask: cubic-bezier(0.22, 1, 0.36, 1);
-  --dur-fast: 260ms;
-  --dur-mid: 620ms;
-  --dur-slow: 1100ms;
+  --dur-fast: 240ms;
+  --dur-mid: 600ms;
 
-  /* --- Layering ---------------------------------------------------- */
+  /* --- Layering ----------------------------------------------------- */
   --z-canvas: 0;
-  --z-content: 2;
+  --z-copy: 2;
   --z-chrome: 40;
-  --z-loader: 90;
   --z-skip: 100;
 
   color-scheme: dark;
 }
 
-/* The site is a single dark world; there is no light theme.
-   Honour forced-colors for assistive contrast instead. */
+/* The site is one dark world; there is no light theme. Honour
+   forced-colors for assistive contrast instead. */
 @media (forced-colors: active) {
   :root {
     --line: CanvasText;

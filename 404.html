@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Antonio:wght@600&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -20,8 +20,8 @@
         --text: #eef0f2;
         --muted: #858d94;
         --line: rgba(230, 235, 240, 0.14);
-        --teal: #36e0b0;
-        --cyan: #4dd0ff;
+        --teal: #2fd8ac;
+        --cyan: #4ac9f5;
         color-scheme: dark;
       }
       * { box-sizing: border-box; }
@@ -41,7 +41,7 @@
       .code {
         font-family: 'IBM Plex Mono', ui-monospace, monospace;
         font-size: 0.78rem;
-        letter-spacing: 0.26em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--muted);
         display: flex;
@@ -56,11 +56,12 @@
       }
       h1 {
         margin: 0;
+        font-family: 'Antonio', 'Arial Narrow', system-ui, sans-serif;
         font-size: clamp(2.4rem, 10vw, 7rem);
         line-height: 0.86;
-        letter-spacing: -0.045em;
+        letter-spacing: 0.012em;
         text-transform: uppercase;
-        font-weight: 500;
+        font-weight: 600;
       }
       p { margin: 0; max-width: 46ch; color: var(--muted); }
       a {
@@ -73,7 +74,7 @@
         color: var(--text);
         font-family: 'IBM Plex Mono', ui-monospace, monospace;
         font-size: 0.82rem;
-        letter-spacing: 0.18em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         text-decoration: none;
         width: fit-content;
@@ -84,7 +85,7 @@
     </style>
   </head>
   <body>
-    <p class="code">Error 404 / No record</p>
+    <p class="code">Error 404</p>
     <h1>Nothing<br />here</h1>
     <p>That page does not exist. The system is still running — everything else is where you left it.</p>
     <a href="/">Return to Dark Lattice</a>

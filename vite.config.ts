@@ -13,6 +13,7 @@ export default defineConfig({
       // 404.html is a separate entry or Vite never emits it.
       input: {
         main: resolve(__dirname, 'index.html'),
+        evidence: resolve(__dirname, 'evidence.html'),
         notFound: resolve(__dirname, '404.html'),
       },
       output: {

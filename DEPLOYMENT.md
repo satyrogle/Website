@@ -166,10 +166,11 @@ After upload, check in order:
 2. **Assets 200.** A 404 on `assets/three-*.js` means the folder was
    uploaded one level too deep.
 3. **`/404.html`** returns the styled page, not the host default.
-4. **Evidence table** — open "View cross-engine evidence" and confirm
-   eleven rows.
-5. **Print preview** of the page includes the evidence table.
-6. **Mobile at 360px** — no horizontal scrolling.
+4. **`/evidence.html`** loads, carries eleven carry-over rows and no
+   percentage ranges.
+5. **Print preview** of `/evidence.html` includes the carry-over table.
+6. **Mobile at 390px** — no horizontal scrolling, and the canvas is gone
+   once the editorial section begins.
 
 The full automated pass can be run against the live URL:
 
@@ -181,13 +182,11 @@ node tools/capture.mjs https://darklattice.co.uk captures-live
 
 ## Updating content
 
-Factual copy lives in two places that must stay in agreement:
+Factual copy lives in two files and both are static HTML, so what ships
+is what a no-JavaScript visitor reads:
 
-- `index.html` — what ships and what a no-JS visitor reads.
-- `src/content/evidence.ts` — the checked record, with sources.
+- `index.html` — the prologue statements and the editorial sections.
+- `evidence.html` — the documentary record.
 
-Edit both. `npm run dev` prints
-`[dark-lattice] evidence integrity: OK` in the console when they match,
-and lists every divergence when they do not. That check does not run in
-production builds, so do not rely on it after deploying — run `dev` once
-after any copy change.
+`tools/capture.mjs` asserts the public page for forbidden copy and
+chrome, so run the QA pass after any copy change.

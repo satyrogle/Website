@@ -1,908 +1,519 @@
 /* ============================================================
-   Dark Lattice — movement layouts
-   Seven directed movements over one continuous canvas.
-   No repeated card grids, no bento, no glass panels.
+   Dark Lattice — compositions
+
+   Three composition types and no universal grid: the cinematic
+   beats, the product spread, and the full-width statement / row
+   blocks. No cards, no bento, no panels, no badges.
    ============================================================ */
-
-.movement {
-  position: relative;
-  padding-block: var(--movement-pad);
-  padding-inline: var(--gutter);
-}
-
-/* Movements that must read against the lattice get no plate at all;
-   the ones carrying dense reading get a subtle ground wash so the
-   copy stays legible over the moving 3D field. */
-.movement--washed::before {
-  content: '';
-  position: absolute;
-  inset: -12vh 0;
-  z-index: -1;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--panel-veil-solid) 14%,
-    var(--panel-veil-solid) 86%,
-    transparent
-  );
-  pointer-events: none;
-}
-
-.movement__index {
-  position: absolute;
-  top: var(--movement-pad);
-  right: var(--gutter);
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.2em;
-  color: var(--muted);
-  opacity: 0.6;
-}
-
-@media (max-width: 760px) {
-  .movement__index {
-    display: none;
-  }
-}
 
 /* ============================================================
-   Movement 01 — Cold open / hero
+   PART ONE — cinematic beats
    ============================================================ */
 
-.hero {
-  position: relative;
-  min-height: 100svh;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: clamp(1.5rem, 4vh, 3rem);
-  padding-block: clamp(6rem, 14vh, 9rem) clamp(2rem, 5vh, 3.5rem);
-  padding-inline: var(--gutter);
+.beat {
+  will-change: opacity;
 }
 
-/* The type clears the cavity.
-   `align-self: center` put both display lines straight across the
-   middle of the entity, which is exactly where its throat is — the
-   strongest feature of the object, and the thing the whole descent is
-   about entering. Anchoring to the start keeps the viewport-cropped
-   type the brief asks for while leaving the cavity in open frame.
-   The type still crops against the VIEWPORT as the brief asks; it is
-   not clipped against a container, which cut 'LATTICE' to 'LATTIC'. */
-.hero__title {
-  margin-inline-start: -0.06em;
-}
-
-@media (max-width: 900px) {
-  /* No room to sit beside it on a phone, so the type goes back to
-     owning the frame and the entity sits behind it. */
-  .hero__lede {
-    align-self: center;
-  }
-}
-
-.hero__title .reveal-line > span {
-  display: block;
-}
-
-.hero__foot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: clamp(1.5rem, 4vw, 4rem);
-  border-top: 1px solid var(--line);
-  padding-top: clamp(1.2rem, 3vh, 2rem);
-}
-
-/* The lede — headline and statement as ONE block.
-   Split across the grid they read as two unrelated items with a void
-   between them: the bottom-left quadrant measured 3.9% ink against the
-   top-right's 32%, so the eye landed on the entity and then had to cross
-   an empty diagonal to find any words. Together they fill that quadrant
-   and give the type block a shape the entity can sit against. */
-.hero__lede {
-  align-self: start;
-  display: grid;
-  gap: clamp(1.2rem, 3.2vh, 2.4rem);
-}
-
-.hero__statement {
-  /* Deliberately large. This sentence is the studio's entire argument;
-     the two words above it carry no information. It was set at --step-1,
-     which put the least important type on the page above the most. Held
-     below the display face so the order still reads as headline first —
-     roughly a third of its size. */
-  font-size: clamp(1.5rem, 3.3vw, 3rem);
-  line-height: 1.24;
-  letter-spacing: -0.012em;
-  /* In characters, so the measure holds as the size scales. Wide enough
-     to break into three lines and fill the quadrant, narrow enough to
-     stop short of the entity. */
-  max-width: 22ch;
-  color: var(--text);
-  text-wrap: balance;
-}
-
-.hero__lockup {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.hero__lockup b {
-  color: var(--amber);
-  font-weight: 400;
-}
-
-@media (max-width: 760px) {
-  .hero__foot {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-}
-
-/* Scroll cue — the only persistent affordance in the first frame. */
-.hero__cue {
-  position: absolute;
+.js .beat--hero {
   left: var(--gutter);
-  bottom: clamp(1rem, 3vh, 2rem);
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.2em;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(46%, 620px);
+  display: grid;
+  gap: clamp(1.1rem, 2.4vh, 2rem);
+  justify-items: start;
+}
+
+.js .beat--t1 {
+  left: var(--gutter);
+  bottom: 16vh;
+  width: min(30%, 380px);
+}
+
+.js .beat--t2 {
+  right: var(--gutter);
+  top: 17vh;
+  width: min(30%, 380px);
+  text-align: right;
+}
+
+.js .beat--t2 .statement {
+  margin-left: auto;
+}
+
+.js .beat--t3 {
+  left: var(--gutter);
+  top: 19vh;
+  width: min(32%, 400px);
+}
+
+.js .beat--latent {
+  left: var(--gutter);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(30%, 380px);
+  display: grid;
+  gap: 1.1rem;
+}
+
+.beat--latent .lede {
   color: var(--muted);
-  display: none;
+  font-size: var(--step-0);
+}
+
+.beat--hero .statement {
+  max-width: 19ch;
+}
+
+.beat--hero .lede {
+  color: var(--muted);
+  max-width: 42ch;
+}
+
+/* Portrait: the subject owns the frame, the type sits clear of it and
+   nothing is ever laid over the latent core. */
+@media (max-width: 819px) {
+  .js .beat--hero {
+    left: var(--gutter);
+    right: var(--gutter);
+    top: auto;
+    bottom: 8vh;
+    width: auto;
+    transform: none;
+  }
+
+  .js .beat--t1,
+  .js .beat--t2,
+  .js .beat--t3 {
+    left: var(--gutter);
+    right: var(--gutter);
+    top: auto;
+    bottom: 10vh;
+    width: auto;
+    text-align: left;
+  }
+
+  .js .beat--t2 .statement {
+    margin-left: 0;
+  }
+
+  .js .beat--latent {
+    left: var(--gutter);
+    right: var(--gutter);
+    top: auto;
+    bottom: 5vh;
+    width: auto;
+    transform: none;
+  }
+}
+
+/* Without scripting the prologue is a stack of readable blocks. */
+.no-js .prologue__stage {
+  padding: calc(var(--section-pad) + 3rem) var(--gutter) var(--section-pad);
+}
+
+.no-js .prologue__copy {
+  display: grid;
+  gap: clamp(3rem, 8vh, 6rem);
+  max-width: var(--shell);
+  margin-inline: auto;
+}
+
+.no-js .beat {
+  display: grid;
+  gap: 1.1rem;
+  justify-items: start;
+}
+
+.no-js .prologue__frame {
+  position: relative;
+  inset: auto;
+  height: 46vh;
+  margin-bottom: 3rem;
 }
 
 /* ============================================================
-   Movement 02 — The premise
-   Type sits in the negative space between lattice plates, so the
-   layout is deliberately offset rather than centred.
+   PART TWO — editorial
    ============================================================ */
 
-.premise__statement {
-  /* No max-width: the display lines are set nowrap and their breaks are
-     authored, so a character-based cap would only fight them. */
-  margin-block-end: clamp(3rem, 9vh, 7rem);
-}
-
-.premise__statement .display--md {
-  color: var(--text);
-}
-
-.premise__statement em {
-  font-style: normal;
-  color: var(--cold-white);
-}
-
-.premise__body {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: clamp(1.5rem, 3vw, 3rem);
-}
-
-.premise__body > .label {
-  grid-column: 1 / span 3;
-}
-
-.premise__prose {
-  grid-column: 5 / span 7;
-}
-
-@media (max-width: 900px) {
-  .premise__body > .label {
-    grid-column: 1 / -1;
-  }
-  .premise__prose {
-    grid-column: 1 / -1;
-  }
-}
-
-/* ============================================================
-   Movement 03 — Three states of one system
-   Explicitly not three side-by-side cards. Each state is a
-   full-height stage; connective language sits between them.
-   ============================================================ */
-
-.state {
+.editorial {
   position: relative;
-  min-height: 92svh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding-block: clamp(3rem, 8vh, 6rem);
+  z-index: 3;
+  background: var(--ground);
 }
 
-.state__head {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.4em 1.2em;
-}
-
-.state__name {
-  font-size: var(--display-lg);
-  line-height: 0.86;
-}
-
-.state__role {
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--teal);
-}
-
-.state__meta {
-  margin-top: clamp(1.5rem, 4vh, 2.75rem);
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: clamp(1rem, 2.5vw, 2.5rem);
-  border-top: 1px solid var(--line);
-  padding-top: clamp(1.2rem, 3vh, 1.9rem);
-}
-
-.state__prose {
-  grid-column: 1 / span 6;
-  position: relative;
-}
-
-/* The camera travels inside the object during this movement, so a gate
-   can fill the frame directly behind the reading column. A local ground
-   wash keeps the copy legible without dimming the whole scene. */
-.state__prose::before {
-  content: '';
-  position: absolute;
-  inset: -1.75rem -2.5rem;
-  z-index: -1;
-  background: radial-gradient(
-    125% 105% at 0% 50%,
-    var(--panel-veil-solid) 32%,
-    transparent 86%
-  );
-  pointer-events: none;
-}
-
-.state__facts {
-  grid-column: 8 / span 5;
-  margin: 0;
-  display: grid;
-  gap: 0.75rem;
-  align-content: start;
-}
-
-.state__fact {
-  display: grid;
-  grid-template-columns: 8.5rem minmax(0, 1fr);
-  gap: 1rem;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  line-height: 1.5;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--line-faint);
-}
-
-.state__fact dt {
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.state__fact dd {
-  margin: 0;
-  color: var(--text);
-}
-
-@media (max-width: 900px) {
-  .state__prose,
-  .state__facts {
-    grid-column: 1 / -1;
-  }
-  .state__facts {
-    margin-top: 1.5rem;
-  }
-  .state__fact {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
-  }
-}
-
-/* The connective ladder: DESK42 ↓ persists into BRAWLER ↓ combines
-   into ROGUELITE. Locked language from the brief. */
-.connector {
-  display: flex;
-  align-items: center;
-  gap: 1.2ch;
-  padding-block: clamp(2rem, 6vh, 4rem);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.connector__stem {
-  flex: none;
-  width: 1px;
-  height: clamp(3rem, 9vh, 6rem);
-  background: linear-gradient(to bottom, transparent, var(--teal), transparent);
-  opacity: 0.8;
-}
-
-/* ============================================================
-   Movement 04 — Reusable systems foundation
-   ============================================================ */
-
-.foundation__head {
-  /* See .premise__statement — display lines are nowrap with authored
-     breaks, so a ch-based cap would clip them inside the reveal mask. */
-  margin-bottom: clamp(2.5rem, 7vh, 5rem);
-}
-
-.layers {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: clamp(2rem, 5vw, 5rem);
-  align-items: start;
-}
-
-.layers__list {
-  display: grid;
-  gap: 0;
-  border-top: 1px solid var(--line);
-}
-
-/* Tab-style selector. Native buttons, full keyboard operation. */
-.layer-tab {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 1.2rem;
-  align-items: baseline;
-  width: 100%;
-  padding: clamp(1.1rem, 2.6vh, 1.7rem) 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  font-family: var(--font-display);
-  font-size: var(--step-2);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  text-align: left;
-  text-transform: uppercase;
-  cursor: pointer;
-  position: relative;
-  transition: color var(--dur-fast) var(--ease-out-expo);
-}
-
-.layer-tab__num {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.16em;
-  color: var(--muted);
-  transition: color var(--dur-fast) var(--ease-out-expo);
-}
-
-.layer-tab::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: -1px;
-  height: 1px;
-  width: 100%;
-  background: linear-gradient(90deg, var(--teal), var(--cyan));
-  transform: scaleX(0);
-  transform-origin: 0 50%;
-  transition: transform 560ms var(--ease-out-expo);
-}
-
-.layer-tab:hover {
-  color: var(--text);
-}
-
-.layer-tab[aria-selected='true'] {
-  color: var(--text);
-}
-
-.layer-tab[aria-selected='true'] .layer-tab__num {
-  color: var(--teal);
-}
-
-.layer-tab[aria-selected='true']::after {
-  transform: scaleX(1);
-}
-
-.layer-panel {
-  padding-top: 0.5rem;
-}
-
-/* With JS off, every panel is visible in sequence (acceptance 23).
-   The script adds .is-enhanced before it starts hiding panels. */
-.layers.is-enhanced .layer-panel[hidden] {
-  display: none;
-}
-
-.layers:not(.is-enhanced) .layers__list {
-  display: none;
-}
-
-.layer-panel__title {
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--teal);
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 900px) {
-  .layers {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* --- Evidence disclosure ------------------------------------------ */
-
-.evidence-disclosure {
-  margin-top: clamp(3rem, 8vh, 6rem);
-  border-top: 1px solid var(--line);
-}
-
-.evidence-disclosure > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: clamp(1.2rem, 3vh, 1.9rem) 0;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text);
-  list-style: none;
-}
-
-.evidence-disclosure > summary::-webkit-details-marker {
-  display: none;
-}
-
-.evidence-disclosure > summary::after {
-  content: '+';
-  font-size: var(--step-1);
-  color: var(--teal);
-  transition: transform 420ms var(--ease-out-expo);
-}
-
-.evidence-disclosure[open] > summary::after {
-  transform: rotate(45deg);
-}
-
-.evidence-disclosure__body {
-  padding-bottom: clamp(1.5rem, 4vh, 3rem);
-}
-
-/* Once open, the evidence sits on a flat ground panel that bleeds to the
-   gutters. This is the densest reading on the site and it must not
-   compete with the lattice behind it. Flat and opaque on purpose — not a
-   glowing card, not glass, no radius. */
-.evidence-disclosure[open] > .evidence-disclosure__body {
-  background: var(--panel-veil-solid);
-  margin-inline: calc(var(--gutter) * -1);
+.product,
+.method,
+.evidence {
+  max-width: var(--shell);
+  margin-inline: auto;
   padding-inline: var(--gutter);
-  padding-block: clamp(1.5rem, 4vh, 2.5rem) clamp(2rem, 5vh, 3rem);
+}
+
+/* --- Product spread ------------------------------------------------ */
+
+.product {
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 5rem);
+  padding-block: var(--section-pad);
+  align-items: center;
   border-top: 1px solid var(--line-faint);
 }
 
-.evidence-note {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  line-height: 1.6;
-  color: var(--muted);
-  max-width: var(--measure);
-  margin-bottom: 1.75rem;
+.product:first-child {
+  border-top: 0;
 }
 
-/* --- Evidence ledger ----------------------------------------------
-   Desktop: a controlled table with clear column hierarchy.
-   Mobile: the same rows restacked as records — no horizontal scroll.
-   One source of truth in the DOM, restyled per viewport.           */
+@media (min-width: 900px) {
+  .product {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  }
+
+  /* The two products never repeat the same composition. */
+  .product--reversed .product__visual {
+    order: 2;
+  }
+}
+
+.product__body {
+  display: grid;
+  gap: clamp(1rem, 2vh, 1.6rem);
+  justify-items: start;
+}
+
+.product__body .display {
+  margin-bottom: 0.2rem;
+}
+
+.product__visual {
+  display: grid;
+  gap: 1.2rem;
+  align-content: start;
+}
+
+/* The labelled system example. Flat by construction — a rule, steps and
+   arrows. No card, no panel, no container. */
+.chain {
+  display: grid;
+  gap: 0.9rem;
+  padding-left: 1.4rem;
+  border-left: 1px solid var(--line);
+  font-family: var(--font-body);
+}
+
+.chain__step {
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: #c3c9cf;
+  line-height: 1.3;
+}
+
+.chain__step--end {
+  color: var(--text);
+  border-bottom: 1px solid var(--violet);
+  padding-bottom: 0.3rem;
+  justify-self: start;
+}
+
+.chain__arrow {
+  color: var(--cyan);
+  font-size: var(--step-0);
+  line-height: 1;
+}
+
+/* --- Method rows --------------------------------------------------- */
+
+.method {
+  padding-block: var(--section-pad);
+  border-top: 1px solid var(--line-faint);
+}
+
+.method .display--md {
+  margin-bottom: clamp(2rem, 4vh, 3.2rem);
+}
+
+.rows {
+  display: grid;
+}
+
+.row {
+  display: grid;
+  gap: 0.8rem;
+  padding-block: clamp(1.6rem, 3vh, 2.4rem);
+  border-top: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.row__title {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--step-1);
+  color: var(--text);
+  line-height: 1.3;
+}
+
+@media (min-width: 820px) {
+  .row {
+    grid-template-columns: minmax(0, 0.55fr) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: baseline;
+  }
+}
+
+.method__close {
+  margin-top: clamp(1.8rem, 4vh, 2.8rem);
+  font-size: var(--step-0);
+  color: var(--muted);
+  max-width: var(--measure);
+}
+
+/* --- Evidence ------------------------------------------------------ */
+
+.evidence {
+  padding-block: var(--section-pad);
+  border-top: 1px solid var(--line-faint);
+  display: grid;
+  gap: clamp(1.4rem, 3vh, 2.2rem);
+  justify-items: start;
+}
+
+.evidence .display--md {
+  max-width: 20ch;
+}
+
+.proof {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  width: 100%;
+  max-width: 78ch;
+}
+
+.proof li {
+  padding-block: clamp(1rem, 2vh, 1.5rem);
+  border-top: 1px solid var(--line);
+  font-size: var(--step-0);
+  color: #c3c9cf;
+}
+
+.proof li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+/* --- Footer -------------------------------------------------------- */
+
+.colophon {
+  position: relative;
+  z-index: 3;
+  background: var(--ground);
+  border-top: 1px solid var(--line);
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding: clamp(2rem, 4vh, 3rem) var(--gutter);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem 2rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.colophon__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--step-1);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.colophon__role {
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+
+.colophon__nav {
+  display: flex;
+  gap: 1.6rem;
+}
+
+.colophon__nav a {
+  font-size: var(--step--1);
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.colophon__nav a:hover {
+  color: var(--text);
+}
+
+/* ============================================================
+   The evidence page — documentary, printable, no WebGL
+   ============================================================ */
+
+.page-document {
+  background: var(--ground);
+}
+
+.masthead--document {
+  position: sticky;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.document {
+  max-width: 900px;
+  margin-inline: auto;
+  padding: calc(var(--section-pad) + 2rem) var(--gutter) var(--section-pad);
+}
+
+.document__head {
+  display: grid;
+  gap: 1.2rem;
+  padding-bottom: clamp(2rem, 5vh, 3.5rem);
+}
+
+.document__section {
+  padding-block: clamp(2rem, 5vh, 3.5rem);
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 1.2rem;
+}
+
+.document__section h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--display-md);
+  line-height: 1.04;
+}
+
+.document__section h3 {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--step-0);
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 0.4rem;
+}
+
+.document__section p {
+  font-size: var(--step-0);
+  color: #c3c9cf;
+  max-width: var(--measure);
+  line-height: 1.66;
+}
+
+.document__grid {
+  display: grid;
+  gap: clamp(1.4rem, 3vh, 2.2rem);
+}
+
+@media (min-width: 780px) {
+  .document__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(2rem, 4vw, 3.5rem);
+  }
+}
+
+.document__note {
+  color: var(--muted) !important;
+}
+
+.document blockquote {
+  border-left: 1px solid var(--violet);
+  padding-left: 1.4rem;
+  font-size: var(--step-0);
+  color: #c3c9cf;
+  max-width: var(--measure);
+  line-height: 1.66;
+}
+
+/* --- Carry-over table ---------------------------------------------- */
 
 .ledger {
   width: 100%;
   border-collapse: collapse;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
   text-align: left;
 }
 
 .ledger caption {
-  text-align: left;
-  color: var(--muted);
+  font-family: var(--font-mono);
   font-size: var(--step--2);
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
   padding-bottom: 1rem;
 }
 
 .ledger th,
 .ledger td {
   padding: 0.85rem 1rem 0.85rem 0;
-  border-bottom: 1px solid var(--line-faint);
-  vertical-align: baseline;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--step--1);
+  font-weight: 400;
+  vertical-align: top;
 }
 
 .ledger thead th {
-  border-bottom: 1px solid var(--line-strong);
-  color: var(--muted);
-  font-weight: 400;
-  letter-spacing: 0.16em;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  white-space: nowrap;
+  color: var(--muted);
 }
 
 .ledger tbody th {
-  font-weight: 400;
   color: var(--text);
-  padding-right: 2rem;
+  font-weight: 500;
+  width: 60%;
 }
 
-.ledger__range {
-  color: var(--cold-white);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+.ledger tbody td {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
 }
 
-.ledger__band {
-  width: 100%;
-  min-width: 6rem;
-  height: 2px;
-  background: var(--line);
-  position: relative;
-  display: block;
-}
-
-/* Evidence bars are static geometry, not animated numeric claims. */
-.ledger__band span {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, var(--teal), var(--cyan));
-}
-
-.ledger tbody tr:hover th,
-.ledger tbody tr:hover td {
-  color: var(--text);
-  background: rgba(230, 235, 240, 0.028);
-}
-
-@media (max-width: 760px) {
-  .ledger,
-  .ledger tbody,
-  .ledger tr,
-  .ledger th,
-  .ledger td {
-    display: block;
-    width: auto;
-  }
-
+/* Restack as records on narrow screens rather than scrolling sideways. */
+@media (max-width: 640px) {
   .ledger thead {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 
   .ledger tbody tr {
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--line-faint);
+    display: block;
+    border-bottom: 1px solid var(--line);
+    padding-block: 0.8rem;
   }
 
-  .ledger th,
-  .ledger td {
+  .ledger tbody th,
+  .ledger tbody td {
+    display: block;
+    width: auto;
     border: 0;
     padding: 0.15rem 0;
   }
 
-  .ledger tbody th {
-    font-size: var(--step--1);
-    padding-right: 0;
-  }
-
-  /* Restate the column name inline so each record stays readable. */
-  .ledger td[data-col]::before {
-    content: attr(data-col) ' ';
+  .ledger tbody td::before {
+    content: attr(data-col) ' — ';
     color: var(--muted);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .ledger td:has(.ledger__band) {
-    padding-top: 0.6rem;
   }
 }
 
-/* ============================================================
-   Movement 05 — Capability that accumulates
-   ============================================================ */
-
-.chapters {
-  display: grid;
-  gap: clamp(3.5rem, 11vh, 8rem);
-}
-
-.chapter {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: clamp(1rem, 3vw, 3rem);
-  align-items: start;
-}
-
-.chapter__num {
-  grid-column: 1 / span 2;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.2em;
-  color: var(--teal);
-  padding-top: 0.55em;
-}
-
-.chapter__title {
-  grid-column: 3 / span 4;
-  font-size: var(--step-3);
-  line-height: 1.02;
-  letter-spacing: -0.03em;
-}
-
-.chapter__prose {
-  grid-column: 8 / span 5;
-}
-
-@media (max-width: 900px) {
-  .chapter__num {
-    grid-column: 1 / -1;
-  }
-  .chapter__title {
-    grid-column: 1 / -1;
-  }
-  .chapter__prose {
-    grid-column: 1 / -1;
-    margin-top: 0.5rem;
-  }
-}
-
-/* ============================================================
-   Movement 06 — Evidence boundary
-   Deliberately calmer and flatter than every brand movement:
-   documentation, not marketing. Almost no decorative motion.
-   ============================================================ */
-
-.boundary {
-  /* Semi-opaque, not solid: the evidence must read as documentation,
-     but the entity keeps turning behind it. Founder note: "make the
-     canvas readable but also see the entity at the back". */
-  background: rgba(14, 19, 27, 0.84);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.boundary__head {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: clamp(1rem, 3vw, 3rem);
-  padding-bottom: clamp(2.5rem, 7vh, 4.5rem);
-  border-bottom: 1px solid var(--line);
-  margin-bottom: clamp(2.5rem, 7vh, 4.5rem);
-}
-
-.boundary__title {
-  grid-column: 1 / span 7;
-  font-size: var(--step-4);
-  line-height: 1;
-  letter-spacing: -0.035em;
-  text-transform: uppercase;
-}
-
-.boundary__note {
-  grid-column: 9 / span 4;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  line-height: 1.6;
-  color: var(--muted);
-  align-self: end;
-}
-
-@media (max-width: 900px) {
-  .boundary__title,
-  .boundary__note {
-    grid-column: 1 / -1;
-  }
-  .boundary__note {
-    margin-top: 1.5rem;
-  }
-}
-
-.boundary__cols {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(2rem, 6vw, 5rem);
-}
-
-@media (max-width: 860px) {
-  .boundary__cols {
-    grid-template-columns: 1fr;
-    gap: clamp(2.5rem, 7vh, 4rem);
-  }
-}
-
-.boundary__col > h3 {
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  font-weight: 400;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.boundary__col--supported > h3 {
-  color: var(--teal);
-}
-
-.boundary__col--limits > h3 {
-  color: var(--amber);
-}
-
-.claims {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 1.15rem;
-}
-
-.claims li {
-  display: grid;
-  grid-template-columns: 1.4rem minmax(0, 1fr);
-  gap: 0.8rem;
-  font-size: var(--step--1);
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.claims li > span:first-child {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  line-height: 1.9;
-  color: var(--line-strong);
-}
-
-.boundary__col--supported .claims li > span:first-child {
-  color: var(--teal);
-}
-
-.boundary__col--limits .claims li > span:first-child {
-  color: var(--amber);
-}
-
-.claims strong {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.boundary__pull {
-  margin-top: clamp(3rem, 8vh, 5rem);
-  padding-top: clamp(2rem, 5vh, 3rem);
-  border-top: 1px solid var(--line);
-}
-
-.boundary__pull blockquote {
-  margin: 0;
-  font-size: var(--step-2);
-  line-height: 1.34;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  max-width: 46ch;
-}
-
-.boundary__pull cite {
-  display: block;
-  margin-top: 1.25rem;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  font-style: normal;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* ============================================================
-   Movement 07 — Resolution / footer
-   ============================================================ */
-
-.resolution {
-  min-height: 88svh;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  gap: clamp(3rem, 8vh, 5rem);
-  padding-block: var(--movement-pad) clamp(2rem, 5vh, 3rem);
-}
-
-/* The mark sits BELOW the eye, not across it.
-   It used to be centred, with a dark veil behind it to keep the type
-   legible over "the brightest part of the resolved lattice" — which was
-   fine when the brightest part was an abstract glow. It is now the eye,
-   and the eye is the payoff of the entire scroll: the composition put
-   the wordmark over the one thing the visitor came down twelve units to
-   meet, and then dimmed it to make the type readable. */
-.resolution__mark {
-  position: relative;
-  align-self: end;
-  justify-self: center;
-  text-align: center;
-  padding-bottom: clamp(1rem, 4vh, 3rem);
-}
-
-/* A short veil under the type only — enough for contrast, nowhere near
-   the eye. */
-.resolution__mark::before {
-  content: '';
-  position: absolute;
-  inset: -8% -10% -20%;
-  z-index: -1;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    rgba(8, 11, 16, 0.72) 32%,
-    rgba(8, 11, 16, 0.86)
-  );
-  pointer-events: none;
-}
-
-.resolution__wordmark {
-  font-size: var(--display-lg);
-  line-height: 0.86;
-  letter-spacing: -0.045em;
-}
-
-.resolution__site {
-  margin-top: clamp(1.5rem, 4vh, 2.5rem);
-  font-family: var(--font-mono);
-  font-size: var(--step-0);
-  letter-spacing: 0.16em;
-}
-
-.resolution__foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem 2rem;
-  border-top: 1px solid var(--line);
-  padding-top: clamp(1.2rem, 3vh, 1.75rem);
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* ============================================================
-   Print — the evidence section must survive a print preview.
-   ============================================================ */
+/* --- Print --------------------------------------------------------- */
 
 @media print {
-  #lattice-canvas,
-  .poster,
-  .chrome,
-  .loader,
-  .hero__cue {
-    display: none !important;
-  }
-
   :root {
     --text: #000;
     --muted: #333;
-    --line: #bbb;
-    --line-faint: #ddd;
-    --line-strong: #666;
+    --line: #999;
+    --line-faint: #ccc;
   }
 
   body {
@@ -910,73 +521,35 @@
     color: #000;
   }
 
-  .movement,
-  .boundary {
-    background: #fff;
-    border-color: #bbb;
-    page-break-inside: avoid;
-    padding-block: 1.5rem;
+  .masthead,
+  .skip-link,
+  .colophon__nav {
+    display: none !important;
   }
 
-  .movement--washed::before {
-    display: none;
+  .document {
+    max-width: none;
+    padding: 0;
   }
 
-  .reveal-line > span,
-  .fade-in {
-    transform: none !important;
-    opacity: 1 !important;
+  .document__section {
+    break-inside: avoid;
+    border-top: 1px solid #999;
   }
 
-  .evidence-disclosure__body {
-    display: block !important;
-  }
-
-  /* The on-screen evidence panel is a dark full-bleed plate. On paper it
-     has to become part of the document, or the table prints as light
-     type on a black block and wastes most of the toner in the process. */
-  .evidence-disclosure[open] > .evidence-disclosure__body {
-    background: #fff !important;
-    margin-inline: 0;
-    padding-inline: 0;
-    border-top: 0;
-  }
-
-  .ledger {
-    font-size: 9pt;
-  }
-
-  .ledger__band {
-    display: none;
-  }
-
-  /* Accent colours are chosen for a near-black ground and are unreadable
-     on white, so the whole evidence section is forced to ink. */
-  .ledger caption,
-  .ledger thead th,
-  .evidence-note,
-  .boundary__note {
-    color: #333 !important;
-  }
-
-  .ledger tbody th,
-  .ledger td,
-  .ledger__range,
-  .boundary__col > h3,
-  .claims strong,
-  .boundary__pull blockquote {
+  .document__section p,
+  .document blockquote,
+  .ledger th,
+  .ledger td {
     color: #000 !important;
   }
 
-  .claims li,
-  .claims li > span:first-child,
-  .boundary__pull cite {
-    color: #444 !important;
+  .ledger {
+    break-inside: avoid;
   }
 
-  a[href^='http']::after {
-    content: ' (' attr(href) ')';
-    font-size: 8pt;
-    color: #555;
+  a {
+    color: #000;
+    text-decoration: underline;
   }
 }

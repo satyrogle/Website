@@ -2,24 +2,24 @@ import * as THREE from 'three';
 
 import { QualityManager, type QualitySettings } from './QualityManager';
 import { ReactionField, type PresetName } from './ReactionField';
-import { CrownedConvergenceModel } from './CrownedConvergenceModel';
+import { DarkLatticeMonolithModel } from './DarkLatticeMonolithModel';
 import { CameraRig } from './CameraRig';
 import { Lighting } from './Lighting';
 import { PostPipeline } from './PostPipeline';
-import { EnvironmentStages } from './EnvironmentStages';
 import { Particulate } from './Particulate';
 
 /**
  * SceneController
  *
- * Owns the renderer, the single persistent scene and the frame loop, and
- * exposes the small surface the scroll director is allowed to touch.
+ * Owns the renderer, the one persistent scene and the frame loop, and
+ * exposes the small surface the prologue director is allowed to touch.
  *
- * Everything the narrative can change is a parameter of one continuous
- * system — field rates, layer offsets, layer focus, camera progress. No
- * caller can swap scenes, reseed the field or rebuild the object, which
- * is what keeps the site a single continuous world by construction.
+ * No caller can swap scenes, reseed the field or rebuild the monolith.
+ * That is what makes the disturbance made in the Full Form provably the
+ * same one arriving at the latent core.
  */
+
+export type PrologueState = 'full' | 'opening' | 'tunnel' | 'latent';
 
 export interface SceneOptions {
   canvas: HTMLCanvasElement;
@@ -40,23 +40,31 @@ export function isWebGL2Available(): boolean {
   }
 }
 
+/**
+ * Where the disturbance is allowed to land, in the planar field's UV.
+ *
+ * The spine itself is recessed behind the outer masses and is not
+ * visible head-on, so the trace is placed on the inner masses flanking
+ * the passage — on the spine's own axis, and actually on screen. The
+ * aperture band in the middle is skipped for the same reason: a mark
+ * made in the open gap would have no surface to appear on.
+ */
+const TRACE_U = [0.32, 0.68] as const;
+const TRACE_V = [0.3, 0.72] as const;
+const APERTURE_U = [0.42, 0.58] as const;
+const TRACE_DEFAULT: [number, number] = [0.385, 0.52];
+
 export class SceneController {
   readonly quality: QualityManager;
   readonly scene = new THREE.Scene();
   readonly rig: CameraRig;
-  readonly entity: CrownedConvergenceModel;
+  readonly entity: DarkLatticeMonolithModel;
   readonly field: ReactionField;
   readonly lighting: Lighting;
   /** The air. Nothing else in the void sits at a different distance. */
   readonly motes: Particulate;
 
-  /**
-   * The two environment backplates. Null until loadEnvironment resolves,
-   * and null forever if the plates are missing — the world is complete
-   * without them, so their absence must not take the site down.
-   */
-  private environment: EnvironmentStages | null = null;
-
+  private canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
   private post: PostPipeline;
   private clock = new THREE.Clock();
@@ -65,29 +73,22 @@ export class SceneController {
   private reducedMotion: boolean;
 
   private raycaster = new THREE.Raycaster();
-  private fieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  private tracePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0.5);
   private hitPoint = new THREE.Vector3();
   private pointerNdc = new THREE.Vector2();
-  private pointerActive = false;
-  private lastPointerMove = 0;
 
   private progress = 0;
+  private state: PrologueState = 'full';
   private wake = 0;
   private wakeTarget = 0;
-
-  /** Corridor tear-open, tracks narrative progress. */
-  private rip = 0;
-
-  /** Layer separation, 0 = assembled, 1 = fully exposed. */
-  private separation = 0;
-  private separationTarget = 0;
-  private focusTargets: [number, number, number] = [1, 1, 1];
-  private pointerNormal = new THREE.Vector3();
+  /** Tectonic opening. Eased, rises once and holds. */
+  private open = 0;
 
   private resizeObserver: ResizeObserver | null = null;
   private disposed = false;
 
   constructor(options: SceneOptions) {
+    this.canvas = options.canvas;
     this.reducedMotion = options.reducedMotion;
     this.quality = new QualityManager();
 
@@ -99,16 +100,13 @@ export class SceneController {
       stencil: false,
       depth: true,
     });
-    // PALETTE.void, not the obsidian the entity is made of. The clear
-    // colour IS the environment now that the backplates are gone, and
-    // the sheet is explicit that the environment is near black — the
-    // entity has to be the brightest thing in frame for the silhouette
-    // to read at all.
+    // The void. The monolith has to be the brightest thing in frame for
+    // the silhouette to read at all.
     this.renderer.setClearColor(new THREE.Color('#010204'), 1);
     this.renderer.setPixelRatio(this.quality.pixelRatio());
 
-    const { clientWidth, clientHeight } = this.canvasSize();
-    this.renderer.setSize(clientWidth, clientHeight, false);
+    const { width, height } = this.canvasSize();
+    this.renderer.setSize(width, height, false);
 
     const settings = this.quality.settings;
     const mobile = window.innerWidth < 820;
@@ -116,35 +114,28 @@ export class SceneController {
     this.field = new ReactionField(this.renderer, settings.simResolution);
     this.field.seed();
 
-    // The entity is the Blender-authored Crowned Convergence, loaded
-    // from a GLB. It is empty until loadEntity() resolves; the scene,
-    // the rig and the field are all live before then so the loader can
-    // report real progress against real work.
-    this.entity = new CrownedConvergenceModel({ reducedMotion: this.reducedMotion });
+    this.entity = new DarkLatticeMonolithModel({ reducedMotion: this.reducedMotion });
     this.scene.add(this.entity.group);
 
-    this.rig = new CameraRig(clientWidth / Math.max(clientHeight, 1), mobile);
+    this.rig = new CameraRig(width / Math.max(height, 1), mobile);
     this.lighting = new Lighting();
 
-    // Scaled by tier: this is one draw call, but it is a lot of
-    // overlapping additive fragments, which is the part that costs.
     const moteCount =
-      settings.tier === 'high' ? 6000 : settings.tier === 'medium' ? 3400 : 1500;
+      settings.tier === 'high' ? 4200 : settings.tier === 'medium' ? 2400 : 1100;
     this.motes = new Particulate(moteCount, this.renderer.getPixelRatio());
     this.scene.add(this.motes.points);
 
     const dpr = this.renderer.getPixelRatio();
     this.post = new PostPipeline(
       this.renderer,
-      Math.floor(clientWidth * dpr),
-      Math.floor(clientHeight * dpr),
+      Math.floor(width * dpr),
+      Math.floor(height * dpr),
       settings.tier === 'high' ? 4 : settings.tier === 'medium' ? 2 : 0
     );
     this.post.enabled = settings.bloom;
 
     if (this.reducedMotion) {
-      // A composed still: no drift, no parallax, no travel.
-      this.rig.setMotionScale(0, 0);
+      this.rig.setMotionScale(0);
       this.rig.applyPoster();
     }
 
@@ -152,19 +143,17 @@ export class SceneController {
     this.bindEvents();
   }
 
-  private canvasSize(): { clientWidth: number; clientHeight: number } {
+  private canvasSize(): { width: number; height: number } {
     return {
-      clientWidth: Math.max(1, window.innerWidth),
-      clientHeight: Math.max(1, window.innerHeight),
+      width: Math.max(1, this.canvas.clientWidth || window.innerWidth),
+      height: Math.max(1, this.canvas.clientHeight || window.innerHeight),
     };
   }
 
   private applyQuality(settings: QualitySettings): void {
     this.renderer.setPixelRatio(this.quality.pixelRatio());
     this.post.enabled = settings.bloom;
-    this.field.resize(settings.simResolution);
     this.motes.setPixelRatio(this.renderer.getPixelRatio());
-    this.entity.bindField(this.field.texture);
     this.resize();
   }
 
@@ -175,14 +164,6 @@ export class SceneController {
   private bindEvents(): void {
     window.addEventListener('resize', this.onResize, { passive: true });
     document.addEventListener('visibilitychange', this.onVisibility);
-
-    if (!this.reducedMotion) {
-      // Pointer: desktop only. Touch is read passively and never
-      // preventDefault-ed, so it can never interfere with scrolling.
-      window.addEventListener('pointermove', this.onPointerMove, { passive: true });
-      window.addEventListener('pointerdown', this.onPointerDown, { passive: true });
-      window.addEventListener('pointerleave', this.onPointerLeave, { passive: true });
-    }
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -195,136 +176,108 @@ export class SceneController {
   };
 
   private onVisibility = (): void => {
-    // Acceptance 26: fully stop the loop when the document is hidden.
-    if (document.hidden) {
-      this.stop();
-    } else if (!this.disposed) {
-      this.start();
-    }
+    if (document.hidden) this.stop();
+    else if (!this.disposed && this.wasRunning) this.start();
   };
 
-  private onPointerMove = (event: PointerEvent): void => {
-    this.pointerActive = true;
-    this.lastPointerMove = performance.now();
-    const x = (event.clientX / window.innerWidth) * 2 - 1;
-    const y = -((event.clientY / window.innerHeight) * 2 - 1);
-    this.pointerNdc.set(x, y);
-    this.rig.setPointer(x, y);
-
-    if (event.pointerType === 'touch') return;
-    this.disturbAtPointer(0.32);
-  };
-
-  private onPointerDown = (event: PointerEvent): void => {
-    if (event.pointerType === 'touch') return;
-    const x = (event.clientX / window.innerWidth) * 2 - 1;
-    const y = -((event.clientY / window.innerHeight) * 2 - 1);
-    this.pointerNdc.set(x, y);
-    this.disturbAtPointer(0.85, true);
-  };
-
-  private onPointerLeave = (): void => {
-    this.pointerActive = false;
-    this.rig.setPointer(0, 0);
-  };
-
-  /**
-   * Projects the pointer onto the field plane so a disturbance lands
-   * exactly under the cursor on the object, not at an arbitrary screen
-   * coordinate.
-   */
-  private disturbAtPointer(strength: number, discrete = false): void {
-    const cam = this.rig.camera;
-    this.raycaster.setFromCamera(this.pointerNdc, cam);
-    // The plane FOLLOWS the camera. It used to be world-fixed at z = 0,
-    // and the rail crosses z = 0 at about 24% and never comes back — so
-    // Ray.intersectPlane returned null for every pointer event after
-    // that and the disturbance died for the last three quarters of the
-    // page. "The field remembers what you disturbed" only worked in the
-    // hero, which is the one place nobody thinks to test it.
-    cam.getWorldDirection(this.pointerNormal);
-    this.fieldPlane.setFromNormalAndCoplanarPoint(
-      this.pointerNormal.clone().negate(),
-      cam.position.clone().addScaledVector(this.pointerNormal, 3.2)
-    );
-    if (!this.raycaster.ray.intersectPlane(this.fieldPlane, this.hitPoint)) return;
-    const [u, v] = this.entity.fieldUvFromWorld(this.hitPoint.x, this.hitPoint.y);
-    if (u < -0.1 || u > 1.1 || v < -0.1 || v > 1.1) return;
-    if (discrete) {
-      this.field.splat(u, v, 0.045, strength);
-    } else {
-      this.field.setPointer(u, v, strength);
-    }
-  }
+  /** Remembers intent across a tab switch, so a paused prologue stays paused. */
+  private wasRunning = false;
 
   resize(): void {
-    const { clientWidth, clientHeight } = this.canvasSize();
+    const { width, height } = this.canvasSize();
     this.renderer.setPixelRatio(this.quality.pixelRatio());
-    this.renderer.setSize(clientWidth, clientHeight, false);
-    this.rig.resize(clientWidth / Math.max(clientHeight, 1));
+    this.renderer.setSize(width, height, false);
+    this.rig.resize(width / Math.max(height, 1));
     this.rig.setPath(window.innerWidth < 820);
-    this.environment?.layout(clientWidth / Math.max(clientHeight, 1));
 
     const dpr = this.renderer.getPixelRatio();
-    this.post.setSize(Math.floor(clientWidth * dpr), Math.floor(clientHeight * dpr));
+    this.post.setSize(Math.floor(width * dpr), Math.floor(height * dpr));
+    if (!this.running) this.renderStill();
   }
 
   // ------------------------------------------------------------------
   //  Narrative surface — the only things the director may change
   // ------------------------------------------------------------------
 
-  /** Global scroll progress, 0..1. */
+  /** Prologue progress, 0..1. */
   setProgress(p: number): void {
     this.progress = Math.min(Math.max(p, 0), 1);
     this.rig.setProgress(this.progress);
-    // Same progress value that drives the rig, the lighting arc and the
-    // entity. There is deliberately no second scroll calculation for the
-    // backplates — one source is what keeps the fade, the camera and the
-    // narrative from drifting apart.
-    this.environment?.setProgress(this.progress);
 
-    // Reduced motion does not run the loop, so scrolling has to draw
-    // the newly composed state itself.
+    // Retained consequence tracks the descent and never falls; the model
+    // enforces the monotonicity.
+    if (this.entity.hasTrace) {
+      this.entity.setRetained(smoothstep01((this.progress - 0.24) / 0.62));
+    }
+
     if (this.reducedMotion) {
       this.rig.applyReducedState(this.progress);
+      this.open = smoothstep01((this.progress - 0.22) / 0.14);
       this.renderStill();
     }
+  }
+
+  setState(state: PrologueState): void {
+    if (state === this.state) return;
+    this.state = state;
+    this.field.setPreset(
+      state === 'full' ? 'base' : state === 'latent' ? 'settled' : 'active'
+    );
+  }
+
+  get prologueState(): PrologueState {
+    return this.state;
   }
 
   setFieldPreset(name: PresetName): void {
     this.field.setPreset(name);
   }
 
-  blendFieldPresets(a: PresetName, b: PresetName, t: number): void {
-    this.field.blendPresets(a, b, t);
+  /**
+   * The one causal demonstration.
+   *
+   * Places a single disturbance on or near the inner spine, both in the
+   * chemistry and as the legible trace the fragment stage draws. Called
+   * once per visit — either by the visitor or automatically — and then
+   * never touched again.
+   */
+  disturb(clientX?: number, clientY?: number): boolean {
+    if (this.entity.hasTrace) return false;
+
+    let u = TRACE_DEFAULT[0];
+    let v = TRACE_DEFAULT[1];
+
+    if (clientX !== undefined && clientY !== undefined) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.pointerNdc.set(
+        ((clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1,
+        -(((clientY - rect.top) / Math.max(rect.height, 1)) * 2 - 1)
+      );
+      this.raycaster.setFromCamera(this.pointerNdc, this.rig.camera);
+      if (this.raycaster.ray.intersectPlane(this.tracePlane, this.hitPoint)) {
+        const [pu, pv] = this.entity.fieldUvFromWorld(this.hitPoint.x, this.hitPoint.y);
+        u = Math.min(Math.max(pu, TRACE_U[0]), TRACE_U[1]);
+        v = Math.min(Math.max(pv, TRACE_V[0]), TRACE_V[1]);
+        if (u > APERTURE_U[0] && u < APERTURE_U[1]) {
+          u = u < 0.5 ? APERTURE_U[0] - 0.02 : APERTURE_U[1] + 0.02;
+        }
+      }
+    }
+
+    this.field.splat(u, v, 0.05, 0.95);
+    this.entity.setTrace(u, v, 1);
+    if (!this.running) this.renderStill();
+    return true;
   }
 
-  /** 0 = layers assembled, 1 = fully separated. */
-  setLayerSeparation(amount: number): void {
-    this.separationTarget = Math.min(Math.max(amount, 0), 1);
-  }
-
-  /** index -1 focuses all layers equally. */
-  focusLayer(index: number): void {
-    this.focusTargets = index < 0 ? [1, 1, 1] : [0.28, 0.28, 0.28];
-    if (index >= 0 && index < 3) this.focusTargets[index] = 1;
-  }
-
-  /** Disturbance at normalised field coordinates, for scripted moments. */
-  splat(u: number, v: number, radius?: number, strength?: number): void {
-    this.field.splat(u, v, radius, strength);
+  get hasDisturbance(): boolean {
+    return this.entity.hasTrace;
   }
 
   /**
    * Grows the reaction field to a developed state before the first frame
-   * is presented, yielding between chunks so the loader can report it.
-   *
-   * Time-boxed rather than a fixed step count. A discrete GPU reaches the
-   * target in a couple of hundred milliseconds; a software renderer would
-   * take tens of seconds for the same work, and the brief is explicit
-   * that the loader lasts no longer than necessary. Slow devices get a
-   * less developed field and a page that still loads promptly, which is
-   * the right trade — the simulation keeps growing once the loop starts.
+   * is presented. Time-boxed rather than a fixed step count: a software
+   * renderer would take tens of seconds for the same work.
    */
   async warmUpField(
     targetSteps: number,
@@ -343,51 +296,30 @@ export class SceneController {
       onProgress?.(Math.min(Math.max(done / targetSteps, elapsed / budgetMs), 1));
       if (elapsed > budgetMs) break;
 
-      // Hand the frame back so the loader bar actually paints.
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      // Hand the frame back so the page stays responsive — but never
+      // wait on rAF alone. A tab that is not compositing (backgrounded,
+      // or an undisplayed embedded view) never fires it, and boot would
+      // hang behind the poster indefinitely.
+      await new Promise((resolve) => {
+        const done = () => {
+          window.clearTimeout(timer);
+          resolve(null);
+        };
+        const timer = window.setTimeout(done, 120);
+        requestAnimationFrame(done);
+      });
     }
 
     onProgress?.(1);
     this.entity.bindField(this.field.texture);
   }
 
-  /**
-   * Loads the Blender-authored entity. Separate from the constructor so
-   * the loader can report real network progress against real work, and
-   * so a failed fetch degrades to the poster instead of throwing during
-   * scene construction.
-   */
   async loadEntity(url: string, onProgress?: (fraction: number) => void): Promise<void> {
     await this.entity.load(url, onProgress);
     this.entity.bindField(this.field.texture);
   }
 
-  /**
-   * Loads the two environment backplates into the existing world.
-   *
-   * Optional by design: a missing or failed plate leaves `environment`
-   * null and every call site is guarded, so the site runs exactly as it
-   * does today rather than failing on a decorative asset. That matters
-   * because these are the only two files in the build that are authored
-   * outside the repo.
-   */
-  async loadEnvironment(crownedUrl: string, latentUrl: string): Promise<void> {
-    const loader = new THREE.TextureLoader();
-    const load = (url: string) =>
-      new Promise<THREE.Texture>((resolve, reject) => {
-        loader.load(url, resolve, undefined, () => reject(new Error(`missing ${url}`)));
-      });
-
-    const [crowned, latent] = await Promise.all([load(crownedUrl), load(latentUrl)]);
-
-    this.environment = new EnvironmentStages(crowned, latent);
-    const { clientWidth, clientHeight } = this.canvasSize();
-    this.environment.layout(clientWidth / Math.max(clientHeight, 1));
-    this.environment.setProgress(this.progress);
-    this.scene.add(this.environment.group);
-  }
-
-  /** Drives the cold-open reveal out of near-darkness. */
+  /** Drives the reveal out of near-darkness. */
   setWake(target: number): void {
     this.wakeTarget = Math.min(Math.max(target, 0), 1);
   }
@@ -397,18 +329,30 @@ export class SceneController {
   // ------------------------------------------------------------------
 
   start(): void {
-    if (this.running || this.disposed) return;
+    this.wasRunning = true;
+    if (this.running || this.disposed || document.hidden) return;
     this.running = true;
     this.clock.getDelta();
     this.frameHandle = requestAnimationFrame(this.tick);
   }
 
+  /** Fully stops the loop. Nothing is consumed behind the editorial page. */
   stop(): void {
     this.running = false;
     cancelAnimationFrame(this.frameHandle);
   }
 
-  /** Renders exactly one frame — used for the reduced-motion still. */
+  /** Called by the director when the prologue leaves the viewport. */
+  suspend(): void {
+    this.wasRunning = false;
+    this.stop();
+  }
+
+  get isRunning(): boolean {
+    return this.running;
+  }
+
+  /** Renders exactly one frame — the reduced-motion and poster path. */
   renderStill(): void {
     const time = this.clock.getElapsedTime();
     this.wake = 1;
@@ -420,7 +364,7 @@ export class SceneController {
     this.lighting.update(this.progress, time, 1 / 60);
     this.entity.setProgress(
       this.progress,
-      smoothstep01((this.progress - 0.10) / 0.16),
+      this.reducedMotion ? this.open : smoothstep01((this.progress - 0.22) / 0.14),
       this.rig.camera.position.z
     );
     this.entity.setLighting(this.lighting.entityState);
@@ -439,37 +383,20 @@ export class SceneController {
     this.frameHandle = requestAnimationFrame(this.tick);
 
     const rawDelta = this.clock.getDelta();
-    // Clamp so a tab return or a long paint cannot fire a huge
-    // simulation step and blow the field out.
+    // Clamp so a tab return cannot fire a huge simulation step.
     const dt = Math.min(rawDelta, 1 / 20);
     const time = this.clock.getElapsedTime();
 
     this.quality.sample(rawDelta * 1000, performance.now());
 
-    // Cold-open reveal.
     this.wake += (this.wakeTarget - this.wake) * (1 - Math.pow(0.05, dt));
     this.lighting.setWake(this.wake);
 
-    // Tunnel-group separation, eased so a scrub feels physical. This is
-    // the foundation movement's three layers; it separates groups WITHIN
-    // the corridor rather than exploding the entity.
-    this.separation += (this.separationTarget - this.separation) * (1 - Math.pow(0.004, dt));
+    // The masses yield once, early, and the opening remains.
+    const target = smoothstep01((this.progress - 0.22) / 0.14);
+    this.open += (target - this.open) * (1 - Math.pow(0.0012, dt));
 
-    // The crown yields once, early, and stays open. Pressure release,
-    // not a mechanism: the authored per-mass vectors are already
-    // clamped to 0.04-0.14 m and 5 degrees in the asset.
-    const yieldTarget = smoothstep01((this.progress - 0.10) / 0.16);
-    this.rip += (yieldTarget - this.rip) * (1 - Math.pow(0.0009, dt));
-
-    this.entity.setProgress(this.progress, this.rip, this.rig.camera.position.z);
-    this.entity.setSeparation(this.separation, this.focusTargets);
-
-    // Idle pointer decay: if the pointer has been still for a while,
-    // stop feeding the field so it can settle.
-    if (this.pointerActive && performance.now() - this.lastPointerMove > 900) {
-      this.pointerActive = false;
-      this.field.setPointer(0, 0, 0);
-    }
+    this.entity.setProgress(this.progress, this.open, this.rig.camera.position.z);
 
     this.field.update(this.quality.settings.simStepsPerFrame, dt);
     this.entity.bindField(this.field.texture);
@@ -494,14 +421,10 @@ export class SceneController {
     this.stop();
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('visibilitychange', this.onVisibility);
-    window.removeEventListener('pointermove', this.onPointerMove);
-    window.removeEventListener('pointerdown', this.onPointerDown);
-    window.removeEventListener('pointerleave', this.onPointerLeave);
     this.resizeObserver?.disconnect();
     this.field.dispose();
     this.motes.dispose();
     this.entity.dispose();
-    this.environment?.dispose();
     this.post.dispose();
     this.renderer.dispose();
   }

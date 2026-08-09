@@ -6,24 +6,18 @@ gsap.registerPlugin(ScrollTrigger);
 /**
  * TextReveals
  *
- * Headlines enter by sliding out from behind a clipping mask with a
- * tracking release; supporting copy enters on a short opacity and
- * tracking move. Nothing translates up from twenty pixels below, and
- * nothing is a plain fade — both are called out in the brief.
+ * Headlines slide out from behind a clipping mask; supporting copy
+ * enters on a short opacity move. Two rules keep it safe rather than
+ * decorative:
  *
- * Two rules make this safe rather than decorative:
+ * 1. The pre-animation state lives behind a `.motion-ready` class this
+ *    module adds only once it is certain it will run. If the script
+ *    fails first, every element is simply visible.
  *
- * 1. The pre-animation state lives behind a `.motion-ready` class that
- *    this module adds only once it is certain it will run. If the script
- *    fails to load or throws first, every element is simply visible.
- *
- * 2. Every reveal hands off to a CSS resting state (`.is-revealed`) when
- *    it completes, and its inline tween properties are cleared.
+ * 2. Every reveal hands off to a CSS resting state when it completes and
+ *    its inline tween properties are cleared, because
  *    ScrollTrigger.refresh() reverts `fromTo` tweens to their start
- *    values while re-measuring, and refresh fires on load, on resize and
- *    whenever the evidence disclosure changes the page height. Without
- *    the hand-off, opening the evidence table would throw already-read
- *    headlines back off-screen.
+ *    values while re-measuring.
  */
 
 export class TextReveals {
@@ -39,44 +33,28 @@ export class TextReveals {
     if (!this.enabled) return;
     this.bindMaskedHeadlines();
     this.bindSupportingCopy();
-    this.bindRules();
   }
 
-  /**
-   * Locks in the finished state as CSS and drops the inline properties
-   * GSAP was driving, so nothing downstream can revert it.
-   */
   private static settle(targets: ArrayLike<HTMLElement>, props: string): void {
     gsap.set(targets, { clearProps: props });
     Array.from(targets).forEach((el) => el.classList.add('is-revealed'));
   }
 
-  /** Masked headline reveal. */
   private bindMaskedHeadlines(): void {
-    const blocks = document.querySelectorAll<HTMLElement>('[data-reveal]');
-
-    blocks.forEach((block) => {
+    document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((block) => {
       const lines = block.querySelectorAll<HTMLElement>('.reveal-line > span');
       if (!lines.length) return;
 
-      const stagger = Number(block.dataset.revealStagger ?? 0.085);
-
       const tween = gsap.fromTo(
         lines,
-        {
-          yPercent: 105,
-          // A slight tracking compression that releases as the line
-          // settles — the type looks like it is coming into register.
-          letterSpacing: '0.04em',
-        },
+        { yPercent: 104 },
         {
           yPercent: 0,
-          letterSpacing: '0em',
-          duration: 1.15,
+          duration: 1.1,
           ease: 'expo.out',
-          stagger,
+          stagger: Number(block.dataset.revealStagger ?? 0.08),
           paused: true,
-          onComplete: () => TextReveals.settle(lines, 'transform,letterSpacing'),
+          onComplete: () => TextReveals.settle(lines, 'transform'),
         }
       );
 
@@ -91,61 +69,24 @@ export class TextReveals {
     });
   }
 
-  /** Supporting copy — restrained, and never the same beat as the headline. */
   private bindSupportingCopy(): void {
-    const items = document.querySelectorAll<HTMLElement>('.fade-in');
-
-    items.forEach((item) => {
-      const delay = Number(item.dataset.revealDelay ?? 0);
+    document.querySelectorAll<HTMLElement>('.fade-in').forEach((item) => {
       const tween = gsap.fromTo(
         item,
-        { opacity: 0, letterSpacing: '0.012em' },
+        { opacity: 0 },
         {
           opacity: 1,
-          letterSpacing: '0em',
-          duration: 0.9,
-          delay,
+          duration: 0.85,
+          delay: Number(item.dataset.revealDelay ?? 0),
           ease: 'power2.out',
           paused: true,
-          onComplete: () => TextReveals.settle([item], 'opacity,letterSpacing'),
+          onComplete: () => TextReveals.settle([item], 'opacity'),
         }
       );
 
       this.triggers.push(
         ScrollTrigger.create({
           trigger: item,
-          start: 'top 92%',
-          once: true,
-          onEnter: () => tween.play(),
-        })
-      );
-    });
-  }
-
-  /**
-   * Rules draw themselves in. Reaction lines becoming section dividers is
-   * one of the preferred transition techniques in the brief, so the
-   * dividers share the accent gradient with the field.
-   */
-  private bindRules(): void {
-    const rules = document.querySelectorAll<HTMLElement>('[data-rule]');
-
-    rules.forEach((rule) => {
-      const tween = gsap.fromTo(
-        rule,
-        { scaleX: 0, transformOrigin: '0% 50%' },
-        {
-          scaleX: 1,
-          duration: 1.4,
-          ease: 'expo.out',
-          paused: true,
-          onComplete: () => TextReveals.settle([rule], 'transform'),
-        }
-      );
-
-      this.triggers.push(
-        ScrollTrigger.create({
-          trigger: rule,
           start: 'top 94%',
           once: true,
           onEnter: () => tween.play(),
@@ -154,7 +95,7 @@ export class TextReveals {
     });
   }
 
-  /** Plays the hero without waiting for scroll, once the loader clears. */
+  /** Plays the hero immediately; it is on screen at first paint. */
   revealHero(): void {
     if (!this.enabled) return;
     const hero = document.querySelector<HTMLElement>('[data-hero-reveal]');
@@ -167,14 +108,13 @@ export class TextReveals {
       .timeline()
       .fromTo(
         lines,
-        { yPercent: 105, letterSpacing: '0.06em' },
+        { yPercent: 104 },
         {
           yPercent: 0,
-          letterSpacing: '0em',
-          duration: 1.45,
+          duration: 1.35,
           ease: 'expo.out',
-          stagger: 0.1,
-          onComplete: () => TextReveals.settle(lines, 'transform,letterSpacing'),
+          stagger: 0.09,
+          onComplete: () => TextReveals.settle(lines, 'transform'),
         }
       )
       .fromTo(
@@ -182,12 +122,12 @@ export class TextReveals {
         { opacity: 0 },
         {
           opacity: 1,
-          duration: 1.0,
+          duration: 0.95,
           ease: 'power2.out',
-          stagger: 0.09,
-          onComplete: () => TextReveals.settle(supporting, 'opacity,letterSpacing'),
+          stagger: 0.08,
+          onComplete: () => TextReveals.settle(supporting, 'opacity'),
         },
-        '-=0.95'
+        '-=0.9'
       );
   }
 

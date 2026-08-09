@@ -3,11 +3,15 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Dark Lattice — premium cinematic WebGL studio website",
+  "description": "Dark Lattice \u2014 cinematic prologue and editorial proof",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port 4173"
+    "preview": "vite preview --port 4173",
+    "asset": "node tools/build-monolith.mjs",
+    "qa": "node tools/capture.mjs",
+    "prologue": "node tools/prologue.mjs",
+    "frames": "node tools/frames.mjs"
   },
   "dependencies": {
     "gsap": "^3.15.0",

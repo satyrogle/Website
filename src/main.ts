@@ -7,15 +7,16 @@ import { MotionPreferences } from './motion/MotionPreferences';
 import { TextReveals } from './motion/TextReveals';
 import { AccessibilityController } from './accessibility/AccessibilityController';
 import { SceneController, isWebGL2Available } from './scene/SceneController';
-import { ScrollDirector } from './motion/ScrollDirector';
-import { verifyEvidenceIntegrity } from './content/verify';
+import { PrologueDirector } from './motion/PrologueDirector';
 
 /**
  * Boot sequence.
  *
- * Order matters. Accessibility and the DOM narrative come up first and
- * never depend on the 3D system; the lattice is attached afterwards and
- * every failure path leaves the site fully readable.
+ * Poster first: the hero composition is on screen as a still image
+ * before anything is loaded, the DOM is usable from first paint, and the
+ * live scene crossfades in when it is ready. There is no loading screen
+ * and no progress number — every failure path leaves the whole site
+ * readable rather than putting the visitor behind a counter.
  */
 
 const root = document.documentElement;
@@ -24,76 +25,29 @@ const a11y = new AccessibilityController();
 const reveals = new TextReveals(motion.animated);
 
 let scene: SceneController | null = null;
-let director: ScrollDirector | null = null;
-
-// ---------------------------------------------------------------------
-//  Loader — genuine progress against real initialisation milestones
-// ---------------------------------------------------------------------
-
-const loaderEl = document.getElementById('loader');
-const loaderBar = document.getElementById('loader-bar');
-const loaderCount = document.getElementById('loader-count');
-
-// Repeat visits within a session skip the loader entirely: the shaders
-// and fonts are already warm, so showing progress would be theatre.
-const REPEAT_KEY = 'dl.visited';
-let repeatVisit = false;
-try {
-  repeatVisit = sessionStorage.getItem(REPEAT_KEY) === '1';
-  sessionStorage.setItem(REPEAT_KEY, '1');
-} catch {
-  // Storage blocked; treat as a first visit.
-}
-
-let loaderProgress = 0;
-
-function setLoaderProgress(value: number): void {
-  loaderProgress = Math.max(loaderProgress, Math.min(Math.max(value, 0), 1));
-  if (loaderBar) loaderBar.style.transform = `scaleX(${loaderProgress})`;
-  if (loaderCount) loaderCount.textContent = String(Math.round(loaderProgress * 100));
-}
-
-function dismissLoader(): void {
-  setLoaderProgress(1);
-  if (!loaderEl) return;
-  loaderEl.classList.add('is-done');
-  window.setTimeout(() => {
-    loaderEl.hidden = true;
-  }, 950);
-}
-
-if (loaderEl && !repeatVisit) {
-  // The inline script in the document head hid this before any bundle
-  // loaded. Now that we know JS is running, it can be shown.
-  loaderEl.hidden = false;
-}
-
-// ---------------------------------------------------------------------
-//  Fallback paths
-// ---------------------------------------------------------------------
+let director: PrologueDirector | null = null;
 
 function enterFallback(reason: string): void {
   root.classList.add('no-webgl');
   document.getElementById('lattice-canvas')?.remove();
-  // Controls that only affect the 3D object are removed, not disabled:
-  // a dead control is worse than an absent one.
-  document.querySelectorAll('[data-webgl-only]').forEach((el) => el.remove());
-  dismissLoader();
   if (import.meta.env.DEV) console.warn(`[dark-lattice] 3D disabled: ${reason}`);
 }
 
-// ---------------------------------------------------------------------
-//  Boot
-// ---------------------------------------------------------------------
-
 async function boot(): Promise<void> {
-  // 1 — DOM narrative and controls. Always runs, never blocks on 3D.
-  a11y.init((index) => scene?.focusLayer(index));
+  a11y.init();
   reveals.init();
-  setLoaderProgress(0.1);
+  reveals.revealHero();
 
-  // 2 — Fonts. Real work, and worth waiting for: the hero must not
-  //     land and then reflow as the display face swaps in.
+  const canvas = document.getElementById('lattice-canvas') as HTMLCanvasElement | null;
+  const poster = document.querySelector<HTMLElement>('[data-poster]');
+
+  if (!canvas || !isWebGL2Available()) {
+    enterFallback('WebGL2 unavailable');
+    return;
+  }
+
+  // Fonts are real work and worth waiting for before the crossfade: the
+  // hero must not land and then reflow as the display face swaps in.
   try {
     if (document.fonts) {
       await Promise.race([
@@ -104,144 +58,58 @@ async function boot(): Promise<void> {
   } catch {
     /* font loading is best-effort */
   }
-  setLoaderProgress(0.3);
 
-  const canvas = document.getElementById('lattice-canvas') as HTMLCanvasElement | null;
-
-  if (!canvas || !isWebGL2Available()) {
-    enterFallback('WebGL2 unavailable');
-    reveals.revealHero();
-    return;
-  }
-
-  // 3 — Scene construction: geometry build and shader compilation.
   try {
     scene = new SceneController({ canvas, reducedMotion: motion.reduced });
   } catch (error) {
     enterFallback(String(error));
-    reveals.revealHero();
     return;
   }
 
-  // Dev-only probe. Every P0 this build has hit — the entity not
-  // rendering, the double transform, the empty corridor, extras lost to
-  // primitive splitting — was invisible in a screenshot and only
-  // findable by asking the live scene what it thought it was drawing.
-  // Stripped from production by the `import.meta.env.DEV` guard.
-  if (import.meta.env.DEV) {
-    (window as unknown as Record<string, unknown>).DL = { scene };
-  }
-
-  setLoaderProgress(0.45);
-
-  // 3b — The Blender-authored entity. Real network work, so it feeds
-  //      the loader directly. A failure here is not fatal: the site
-  //      drops to the poster and the DOM narrative is untouched.
   try {
-    await scene.loadEntity(
-      `${import.meta.env.BASE_URL}models/DL_Aurora_v13.glb`,
-      (fraction) => setLoaderProgress(0.45 + fraction * 0.18)
-    );
+    await scene.loadEntity(`${import.meta.env.BASE_URL}models/DL_Monolith_v01.glb`);
   } catch (error) {
     scene.dispose();
     scene = null;
     enterFallback(`entity load failed: ${String(error)}`);
-    reveals.revealHero();
     return;
   }
-  // 3c — NO environment backplates.
-  //
-  //      The two painted plates were the brightest thing on the page, so
-  //      the eye went background, then type, then entity — with the
-  //      subject the darkest object in frame. They were also
-  //      MeshBasicMaterial, which meant they could not answer the
-  //      entity, the reaction field or the lighting arc by construction;
-  //      whatever the entity did, the sky behind it stayed the same
-  //      picture.
-  //
-  //      The environment is now the clear colour and the post stack's
-  //      haze, which is the entity's own emissive blurred wide. The
-  //      background cannot fall out of step with the entity because it
-  //      IS the entity. SceneController.loadEnvironment still exists and
-  //      still works if the plates are wanted back.
 
-  setLoaderProgress(0.63);
-
-  // 4 — Grow the reaction field. This is the bulk of the real
-  //     initialisation work and the main thing the loader is measuring:
-  //     Gray–Scott needs thousands of iterations before it looks like
-  //     anything, and the hero has to land developed rather than
-  //     visibly filling in over the first fifteen seconds.
+  // Gray–Scott needs thousands of iterations before it looks like
+  // anything, and the hero has to land developed rather than visibly
+  // filling in over the first fifteen seconds.
   try {
-    await scene.warmUpField(
-      repeatVisit ? 800 : 2400,
-      repeatVisit ? 600 : 1500,
-      (fraction) => setLoaderProgress(0.63 + fraction * 0.24)
-    );
+    await scene.warmUpField(2200, 1400);
   } catch (error) {
     if (import.meta.env.DEV) console.warn('[dark-lattice] warm-up skipped', error);
   }
 
-  setLoaderProgress(0.88);
+  scene.setWake(1);
 
-  // 5 — First frame. Rendering once here means the hero composition is
-  //     already on screen behind the loader when it clears, so the
-  //     hand-off resolves directly into the hero rather than popping.
   try {
     scene.renderStill();
   } catch (error) {
     scene.dispose();
     scene = null;
     enterFallback(String(error));
-    reveals.revealHero();
     return;
   }
-  setLoaderProgress(0.92);
 
   canvas.classList.add('is-live');
+  poster?.classList.add('is-retired');
 
-  // Dev-only handle for the capture/QA harness. Stripped from
-  // production builds by the import.meta.env.DEV guard.
-  if (import.meta.env.DEV) {
-    (window as unknown as Record<string, unknown>).__dlScene = scene;
-  }
-
-  // 5 — Hand off.
-  director = new ScrollDirector(scene, motion.reduced);
+  director = new PrologueDirector(scene, motion.reduced);
   director.start();
 
-  if (motion.reduced) {
-    // Composed still. No drift, no travel, no smooth-scroll layer.
-    scene.setWake(1);
-    scene.renderStill();
-  } else {
-    scene.setWake(1);
-    scene.start();
+  if (!motion.reduced) scene.start();
+
+  // Dev-only handles for the capture and QA harness.
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).__dl = { scene, director };
   }
-
-  setLoaderProgress(1);
-
-  // A short settle so the reveal begins against a live field rather than
-  // a frozen one, then the loader clears and the hero plays.
-  window.setTimeout(
-    () => {
-      dismissLoader();
-      // Measure first, then play. ScrollTrigger.refresh() reverts
-      // in-flight animations to their start values as part of
-      // recalculating positions, so refreshing after starting the hero
-      // would leave the masked lines parked off-screen.
-      reveals.refresh();
-      reveals.revealHero();
-    },
-    repeatVisit ? 0 : 260
-  );
 
   wireScrollAnchors();
 }
-
-// ---------------------------------------------------------------------
-//  Anchors — routed through the smooth-scroll layer where present
-// ---------------------------------------------------------------------
 
 function wireScrollAnchors(): void {
   document.querySelectorAll<HTMLAnchorElement>('a[data-scroll-to]').forEach((anchor) => {
@@ -252,21 +120,10 @@ function wireScrollAnchors(): void {
       if (!target || !director) return;
       event.preventDefault();
       director.scrollTo(target);
-      // Keep the keyboard in sync with the visual position.
       target.setAttribute('tabindex', '-1');
       target.focus({ preventScroll: true });
     });
   });
-}
-
-// Layout changes from the evidence disclosure must re-measure the
-// narrative bands, or the camera timing drifts against the new height.
-document.addEventListener('layoutchange', () => {
-  reveals.refresh();
-});
-
-if (import.meta.env.DEV) {
-  verifyEvidenceIntegrity();
 }
 
 if (document.readyState === 'loading') {
@@ -274,6 +131,3 @@ if (document.readyState === 'loading') {
 } else {
   void boot();
 }
-
-// Guard against a late failure leaving the loader up.
-window.addEventListener('error', () => dismissLoader());

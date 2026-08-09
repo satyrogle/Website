@@ -1,29 +1,16 @@
+import type { EntityLightState } from './DarkLatticeMonolithModel';
 
 /**
  * Lighting
  *
- * The lattice uses a compact analytic shading model rather than Three's
- * light objects, so "lighting" here means driving that model's uniforms
- * along the narrative. Keeping it in one place makes the emotional arc
- * legible as data: near-darkness and hard rim at the cold open, even and
- * revealing at the foundation, deliberately dimmed and near-monochrome
- * across the evidence boundary, stable at the resolution.
+ * The monolith uses a compact analytic shading model rather than Three's
+ * light objects, so the arc is data: this samples prologue progress and
+ * publishes the state the entity reads.
  *
- * Exposure and bloom are pulled DOWN through the middle movements, which
- * is counter-intuitive until you remember the camera is inside the
- * object there, sometimes centimetres from an emissive surface. Carrying
- * the outdoor gain indoors blew half the frame to white and took the
- * copy with it. Fog rises at the same time, which is what gives the
- * corridor its depth.
- *
- * RE-BALANCED against a black environment. Every figure below was set
- * with a lit backplate behind the entity, so "down through the middle"
- * only ever meant down relative to a bright world. Delete the plate and
- * the hero drops to near-black while the corridor keeps its old gain —
- * the descent then reads as walking into a brighter place, which is the
- * opposite of the arc. Exposure and bloom carry the correction; the
- * emissive, psy and ring channels are untouched, because those are the
- * material and the material is not the problem.
+ * Exposure and bloom fall through the tunnel because the camera is
+ * inside the building there, sometimes centimetres from an emissive
+ * fissure. Fog rises at the same time, which is what gives the corridor
+ * its depth.
  */
 
 interface LightKeyframe {
@@ -31,103 +18,62 @@ interface LightKeyframe {
   keyIntensity: number;
   rimIntensity: number;
   fillIntensity: number;
-  /** Reaction emissive gain — how hard the chemistry burns. */
+  /** Fissure emissive gain. */
   emissive: number;
-  /** Ring brightness. */
-  ring: number;
   /** Surface displacement from the field. */
   displace: number;
-  /** Channel edge hardness. */
+  /** Fissure edge hardness: soft glow early, etched channels late. */
   sharp: number;
-  /**
-   * DIVINITY. Re-authored, and the spine of the whole site.
-   *
-   * This was "prestige accent, non-zero only at decisive moments" — a
-   * little gold at the arrival. It is now the opposite shape: the
-   * entity presents itself as salvation at the top of the page, gold
-   * and whole and radiant, and that presentation DECAYS as the visitor
-   * descends into it until nothing of it is left. The lie coming apart
-   * is one curve, and this is it.
-   */
-  amber: number;
-  /**
-   * Ferrofluid / psychedelic intensity. Zero outside the corridor so
-   * the locked hero stays stone; rises to full while travelling the
-   * tunnel, where the patterns ooze out of the surface.
-   */
-  psy: number;
+  /** Halo brightness. Falls to nothing once the camera is inside. */
+  halo: number;
   fog: number;
-  /** Post exposure and bloom. */
   exposure: number;
   bloom: number;
   vignette: number;
 }
 
 const ARC: LightKeyframe[] = [
-  // 01 — cold open. The iridescent monolith carries itself; the rim
-  // carves it out of the void.
+  // Full Form — the building carries itself out of the void.
   {
     at: 0.0,
-    keyIntensity: 0.7, rimIntensity: 1.5, fillIntensity: 0.95,
-    emissive: 1.0, ring: 1.3, displace: 0.012, sharp: 0.5, amber: 1.0, psy: 0,
-    // Fog raised so the corridor behind the crown drowns at the hero:
-    // the entity hangs in void, not in front of visible machinery.
-    fog: 0.058, exposure: 1.1, bloom: 0.62, vignette: 0.9,
+    keyIntensity: 0.75, rimIntensity: 1.35, fillIntensity: 0.9,
+    emissive: 1.0, displace: 0.008, sharp: 0.5, halo: 1.0,
+    fog: 0.016, exposure: 1.15, bloom: 0.5, vignette: 0.9,
   },
-  // 02 — premise. The door opens; the trip is visible through it.
+  // Opening — the masses displace; the passage becomes legible.
   {
-    at: 0.2,
-    keyIntensity: 0.85, rimIntensity: 1.3, fillIntensity: 1.0,
-    emissive: 1.15, ring: 1.1, displace: 0.012, sharp: 0.5, amber: 0.82, psy: 0.6,
-    fog: 0.038, exposure: 1.00, bloom: 0.36, vignette: 0.91,
+    at: 0.24,
+    keyIntensity: 0.9, rimIntensity: 1.25, fillIntensity: 0.95,
+    emissive: 1.15, displace: 0.01, sharp: 0.52, halo: 0.7,
+    fog: 0.02, exposure: 1.0, bloom: 0.42, vignette: 0.9,
   },
-  // 03a/b/c — the trip. Full pattern, moderate bloom so the colour
-  // stays saturated instead of blowing to white.
+  // Entry.
   {
-    at: 0.35,
-    keyIntensity: 0.9, rimIntensity: 1.1, fillIntensity: 0.9,
-    emissive: 1.3, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0.34, psy: 1.0,
-    fog: 0.03, exposure: 0.86, bloom: 0.24, vignette: 0.95,
+    at: 0.44,
+    keyIntensity: 0.95, rimIntensity: 1.15, fillIntensity: 0.85,
+    emissive: 1.3, displace: 0.012, sharp: 0.58, halo: 0.12,
+    fog: 0.046, exposure: 0.9, bloom: 0.3, vignette: 0.94,
   },
+  // Tunnel midpoint.
   {
-    at: 0.45,
-    keyIntensity: 0.9, rimIntensity: 1.15, fillIntensity: 0.9,
-    emissive: 1.4, ring: 1.0, displace: 0.014, sharp: 0.5, amber: 0.14, psy: 1.0,
-    fog: 0.03, exposure: 0.82, bloom: 0.24, vignette: 0.96,
+    at: 0.62,
+    keyIntensity: 0.95, rimIntensity: 1.2, fillIntensity: 0.85,
+    emissive: 1.35, displace: 0.012, sharp: 0.6, halo: 0,
+    fog: 0.048, exposure: 0.88, bloom: 0.3, vignette: 0.95,
   },
+  // Approach — the travel slows and the chamber opens out.
   {
-    at: 0.55,
-    keyIntensity: 0.9, rimIntensity: 1.2, fillIntensity: 0.95,
-    emissive: 1.35, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0.06, psy: 1.0,
-    fog: 0.03, exposure: 0.84, bloom: 0.25, vignette: 0.95,
+    at: 0.82,
+    keyIntensity: 0.9, rimIntensity: 1.25, fillIntensity: 0.9,
+    emissive: 1.2, displace: 0.01, sharp: 0.64, halo: 0,
+    fog: 0.038, exposure: 0.94, bloom: 0.34, vignette: 0.92,
   },
-  // 04 — foundation. Trip eases while the thirds separate.
-  {
-    at: 0.655,
-    keyIntensity: 1.0, rimIntensity: 1.2, fillIntensity: 1.05,
-    emissive: 1.2, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.0, psy: 0.8,
-    fog: 0.028, exposure: 0.90, bloom: 0.40, vignette: 0.92,
-  },
-  // 05 — accumulation. Calming; the pattern slows its claim.
-  {
-    at: 0.775,
-    keyIntensity: 1.0, rimIntensity: 1.25, fillIntensity: 1.0,
-    emissive: 1.05, ring: 0.95, displace: 0.01, sharp: 0.65, amber: 0.0, psy: 0.5,
-    fog: 0.026, exposure: 0.94, bloom: 0.40, vignette: 0.90,
-  },
-  // 06 — evidence. Documentary. The far door, plainly lit.
-  {
-    at: 0.885,
-    keyIntensity: 0.85, rimIntensity: 1.0, fillIntensity: 0.85,
-    emissive: 1.0, ring: 0.8, displace: 0.008, sharp: 0.7, amber: 0.0, psy: 0.45,
-    fog: 0.022, exposure: 0.96, bloom: 0.32, vignette: 0.88,
-  },
-  // 07 — resolution. The sealed twin, iridescent and still.
+  // Latent Form — still, concentrated, carrying what was retained.
   {
     at: 1.0,
-    keyIntensity: 0.95, rimIntensity: 1.35, fillIntensity: 0.95,
-    emissive: 1.15, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.16, psy: 0.35,
-    fog: 0.022, exposure: 1.00, bloom: 0.44, vignette: 0.90,
+    keyIntensity: 0.95, rimIntensity: 1.35, fillIntensity: 0.9,
+    emissive: 1.15, displace: 0.008, sharp: 0.68, halo: 0,
+    fog: 0.026, exposure: 1.0, bloom: 0.4, vignette: 0.9,
   },
 ];
 
@@ -145,60 +91,24 @@ function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
-export interface EntityLightState {
-  keyDir: [number, number, number];
-  emissive: number;
-  wake: number;
-  fog: number;
-  keyIntensity: number;
-  rimIntensity: number;
-  fillIntensity: number;
-  displace: number;
-  /**
-   * Corridor interior intensity.
-   *
-   * The ARC has keyframed this since the first build and it was
-   * interpolated every frame, but it was never published here — so the
-   * entity never received it and the whole psychedelic layer went dark
-   * when the corridor moved to the authored mesh. The tunnel rendered
-   * as lit plates: nothing streaming, nothing folding, nothing moving
-   * unless the visitor scrolled it.
-   */
-  psy: number;
-  /** The divinity curve — see `amber` on LightKeyframe. */
-  divinity: number;
-  /** Halo brightness. Keyframed since the first build, never published. */
-  ring: number;
-  /** Channel edge hardness. Same. */
-  sharp: number;
-}
-
 export class Lighting {
   private state: LightKeyframe = { ...ARC[0] };
-  readonly post: PostState = { exposure: 1.12, bloom: 0.72, vignette: 0.92 };
+  readonly post: PostState = { exposure: 1.05, bloom: 0.5, vignette: 0.9 };
 
-  /** 0..1 cold-open reveal, driven by the loader hand-off. */
+  /** 0..1 reveal out of near-darkness, driven by the boot hand-off. */
   private wake = 0;
 
-  /**
-   * The arc is now pure data. Lighting samples the narrative and
-   * publishes a state object; the entity reads it. That inversion is
-   * what lets the Blender-authored model own its own uniforms without
-   * this class needing to know what parts exist.
-   */
   readonly entityState: EntityLightState = {
-    keyDir: [0, 0.82, 0.42],
+    keyDir: [0.28, 0.66, 0.7],
     emissive: 1,
     wake: 0,
-    fog: 0.05,
-    keyIntensity: 1,
+    fog: 0.03,
+    keyIntensity: 0.75,
     rimIntensity: 1.35,
-    fillIntensity: 1,
-    displace: 0.014,
-    psy: 0,
-    divinity: 1,
-    ring: 1.3,
+    fillIntensity: 0.9,
+    displace: 0.008,
     sharp: 0.5,
+    halo: 1,
   };
 
   setWake(value: number): void {
@@ -219,11 +129,9 @@ export class Lighting {
       rimIntensity: lerp(a.rimIntensity, b.rimIntensity, t),
       fillIntensity: lerp(a.fillIntensity, b.fillIntensity, t),
       emissive: lerp(a.emissive, b.emissive, t),
-      ring: lerp(a.ring, b.ring, t),
       displace: lerp(a.displace, b.displace, t),
       sharp: lerp(a.sharp, b.sharp, t),
-      amber: lerp(a.amber, b.amber, t),
-      psy: lerp(a.psy, b.psy, t),
+      halo: lerp(a.halo, b.halo, t),
       fog: lerp(a.fog, b.fog, t),
       exposure: lerp(a.exposure, b.exposure, t),
       bloom: lerp(a.bloom, b.bloom, t),
@@ -248,20 +156,15 @@ export class Lighting {
     entity.rimIntensity = s.rimIntensity;
     entity.fillIntensity = s.fillIntensity;
     entity.displace = s.displace;
-    entity.psy = s.psy;
-    entity.divinity = s.amber;
-    entity.ring = s.ring;
     entity.sharp = s.sharp;
+    entity.halo = s.halo;
 
-    // A very slow swing on the key direction — below the threshold of
-    // conscious notice, but it stops the entity reading as a static
-    // render. Strictly bilateral: the key never leaves the x = 0 plane,
-    // because swinging it left-right shades a near-symmetric object
-    // unevenly and reads as the geometry being crooked.
+    // A very slow swing on the key, below the threshold of notice, so
+    // the building does not read as a static render.
     entity.keyDir = [
-      0,
-      0.82 + Math.cos(time * 0.06) * 0.05,
-      0.42 + Math.sin(time * 0.08) * 0.09,
+      0.28,
+      0.66 + Math.cos(time * 0.06) * 0.04,
+      0.7 + Math.sin(time * 0.08) * 0.06,
     ];
 
     this.post.exposure = s.exposure;

@@ -24,9 +24,9 @@ import motesFrag from '../shaders/motes.frag.glsl?raw';
  * in the vertex shader from a seed baked into the geometry.
  */
 
-/** Distributed along the whole travel axis, not just around the crown. */
-const SPAN_NEAR = 16;
-const SPAN_FAR = -20;
+/** Distributed along the whole travel axis, not just around the Full Form. */
+const SPAN_NEAR = 14;
+const SPAN_FAR = -21;
 
 export class Particulate {
   readonly points: THREE.Points;
@@ -54,7 +54,7 @@ export class Particulate {
       const angle = rand() * Math.PI * 2;
       // sqrt keeps the density even across the disc instead of piling
       // everything onto the axis.
-      const radius = Math.sqrt(rand()) * 11.5;
+      const radius = Math.sqrt(rand()) * 6.4;
       positions[i * 3 + 0] = Math.cos(angle) * radius;
       positions[i * 3 + 1] = Math.sin(angle) * radius * 0.72;
       positions[i * 3 + 2] = SPAN_FAR + rand() * (SPAN_NEAR - SPAN_FAR);
@@ -66,7 +66,7 @@ export class Particulate {
       // curve still leans dim; there are simply enough of them now for
       // the volume to register rather than the individuals.
       const b = rand();
-      motes[i * 3 + 1] = 0.07 + b * b * 0.45;
+      motes[i * 3 + 1] = 0.05 + b * b * 0.22;
       motes[i * 3 + 2] = 0.5 + rand() * 1.5;
     }
 

@@ -1,15 +1,5 @@
-/* The display type is deliberately cropped against the viewport edge,
-   which is what the brief asks for — but a cropped glyph still extends
-   the scroll area, and at 390px that gave the page 20px of horizontal
-   drag. Clipping the root keeps the crop and removes the sideways
-   scroll; `clip` rather than `hidden` so it does not create a scroll
-   container and break position: sticky further down the page. */
-html {
-  overflow-x: clip;
-}
-
 /* ============================================================
-   Dark Lattice — global reset, shell, canvas/DOM boundary
+   Dark Lattice — reset, shell, canvas boundary
    ============================================================ */
 
 *,
@@ -19,8 +9,9 @@ html {
 }
 
 html {
-  /* No smooth-scroll here: the Lenis layer owns it, and reduced
-     motion must fall back to genuinely instant native scrolling. */
+  /* `clip`, not `hidden`: hidden creates a scroll container and breaks
+     position: sticky further down the page. */
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -31,80 +22,124 @@ body {
   color: var(--text);
   font-family: var(--font-body);
   font-size: var(--step-0);
+  font-weight: 400;
   line-height: 1.62;
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  /* Acceptance 19: no horizontal overflow at 390px. */
-  overflow-x: hidden;
+  /* No overflow-x here. `hidden` on either axis forces the other to a
+     scroll container, and a scroll container between the sticky stage
+     and the viewport stops it sticking at all — the prologue then
+     scrolls away and the tunnel and latent beats are never on screen.
+     Sideways overflow is handled by `overflow-x: clip` on the root,
+     which clips without creating a scroll container. */
 }
 
-/* The lattice is a fixed backdrop the DOM travels over. One canvas,
-   one scene, for the whole document (brief §2.3 persistence). */
+/* --- The prologue stage ------------------------------------------
+   The canvas lives INSIDE the sticky stage rather than behind the
+   whole document, so it is structurally impossible for editorial copy
+   to sit on top of live WebGL. */
+
+.prologue {
+  position: relative;
+  background: var(--void);
+}
+
+.prologue__stage {
+  position: relative;
+}
+
+.prologue__frame {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-canvas);
+  overflow: hidden;
+  background: var(--void);
+}
+
 #lattice-canvas {
-  position: fixed;
+  position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
-  z-index: var(--z-canvas);
-  /* Never intercept scroll or clicks — pointer response is read
-     from window listeners instead (acceptance 20). */
+  /* Never intercept scroll or clicks — presses are read from a window
+     listener that does not preventDefault. */
   pointer-events: none;
   touch-action: none;
   opacity: 0;
-  transition: opacity 1200ms var(--ease-out-expo);
+  transition: opacity 900ms var(--ease-out-expo);
 }
 
 #lattice-canvas.is-live {
   opacity: 1;
 }
 
-/* Static poster shown when WebGL fails, JS is off, or reduced
-   motion is requested. Composed, not an error state. */
-.poster {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-canvas);
-  display: none;
-  background:
-    radial-gradient(120% 80% at 50% 42%, rgba(77, 208, 255, 0.09), transparent 62%),
-    radial-gradient(80% 55% at 50% 55%, rgba(54, 224, 176, 0.07), transparent 70%),
-    var(--ground);
-}
-
-.poster::after {
-  /* Vignette so the poster reads as a deliberate frame. */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(100% 70% at 50% 45%, transparent 40%, rgba(4, 6, 9, 0.85) 100%);
-}
-
-.poster__art {
+/* Poster first. The hero composition is on screen as a still before
+   anything loads, and the live scene crossfades over it. */
+.prologue__poster {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 45%;
+  object-position: center center;
+  opacity: 1;
+  transition: opacity 900ms var(--ease-out-expo);
 }
 
-:root.no-webgl .poster,
-:root.reduced-motion .poster {
-  display: block;
+.prologue__poster.is-retired {
+  opacity: 0;
 }
+
+.prologue__copy {
+  position: relative;
+  z-index: var(--z-copy);
+}
+
+/* With scripting the stage is a sticky cinema. Without it, everything
+   below lays out as ordinary stacked blocks.
+
+   The stage height comes from a custom property the director writes from
+   window.innerHeight, not from svh. Viewport units are resolved against
+   a box that does not always match the layout viewport — under emulated
+   viewports svh has been observed resolving to the host window instead —
+   and any disagreement between the CSS height and the height the
+   director measures re-times the whole sequence. `100vh` remains the
+   no-script fallback. */
+.js .prologue {
+  height: calc(var(--stage-h, 100vh) * 4);
+}
+
+.js .prologue__stage {
+  position: sticky;
+  top: 0;
+  height: var(--stage-h, 100vh);
+  overflow: hidden;
+}
+
+.js .prologue__copy {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.js .beat {
+  position: absolute;
+  pointer-events: auto;
+}
+
+/* A faded beat must not take clicks. Opacity is used rather than
+   visibility so the causal statements stay in the accessibility tree
+   the whole way through; pointer-events is driven alongside it. */
+
+/* --- No WebGL ------------------------------------------------------ */
 
 :root.no-webgl #lattice-canvas {
   display: none;
 }
 
-main {
-  position: relative;
-  z-index: var(--z-content);
-}
-
-/* --- Focus ------------------------------------------------------- */
+/* --- Focus --------------------------------------------------------- */
 
 :focus-visible {
   outline: 2px solid var(--cyan);
@@ -112,7 +147,6 @@ main {
   border-radius: 1px;
 }
 
-/* Only suppress the ring for pointer users, never for keyboard. */
 :focus:not(:focus-visible) {
   outline: none;
 }
@@ -124,12 +158,10 @@ main {
   z-index: var(--z-skip);
   transform: translateY(-140%);
   padding: 0.8rem 1.3rem;
-  background: var(--cold-white);
+  background: var(--text);
   color: var(--ground);
   font-family: var(--font-mono);
   font-size: var(--step--1);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   text-decoration: none;
   transition: transform var(--dur-fast) var(--ease-out-expo);
 }
@@ -138,8 +170,6 @@ main {
   transform: translateY(0.75rem);
 }
 
-/* --- Screen-reader utility --------------------------------------- */
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -147,123 +177,65 @@ main {
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
 
-/* --- Site chrome -------------------------------------------------- */
+/* --- Masthead ------------------------------------------------------ */
 
-.chrome {
+.masthead {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: var(--z-chrome);
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  padding: clamp(1rem, 2.4vh, 1.75rem) var(--gutter);
+  gap: 1.5rem;
+  padding: clamp(1rem, 2.2vh, 1.6rem) var(--gutter);
   pointer-events: none;
-  mix-blend-mode: difference;
 }
 
-.chrome > * {
+.masthead > * {
   pointer-events: auto;
 }
 
-.chrome__mark {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.22em;
+.masthead__mark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--step-0);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text);
   text-decoration: none;
 }
 
-.chrome__glyph {
-  width: 0.85rem;
-  height: 0.85rem;
-  flex: none;
+.masthead__nav {
+  display: flex;
+  gap: clamp(1rem, 2.4vw, 2.2rem);
 }
 
-.chrome__progress {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.18em;
+.masthead__nav a {
+  font-size: var(--step--1);
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  transition: color var(--dur-fast) ease;
 }
 
-@media (max-width: 640px) {
-  .chrome__progress {
-    display: none;
+.masthead__nav a:hover,
+.masthead__nav a[aria-current='page'] {
+  color: var(--text);
+}
+
+@media (max-width: 420px) {
+  .masthead__nav {
+    gap: 0.9rem;
   }
 }
 
-/* --- Loader ------------------------------------------------------- */
-
-.loader {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-loader);
-  display: grid;
-  place-content: center;
-  gap: 1.4rem;
-  background: var(--ground);
-  transition: opacity 900ms var(--ease-out-expo), visibility 900ms;
-}
-
-.loader[hidden] {
-  display: none;
-}
-
-.loader.is-done {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.loader__label {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--muted);
-  text-align: center;
-}
-
-.loader__track {
-  width: min(42vw, 320px);
-  height: 1px;
-  background: var(--line);
-  overflow: hidden;
-}
-
-.loader__bar {
-  display: block;
-  height: 100%;
-  width: 100%;
-  transform: scaleX(0);
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg, var(--teal), var(--cyan), var(--cold-white));
-  transition: transform 200ms linear;
-}
-
-.loader__count {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  color: var(--text);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- Reduced motion ---------------------------------------------- */
+/* --- Reduced motion ------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
   *,

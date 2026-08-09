@@ -34,16 +34,12 @@ export interface ReactionPreset {
  * the near-black material read the references depend on.
  */
 export const PRESETS = {
-  /** Idle — worms: winding lines that read as a fracture network. */
+  /** Full Form — winding lines that read as a fracture network at rest. */
   base: { feed: 0.0545, kill: 0.062, diffuseA: 0.74, diffuseB: 0.37, structure: 1.0 },
-  /** Desk42 — discrete cells, tightly organised, retaining prior marks. */
-  desk42: { feed: 0.03, kill: 0.0625, diffuseA: 0.74, diffuseB: 0.355, structure: 1.25 },
-  /** Brawler — worms: aggressive propagation and contamination spread. */
-  brawler: { feed: 0.0545, kill: 0.062, diffuseA: 0.74, diffuseB: 0.385, structure: 0.7 },
-  /** Roguelite — between coral and worms; complex but not chaotic. */
-  roguelite: { feed: 0.041, kill: 0.063, diffuseA: 0.74, diffuseB: 0.37, structure: 1.1 },
-  /** Resolution — the calmest stable pattern the system settles into. */
-  resolved: { feed: 0.058, kill: 0.063, diffuseA: 0.74, diffuseB: 0.37, structure: 1.15 },
+  /** Opening and tunnel — the same system propagating harder. */
+  active: { feed: 0.0545, kill: 0.062, diffuseA: 0.74, diffuseB: 0.385, structure: 0.8 },
+  /** Latent Form — the calmest stable pattern the system settles into. */
+  settled: { feed: 0.058, kill: 0.063, diffuseA: 0.74, diffuseB: 0.37, structure: 1.15 },
 } as const satisfies Record<string, ReactionPreset>;
 
 export type PresetName = keyof typeof PRESETS;
@@ -72,9 +68,7 @@ export class ReactionField {
   private resolution: number;
   private seeded = false;
 
-  /** Pointer splat, decayed each frame so a flick leaves a trail. */
-  private pointerSplat: Splat = { x: 0.5, y: 0.5, radius: 0.0, strength: 0 };
-  /** Queue of scripted splats issued by the scroll director. */
+  /** Queue of disturbances issued by the prologue. */
   private queue: Splat[] = [];
 
   private current: ReactionPreset = { ...PRESETS.base };
@@ -197,23 +191,20 @@ export class ReactionField {
     this.queue.push({ x, y, radius, strength });
   }
 
-  /** Continuous pointer disturbance; decays on its own. */
-  setPointer(x: number, y: number, strength: number): void {
-    this.pointerSplat.x = x;
-    this.pointerSplat.y = y;
-    this.pointerSplat.radius = 0.028;
-    this.pointerSplat.strength = Math.max(this.pointerSplat.strength, strength);
-  }
-
+  /**
+   * Deliberately inert once the field has been seeded.
+   *
+   * Rebuilding the targets at a new resolution means reseeding, and the
+   * whole causal claim of the prologue is that the disturbance made in
+   * the Full Form is the same one arriving at the latent core. A quality
+   * demotion is not allowed to erase it.
+   */
   resize(resolution: number): void {
-    if (resolution === this.resolution) return;
-    // Re-seeding on resize would break persistence, so the field is only
-    // rebuilt if the tier change genuinely demands a different texture.
+    if (this.seeded || resolution === this.resolution) return;
     this.resolution = resolution;
     this.targets.forEach((t) => t.dispose());
     this.targets = [this.createTarget(resolution), this.createTarget(resolution)];
     this.material.uniforms.uTexel.value.set(1 / resolution, 1 / resolution);
-    this.seeded = false;
     this.seed();
   }
 
@@ -237,10 +228,6 @@ export class ReactionField {
     u.uStructure.value = this.current.structure;
 
     this.step(steps);
-
-    // Pointer energy bleeds off quickly so the trail reads as a wake.
-    this.pointerSplat.strength *= Math.pow(0.02, dt);
-    if (this.pointerSplat.strength < 0.001) this.pointerSplat.strength = 0;
   }
 
   /** Advances the chemistry by n substeps, applying any queued splats. */
@@ -255,12 +242,7 @@ export class ReactionField {
       // disturbance is injected once and then allowed to evolve.
       if (i === 0) {
         const scripted = this.queue.shift();
-        u.uSplat.value.set(
-          this.pointerSplat.x,
-          this.pointerSplat.y,
-          this.pointerSplat.radius,
-          this.pointerSplat.strength
-        );
+        u.uSplat.value.set(0, 0, 0, 0);
         if (scripted) {
           u.uSplatB.value.set(scripted.x, scripted.y, scripted.radius, scripted.strength);
         } else {
