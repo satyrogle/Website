@@ -1,0 +1,216 @@
+{
+  "base": "http://localhost:4183",
+  "renderer": "platform GPU (headed)",
+  "results": [
+    {
+      "check": "WebGL live @ desktop-1440x900",
+      "ok": true,
+      "detail": "{\"live\":true,\"fallback\":false}"
+    },
+    {
+      "check": "no horizontal overflow @ desktop-1440x900",
+      "ok": true,
+      "detail": "scrollWidth 1440 within 1440"
+    },
+    {
+      "check": "hero copy clears the monolith @ desktop-1440x900",
+      "ok": true,
+      "detail": "copy right 678 vs subject left 748"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t1) @ desktop-1440x900",
+      "ok": true,
+      "detail": "58→338 vs centre 547–893"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t2) @ desktop-1440x900",
+      "ok": true,
+      "detail": "1102→1382 vs centre 547–893"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t3) @ desktop-1440x900",
+      "ok": true,
+      "detail": "58→338 vs centre 547–893"
+    },
+    {
+      "check": "latent copy clears the core @ desktop-1440x900",
+      "ok": true,
+      "detail": "copy 58→438 / bottom 559; core 479→1201 / top 262"
+    },
+    {
+      "check": "renderer stopped and canvas gone behind editorial @ desktop-1440x900",
+      "ok": true,
+      "detail": "{\"parked\":true,\"frameOpacity\":0,\"offscreen\":true,\"editorialBg\":\"rgb(8, 11, 16)\"}"
+    },
+    {
+      "check": "no runtime errors @ desktop-1440x900",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "check": "WebGL live @ laptop-1366x768",
+      "ok": true,
+      "detail": "{\"live\":true,\"fallback\":false}"
+    },
+    {
+      "check": "no horizontal overflow @ laptop-1366x768",
+      "ok": true,
+      "detail": "scrollWidth 1366 within 1366"
+    },
+    {
+      "check": "hero copy clears the monolith @ laptop-1366x768",
+      "ok": true,
+      "detail": "copy right 670 vs subject left 726"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t1) @ laptop-1366x768",
+      "ok": true,
+      "detail": "55→326 vs centre 519–847"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t2) @ laptop-1366x768",
+      "ok": true,
+      "detail": "1040→1311 vs centre 519–847"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t3) @ laptop-1366x768",
+      "ok": true,
+      "detail": "55→326 vs centre 519–847"
+    },
+    {
+      "check": "latent copy clears the core @ laptop-1366x768",
+      "ok": true,
+      "detail": "copy 55→435 / bottom 491; core 724→815 / top 236"
+    },
+    {
+      "check": "renderer stopped and canvas gone behind editorial @ laptop-1366x768",
+      "ok": true,
+      "detail": "{\"parked\":true,\"frameOpacity\":0,\"offscreen\":true,\"editorialBg\":\"rgb(8, 11, 16)\"}"
+    },
+    {
+      "check": "no runtime errors @ laptop-1366x768",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "check": "WebGL live @ mobile-390x844",
+      "ok": true,
+      "detail": "{\"live\":true,\"fallback\":false}"
+    },
+    {
+      "check": "no horizontal overflow @ mobile-390x844",
+      "ok": true,
+      "detail": "scrollWidth 390 within 390"
+    },
+    {
+      "check": "hero copy clears the monolith @ mobile-390x844",
+      "ok": true,
+      "detail": "copy top 403 vs subject bottom 383"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t1) @ mobile-390x844",
+      "ok": true,
+      "detail": "copy top 700 vs safe zone 506"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t2) @ mobile-390x844",
+      "ok": true,
+      "detail": "copy top 700 vs safe zone 506"
+    },
+    {
+      "check": "tunnel copy clears the passage centre (t3) @ mobile-390x844",
+      "ok": true,
+      "detail": "copy top 700 vs safe zone 506"
+    },
+    {
+      "check": "latent copy clears the core @ mobile-390x844",
+      "ok": true,
+      "detail": "copy 20→370 / bottom 802; core 128→211 / top 178"
+    },
+    {
+      "check": "renderer stopped and canvas gone behind editorial @ mobile-390x844",
+      "ok": true,
+      "detail": "{\"parked\":true,\"frameOpacity\":0,\"offscreen\":true,\"editorialBg\":\"rgb(8, 11, 16)\"}"
+    },
+    {
+      "check": "no runtime errors @ mobile-390x844",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "check": "no forbidden public copy",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "check": "no progress counter, section numbering or loader",
+      "ok": true,
+      "detail": "{\"progressCounter\":false,\"sectionNumbers\":false,\"loader\":false}"
+    },
+    {
+      "check": "every anchor and CTA has a real target",
+      "ok": true,
+      "detail": "10 links"
+    },
+    {
+      "check": "homepage structure",
+      "ok": true,
+      "detail": "{\"beats\":5,\"products\":2,\"rows\":3,\"proof\":3,\"h1\":1}"
+    },
+    {
+      "check": "reduced motion: composed and immediately readable",
+      "ok": true,
+      "detail": "{\"reduced\":true,\"heroReadable\":true,\"statements\":5}"
+    },
+    {
+      "check": "no horizontal overflow @ reduced-motion 1440",
+      "ok": true,
+      "detail": "scrollWidth 1440 within 1440"
+    },
+    {
+      "check": "no-JS: full narrative readable",
+      "ok": true,
+      "detail": "{\"chars\":2062,\"hasHero\":true,\"hasTunnel\":true,\"hasLatent\":true,\"hasDesk42\":true,\"hasBrawler\":true,\"hasMethod\":true,\"hasEvidence\":true}"
+    },
+    {
+      "check": "no horizontal overflow @ no-js 1440",
+      "ok": true,
+      "detail": "scrollWidth 1440 within 1440"
+    },
+    {
+      "check": "WebGL failure: poster shown, complete narrative retained",
+      "ok": true,
+      "detail": "{\"fallback\":true,\"canvasGone\":true,\"posterVisible\":true,\"chars\":2062,\"hasTunnel\":true,\"hasEvidence\":true,\"noErrorPage\":true}"
+    },
+    {
+      "check": "evidence page: qualitative, no percentage ranges, no counter, no WebGL",
+      "ok": true,
+      "detail": "{\"rows\":11,\"percentages\":false,\"counter\":false,\"canvas\":false,\"qualitative\":true}"
+    },
+    {
+      "check": "no horizontal overflow @ evidence 1440",
+      "ok": true,
+      "detail": "scrollWidth 1440 within 1440"
+    },
+    {
+      "check": "evidence readable at 390px",
+      "ok": true,
+      "detail": "{\"restacked\":true,\"scrollWidth\":390,\"clientWidth\":390,\"fontPx\":14.146}"
+    },
+    {
+      "check": "touch does not block scrolling",
+      "ok": true,
+      "detail": "scrollY 0 → 1500"
+    },
+    {
+      "check": "keyboard: every stop has a visible focus ring",
+      "ok": true,
+      "detail": "13/13 stops"
+    },
+    {
+      "check": "no retired entity concepts in the shipped build",
+      "ok": true,
+      "detail": "clean"
+    }
+  ]
+}

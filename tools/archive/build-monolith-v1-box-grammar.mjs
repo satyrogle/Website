@@ -1,4 +1,18 @@
 /**
+ * REJECTED — v1 box grammar. Retained only as a reproducible record of
+ * the geometry the v2 review rejected, and it must not produce the
+ * active production asset.
+ *
+ * The Full Form it builds is six pier assemblies, one lintel, repeated
+ * belt courses and a spine made of two jambs, a lintel and a sill around
+ * a rectangular aperture. That vocabulary reads as scaffolding and a
+ * ruined doorway, and no amount of shader work changes it. See
+ * docs/V2_DEFECT_REGISTER.md, defects A-01 to A-09.
+ *
+ * The active pipeline is tools/blender/build_monolith_v2.py.
+ */
+
+/**
  * Builds the canonical production asset:
  *
  *   public/models/DL_Monolith_v01.glb
