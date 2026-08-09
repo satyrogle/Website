@@ -22,6 +22,7 @@ assets/blender/*
 # has to be openable by hand, so it is tracked at 105 KB.
 !assets/blender/DL_Monolith_Workbench_v2.blend
 !assets/blender/DL_Monolith_Workbench_v3.blend
+!assets/blender/DL_Monolith_Workbench_v4.blend
 
 # Superseded entity assets. Half a gigabyte of rejected candidates that
 # stay on disk for reference; only the immediate predecessor of the

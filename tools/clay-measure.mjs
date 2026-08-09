@@ -16,8 +16,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { launch } from './browser.mjs';
 
-const CLAY = path.resolve('design/clay', process.env.DL_CLAY_DIR ?? 'r1');
-const OUT_JSON = path.resolve('design/clay', process.env.DL_MEASURE_OUT ?? 'gate-a-r1-measurements.json');
+const CLAY = path.resolve('design/clay', process.env.DL_CLAY_DIR ?? 'r2');
+const OUT_JSON = path.resolve('design/clay', process.env.DL_MEASURE_OUT ?? 'gate-a-r2-measurements.json');
 const FORM = path.resolve('tools/blender/monolith_v2_form.py');
 
 const MASS_NAMES = [
@@ -282,6 +282,69 @@ function longestApertureEdge(mask, box) {
   return { longest, where };
 }
 
+/**
+ * The dominant A/B shared projected boundary, measured BY SEGMENT.
+ *
+ * For every row where the two masses face each other, the A-side edge is
+ * A's rightmost pixel and the B-side edge is B's leftmost pixel. A
+ * segment ends where the edge stops being straight — where it drifts by
+ * more than a pixel between rows, which is what an authored step does.
+ * The aggregate straight-edge figure cannot see a step; this can.
+ */
+function interfaceSegments(mask, box, idA, idB) {
+  const { owner, width } = mask;
+  const rowsA = new Map();
+  const rowsB = new Map();
+  for (let y = box.minY; y <= box.maxY; y++) {
+    let aRight = -1;
+    let bLeft = -1;
+    for (let x = box.minX; x <= box.maxX; x++) {
+      const id = owner[y * width + x];
+      if (id === idA) aRight = x;
+      if (id === idB && bLeft < 0) bLeft = x;
+    }
+    if (aRight < 0 || bLeft < 0 || bLeft <= aRight) continue;
+    rowsA.set(y, aRight);
+    rowsB.set(y, bLeft);
+  }
+
+  const runsFor = (rows, label) => {
+    const segments = [];
+    let previous = null;
+    let start = null;
+    let previousY = null;
+    for (let y = box.minY; y <= box.maxY; y++) {
+      const value = rows.get(y);
+      if (value === undefined) {
+        if (start !== null) segments.push({ side: label, from: start, to: previousY });
+        previous = null;
+        start = null;
+        continue;
+      }
+      if (previous === null || Math.abs(value - previous) > 1 || y - previousY > 1) {
+        if (start !== null) segments.push({ side: label, from: start, to: previousY });
+        start = y;
+      }
+      previous = value;
+      previousY = y;
+    }
+    if (start !== null) segments.push({ side: label, from: start, to: previousY });
+    return segments;
+  };
+
+  const segments = [...runsFor(rowsA, 'a'), ...runsFor(rowsB, 'b')]
+    .map((seg) => ({ ...seg, rows: seg.to - seg.from + 1 }))
+    .filter((seg) => seg.rows > 2)
+    .sort((a, b) => b.rows - a.rows);
+
+  return {
+    segments,
+    longest: segments.length ? segments[0].rows : 0,
+    edgeA: [...rowsA.entries()],
+    edgeB: [...rowsB.entries()],
+  };
+}
+
 /** Widest horizontal run of a single mass in the top quarter of the form. */
 function topBridge(mask, silhouetteBox) {
   const { owner, width } = mask;
@@ -323,27 +386,36 @@ function topBridge(mask, silhouetteBox) {
   return widest.map((w, m) => (heights[m] > 0 && w / heights[m] > 2.0 ? w : 0));
 }
 
-/** Gap widths, sampled as background runs strictly inside the silhouette. */
-function gapWidths(mask, box) {
-  const { owner, width } = mask;
+/**
+ * Air-gap widths, read from the gaps-only pass.
+ *
+ * That pass draws the seven masses flat white on black with the spine
+ * excluded, so any dark run inside the outer boundary is a real gap.
+ * Reading them from the object-ID mask instead counted anti-aliased
+ * edge pixels as gaps, which inflated both the count and the spread.
+ */
+function gapWidths(image) {
+  const { width, height, data } = image;
+  const solid = new Uint8Array(width * height);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    solid[p] = data[i] > 128 ? 1 : 0;
+  }
   const gaps = [];
-  const rows = 72;
-  for (let i = 1; i < rows; i++) {
-    const y = Math.round(box.minY + ((box.maxY - box.minY) * i) / rows);
-    let firstSolid = -1;
-    let lastSolid = -1;
+  for (let y = 0; y < height; y++) {
+    let first = -1;
+    let last = -1;
     for (let x = 0; x < width; x++) {
-      if (owner[y * width + x] >= 0) {
-        if (firstSolid < 0) firstSolid = x;
-        lastSolid = x;
+      if (solid[y * width + x]) {
+        if (first < 0) first = x;
+        last = x;
       }
     }
-    if (firstSolid < 0) continue;
+    if (first < 0) continue;
     let run = 0;
-    for (let x = firstSolid; x <= lastSolid; x++) {
-      if (owner[y * width + x] < 0) run++;
+    for (let x = first; x <= last; x++) {
+      if (!solid[y * width + x]) run++;
       else {
-        if (run > 0) gaps.push(run);
+        if (run > 1) gaps.push(run);
         run = 0;
       }
     }
@@ -363,6 +435,7 @@ async function main() {
   const sil512 = silhouetteTopology(await decode(page, 'A05-silhouette-512.png'));
   const sil128 = silhouetteTopology(await decode(page, 'A06-silhouette-128.png'));
   const silMobile = silhouetteTopology(await decode(page, 'A10-mobile-silhouette-390x844.png'));
+  const gapsImage = await decode(page, 'A07-gaps-only.png');
   await browser.close();
 
   // Halo footprint at the hero framing, against the subject's width.
@@ -397,14 +470,25 @@ async function main() {
     centroid: m.pixels
       ? [Math.round(m.sumX / m.pixels), Math.round(m.sumY / m.pixels)]
       : null,
+    // Visible vertical range in the front elevation, for the
+    // depth-against-height diagnostic.
+    top: maskElevation.masses[i].minY,
+    bottom: maskElevation.masses[i].maxY,
   }));
   areas.sort((a, b) => b.percent - a.percent);
 
   const elevationBox = maskBox(maskElevation);
   const bridges = topBridge(maskElevation, elevationBox);
-  const gaps = gapWidths(maskElevation, elevationBox);
+  const gaps = gapWidths(gapsImage);
   const aperture = longestApertureEdge(maskElevation, elevationBox);
   const apertureEdge = aperture.longest;
+
+  // Dominant A and B by declared role, so the diagnostic follows the
+  // authored table rather than a hard-coded pair of names.
+  const idA = spec.roles.indexOf('dominant_a');
+  const idB = spec.roles.indexOf('dominant_b');
+  const iface = interfaceSegments(maskElevation, elevationBox, idA, idB);
+  const ifacePercent = (iface.longest / elevationBox.height) * 100;
   const gapMin = gaps.length ? Math.min(...gaps) : 0;
   const gapMax = gaps.length ? Math.max(...gaps) : 0;
 
@@ -432,6 +516,12 @@ async function main() {
       target: '< 40% of height',
       value: ((apertureEdge / elevationBox.height) * 100).toFixed(1) + '%',
       pass: apertureEdge / elevationBox.height < 0.4,
+    },
+    {
+      id: 'interface-longest-segment',
+      target: '<= 30% of height, measured by segment',
+      value: ifacePercent.toFixed(1) + '% (' + iface.segments.length + ' segments)',
+      pass: ifacePercent <= 30,
     },
     {
       id: 'top-bridge-span',
@@ -525,7 +615,21 @@ async function main() {
   ];
 
   const result = {
-    asset: 'design/clay/DL_FullForm_v03_clay.glb',
+    asset: 'design/clay/DL_FullForm_v04_clay.glb',
+    interface: {
+      a: MASS_NAMES[idA],
+      b: MASS_NAMES[idB],
+      longestSegmentPercent: Number(ifacePercent.toFixed(1)),
+      segments: iface.segments.map((seg) => ({
+        side: seg.side,
+        from: seg.from,
+        to: seg.to,
+        heightPercent: Number(((seg.rows / elevationBox.height) * 100).toFixed(1)),
+      })),
+      edgeA: iface.edgeA,
+      edgeB: iface.edgeB,
+      box: elevationBox,
+    },
     observations: {
       longestApertureEdge: aperture.where,
       longestStraightOuterEdgePercent: Number(

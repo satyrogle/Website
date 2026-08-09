@@ -105,19 +105,19 @@ BASE_CUT = ((0.0, -3.14, 0.0), (0.26, 0.93, -0.26))
 RECESS = {
     # Frontal profile, in (x, y). Seven unequal points, leaning.
     "profile": [
-        (-0.50, -0.24),
-        (-0.12, -0.40),
-        ( 0.14,  0.06),
-        ( 0.04,  0.94),
-        (-0.24,  1.48),
-        (-0.56,  1.02),
-        (-0.62,  0.26),
+        (-0.57, -0.43),
+        (-0.08, -0.65),
+        ( 0.27, -0.06),
+        ( 0.14,  1.08),
+        (-0.23,  1.79),
+        (-0.65,  1.17),
+        (-0.73,  0.21),
     ],
     "z_front": 1.20,
-    "z_back": 0.17,
+    "z_back": 0.10,
     # The cut narrows as it goes in, so the recess is a wedge rather than
     # a box and never presents four parallel sides.
-    "taper": 0.58,
+    "taper": 0.80,
 }
 
 # ---------------------------------------------------------------------
@@ -135,20 +135,77 @@ RECESS = {
 CUTS = [
     # name,               point,                    normal
     ("primary-split",       (  0.45,  -0.10,   0.00), (  0.88,   0.14,   0.45)),
-    ("east-stack",          (  0.75,   0.20,  -0.10), (  0.18,   0.94,  -0.26)),
+    ("east-stack",          (  0.750,   0.20,  -0.10), ( 0.180,  0.940, -0.260)),
     ("east-upper-split",    (  1.00,   1.40,  -0.05), (  0.62,   0.24,   0.75)),
     ("west-columns",        ( -0.82,  -0.10,  -0.05), (  0.80,  -0.10,  -0.59)),
-    ("outer-stack",         ( -0.95,   0.25,  -0.10), (  0.14,   0.96,  -0.24)),
-    ("inner-stack",         ( -0.20,   0.12,   0.05), (  0.22,   0.93,  -0.30)),
-    # A seventh plane used by one mass only. It creates no eighth mass:
-    # it takes a wedge out of dominant A so the long fracture it shares
-    # with dominant B steps instead of running straight.
-    ("inner-notch",         (  0.28,  -1.70,   0.00), (  0.98,   0.20,   0.05)),
-    # The other side of the same fracture. Dominant B keeps a wedge back
-    # so its edge steps too; without it the two masses simply traded one
-    # straight line for another.
-    ("flank-notch",         (  0.71,  -1.70,   0.00), (  0.86,   0.22,   0.46)),
+    ("outer-stack",         ( -0.950,   0.25,  -0.10), ( 0.140,  0.960, -0.240)),
+    ("inner-stack",         ( -0.200,  -0.05,   0.05), ( 0.220,  0.930, -0.300)),
 ]
+
+# ---------------------------------------------------------------------
+#  The dominant interface — an authored piecewise fracture
+#
+#  The boundary between dominant A and dominant B used to be one plane,
+#  and a plane projects to one straight line: it ran as a single near
+#  straight edge for almost half the height, which is the door-leaf seam
+#  the gate exists to prevent.
+#
+#  It is now four complementary sections stacked in height, each with its
+#  own normal and its own offset. Because the offsets differ the boundary
+#  STEPS at every breakpoint instead of continuing, and because the
+#  normals differ the sections run in visibly different directions:
+#
+#      lower-oblique       dx/dy -0.11   near vertical, leaning east
+#      shoulder            dx/dy -0.84   short, strongly raked
+#      upper-counter       dx/dy +0.34   raked the other way
+#      upper-continuation  dx/dy -0.16   rejoins the primary split
+#
+#  Mass A takes one side of each section and mass B the other, so the two
+#  are complementary by construction and separate only by their authored
+#  displacement. The continuation section is not a fourth direction: it
+#  returns the fracture to the form's primary split above the dominant
+#  pair, without which the sections diverge from their neighbours near
+#  the top and open a void that belongs to no mass.
+# ---------------------------------------------------------------------
+
+INTERFACE = {
+    "a": "DL_FullForm_Outer_03",
+    "b": "DL_FullForm_Outer_04",
+    # Complementary cells overlap fractionally so no zero-thickness
+    # sliver survives between two sections.
+    "overlap": 0.002,
+    "sections": [
+        {
+            "name": "lower-oblique",
+            "from": None,
+            "to": -2.05,
+            "point": (0.637, -3.40, 0.30),
+            "normal": (0.92, 0.10, 0.38),
+        },
+        {
+            "name": "shoulder",
+            "from": -2.05,
+            "to": -1.55,
+            "outset": 0.11,
+            "point": (0.670, -2.05, 0.30),
+            "normal": (0.62, 0.52, 0.59),
+        },
+        {
+            "name": "upper-counter",
+            "from": -1.55,
+            "to": -0.55,
+            "point": (0.090, -1.55, 0.30),
+            "normal": (0.86, -0.29, 0.42),
+        },
+        {
+            "name": "upper-continuation",
+            "from": -0.55,
+            "to": None,
+            "point": (0.45, -0.10, 0.00),
+            "normal": (0.88, 0.14, 0.45),
+        },
+    ],
+}
 
 TIER_FRONT = "front"
 TIER_MID = "mid"
@@ -177,7 +234,7 @@ MASSES = [
     {
         "name": "DL_FullForm_Outer_03",
         "note": "inner stack, lower - dominant A, the face the visitor meets",
-        "path": [(0, False), (3, True), (5, False), (6, False)],
+        "path": [(0, False), (3, True), (5, False)],
         "tier": TIER_FRONT,
         "offset": (0.02, 0.03, 0.26),
         "role": "dominant_a",
@@ -185,7 +242,7 @@ MASSES = [
     {
         "name": "DL_FullForm_Outer_04",
         "note": "east flank, lower - dominant B, the second reading mass",
-        "path": [(0, True), (1, False), (7, True)],
+        "path": [(0, True), (1, False)],
         "tier": TIER_FRONT,
         "offset": (0.14, -0.13, 0.16),
         "role": "dominant_b",
@@ -224,8 +281,8 @@ TIER_DEPTH = {TIER_FRONT: 0, TIER_MID: 1, TIER_REAR: 2}
 
 SPINE = {
     "name": "DL_FullForm_Spine",
-    "centre": (0.02, -0.32),
-    "plan_scale": 0.222,
+    "centre": (0.02, -0.16),
+    "plan_scale": 0.26,
     "levels": [
         # y,     scale
         (-3.40,  1.00),

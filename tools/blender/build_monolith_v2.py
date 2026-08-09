@@ -24,8 +24,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import monolith_v2_form as form  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-BLEND_OUT = os.path.join(ROOT, "assets", "blender", "DL_Monolith_Workbench_v3.blend")
-GLB_OUT = os.path.join(ROOT, "design", "clay", "DL_FullForm_v03_clay.glb")
+BLEND_OUT = os.path.join(ROOT, "assets", "blender", "DL_Monolith_Workbench_v4.blend")
+GLB_OUT = os.path.join(ROOT, "design", "clay", "DL_FullForm_v04_clay.glb")
 
 COLLECTIONS = [
     "00_REFERENCE",
@@ -228,19 +228,97 @@ def carve(obj, point, normal, keep_positive, label):
     bpy.data.objects.remove(box, do_unlink=True)
 
 
+def duplicate(mother, name):
+    obj = mother.copy()
+    obj.data = mother.data.copy()
+    bpy.context.scene.collection.objects.link(obj)
+    obj.name = name
+    return obj
+
+
+def interface_side(mass):
+    """'a', 'b' or None — which side of the piecewise interface this is."""
+    if mass["name"] == form.INTERFACE["a"]:
+        return "a"
+    if mass["name"] == form.INTERFACE["b"]:
+        return "b"
+    return None
+
+
+def build_plain_mass(mother, mass):
+    obj = duplicate(mother, mass["name"])
+    for cut_index, keep_positive in mass["path"]:
+        _, point, normal = form.CUTS[cut_index]
+        carve(obj, point, normal, keep_positive, "cut%d" % cut_index)
+    return obj
+
+
+def section_solid(name, index, side):
+    """
+    The convex region one side of the interface occupies inside one
+    section's height band: a large box carved by the two band planes and
+    by the section plane. Convex and manifold by construction.
+    """
+    spec = form.INTERFACE
+    section = spec["sections"][index]
+    overlap = spec["overlap"]
+    # A local outset pulls BOTH masses back from this section, widening
+    # the fracture across that band without moving the interface.
+    outset = section.get("outset", 0.0)
+    point = section["point"]
+    normal = section["normal"]
+    if outset:
+        scale = outset if side == "b" else -outset
+        length = math.sqrt(sum(c * c for c in normal)) or 1.0
+        point = tuple(point[i] + normal[i] / length * scale for i in range(3))
+    obj = half_space_box(name, point, normal, side == "b")
+    if section["from"] is not None:
+        carve(obj, (0.0, section["from"] - overlap, 0.0), (0.0, 1.0, 0.0), True, "band_lo")
+    if section["to"] is not None:
+        carve(obj, (0.0, section["to"] + overlap, 0.0), (0.0, 1.0, 0.0), False, "band_hi")
+    return obj
+
+
+def build_interface_mass(mother, mass, side):
+    """
+    One dominant mass, cut by the piecewise interface.
+
+    The mass starts as the mother volume under its own constraints, and
+    the COMPLEMENTARY side of every section is then subtracted from it.
+    Sequential difference against convex solids is used rather than a
+    union of section cells: repeated exact unions of the cells collapsed
+    the result to a few triangles once a fourth operand was added.
+
+    Cut 0 is skipped — the piecewise interface replaces it.
+    """
+    obj = duplicate(mother, mass["name"])
+    for cut_index, keep_positive in mass["path"]:
+        if cut_index == 0:
+            continue
+        _, point, normal = form.CUTS[cut_index]
+        carve(obj, point, normal, keep_positive, "cut%d" % cut_index)
+
+    other = "b" if side == "a" else "a"
+    for index in range(len(form.INTERFACE["sections"])):
+        solid = section_solid("%s_SEC%d" % (mass["name"], index), index, other)
+        apply_boolean(obj, solid, "DIFFERENCE", "section%d" % index)
+        bpy.data.objects.remove(solid, do_unlink=True)
+    return obj
+
+
 def build_masses(mother):
     objects = []
     for index, mass in enumerate(form.MASSES):
-        source = mother.copy()
-        source.data = mother.data.copy()
-        bpy.context.scene.collection.objects.link(source)
-        source.name = mass["name"]
-
-        for cut_index, keep_positive in mass["path"]:
-            _, point, normal = form.CUTS[cut_index]
-            carve(source, point, normal, keep_positive, "cut%d" % cut_index)
+        side = interface_side(mass)
+        source = (
+            build_interface_mass(mother, mass, side)
+            if side
+            else build_plain_mass(mother, mass)
+        )
 
         link(source, "02_OUTER_MASSES")
+        for polygon in source.data.polygons:
+            polygon.use_smooth = False
 
         source.location = Vector(form.to_blender(mass["offset"]))
         source["dl_role"] = "outer_mass"

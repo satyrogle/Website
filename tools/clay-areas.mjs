@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { launch } from './browser.mjs';
 
-const DIR = path.resolve('design/clay', process.env.DL_CLAY_DIR ?? 'r1');
+const DIR = path.resolve('design/clay', process.env.DL_CLAY_DIR ?? 'r2');
 const browser = await launch();
 const page = await (await browser.newContext()).newPage();
 await page.goto('data:text/html,<body></body>');

@@ -23,7 +23,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import monolith_v2_form as form  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-OUT = os.path.join(ROOT, "design", "clay", os.environ.get("DL_CLAY_DIR", "r1"))
+OUT = os.path.join(ROOT, "design", "clay", os.environ.get("DL_CLAY_DIR", "r2"))
 # DL_FAST=1 renders only the hero object-ID mask, for tuning the
 # mass hierarchy without paying for the whole contact sheet.
 FAST = os.environ.get("DL_FAST") == "1"
@@ -212,6 +212,16 @@ def set_colours(mapping, default=(0.0, 0.0, 0.0, 1.0)):
             obj.color = mapping.get(obj.name, default)
 
 
+def set_aa(enabled):
+    """
+    Anti-aliasing is right for the clay and silhouette passes and wrong
+    for the object-ID masks: a blended edge pixel decodes to a different
+    object, which fragments a straight boundary into dozens of false
+    segments and makes the interface check pass for the wrong reason.
+    """
+    bpy.context.scene.display.render_aa = "16" if enabled else "OFF"
+
+
 def render(name, res_x, res_y):
     scene = bpy.context.scene
     scene.render.resolution_x = res_x
@@ -237,6 +247,7 @@ def main():
     set_visible(subj)
 
     if FAST:
+        set_aa(False)
         flat_mode((0.0, 0.0, 0.0))
         set_colours(id_colours(), default=(0.0, 0.0, 0.0, 1.0))
         hero_frame(camera)
@@ -290,6 +301,7 @@ def main():
     # ---- Object-ID masks ---------------------------------------------
     # Black ground: the measurement pass reads identity out of the pixel
     # values, so anything non-zero in the background is a false mass.
+    set_aa(False)
     flat_mode((0.0, 0.0, 0.0))
     set_colours(id_colours(), default=(0.0, 0.0, 0.0, 1.0))
 
@@ -308,6 +320,7 @@ def main():
     render("A00-halo-hero", 1440, 900)
 
     # ---- Hero clay ---------------------------------------------------
+    set_aa(True)
     set_visible(subj)
     clay_mode()
     hero_frame(camera)
