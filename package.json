@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
+    "clay:measure": "node tools/clay-measure.mjs",
+    "clay:sheet": "node tools/clay-contact-sheet.mjs",
     "qa": "node tools/capture.mjs",
     "prologue": "node tools/prologue.mjs",
     "frames": "node tools/frames.mjs"

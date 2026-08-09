@@ -1,0 +1,189 @@
+{
+  "asset": "design/clay/DL_FullForm_v02_clay.glb",
+  "observations": {
+    "longestStraightOuterEdgePercent": 37.8,
+    "silhouetteFill": 0.782
+  },
+  "authored": {
+    "width": 2.54,
+    "depth": 1.48,
+    "height": 7.5,
+    "haloRadius": 1.9
+  },
+  "areas": [
+    {
+      "name": "DL_FullForm_Outer_03",
+      "tier": "front",
+      "percent": 48.33299813804423,
+      "pixels": 74500
+    },
+    {
+      "name": "DL_FullForm_Outer_05",
+      "tier": "rear",
+      "percent": 17.97273889151999,
+      "pixels": 27703
+    },
+    {
+      "name": "DL_FullForm_Outer_04",
+      "tier": "mid",
+      "percent": 9.620537307235677,
+      "pixels": 14829
+    },
+    {
+      "name": "DL_FullForm_Outer_07",
+      "tier": "rear",
+      "percent": 9.061301812000856,
+      "pixels": 13967
+    },
+    {
+      "name": "DL_FullForm_Outer_01",
+      "tier": "mid",
+      "percent": 8.60067860826916,
+      "pixels": 13257
+    },
+    {
+      "name": "DL_FullForm_Outer_02",
+      "tier": "front",
+      "percent": 3.74921337234574,
+      "pixels": 5779
+    },
+    {
+      "name": "DL_FullForm_Outer_06",
+      "tier": "rear",
+      "percent": 2.1766068289011864,
+      "pixels": 3355
+    }
+  ],
+  "gaps": {
+    "count": 38,
+    "min": 1,
+    "max": 37
+  },
+  "silhouette": {
+    "at512": {
+      "components": 1,
+      "largestFraction": 1,
+      "holePixels": 7,
+      "height": 455,
+      "width": 184,
+      "longestEdgeRun": 172,
+      "fill": 0.7817128523650263
+    },
+    "at128": {
+      "components": 5,
+      "largestFraction": 0.9990255785627283,
+      "holePixels": 0,
+      "height": 113,
+      "width": 46,
+      "longestEdgeRun": 78,
+      "fill": 0.7897268180069258
+    },
+    "mobile": {
+      "components": 1,
+      "largestFraction": 1,
+      "holePixels": 8,
+      "height": 750,
+      "width": 303,
+      "longestEdgeRun": 283,
+      "fill": 0.7821430143014302
+    }
+  },
+  "checks": [
+    {
+      "id": "height-to-width",
+      "target": "2.5 - 3.0",
+      "value": "2.95",
+      "pass": true
+    },
+    {
+      "id": "seven-separate-masses",
+      "target": "7 masses present",
+      "value": "7",
+      "pass": true
+    },
+    {
+      "id": "straight-aperture-edge",
+      "target": "< 40% of height",
+      "value": "38.0%",
+      "pass": true
+    },
+    {
+      "id": "top-bridge-span",
+      "target": "< 45% of width",
+      "value": "0.0%",
+      "pass": true
+    },
+    {
+      "id": "centre-not-enclosed",
+      "target": "no enclosed hole in the silhouette",
+      "value": "7 px",
+      "pass": true
+    },
+    {
+      "id": "depth-tiers",
+      "target": ">= 3 tiers",
+      "value": "3",
+      "pass": true
+    },
+    {
+      "id": "gaps-not-uniform",
+      "target": "max/min > 1.2",
+      "value": "37.00",
+      "pass": true
+    },
+    {
+      "id": "no-two-leaf-split",
+      "target": "no full-height central slit",
+      "value": "1 component(s)",
+      "pass": true
+    },
+    {
+      "id": "coherent-at-128",
+      "target": "1 component, >= 97% in the largest",
+      "value": "5 component(s), 99.9%",
+      "pass": true
+    },
+    {
+      "id": "halo-diameter",
+      "target": "1.35 - 1.70x the form width",
+      "value": "1.50x geometric, 1.21x projected",
+      "pass": true
+    },
+    {
+      "id": "dominant-a-area",
+      "target": "24 - 31% of visible structure",
+      "value": "48.3% (03)",
+      "pass": false
+    },
+    {
+      "id": "dominant-b-area",
+      "target": "17 - 24%",
+      "value": "18.0% (05)",
+      "pass": true
+    },
+    {
+      "id": "supporting-areas",
+      "target": "8 - 16% each, three of them",
+      "value": "9.6% / 9.1% / 8.6%",
+      "pass": true
+    },
+    {
+      "id": "rear-areas",
+      "target": "4 - 10% each, two of them",
+      "value": "3.7% / 2.2%",
+      "pass": false
+    },
+    {
+      "id": "spine-recessed",
+      "target": "visible but under 6% of structure",
+      "value": "0.5%",
+      "pass": true
+    },
+    {
+      "id": "mobile-silhouette",
+      "target": "1 component at 390x844",
+      "value": "1 component(s)",
+      "pass": true
+    }
+  ]
+}

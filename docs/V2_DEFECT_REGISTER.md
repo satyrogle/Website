@@ -12,15 +12,15 @@ fixed until the gate that owns it has founder approval.
 
 | ID | Defect | Gate | Status |
 | --- | --- | --- | --- |
-| A-01 | Full Form built from piers, lintels, jambs and belt courses; reads as scaffolding or a ruined doorway | A | in-gate |
-| A-02 | Rectangular central aperture with obvious left/right/top/bottom boundaries | A | in-gate |
-| A-03 | Full-width top bridge closes the silhouette like a gate | A | in-gate |
-| A-04 | Outer masses too narrow and pole-like; insufficient visual weight | A | in-gate |
-| A-05 | Horizontal belt courses create modular kit repetition | A | in-gate |
-| A-06 | Masses differ by parameter variation, not authored character | A | in-gate |
-| A-07 | Depth hierarchy weak; silhouette decided by front-view vertical strips | A | in-gate |
-| A-08 | Halo disc is ~3.2× the form width; competes with the subject | A | in-gate |
-| A-09 | Fracture is micro-noise over macro boxes — damaged masonry, not fractured alien architecture | A | in-gate |
+| A-01 | Full Form built from piers, lintels, jambs and belt courses; reads as scaffolding or a ruined doorway | A | addressed, awaiting approval |
+| A-02 | Rectangular central aperture with obvious left/right/top/bottom boundaries | A | addressed, awaiting approval |
+| A-03 | Full-width top bridge closes the silhouette like a gate | A | addressed, awaiting approval |
+| A-04 | Outer masses too narrow and pole-like; insufficient visual weight | A | addressed, awaiting approval |
+| A-05 | Horizontal belt courses create modular kit repetition | A | addressed, awaiting approval |
+| A-06 | Masses differ by parameter variation, not authored character | A | addressed, awaiting approval |
+| A-07 | Depth hierarchy weak; silhouette decided by front-view vertical strips | A | addressed, awaiting approval |
+| A-08 | Halo disc is ~3.2× the form width; competes with the subject | A | addressed, awaiting approval |
+| A-09 | Fracture is micro-noise over macro boxes — damaged masonry, not fractured alien architecture | A | addressed, awaiting approval |
 | B-01 | Tunnel ribs close into four-sided rectangular loops | B | open |
 | B-02 | Tunnel reads as a generic sci-fi corridor / repeated portal frame | B | open |
 | B-03 | Tunnel enclosed by separate wall, floor and ceiling panels rather than revealed from the entity | B | open |
@@ -73,7 +73,7 @@ fixed until the gate that owns it has founder approval.
 | T-03 | Masthead brand link uses `href="/"` against a `base: './'` build | D | open |
 | T-04 | Tunnel rib spacing produces a run of near-even frames around progress 0.55 | B | open |
 | T-05 | Motes read as a sparse starfield rather than a medium | C | open |
-| T-06 | Halo faintly visible through the central passage as a warm patch | A/C | in-gate |
+| T-06 | Halo faintly visible through the central passage as a warm patch | A/C | superseded — there is no central passage in the v2 form |
 
 ## P3 — noted, not scheduled
 
@@ -82,8 +82,26 @@ fixed until the gate that owns it has founder approval.
 | N-01 | All five prologue beats remain in the accessibility tree at opacity 0; a screen-reader user hears every statement regardless of scroll position. Deliberate in v1, but should be reconciled with the `inert` work in D-07. | D | open |
 | N-02 | Violet retained network covers most of the latent core rather than concentrating into one seam | C | open |
 
+## Observed at Gate A
+
+Measured against `design/clay/gate-a-measurements.json`. 14 of 16
+quantitative checks pass; these are the two that do not, plus what the
+renders show that no check covers.
+
+| ID | Defect | Gate | Status |
+| --- | --- | --- | --- |
+| GA-01 | `DL_FullForm_Outer_03` holds 48.3% of the visible projected area against a 24–31% target for the dominant mass. One mass carries too much of the frontal read. | A | open |
+| GA-02 | The two rear structural masses hold 3.7% and 2.2% against a 4–10% target. They are more concealed than intended. | A | open |
+| GA-03 | The base still reads as a slightly separate plinth ring in the front elevation, a weaker version of the same problem the v1 setbacks had. | A | open |
+| GA-04 | The `role` labels in the form table (dominant / supporting / rear) no longer match the measured areas after the fracture tree was re-authored as a frontal mosaic. Labels need re-assigning to the masses that actually carry the composition. | A | open |
+| GA-05 | The 128px silhouette resolves to five connected components, 99.9% of area in the largest. It reads as one building, but two sliver masses detach under anti-aliasing and should be thickened. | A | open |
+| GA-06 | No passage is cut through the form, so the camera cannot enter it. Deferred to Gate B by design, but the recessed front channel from the first iteration was lost when the grammar changed and needs re-authoring as a real void. | B | open |
+| GA-07 | The inner spine reads at only 0.5% of structure from the hero framing, glimpsed through the crown shear rather than through a front recess. | A/B | open |
+| GA-08 | The clay renders are Workbench studio lighting. They prove silhouette, mass and depth, but not how the form behaves under the site's own key/rim arc. | C | open |
+
 ## Introduced during v2
 
 | ID | Defect | Gate | Status |
 | --- | --- | --- | --- |
-| V-01 | The Blender workbench is realised from an authored data table by script rather than by interactive hand-modelling. Every profile ring, lobe, mass boundary and depth tier is explicit and reviewable, and the saved `.blend` is editable, but the shape has not been sculpted by hand. | A | open — for founder decision |
+| V-01 | The Blender workbench is realised from an authored data table by script rather than by interactive hand-modelling. Every plan point, level, setback, fracture plane and displacement is explicit and reviewable in `tools/blender/monolith_v2_form.py`, and the saved `.blend` is editable, but the shape has not been sculpted by hand. | A | open — for founder decision |
+| V-02 | `tools/build-monolith.mjs` was archived, so `npm run asset` no longer exists. The v2 asset is built with `blender --background --python tools/blender/build_monolith_v2.py`. | A | open |

@@ -18,9 +18,13 @@ Thumbs.db
 # git cannot re-include a file inside an ignored DIRECTORY.
 assets/blender/*
 !assets/blender/DL_Entity_Workbench.blend
+# The v2 workbench IS the authored source of truth for the Full Form and
+# has to be openable by hand, so it is tracked at 105 KB.
+!assets/blender/DL_Monolith_Workbench_v2.blend
 
 # Superseded entity assets. Half a gigabyte of rejected candidates that
 # stay on disk for reference; only the immediate predecessor of the
 # current production model is tracked.
 references/models-archive/*
 !references/models-archive/DL_Aurora_v13.glb
+tools/blender/__pycache__/
