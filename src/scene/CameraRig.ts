@@ -44,8 +44,8 @@ const DESKTOP_PATH: CameraKeyframe[] = [
   // Target dropped below the entity so the mass rides HIGHER in frame
   // and its cavity clears the display type. Vertical only — the rail
   // stays dead straight on x.
-  { at: 0.0, position: [0, 0, 13.2], target: [0, -0.72, 0], fov: 38 },
-  { at: 0.085, position: [0, 0, 11.0], target: [0, -0.45, -0.4], fov: 39 },
+  { at: 0.0, position: [0, 0, 11.8], target: [0, -0.72, 0], fov: 38 },
+  { at: 0.085, position: [0, 0, 10.2], target: [0, -0.45, -0.4], fov: 39 },
   // 02 — premise. The crown yields; the camera closes on the cavity.
   { at: 0.185, position: [0, 0, 4.2], target: [0, -0.2, -1.6], fov: 45 },
   { at: 0.26, position: [0, 0, -0.6], target: [0, 0, -3.5], fov: 50 },
@@ -112,6 +112,25 @@ function smootherstep(t: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
+/**
+ * HERO LENS SHIFT — how far the entity is pushed right of centre, as a
+ * fraction of frame width, and the progress by which it is gone.
+ *
+ * A lens shift, not a pan. Panning the target to move the entity off
+ * centre also ROTATES the view, so the object is seen from an angle it
+ * is not actually at and the far side skews — at the offset this needs,
+ * about fifteen degrees of it. Offsetting the projection instead is what
+ * a shift lens does: the entity moves across the frame with its
+ * perspective untouched.
+ *
+ * It decays to zero well before the camera reaches the aperture at 26%,
+ * so the flight down the throat is dead-centre exactly as before. The
+ * rail is still straight; this only changes which part of the frustum is
+ * being looked through.
+ */
+const HERO_LENS_SHIFT = 0.18;
+const HERO_LENS_SHIFT_END = 0.18;
+
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
 
@@ -134,8 +153,14 @@ export class CameraRig {
   private idleAmount = 1;
   private parallaxAmount = 1;
   private initialised = false;
+  private mobile = false;
+  private lensShift = -1;
+  /** The real frame aspect, which setViewOffset would otherwise clobber. */
+  private frameAspect = 1.6;
 
   constructor(aspect: number, mobile: boolean) {
+    this.mobile = mobile;
+    this.frameAspect = aspect;
     this.path = mobile ? MOBILE_PATH : DESKTOP_PATH;
       this.camera = new THREE.PerspectiveCamera(46, aspect, 0.1, 120);
     this.applyKeyframe(this.path[0]);
@@ -144,7 +169,39 @@ export class CameraRig {
   }
 
   setPath(mobile: boolean): void {
+    this.mobile = mobile;
     this.path = mobile ? MOBILE_PATH : DESKTOP_PATH;
+  }
+
+  /**
+   * Offsets the projection so the entity sits right of centre and the
+   * display type gets a column of its own.
+   *
+   * Desktop only. Portrait has no room to stand the type beside the
+   * object — the stylesheet already gives up and lets the type own the
+   * frame there — so shifting the entity off centre on a phone would
+   * just push it out of view.
+   */
+  private applyLensShift(shift: number): void {
+    const wanted = this.mobile ? 0 : shift;
+    if (Math.abs(wanted - this.lensShift) < 0.0005) return;
+    this.lensShift = wanted;
+    if (wanted <= 0.0005) {
+      this.camera.clearViewOffset();
+      // clearViewOffset does NOT restore the aspect that setViewOffset
+      // overwrote, so it has to be put back by hand or the frame stays
+      // squeezed for the rest of the journey.
+      this.camera.aspect = this.frameAspect;
+      this.camera.updateProjectionMatrix();
+      return;
+    }
+    // fullWidth / fullHeight MUST carry the real aspect: setViewOffset
+    // assigns camera.aspect = fullWidth / fullHeight internally. Passing
+    // 1, 1 — which looks harmless, since only ratios matter to the
+    // offset maths — silently reset a 1.6 camera to 1.0 and rendered
+    // everything 60% oversized.
+    const w = this.frameAspect;
+    this.camera.setViewOffset(w, 1, -wanted * w, 0, w, 1);
   }
 
   setProgress(p: number): void {
@@ -182,6 +239,10 @@ export class CameraRig {
     this.camera.fov = chosen.fov;
     this.camera.rotation.z = 0;
     this.camera.lookAt(this.target);
+    this.applyLensShift(
+      HERO_LENS_SHIFT *
+        (1 - smootherstep(Math.min(progress / HERO_LENS_SHIFT_END, 1)))
+    );
     this.camera.updateProjectionMatrix();
   }
 
@@ -196,6 +257,7 @@ export class CameraRig {
     this.camera.rotation.z = 0;
     this.camera.lookAt(this.target);
     this.camera.rotation.z = POSTER_FRAME.roll ?? 0;
+    this.applyLensShift(HERO_LENS_SHIFT);
     this.camera.updateProjectionMatrix();
   }
 
@@ -284,6 +346,13 @@ export class CameraRig {
     this.camera.lookAt(this.smoothedTarget);
     this.camera.rotation.z += this.roll;
 
+    // Off the SMOOTHED progress, so the shift releases on the same
+    // spring as everything else rather than tracking raw scroll.
+    this.applyLensShift(
+      HERO_LENS_SHIFT *
+        (1 - smootherstep(Math.min(this.progress / HERO_LENS_SHIFT_END, 1)))
+    );
+
     if (Math.abs(this.camera.fov - this.smoothedFov) > 0.001) {
       this.camera.fov = this.smoothedFov;
       this.camera.updateProjectionMatrix();
@@ -291,7 +360,13 @@ export class CameraRig {
   }
 
   resize(aspect: number): void {
+    this.frameAspect = aspect;
     this.camera.aspect = aspect;
+    // Re-issue the offset against the new aspect; a stale one carries
+    // the old frame shape into the resized viewport.
+    const shift = this.lensShift;
+    this.lensShift = -1;
+    this.applyLensShift(Math.max(shift, 0));
     this.camera.updateProjectionMatrix();
   }
 }

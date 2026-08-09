@@ -59,6 +59,33 @@ uniform float uClass;
 uniform float uReaction;
 // Per-part crack seed, so no two masses show the same fracture.
 uniform float uSeed;
+/**
+ * Hue offset, separated from uSeed.
+ *
+ * uSeed is a per-part hash that has to stay WIDELY spread — it seeds the
+ * fracture, and two masses sharing a crack pattern is immediately
+ * obvious. Hue needs the opposite: parts of one body should sit in one
+ * colour family or the body stops reading as one thing. Driving both
+ * from the same number forced a choice between identical cracks and
+ * scattered colour, and colour lost — 27 hand-placed crown plates landed
+ * anywhere across teal/cyan/indigo/violet/magenta, so the crest came out
+ * cold and read as corridor rather than as entity.
+ */
+uniform float uHueSeed;
+/**
+ * How far the hue is allowed to travel across a part, and where that
+ * travel starts.
+ *
+ * The ramp is traversed by a triangle wave, so these are positions on it
+ * rather than colours. The default 2.4 sweeps a part across nearly two
+ * and a half full trips round teal/cyan/indigo/violet/magenta, which is
+ * the material's character on the corridor and the wrong behaviour on a
+ * body assembled from 27 separate plates: every plate covers the whole
+ * palette and none of them agree. The crown gets a narrow window
+ * instead, so it varies WITHIN a family rather than across all of them.
+ */
+uniform float uHueRange;
+uniform float uHueBase;
 // 1 / entity width. Crack frequency is expressed in ENTITY WIDTHS, not
 // world units, so swapping in a mesh authored at a different scale does
 // not silently turn fractured stone into camouflage.
@@ -113,6 +140,30 @@ uniform float uRingGain;
 uniform float uSharp;
 // World Z of the convergence light, so the corridor can lean toward it.
 uniform float uCoreZ;
+
+/**
+ * THE FACE — 1 on the single shard whose fracture already contains one.
+ *
+ * These zones DRAW NOTHING. There is a face in this shard's geometry —
+ * a brow, two recessed planes either side of a central blade, and a
+ * broad fissure under its point — and every one of those features is
+ * already modelled. All four zones do is decide WHERE the existing
+ * shading is allowed to push harder: cavity darkness, plane contrast,
+ * the leak inside cracks that are already there, and rim.
+ *
+ * That distinction is the whole job. An earlier attempt opened new
+ * holes in the material and it was rejected outright, correctly — it
+ * was a face painted onto rock. Nothing here introduces a shape that
+ * the mesh does not already have.
+ *
+ * Each is (centre.x, centre.y, radius.x, radius.y) in the shard's own
+ * coordinates — see vCrackPos in the vertex stage.
+ */
+uniform float uFace;
+uniform vec4 uZoneEyeL;
+uniform vec4 uZoneEyeR;
+uniform vec4 uZoneBeak;
+uniform vec4 uZoneMouth;
 
 in vec3 vWorldPos;
 in vec3 vObjectPos;
@@ -350,6 +401,20 @@ float filaments(vec2 q, float seed) {
   return smoothstep(0.97 - w, 0.97, ridge) * (0.4 + 0.6 * smoothstep(0.55, 0.88, fine));
 }
 
+/**
+ * Soft membership in one face zone, in the shard's own coordinates.
+ *
+ * The boundary is warped by noise before it is measured so the zone
+ * never resolves as an outline — what the viewer must see is the rock's
+ * own cavities getting deeper, not the edge of a region where something
+ * was applied.
+ */
+float faceZone(vec2 p, vec4 z) {
+  vec2 d = (p - z.xy) / max(z.zw, vec2(1e-4));
+  d += (vec2(fbm(p * 3.1 + 7.0), fbm(p * 3.1 + 13.0)) - 0.5) * 0.34;
+  return 1.0 - smoothstep(0.50, 1.15, length(d));
+}
+
 void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
@@ -386,6 +451,45 @@ void main() {
   // which is what "subtle roughness variation, facet normal detail"
   // means — variation you read as surface, not as tone.
   float exposure = safePow(facet, 2.1);
+
+  // ---- The face zones ----------------------------------------------
+  //
+  // Resolved once here and consumed in four places below. They live in
+  // vCrackPos, which is part-relative and taken pre-yield, so they are
+  // welded to this shard's surface: they travel with it when the crown
+  // opens and they do not move when the camera does.
+  float zEyeL = 0.0, zEyeR = 0.0, zBeak = 0.0, zMouth = 0.0;
+  float zEyes = 0.0, zRecess = 0.0, zFace = 0.0;
+  if (uFace > 0.5) {
+    vec2 fq = vCrackPos.xy;
+    // Front shell only, both gates world-space. The entity never
+    // rotates, so "leans toward +Z" is a fixed property of the surface;
+    // deriving it from the view vector would let the face slide around
+    // the rock during the descent. These slabs render DoubleSide, so
+    // without the depth gate the zones reach the back faces too.
+    float front = smoothstep(0.0, 0.45, N.z)
+                * smoothstep(-0.25, 0.30, vCrackPos.z);
+    if (front > 0.001) {
+      zEyeL  = faceZone(fq, uZoneEyeL)  * front;
+      zEyeR  = faceZone(fq, uZoneEyeR)  * front;
+      zBeak  = faceZone(fq, uZoneBeak)  * front;
+      zMouth = faceZone(fq, uZoneMouth) * front;
+      zEyes   = max(zEyeL, zEyeR);
+      zFace   = max(max(zEyeL, zEyeR), max(zBeak, zMouth));
+      // The two eyes and the mouth are the recessed zones. The beak is
+      // the opposite — it is proud, and it is handled on its own.
+      zRecess = max(zEyes, zMouth);
+    }
+  }
+
+  // Recesses sit lower on the exposure ramp, so their base colour falls
+  // toward obsidian while the brow around them keeps its mineral face.
+  // This is the same ramp every other part of the shell uses; the zone
+  // only biases where this surface sits on it.
+  exposure *= 1.0 - zRecess * 0.42;
+  // The blade does the reverse — it is the most exposed thing on the
+  // shard and it should read that way.
+  exposure = min(exposure + zBeak * 0.16, 1.0);
 
   if (isClass(CLASS_CROWN_PRIMARY)) {
     // Recess -> exposed across the four structural blacks. The bright end
@@ -590,20 +694,70 @@ void main() {
   // an edge between two facets legible without a crack drawn on it.
   float facetLight = 0.45 + 1.15 * facet;
 
+  // ROUGHNESS CONTRAST on the blade. Widening the facet response makes
+  // adjacent planes answer the key more differently from each other, so
+  // the ridge's two faces separate and the central split between them
+  // reads as an edge rather than as a crease. This is the same term the
+  // whole shell uses — the zone only stretches its range.
+  facetLight = mix(facetLight, 0.28 + 1.62 * facet, zBeak * 0.85);
+  // The recesses go the other way: flatter, drier, less answer to the
+  // key, which is what a surface deep in its own shadow looks like.
+  facetLight = mix(facetLight, 0.30 + 0.55 * facet, zRecess * 0.70);
+
+  // CAVITY DARKNESS. The recesses are already modelled and already turn
+  // away from the key, so how far a surface has turned away IS the
+  // cavity signal — no ambient-occlusion bake needed, and nothing is
+  // darkened that the geometry did not already put in shadow. Gated on
+  // the zones so the rest of the shell is untouched.
+  float cavity = 1.0 - NdotL;
+  float faceEnergy = mix(1.0, 1.26, uRetained);
+  float ao = 1.0 - cavity * (zEyes * 0.85 + zMouth * 0.70);
+  // THE CENTRAL SPLIT. The blade already has a seam down it; this only
+  // deepens the shadow the geometry puts there. Gated on `cavity` as
+  // well as on the band, so it can darken the inside of the crease and
+  // cannot draw a line down a face that is squarely lit.
+  float split = 1.0 - smoothstep(0.0, 0.05, abs(vCrackPos.x - uZoneBeak.x));
+  ao *= 1.0 - split * zBeak * cavity * 0.55;
+
   // Light leaking THROUGH the fractures is accumulated separately from
   // light falling ON the surface, so the atmosphere can treat them
   // differently at the end of main. Lit stone loses to distance fast;
   // a light source seen through a gap does not.
   vec3 emissive = vec3(0.0);
 
-  vec3 color = base + ambient * mix(0.35, 1.0, keyGain)
-             + uColdWhite * safePow(NdotL, 1.4) * uKeyIntensity * 0.20
-               * keyGain * facetLight;
+  // The key exponent is raised inside the beak zone: a steeper falloff
+  // is exactly what "stronger plane contrast" means here — the lit face
+  // of the blade holds while the face turned away from the key drops
+  // off faster, so the two planes stop averaging into one round form.
+  float keyPow = mix(1.4, 2.3, zBeak);
+  // THE KEY HAS TO REACH THE FORM.
+  //
+  // This is the term that makes a sculpted face visible at all, and at
+  // 0.20 against a network running at gain 3.40 it is roughly seventeen
+  // times weaker than the veins laid over it — so the brow, the sockets
+  // and the blade were all fully modelled and completely invisible, and
+  // no amount of modulating the shading could surface them. Lifted only
+  // inside the zones, so the rest of the shell keeps the near-black
+  // reading the brief protects. The cavity term above pulls the
+  // recesses back down, so what this actually buys is CONTRAST across
+  // the face rather than a brighter shard.
+  float keyFace = mix(1.0, 3.4, zFace);
+  // Same reason, for the sky/ground ambient: its N.y gradient is the
+  // other thing that separates an upward brow from a downturned socket.
+  float ambFace = mix(1.0, 1.9, zFace);
+  vec3 color = base * ao + ambient * mix(0.35, 1.0, keyGain) * ao * ambFace
+             + uColdWhite * safePow(NdotL, keyPow) * uKeyIntensity * 0.20
+               * keyGain * facetLight * mix(1.0, 1.30, zBeak) * keyFace;
 
   // Rim carves the mass out of the void. This is what does most of the
   // legibility work, since the body itself stays black.
   float rimShape = 0.5 + 0.5 * safePow(clamp(dot(N, normalize(uRimDir)), 0.0, 1.0), 1.5);
-  color += uColdWhite * uRimIntensity * fresnel * rimShape * 0.40 * rimGain;
+  // SUBTLE RIM EMPHASIS. Lifted along the blade so its silhouette edge
+  // catches, and pulled DOWN across the recesses — a rim light reaching
+  // into a socket is the fastest way to destroy the impression of depth
+  // the cavity term just built.
+  float rimFace = mix(1.0, 1.22, zBeak) * (1.0 - zRecess * 0.45);
+  color += uColdWhite * uRimIntensity * fresnel * rimShape * 0.40 * rimGain * rimFace;
   // A tight specular glint along edges, so facets separate from each
   // other rather than merging into one silhouette.
   // Tight glint, also facet-dependent — polished planes flare at the
@@ -637,6 +791,77 @@ void main() {
     // fracture light is floored, because the material identity has to
     // survive to the back of the entity.
     float netResponse = mix(0.55, 1.0, response);
+
+    // FACE: how hard the EXISTING network burns inside each zone.
+    //
+    // Rises with the entity's own energy and only ever one way —
+    // uRetained never falls and there is no oscillator here, so the
+    // face strengthens as you descend without ever pulsing.
+    //
+    // The blade is pushed DOWN. It earns its read from plane contrast
+    // and from the split, and a bright ridge would turn the whole thing
+    // into a lit ornament: the brief is explicit that the beak must not
+    // carry the emissive.
+    // The sockets are DARKER than the shell around them. On this body
+    // the network carries essentially all the brightness, so cavity
+    // darkness has to be applied to the veins — dimming the base alone
+    // is invisible against them. The leak is what little still gets out,
+    // not something added on top; boosting it here made the eyes the
+    // brightest thing on the shard, which is the opposite of a recess.
+    //
+    // Suppression EASES as uRetained rises, so the leak strengthens
+    // through the descent. uRetained only ever climbs and there is no
+    // oscillator, so this can brighten but it cannot pulse.
+    // FOLLOW THE GEOMETRY, NOT THE ZONE.
+    //
+    // Weighting by `cavity` is what makes this trace the sculpt: the
+    // veins go dark exactly where the surface has turned away from the
+    // key — inside the recesses that are already modelled — and stay
+    // bright on the planes that face it. Dimming the zone uniformly
+    // instead just put a soft ellipse of quieter lattice on the shard,
+    // which reads as a blob and traces nothing. The zone decides where
+    // this is allowed to happen; the mesh decides what shape it takes.
+    float faceCav = safePow(cavity, 1.5);
+    if (uFace > 0.5) {
+      // SHARD-WIDE: let the network be shaded BY THE FORM.
+      //
+      // The veins are the only thing on this body with real brightness,
+      // and they were drawn at the same intensity whichever way the
+      // surface underneath them was facing — so they read as a flat
+      // pattern laid over the rock and actively concealed the sculpt.
+      // Weighting them by the key means the lattice dims as it runs
+      // into a recess and holds as it crosses a lit plane, so the
+      // network itself describes the brow, the sockets and the blade.
+      // Nothing is drawn: this is the existing crack lines reporting
+      // the existing planes, which is the whole of what was asked for.
+      netResponse *= mix(1.0, 0.34, faceCav);
+
+      // RAKING MODELLING LIGHT — the term that actually reads the face.
+      //
+      // The entity's key sits almost directly above-front, so its half
+      // vector points steeply up: measured against this shard's own
+      // normals, only 1.1% of its front-facing surface is angled to
+      // catch it at all. An overhead light gives a forward-facing face
+      // no modelling — this is why a fully sculpted brow, socket and
+      // blade were invisible no matter what was done to the shading,
+      // and why a specular lobe off that key changed the shard's mean
+      // luma by 0.9%, which is nothing.
+      //
+      // A LATERAL light is what reads relief; it is what raking light
+      // does for a sculptor. And it has to drive the NETWORK rather
+      // than the surface, because the veins carry essentially all the
+      // brightness on this body.
+      //
+      // Written as a signed contrast around 1.0, so planes turned into
+      // it gain exactly as much as planes turned away lose: it models
+      // the form without making the shard brighter overall, which is
+      // what keeps the body reading as black obsidian.
+      vec3 rakeDir = normalize(vec3(-0.82, 0.34, 0.46));
+      float rake = dot(N, rakeDir);
+      netResponse *= clamp(1.0 + rake * 0.85, 0.12, 1.9);
+    }
+    netResponse *= 1.0 - (zEyes * 0.62 + zMouth * 0.48) * faceCav / faceEnergy
+                       - zBeak * 0.30 * faceCav;
     vec2 crackUv = vCrackPos.xy * uCrackScale;
     // Cell density. 15 gave five or six polygons per plate — the brief
     // asks for a capillary network, and at that scale each "crack" was a
@@ -653,7 +878,16 @@ void main() {
     // single brightness — which is what the last revision did — gives an
     // even lattice that reads as a lit wireframe, because nothing on the
     // surface is subordinate to anything else.
-    vec2 channelField = cellEdge(p * 0.55, uSeed);
+    // CELL DENSITY, and on the carrier it is a resolution problem.
+    //
+    // The channel network runs at roughly 36px cells at the hero, and
+    // the face's features are 70-80px across — so the lattice had about
+    // two cells to describe an entire eye socket. A network cannot
+    // report a form finer than its own cell size, which is the last
+    // reason the sculpt would not come through however it was lit.
+    // Finer only on the shard that has a face in it.
+    float chScale = uFace > 0.5 ? 1.45 : 0.55;
+    vec2 channelField = cellEdge(p * chScale, uSeed);
     // Wide enough to CARRY colour.
     //
     // Per-part hue assignment was verified working — thirty parts, all
@@ -743,8 +977,27 @@ void main() {
     // uSeed is a stable per-part hash, so multiplying it across several
     // cycles gives every plate its own starting point regardless of how
     // large it is or how much field it covers. Depth now has colour.
-    float swept = hueField * 2.4 + uSeed * 3.7
-                + fresnel * 0.22 + uTime * 0.021;
+    // EVERY offset is scaled by the range, so uHueRange means what its
+    // name says: the total distance this part's hue may travel.
+    //
+    // It did not. The view term and the clock were added AFTER the range
+    // multiply, so neither respected it. On the crown — range 0.125 —
+    // fresnel alone moved the hue 1.76x further than the whole authored
+    // family, and the clock walked it round the entire ramp every 47.6
+    // seconds. CROWN_HUE_BASE was therefore not a family at all, only a
+    // position at t = 0, and the crown had left it twelve seconds after
+    // load: measured on one frame, the crest ran 13.0% violet / 0.2%
+    // blue, and on the same frame twelve seconds later 0.5% / 10.8%.
+    // That is the crest reading as corridor, and no amount of narrowing
+    // CROWN_HUE_RANGE could have reached it.
+    //
+    // Scaled against the 2.4 default rather than removed, so the
+    // corridor — which is MEANT to sweep the whole palette and drift —
+    // keeps exactly the behaviour it has today. Only a part with a
+    // deliberately narrow family is held to it.
+    float familyScale = uHueRange / 2.4;
+    float swept = hueField * uHueRange + uHueBase
+                + (fresnel * 0.22 + uTime * 0.021) * familyScale;
     hueField = abs(fract(swept) * 2.0 - 1.0);
     vec3 hue = energyRamp(hueField);
 
@@ -764,6 +1017,21 @@ void main() {
     // journey has genuinely accumulated it.
     float consequence = clamp(smoothstep(0.54, 0.78, b) + uRetained * 0.55, 0.0, 1.0);
     crackColor = mix(crackColor, uMagenta, smoothstep(0.75, 1.0, consequence) * 0.5);
+
+    // FACE: what colour the existing fissures run inside the sockets.
+    //
+    // Applied LAST so it overrides the hue family, the spectral flare
+    // and the magenta consequence — inside the eyes the leak is cold,
+    // full stop. This tints a mask the geometry already produced: where
+    // a socket happens to contain no fissure, nothing appears there, and
+    // that is precisely why it cannot read as drawn.
+    if (uFace > 0.5) {
+      crackColor = mix(crackColor, mix(uTeal, uCyan, 0.45), zEyes * 0.62);
+      crackColor = mix(crackColor, mix(uTeal, uCyan, 0.25), zMouth * 0.34);
+      // Violet as a secondary TRACE only, and squared so it is confined
+      // to the very centre of each socket.
+      crackColor = mix(crackColor, uViolet, zEyes * zEyes * 0.16);
+    }
 
     // EMISSION, confined to the hairline core. The 2.5 power is what
     // keeps the glow inside the fissure instead of bleeding onto the
@@ -913,6 +1181,7 @@ void main() {
 
   // Luminance floor: the entity is never entirely invisible.
   color += uColdWhite * 0.022;
+
 
   // ---- Atmosphere -------------------------------------------------
   float depth = length(vWorldPos - cameraPosition);

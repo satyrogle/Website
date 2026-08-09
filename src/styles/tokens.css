@@ -56,7 +56,12 @@
   --step-5: clamp(2.33rem, 1.62rem + 3.5vw, 4.55rem);
 
   /* Cinematic display sizes — deliberately viewport-cropping.       */
-  --display-xl: clamp(3.4rem, 15.5vw, 15rem);
+  /* Sized to a COLUMN. At 15.5vw the second line ran the full width of
+     the page and printed straight through the entity, so the object
+     could never be read as a silhouette and the type sat on a busy,
+     high-contrast surface. The entity is shifted right by 18% of the
+     frame; this is what leaves it clear. */
+  --display-xl: clamp(3.4rem, 11vw, 11rem);
   --display-lg: clamp(2.6rem, 9.5vw, 8.5rem);
   --display-md: clamp(2rem, 6.2vw, 5.2rem);
 

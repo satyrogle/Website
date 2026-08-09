@@ -277,7 +277,7 @@ def main():
 
     # ---- Hero camera, matching CameraRig's first keyframe -------------
     #
-    # DESKTOP_PATH[0]: position [0, 0, 13.2], target [0, -0.72, 0],
+    # DESKTOP_PATH[0]: position [0, 0, 11.8], target [0, -0.72, 0],
     # fov 38, aspect 1.6 — glTF axes. The export runs export_yup, mapping
     # Blender (x, y, z) -> glTF (x, z, -y), so inverting it puts the
     # camera at Blender (0, -13.2, 0) looking at (0, 0, -0.72).
@@ -295,7 +295,11 @@ def main():
     cam_data.clip_start = 0.05
     cam_data.clip_end = 200.0
     cam = bpy.data.objects.new("DL_HeroCam", cam_data)
-    cam.location = (0.0, -13.2, 0.0)
+    cam.location = (0.0, -11.8, 0.0)
+    # HERO_LENS_SHIFT from CameraRig. Blender measures shift in units
+    # of the larger render dimension — width, here — so it carries
+    # across directly. Negative moves the subject right.
+    cam_data.shift_x = -0.18
     cols["00_GUIDES"].objects.link(cam)
     track = cam.constraints.new("TRACK_TO")
     track.target = target

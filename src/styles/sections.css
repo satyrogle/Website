@@ -68,14 +68,13 @@
    The type still crops against the VIEWPORT as the brief asks; it is
    not clipped against a container, which cut 'LATTICE' to 'LATTIC'. */
 .hero__title {
-  align-self: start;
   margin-inline-start: -0.06em;
 }
 
 @media (max-width: 900px) {
   /* No room to sit beside it on a phone, so the type goes back to
      owning the frame and the entity sits behind it. */
-  .hero__title {
+  .hero__lede {
     align-self: center;
   }
 }
@@ -87,18 +86,39 @@
 .hero__foot {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: center;
   gap: clamp(1.5rem, 4vw, 4rem);
   border-top: 1px solid var(--line);
   padding-top: clamp(1.2rem, 3vh, 2rem);
 }
 
+/* The lede — headline and statement as ONE block.
+   Split across the grid they read as two unrelated items with a void
+   between them: the bottom-left quadrant measured 3.9% ink against the
+   top-right's 32%, so the eye landed on the entity and then had to cross
+   an empty diagonal to find any words. Together they fill that quadrant
+   and give the type block a shape the entity can sit against. */
+.hero__lede {
+  align-self: start;
+  display: grid;
+  gap: clamp(1.2rem, 3.2vh, 2.4rem);
+}
+
 .hero__statement {
-  font-size: var(--step-1);
-  line-height: 1.42;
-  max-width: 30ch;
+  /* Deliberately large. This sentence is the studio's entire argument;
+     the two words above it carry no information. It was set at --step-1,
+     which put the least important type on the page above the most. Held
+     below the display face so the order still reads as headline first —
+     roughly a third of its size. */
+  font-size: clamp(1.5rem, 3.3vw, 3rem);
+  line-height: 1.24;
+  letter-spacing: -0.012em;
+  /* In characters, so the measure holds as the size scales. Wide enough
+     to break into three lines and fill the quadrant, narrow enough to
+     stop short of the entity. */
+  max-width: 22ch;
   color: var(--text);
-  margin-bottom: 1.4rem;
+  text-wrap: balance;
 }
 
 .hero__lockup {

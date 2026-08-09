@@ -139,7 +139,7 @@ async function boot(): Promise<void> {
   //      drops to the poster and the DOM narrative is untouched.
   try {
     await scene.loadEntity(
-      `${import.meta.env.BASE_URL}models/DL_Aurora_v01.glb`,
+      `${import.meta.env.BASE_URL}models/DL_Aurora_v13.glb`,
       (fraction) => setLoaderProgress(0.45 + fraction * 0.18)
     );
   } catch (error) {
@@ -149,19 +149,21 @@ async function boot(): Promise<void> {
     reveals.revealHero();
     return;
   }
-  // 3c — The two environment backplates. Not fatal if absent: they are
-  //      the only assets authored outside the repo, and the world is
-  //      composed and complete without them.
-  try {
-    await scene.loadEnvironment(
-      `${import.meta.env.BASE_URL}environment/crowned-heavenly.webp`,
-      `${import.meta.env.BASE_URL}environment/latent-menacing.webp`
-    );
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn('[dark-lattice] environment plates not loaded —', String(error));
-    }
-  }
+  // 3c — NO environment backplates.
+  //
+  //      The two painted plates were the brightest thing on the page, so
+  //      the eye went background, then type, then entity — with the
+  //      subject the darkest object in frame. They were also
+  //      MeshBasicMaterial, which meant they could not answer the
+  //      entity, the reaction field or the lighting arc by construction;
+  //      whatever the entity did, the sky behind it stayed the same
+  //      picture.
+  //
+  //      The environment is now the clear colour and the post stack's
+  //      haze, which is the entity's own emissive blurred wide. The
+  //      background cannot fall out of step with the entity because it
+  //      IS the entity. SceneController.loadEnvironment still exists and
+  //      still works if the plates are wanted back.
 
   setLoaderProgress(0.63);
 

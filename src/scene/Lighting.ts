@@ -15,6 +15,15 @@
  * the outdoor gain indoors blew half the frame to white and took the
  * copy with it. Fog rises at the same time, which is what gives the
  * corridor its depth.
+ *
+ * RE-BALANCED against a black environment. Every figure below was set
+ * with a lit backplate behind the entity, so "down through the middle"
+ * only ever meant down relative to a bright world. Delete the plate and
+ * the hero drops to near-black while the corridor keeps its old gain —
+ * the descent then reads as walking into a brighter place, which is the
+ * opposite of the arc. Exposure and bloom carry the correction; the
+ * emissive, psy and ring channels are untouched, because those are the
+ * material and the material is not the problem.
  */
 
 interface LightKeyframe {
@@ -70,7 +79,7 @@ const ARC: LightKeyframe[] = [
     at: 0.2,
     keyIntensity: 0.85, rimIntensity: 1.3, fillIntensity: 1.0,
     emissive: 1.15, ring: 1.1, displace: 0.012, sharp: 0.5, amber: 0.82, psy: 0.6,
-    fog: 0.038, exposure: 1.06, bloom: 0.4, vignette: 0.9,
+    fog: 0.038, exposure: 1.00, bloom: 0.36, vignette: 0.91,
   },
   // 03a/b/c — the trip. Full pattern, moderate bloom so the colour
   // stays saturated instead of blowing to white.
@@ -78,47 +87,47 @@ const ARC: LightKeyframe[] = [
     at: 0.35,
     keyIntensity: 0.9, rimIntensity: 1.1, fillIntensity: 0.9,
     emissive: 1.3, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0.34, psy: 1.0,
-    fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.9,
+    fog: 0.03, exposure: 0.86, bloom: 0.24, vignette: 0.95,
   },
   {
     at: 0.45,
     keyIntensity: 0.9, rimIntensity: 1.15, fillIntensity: 0.9,
     emissive: 1.4, ring: 1.0, displace: 0.014, sharp: 0.5, amber: 0.14, psy: 1.0,
-    fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.92,
+    fog: 0.03, exposure: 0.82, bloom: 0.24, vignette: 0.96,
   },
   {
     at: 0.55,
     keyIntensity: 0.9, rimIntensity: 1.2, fillIntensity: 0.95,
     emissive: 1.35, ring: 1.0, displace: 0.012, sharp: 0.55, amber: 0.06, psy: 1.0,
-    fog: 0.03, exposure: 1.06, bloom: 0.3, vignette: 0.9,
+    fog: 0.03, exposure: 0.84, bloom: 0.25, vignette: 0.95,
   },
   // 04 — foundation. Trip eases while the thirds separate.
   {
     at: 0.655,
     keyIntensity: 1.0, rimIntensity: 1.2, fillIntensity: 1.05,
     emissive: 1.2, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.0, psy: 0.8,
-    fog: 0.028, exposure: 1.06, bloom: 0.48, vignette: 0.86,
+    fog: 0.028, exposure: 0.90, bloom: 0.40, vignette: 0.92,
   },
   // 05 — accumulation. Calming; the pattern slows its claim.
   {
     at: 0.775,
     keyIntensity: 1.0, rimIntensity: 1.25, fillIntensity: 1.0,
     emissive: 1.05, ring: 0.95, displace: 0.01, sharp: 0.65, amber: 0.0, psy: 0.5,
-    fog: 0.026, exposure: 1.05, bloom: 0.46, vignette: 0.84,
+    fog: 0.026, exposure: 0.94, bloom: 0.40, vignette: 0.90,
   },
   // 06 — evidence. Documentary. The far door, plainly lit.
   {
     at: 0.885,
     keyIntensity: 0.85, rimIntensity: 1.0, fillIntensity: 0.85,
     emissive: 1.0, ring: 0.8, displace: 0.008, sharp: 0.7, amber: 0.0, psy: 0.45,
-    fog: 0.022, exposure: 1.0, bloom: 0.36, vignette: 0.8,
+    fog: 0.022, exposure: 0.96, bloom: 0.32, vignette: 0.88,
   },
   // 07 — resolution. The sealed twin, iridescent and still.
   {
     at: 1.0,
     keyIntensity: 0.95, rimIntensity: 1.35, fillIntensity: 0.95,
     emissive: 1.15, ring: 0.95, displace: 0.01, sharp: 0.6, amber: 0.16, psy: 0.35,
-    fog: 0.022, exposure: 1.06, bloom: 0.5, vignette: 0.88,
+    fog: 0.022, exposure: 1.00, bloom: 0.44, vignette: 0.90,
   },
 ];
 

@@ -7,6 +7,7 @@ import { CameraRig } from './CameraRig';
 import { Lighting } from './Lighting';
 import { PostPipeline } from './PostPipeline';
 import { EnvironmentStages } from './EnvironmentStages';
+import { Particulate } from './Particulate';
 
 /**
  * SceneController
@@ -46,6 +47,8 @@ export class SceneController {
   readonly entity: CrownedConvergenceModel;
   readonly field: ReactionField;
   readonly lighting: Lighting;
+  /** The air. Nothing else in the void sits at a different distance. */
+  readonly motes: Particulate;
 
   /**
    * The two environment backplates. Null until loadEnvironment resolves,
@@ -96,7 +99,12 @@ export class SceneController {
       stencil: false,
       depth: true,
     });
-    this.renderer.setClearColor(new THREE.Color('#080b10'), 1);
+    // PALETTE.void, not the obsidian the entity is made of. The clear
+    // colour IS the environment now that the backplates are gone, and
+    // the sheet is explicit that the environment is near black — the
+    // entity has to be the brightest thing in frame for the silhouette
+    // to read at all.
+    this.renderer.setClearColor(new THREE.Color('#010204'), 1);
     this.renderer.setPixelRatio(this.quality.pixelRatio());
 
     const { clientWidth, clientHeight } = this.canvasSize();
@@ -117,6 +125,13 @@ export class SceneController {
 
     this.rig = new CameraRig(clientWidth / Math.max(clientHeight, 1), mobile);
     this.lighting = new Lighting();
+
+    // Scaled by tier: this is one draw call, but it is a lot of
+    // overlapping additive fragments, which is the part that costs.
+    const moteCount =
+      settings.tier === 'high' ? 6000 : settings.tier === 'medium' ? 3400 : 1500;
+    this.motes = new Particulate(moteCount, this.renderer.getPixelRatio());
+    this.scene.add(this.motes.points);
 
     const dpr = this.renderer.getPixelRatio();
     this.post = new PostPipeline(
@@ -148,6 +163,7 @@ export class SceneController {
     this.renderer.setPixelRatio(this.quality.pixelRatio());
     this.post.enabled = settings.bloom;
     this.field.resize(settings.simResolution);
+    this.motes.setPixelRatio(this.renderer.getPixelRatio());
     this.entity.bindField(this.field.texture);
     this.resize();
   }
@@ -399,6 +415,7 @@ export class SceneController {
     this.field.update(this.quality.settings.simStepsPerFrame, 1 / 60);
     this.entity.bindField(this.field.texture);
     this.entity.update(time);
+    this.motes.update(time, 1);
     this.lighting.setWake(1);
     this.lighting.update(this.progress, time, 1 / 60);
     this.entity.setProgress(
@@ -457,6 +474,7 @@ export class SceneController {
     this.field.update(this.quality.settings.simStepsPerFrame, dt);
     this.entity.bindField(this.field.texture);
     this.entity.update(time);
+    this.motes.update(time, this.wake);
 
     this.rig.update(time, dt);
     this.lighting.update(this.progress, time, dt);
@@ -481,6 +499,7 @@ export class SceneController {
     window.removeEventListener('pointerleave', this.onPointerLeave);
     this.resizeObserver?.disconnect();
     this.field.dispose();
+    this.motes.dispose();
     this.entity.dispose();
     this.environment?.dispose();
     this.post.dispose();

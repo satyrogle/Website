@@ -117,6 +117,53 @@ function seedFromName(name: string): number {
 const PORTAL_FROM = 0.08;
 const PORTAL_TO = 0.30;
 
+/**
+ * The crown's window on the emissive ramp.
+ *
+ * The shader walks the ramp with a triangle wave: t = |fract(s)*2 - 1|,
+ * so s = 0.80..0.925 lands t = 0.60..0.85, which is the violet-to-magenta
+ * end. That is the family the body already reads as, and the one the
+ * crest was falling out of.
+ *
+ * RANGE is what actually matters. It replaces the default 2.4 sweep,
+ * which carried each plate across nearly two and a half complete trips
+ * round the palette — with 27 plates that guarantees no two agree, and
+ * narrowing the per-part offset alone did almost nothing because the
+ * sweep, not the offset, was doing the damage.
+ */
+const CROWN_HUE_BASE = 0.80;
+const CROWN_HUE_RANGE = 0.015;
+const CROWN_HUE_SPREAD = 0.008;
+
+/**
+ * THE FACE — four zones on the one shard whose fracture already has one.
+ *
+ * DL_Shard_01 is the broad frontal plate on the entity's centre line,
+ * and after the Aug 9 rework its geometry contains a face outright: a
+ * brow mass, a central blade running down from the apex, a recessed
+ * plane either side of it, and a broad fissure under the blade's point.
+ * None of that is added here. These zones only say WHERE the shading
+ * already in the material is allowed to push harder.
+ *
+ * Coordinates are (centre.x, centre.y, radius.x, radius.y) in the
+ * shard's own space — world units from its origin, which is what
+ * vCrackPos carries. Derived by raycasting the mesh through the hero
+ * camera rather than estimated: the shard's origin projects to screen
+ * (928, 197) at 1440x900 and the scale is 128px per world unit, both
+ * measured by casting rays at known screen positions and reading back
+ * the hit coordinates. Local space is a raw Meshy dump, so there is no
+ * way to place these by eye.
+ *
+ * Slight asymmetry is real, not styling: the right socket sits a touch
+ * higher and wider because that is where the geometry put it.
+ */
+const FACE_SHARD = 'DL_Shard_01';
+
+const FACE_ZONE_EYE_L = new THREE.Vector4(-0.40, 0.08, 0.30, 0.26);
+const FACE_ZONE_EYE_R = new THREE.Vector4(0.50, 0.10, 0.28, 0.24);
+const FACE_ZONE_BEAK = new THREE.Vector4(0.03, 0.16, 0.11, 0.62);
+const FACE_ZONE_MOUTH = new THREE.Vector4(0.03, -0.47, 0.46, 0.15);
+
 /** The corridor's travel axis, and so each ring's own spin axis. */
 const RING_AXIS = new THREE.Vector3(0, 0, 1);
 
@@ -422,8 +469,19 @@ export class CrownedConvergenceModel {
       // Interior surfaces are single-skinned tubes and the camera flies
       // down the inside of them, where front-face culling would leave
       // the corridor completely empty.
+      //
+      // Crown slabs are double-sided too, and that is not belt-and-
+      // braces. These are FRACTURE FRAGMENTS off a generated shell, and
+      // a generated shell is not reliably closed: the part sitting at
+      // the top of this build carries 6,116 boundary edges — 4.9% of its
+      // total — so front-face culling let the camera see straight
+      // through it and the crown's crest rendered as torn slivers with
+      // black gaps. Any piece with a hole in it has the same failure,
+      // and holes are the normal case here rather than the exception.
       side:
-        role === 'tunnel_shell' || role === 'threshold_chamber'
+        role === 'tunnel_shell' ||
+        role === 'threshold_chamber' ||
+        role === 'crown_slab'
           ? THREE.DoubleSide
           : THREE.FrontSide,
       // The core is a light source, not a surface. Drawn additively and
@@ -470,6 +528,22 @@ export class CrownedConvergenceModel {
 
         uClass: { value: classIndex },
         uSeed: { value: seedFromName(mesh.name) },
+        // The crown is ONE body, so its plates share a hue family: a
+        // fixed base with a narrow spread, rather than the full-range
+        // per-part hash the fracture uses. Everything else keeps the
+        // wide spread — the corridor rings are meant to differ from
+        // each other, and the crown is meant not to.
+        uHueSeed: { value: seedFromName(mesh.name) },
+        uHueRange: {
+          value: role === 'crown_slab' ? CROWN_HUE_RANGE : 2.4,
+        },
+        uHueBase: {
+          value:
+            role === 'crown_slab'
+              ? CROWN_HUE_BASE +
+                (seedFromName(mesh.name + '.hue') - 0.5) * CROWN_HUE_SPREAD
+              : seedFromName(mesh.name) * 3.7,
+        },
         // Overwritten once the entity has been measured, below.
         uCrackScale: { value: 0.2 },
         uProgress: { value: 0 },
@@ -482,6 +556,19 @@ export class CrownedConvergenceModel {
         uRingGain: { value: 1.3 },
         uSharp: { value: 0.5 },
         uCoreZ: { value: -11 },
+        // The face rides on exactly one shard. The exporter splits a
+        // multi-material part into `<name>_MESH` primitives, so match
+        // the prefix too or the carrier silently loses it.
+        uFace: {
+          value:
+            mesh.name === FACE_SHARD || mesh.name.startsWith(`${FACE_SHARD}_`)
+              ? 1
+              : 0,
+        },
+        uZoneEyeL: { value: FACE_ZONE_EYE_L },
+        uZoneEyeR: { value: FACE_ZONE_EYE_R },
+        uZoneBeak: { value: FACE_ZONE_BEAK },
+        uZoneMouth: { value: FACE_ZONE_MOUTH },
         uFogDensity: { value: 0.05 },
         uFogColor: { value: PALETTE.void.clone() },
         uKeyDir: { value: new THREE.Vector3(0, 0.82, 0.42).normalize() },
