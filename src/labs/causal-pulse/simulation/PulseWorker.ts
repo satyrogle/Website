@@ -4,7 +4,7 @@
  * feeds back into it, so what the renderer draws can never influence what the
  * system does.
  *
- * Snapshots are packed as RGBA per node (wave, activity, memory, peak) so they
+ * Snapshots are packed as RGBA per node (wave, activity, memory, envelope) so they
  * upload straight into a texture without a repack on the main thread, and the
  * buffers cycle between the two threads by transfer rather than being
  * reallocated sixty times a second.
@@ -72,7 +72,10 @@ function packSnapshot(sim: CausalPulseSimulation): ArrayBuffer {
     view[at] = sim.u[i];
     view[at + 1] = sim.s[i];
     view[at + 2] = sim.m[i];
-    view[at + 3] = sim.peakValue[i];
+    // Decaying envelope of |u|, not instantaneous |u|: the wave crosses zero
+    // many times while a region is active, and an instantaneous mask collapses
+    // at every crossing and lets the trace flash through the front.
+    view[at + 3] = sim.envelope[i];
   }
 
   return buffer;

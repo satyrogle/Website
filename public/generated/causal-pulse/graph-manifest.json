@@ -431,5 +431,91 @@
       "bytes": 1128748,
       "vertices": 282183
     }
+  },
+  "retainedDisplay": {
+    "low": 0.00007657996320631355,
+    "high": 0.00026317689085512285,
+    "displayCut": 0.35,
+    "absoluteThreshold": 0.0001418888878833968,
+    "routesSatisfyingAll": 3,
+    "ticks": 900,
+    "routes": [
+      {
+        "role": "shard",
+        "node": 2879,
+        "max": 0.01021957490593195,
+        "p50": 0.0000324014326906763,
+        "p90": 0.0003207293339073658,
+        "p90OverP50": 9.898615810271178,
+        "atDisplayCut": {
+          "count": 1325,
+          "coverage": 0.2204292131092996,
+          "roles": [
+            "shard",
+            "tunnel_ring"
+          ],
+          "componentShare": 0.9766037735849057
+        }
+      },
+      {
+        "role": "tunnel_ring",
+        "node": 4542,
+        "max": 0.009532404132187366,
+        "p50": 0.000027722602681024,
+        "p90": 0.00028695465880446136,
+        "p90OverP50": 10.350927800905236,
+        "atDisplayCut": {
+          "count": 1614,
+          "coverage": 0.2685077358176676,
+          "roles": [
+            "chamber",
+            "gyre",
+            "shard",
+            "tunnel_ring",
+            "tunnel_shell"
+          ],
+          "componentShare": 0.9820322180916976
+        }
+      },
+      {
+        "role": "gyre",
+        "node": 271,
+        "max": 0.008606137707829475,
+        "p50": 1.4507840262467653e-7,
+        "p90": 0.0001684914022916928,
+        "p90OverP50": 1161.381702882314,
+        "atDisplayCut": {
+          "count": 611,
+          "coverage": 0.10164698053568458,
+          "roles": [
+            "chamber",
+            "core",
+            "gyre",
+            "latent"
+          ],
+          "componentShare": 1
+        }
+      },
+      {
+        "role": "latent",
+        "node": 486,
+        "max": 0.009068883024156094,
+        "p50": 1.4504367129575257e-7,
+        "p90": 0.00018341612303629518,
+        "p90OverP50": 1264.5579182996473,
+        "atDisplayCut": {
+          "count": 611,
+          "coverage": 0.10164698053568458,
+          "roles": [
+            "chamber",
+            "core",
+            "gyre",
+            "latent"
+          ],
+          "componentShare": 1
+        }
+      }
+    ],
+    "note": "Fixed across all routes. The runtime must not normalise per frame or per interaction."
   }
 }

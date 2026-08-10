@@ -22,6 +22,7 @@ uniform float uDisplace;
 out float vWave;
 out float vActivity;
 out float vMemory;
+out float vEnvelope;
 out vec3 vNormalW;
 out vec3 vViewDir;
 
@@ -33,6 +34,7 @@ void main() {
   vWave = state.x;
   vActivity = state.y;
   vMemory = state.z;
+  vEnvelope = state.w;
 
   // Pressure, not jelly. The displacement is deliberately small — the
   // structure should look loaded, not animated.
@@ -52,6 +54,7 @@ precision highp float;
 in float vWave;
 in float vActivity;
 in float vMemory;
+in float vEnvelope;
 in vec3 vNormalW;
 in vec3 vViewDir;
 
@@ -62,6 +65,11 @@ uniform vec3 uRim;
 uniform float uWaveGain;
 uniform float uActivityGain;
 uniform float uMemoryGain;
+uniform float uRetainedLow;
+uniform float uRetainedHigh;
+uniform float uActiveMaskGain;
+uniform float uTransientFloor;
+uniform float uTransientBoost;
 
 out vec4 fragColor;
 
@@ -77,23 +85,39 @@ void main() {
   vec3 view = normalize(vViewDir);
   float fresnel = safePow(1.0 - max(dot(normal, view), 0.0), 3.0);
 
-  float wave = abs(vWave) * uWaveGain;
+  float wave = vEnvelope * uWaveGain;
   float activity = vActivity * uActivityGain;
 
-  // Retained memory spans three orders: 1.0 at the strike, ~0.04 across the
-  // rest of the object. Linear mapping makes everything but the impact point
-  // invisible, so the low end is lifted perceptually while the peak stays put.
-  float memory = safePow(clamp(vMemory, 0.0, 1.0), 0.55) * uMemoryGain;
+  // The wave never reaches zero — it decays slowly and leaves a low residual
+  // ring across the whole object. At the gain needed to make the travelling
+  // front bright, that residual is enough to hold every surface cyan forever
+  // and mask the trace permanently. The floor is a DISPLAY decision: below it
+  // the object is ringing, not being disturbed, and reads as at rest.
+  // Front and residual differ by only about a factor of two in amplitude, so
+  // subtracting the floor alone dims both. The remainder is boosted, which
+  // separates a passing front from a surface that is merely still ringing.
+  float transient = clamp((wave + activity - uTransientFloor) * uTransientBoost, 0.0, 6.0);
+
+  // Where the system is active NOW, the transient owns the pixel. The retained
+  // trace is suppressed under it, so magenta never covers the travelling front
+  // and the two channels stay legible as separate events.
+  float activeMask = clamp(transient * uActiveMaskGain, 0.0, 1.0);
+
+  // Fixed mapping from the deterministic calibration in the manifest. Never
+  // normalised per frame or per interaction, so the same strike always looks
+  // the same and different strikes stay comparable.
+  float mapped = clamp((vMemory - uRetainedLow) / max(uRetainedHigh - uRetainedLow, 1e-9), 0.0, 1.0);
+  float visibleRetained = mapped * uMemoryGain * (1.0 - activeMask);
 
   vec3 color = uVoid;
 
-  // Cyan is the transient system: what is happening now.
-  color += uCyan * clamp(wave + activity, 0.0, 4.0);
+  // Cyan is the transient system: what is happening now, and it has priority.
+  color += uCyan * transient;
 
   // Magenta is retained consequence, and only that. It never decorates.
-  color += uMagenta * clamp(memory, 0.0, 1.0);
+  color += uMagenta * visibleRetained;
 
-  // A rim so the silhouette still reads where nothing has happened yet.
+  // Faint enough that untouched structure stays near-black.
   color += uRim * fresnel;
 
   // Soft knee rather than a hard clamp, so a bright strike rolls off instead
@@ -106,10 +130,16 @@ void main() {
 
 export interface PulseMaterialOptions {
   textureSize: number;
+  /** Fixed retained-memory mapping from the manifest's calibration. */
+  retainedLow: number;
+  retainedHigh: number;
   displace?: number;
   waveGain?: number;
   activityGain?: number;
   memoryGain?: number;
+  activeMaskGain?: number;
+  transientFloor?: number;
+  transientBoost?: number;
 }
 
 export function createStateTexture(textureSize: number): DataTexture {
@@ -136,14 +166,19 @@ export function createPulseMaterial(stateTexture: DataTexture, options: PulseMat
       // The transient has to out-shout the trace at the moment of impact, or
       // cause and consequence arrive in the same colour and the sequence reads
       // as one event instead of two.
-      uWaveGain: { value: options.waveGain ?? 240 },
+      uWaveGain: { value: options.waveGain ?? 420 },
       uActivityGain: { value: options.activityGain ?? 10 },
-      uMemoryGain: { value: options.memoryGain ?? 0.85 },
+      uMemoryGain: { value: options.memoryGain ?? 1 },
+      uRetainedLow: { value: options.retainedLow },
+      uRetainedHigh: { value: options.retainedHigh },
+      uActiveMaskGain: { value: options.activeMaskGain ?? 6 },
+      uTransientFloor: { value: options.transientFloor ?? 0.78 },
+      uTransientBoost: { value: options.transientBoost ?? 5 },
       // Locked palette: void, cyan for active transient, magenta for retained.
       uVoid: { value: new Color(0x010204) },
       uCyan: { value: new Color(0x4dd0ff) },
       uMagenta: { value: new Color(0xff2b9a) },
-      uRim: { value: new Vector3(0.05, 0.10, 0.14) },
+      uRim: { value: new Vector3(0.016, 0.032, 0.046) },
     },
   });
 }

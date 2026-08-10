@@ -64,6 +64,14 @@ export interface GraphManifest {
     rolesReached: string[];
   };
   primitiveOrder: PrimitiveRecord[];
+  /** Written by tools/causal-pulse-calibrate.mjs. Fixed across all routes. */
+  retainedDisplay?: {
+    low: number;
+    high: number;
+    displayCut: number;
+    absoluteThreshold: number;
+    routesSatisfyingAll: number;
+  };
 }
 
 export function decodeGraph(buffer: ArrayBuffer): CausalGraph {

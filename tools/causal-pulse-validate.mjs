@@ -36,9 +36,10 @@ const PARAMS = {
   diffusionRate: arg('kappa', DEFAULT_PARAMETERS.diffusionRate),
   diffusionDecay: arg('decay', DEFAULT_PARAMETERS.diffusionDecay),
   arrivalThreshold: arg('threshold', DEFAULT_PARAMETERS.arrivalThreshold),
-  memoryFromWave: arg('alpha', DEFAULT_PARAMETERS.memoryFromWave),
-  memoryFromActivity: arg('beta', DEFAULT_PARAMETERS.memoryFromActivity),
 };
+
+const display = manifest.retainedDisplay;
+if (!display) throw new Error('manifest has no retainedDisplay — run tools/causal-pulse-calibrate.mjs');
 
 // ------------------------------------------------------------- graph metrics
 
@@ -178,7 +179,9 @@ function run(ticks, injectNode, { trackMonotonicity = false, profileAt = null } 
   sim.inject(injectNode, 1);
 
   let monotonicityViolations = 0;
+  let edgeViolations = 0;
   const previous = trackMonotonicity ? Float32Array.from(sim.m) : null;
+  const previousEdge = trackMonotonicity ? Float32Array.from(sim.edgeMemory) : null;
   const trace = [];
   const profiles = [];
 
@@ -186,8 +189,12 @@ function run(ticks, injectNode, { trackMonotonicity = false, profileAt = null } 
     sim.step();
 
     if (trackMonotonicity) {
-      for (let i = 0; i < sim.nodeCount; i++) if (sim.m[i] < previous[i] - 1e-9) monotonicityViolations++;
+      for (let i = 0; i < sim.nodeCount; i++) if (sim.m[i] < previous[i] - 1e-12) monotonicityViolations++;
       previous.set(sim.m);
+      for (let e = 0; e < sim.edgeCount; e++) {
+        if (sim.edgeMemory[e] < previousEdge[e] - 1e-12) edgeViolations++;
+      }
+      previousEdge.set(sim.edgeMemory);
     }
 
     if (t % 60 === 59) trace.push(sim.metrics());
@@ -210,7 +217,7 @@ function run(ticks, injectNode, { trackMonotonicity = false, profileAt = null } 
     }
   }
 
-  return { sim, monotonicityViolations, trace, profiles };
+  return { sim, monotonicityViolations, edgeViolations, trace, profiles };
 }
 
 // ------------------------------------------------------------------ report
@@ -222,7 +229,7 @@ console.log(`stability  c*dt ${(PARAMS.waveSpeed * PARAMS.dt).toFixed(5)} < ${bo
 console.log('');
 
 const profileTicks = flag('profile') ? [30, 60, 120, 240, 480] : null;
-const { sim, monotonicityViolations, trace, profiles } = run(TICKS, INJECT, { trackMonotonicity: true, profileAt: profileTicks });
+const { sim, monotonicityViolations, edgeViolations, trace, profiles } = run(TICKS, INJECT, { trackMonotonicity: true, profileAt: profileTicks });
 const final = sim.metrics();
 
 console.log('propagation over time');
@@ -391,9 +398,42 @@ console.log(`    arrival vs EUCLIDEAN          r = ${detour.rEuclid.toFixed(4)}`
 console.log(`    margin                         ${detour.rGeodesic - detour.rEuclid >= 0 ? '+' : ''}${(detour.rGeodesic - detour.rEuclid).toFixed(4)}  ${detour.rGeodesic > detour.rEuclid ? 'follows the structure around the detour' : 'RADIAL — ignores the detour'}`);
 console.log('');
 
-// Retained memory that is actually above perceptual dust, not float residue.
-let retainedAbove = 0;
-for (let i = 0; i < graph.nodeCount; i++) if (sim.m[i] > 0.02) retainedAbove++;
+// ---- shape of the retained field, at the fixed calibrated threshold ----
+const haloRoleIndex = manifest.roles.indexOf('halo');
+const bodyNodes = [];
+for (let i = 0; i < graph.nodeCount; i++) if (graph.role[i] !== haloRoleIndex) bodyNodes.push(i);
+
+const bodyRetained = bodyNodes.map((i) => sim.m[i]).sort((a, b) => a - b);
+const pct = (p) => bodyRetained[Math.min(bodyRetained.length - 1, Math.floor(bodyRetained.length * p))];
+const retainedP50 = pct(0.5);
+const retainedP90 = pct(0.9);
+const retainedSpread = retainedP50 > 0 ? retainedP90 / retainedP50 : Infinity;
+
+const routeCut = display.absoluteThreshold;
+const routeNodes = bodyNodes.filter((i) => sim.m[i] >= routeCut);
+const routeRoles = new Set(routeNodes.map((i) => manifest.roles[graph.role[i]]));
+
+const inRoute = new Uint8Array(graph.nodeCount);
+for (const i of routeNodes) inRoute[i] = 1;
+const seenRoute = new Uint8Array(graph.nodeCount);
+let largestRoute = 0;
+for (const start of routeNodes) {
+  if (seenRoute[start]) continue;
+  let size = 0;
+  const stack = [start];
+  seenRoute[start] = 1;
+  while (stack.length) {
+    const current = stack.pop();
+    size++;
+    for (let k = graph.offsets[current]; k < graph.offsets[current + 1]; k++) {
+      const j = graph.neighbours[k];
+      if (inRoute[j] && !seenRoute[j]) { seenRoute[j] = 1; stack.push(j); }
+    }
+  }
+  if (size > largestRoute) largestRoute = size;
+}
+const routeCoverage = routeNodes.length / bodyNodes.length;
+const routeComponentShare = routeNodes.length ? largestRoute / routeNodes.length : 0;
 
 /**
  * The decisive separation between "travels through the object" and "expands
@@ -432,12 +472,18 @@ for (let i = 0; i < graph.nodeCount; i++) if (sim.m[i] > 0.02) retainedAbove++;
   globalThis.__haloClean = haloEnergy === 0 && haloMemory === 0;
 }
 
-console.log('retained memory');
-console.log(`  monotonicity violations          ${monotonicityViolations}`);
-console.log(`  nodes retaining > 0.02           ${retainedAbove} (${((retainedAbove / graph.nodeCount) * 100).toFixed(1)}%)`);
-console.log(`  mean retained                    ${final.meanRetained.toFixed(5)}`);
-console.log(`  max retained                     ${final.maxRetained.toFixed(5)}`);
+console.log('retained memory (edge strain)');
+console.log(`  node monotonicity violations     ${monotonicityViolations}`);
+console.log(`  edge monotonicity violations     ${edgeViolations}  (${sim.edgeCount} edges)`);
+console.log(`  body p50 / p90                   ${retainedP50.toExponential(3)} / ${retainedP90.toExponential(3)}`);
+console.log(`  p90 / p50 spread                 ${retainedSpread.toFixed(2)}  (>= 2.0 required)`);
+console.log(`  max retained                     ${final.maxRetained.toExponential(3)}`);
 console.log(`  transient decayed to peak|u|     ${final.peakWave.toExponential(2)}`);
+console.log('');
+console.log(`retained route at calibrated cut ${routeCut.toExponential(4)}`);
+console.log(`  coverage of body                 ${routeNodes.length} / ${bodyNodes.length} (${(routeCoverage * 100).toFixed(1)}%)`);
+console.log(`  structural roles spanned         ${routeRoles.size} [${[...routeRoles].sort().join(' ')}]`);
+console.log(`  largest connected component      ${(routeComponentShare * 100).toFixed(0)}%`);
 console.log('');
 
 const a = run(240, INJECT).sim.checksum();
@@ -455,7 +501,11 @@ const checks = [
   ['geodesic explains arrival at least as well as euclidean', rGeodesicAll >= rEuclid],
   ['arrival correlates with geodesic distance', rGeodesicAll > 0.5],
   ['retained memory never decreases', monotonicityViolations === 0],
-  ['retained memory visible on > 20% of nodes', retainedAbove / graph.nodeCount > 0.2],
+  ['edge memory never decreases', edgeViolations === 0],
+  ['retained field is spatially differentiated (p90/p50 >= 2)', retainedSpread >= 2],
+  ['retained route covers 5-35% of body', routeCoverage >= 0.05 && routeCoverage <= 0.35],
+  ['retained route spans >= 3 structural roles', routeRoles.size >= 3],
+  ['retained route is >= 60% one component', routeComponentShare >= 0.6],
   ['transient decays', final.peakWave < 0.05],
   ['identical runs reproduce', a === b],
   ['checksum responds to input', other !== a],

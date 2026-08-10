@@ -63,8 +63,18 @@ async function boot(): Promise<void> {
   await client.ready;
   if (client.error) { fail(client.error); return; }
 
+  const calibration = manifest.retainedDisplay;
+  if (!calibration) {
+    fail('graph-manifest.json has no retainedDisplay — run "node tools/causal-pulse-calibrate.mjs"');
+    return;
+  }
+
   const stateTexture = createStateTexture(client.textureSize);
-  const material = createPulseMaterial(stateTexture, { textureSize: client.textureSize });
+  const material = createPulseMaterial(stateTexture, {
+    textureSize: client.textureSize,
+    retainedLow: calibration.low,
+    retainedHigh: calibration.high,
+  });
 
   status.textContent = 'loading entity…';
   const entity = await loadAndBindEntity(ENTITY_URL, manifest, vertexNodeIndex, material);
