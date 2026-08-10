@@ -7,15 +7,80 @@ nine-movement structure and the entire central-entity direction.
 
 ## The argument
 
-Three layers, one causal chain:
+```
+WORLD
+  |  continuous
+  v
+PHYSICAL STATE ................ cyan
+  |  contact / sensor sampling
+  v
+OBSERVATIONS .................. sparse, information-poor
+  |  incomplete evidence
+  v
+RECORDED MODEL ................ amber
+  |  acts back on the world
+  v
+CONSEQUENCE
+  |
+  +-- disagreement at contact .. violet
+```
+
+**The record is incomplete because the institution never possessed reality. It
+possessed observations.** Nothing is artificially blurred — the amber path is
+simple because it was reconstructed from four samples, not because a filter was
+applied to it.
+
+The middle layer is genuinely information-poor and is therefore NOT another
+simulation texture. It is a small event buffer:
+
+```ts
+type Observation = {
+  position: Vec2
+  time: number
+  amplitude: number
+  sourceAnchorId: number
+}
+```
+
+Anchors are fixed contact points placed deterministically from the seed along
+the trench rim. **They exist before the event** — the sensors were already
+there — and they sample only when the disturbance passes them. Some never fire.
+The recorded path is fitted through whatever they caught.
 
 ```
-physical state  →  observed state  →  recorded state  →  consequence
+cyan wave passes through terrain
+        |
+anchor samples:  A hit t17 | B hit t24 | C no sample | D hit t31
+        |
+record reconstructs a clean path
+        |
+amber structure spans between samples
 ```
 
-The record is wrong **because it was reconstructed from too few observations**,
-not because it was blurred. Observation happens only where the official
-structure contacts reality, so the contact points are causal, not cosmetic.
+Directly exposable as copy:
+
+```
+WHAT HAPPENED     continuous physical trace
+WHAT WAS SEEN     4 samples
+WHAT WAS WRITTEN  1 reconstructed route
+```
+
+## Fields
+
+Five things exist internally; the visitor is never shown five layers.
+
+| Field | Kind | Purpose |
+|---|---|---|
+| Live physical | ping-pong texture | the travelling disturbance |
+| Physical trace | texture, running max of abs(P) | where reality went — memory belonging to the physical layer, cyan |
+| Observations | small CPU buffer | what the anchors caught |
+| Recorded path | spline fitted to observations | what was written, amber |
+| Divergence | texture, monotonic | D x C — where disagreement becomes operative, violet |
+
+The **physical trace** is why the cross-section works: by the reveal the live
+wave is long gone, but the cyan scar remains. It persists for the current event
+so the reveal is stable, and resets on a new event rather than accumulating
+until the whole terrain is lit.
 
 Colour grammar, taught once in the trench and then reused everywhere without
 further explanation:
@@ -139,14 +204,25 @@ YOUR RECORD
   DIVERGENCE     1 event.
 ```
 
-If they *do* act, a smaller divergence is used instead, so there is always a
-discrepancy and never the same lie twice. Chosen deterministically by hashing
-`(seed, event position, visit index)`:
+### Mechanism vs catalogue — keep these separate
 
-- position quantised to the coarse grid
-- timestamp quantised to the nearest interval
-- route simplified — record spans straight, physical went around
-- one branch omitted entirely
+**Route simplification is the fundamental mechanism of the site, not a catalogue
+item.** Sparse observation -> simplified reconstruction happens on every visit
+without exception. As one entry in a random table it would vanish on some
+visits, and the thesis would vanish with it.
+
+The catalogue controls only the *additional* documentary failure, chosen
+deterministically by hashing `(seed, event position, visit index)`:
+
+| Visit condition | Additional divergence |
+|---|---|
+| No interaction | system action attributed to the visitor |
+| Real interaction | position quantised |
+| Real interaction | timestamp bucketed |
+| Branching physical route | one branch omitted |
+| Multiple observations | observations collapsed into one event |
+
+Every visitor gets physical != recorded. Only the documentary failure varies.
 
 ## Persistence
 
@@ -176,9 +252,16 @@ DARK LATTICE    We build worlds where neither layer waits for the other.
 
 ## Scope
 
-**v1** — approach, trench interior, cyan wave + Gate A, amber record, violet
-contact, cross-section reveal, thesis, Desk42 evidence panel, studio statement,
-withdrawal, editorial evidence, your record, inspector drawer, skip path.
+**v1** — approach, trench interior, cyan wave + Gate A, physical trace, anchor
+observations, amber record, violet contact, cross-section reveal, thesis, Desk42
+evidence panel, studio statement, withdrawal, editorial evidence, your record,
+inspector drawer, skip path.
+
+**Project imagery.** No generated game-looking pictures, ever. The homepage uses
+abstract system diagrams that make no gameplay claim — a conventional screenshot
+under the cross-section slides the page straight back toward
+`unusual hero -> game card -> screenshot -> CTA`. Real build captures belong on
+the project detail pages, where normal evidence rules apply.
 
 **v2** — Brawler simulation state (port `ReactionField.ts`, already in the repo),
 terminology morph, hover-linked system labels, team.
@@ -188,8 +271,8 @@ terminology morph, hover-linked system labels, team.
 1. Trench geometry + interior camera
 2. **GATE A** — cyan propagation + sponge boundaries
 3. Camera transition to cross-section
-4. Coarse recorded simulation, reconstructed from sparse observations
-5. Extract recorded path
+4. Anchor sampling into the observations buffer (NO second simulation field)
+5. Fit the recorded path through those observations
 6. Instance amber bays along it
 7. Full difference field
 8. `D x C` → violet
@@ -199,13 +282,32 @@ terminology morph, hover-linked system labels, team.
 The only step that can kill the direction. Everything after it is comparatively
 conventional geometry and rendering.
 
-Track `E = sum(u^2 + v^2)` each tick, reduced on the GPU to 1x1 and read back
-every ~10 frames.
+Measure two things. A monotonic total-energy curve is the WRONG criterion:
+legitimate interference, discretisation noise and internal reflection off real
+trench geometry all produce local rises while absorption is still excellent.
 
-> **PASS** — E peaks at the strike, decays monotonically, falls below 2% of peak
-> within the beat, and never rises more than 5% once decay has begun.
+**Interior energy**, excluding sponge cells:
 
-A reflection's signature is E *rising again* after it had been falling.
+```
+E_interior(t) = sum over (x,z) NOT in sponge of P(x,z,t)^2
+```
+
+The sponge holds energy it is in the process of dissipating, so including it
+muddies the signal. Reduce on the GPU with the sponge masked out, smooth the
+envelope over ~0.25s to reject discretisation noise, read back every ~10 frames.
+
+**Return probe** near the strike. After the outgoing wave has left:
+
+```
+R = largest returning amplitude / initial outgoing peak
+```
+
+> **PASS**
+> interior residual  < 2% of peak
+> return amplitude   < 5% of outgoing peak
+> no visually obvious coherent return front
+
+Percentages tune once the first GPU run exists.
 
 Expected shape:
 
