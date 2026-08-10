@@ -1,0 +1,435 @@
+{
+  "formatVersion": 1,
+  "generator": "tools/build-causal-graph.mjs",
+  "seed": 421977,
+  "source": {
+    "path": "public/models/DL_Aurora_v13.glb",
+    "sha256": "3fa9018543cc889d1a127a1538fb138bb359df37f33c7cc03f88f0db4655cdb1",
+    "bytes": 7804764,
+    "vertices": 282183,
+    "primitives": 39
+  },
+  "graph": {
+    "targetNodes": 6144,
+    "nodes": 6158,
+    "edges": 39259,
+    "directedEntries": 78518,
+    "cellSize": 0.24793006596817294,
+    "medianSpacing": 0.30042307967163456,
+    "degree": {
+      "min": 1,
+      "median": 11,
+      "mean": 12.751,
+      "max": 55,
+      "isolated": 0
+    },
+    "topologyEdges": 20726,
+    "proximityEdges": 17493,
+    "bridgeEdges": 1040,
+    "bridgeMax": 1.2016923186865383,
+    "bridgeScale": 4,
+    "bridgesPerPartPair": 6,
+    "bridgePartPairsJoined": 175,
+    "bridgeRejectedRole": 8680,
+    "proximityRejectedGap": 5,
+    "proximityRejectedNormal": 0,
+    "proximityRadius": 0.33046538763879807,
+    "proximityScale": 1.1,
+    "minNormalDot": -1,
+    "maxEmptyRun": 1
+  },
+  "connectivity": {
+    "components": 2,
+    "largestComponent": 6011,
+    "largestComponentShare": 0.9761,
+    "rolesReached": [
+      "chamber",
+      "core",
+      "gyre",
+      "latent",
+      "shard",
+      "tunnel_ring",
+      "tunnel_shell"
+    ],
+    "rolesTotal": 8,
+    "detail": [
+      {
+        "id": 0,
+        "size": 6011,
+        "roles": [
+          "chamber",
+          "core",
+          "gyre",
+          "latent",
+          "shard",
+          "tunnel_ring",
+          "tunnel_shell"
+        ],
+        "parts": [
+          "DL_Core",
+          "DL_Gyre_crown_A",
+          "DL_Gyre_crown_B",
+          "DL_Gyre_crown_C",
+          "DL_Gyre_laten_A",
+          "DL_Gyre_laten_B",
+          "DL_Gyre_laten_C",
+          "DL_LatentSeam",
+          "DL_LatentShell",
+          "DL_Shard_01",
+          "DL_Shard_02",
+          "DL_Shard_03",
+          "DL_Shard_05",
+          "DL_Shard_06",
+          "DL_Shard_07",
+          "DL_Shard_08",
+          "DL_Shard_09",
+          "DL_Shard_10",
+          "DL_Shard_11",
+          "DL_Shard_12",
+          "DL_Shard_13",
+          "DL_Shard_14",
+          "DL_Shard_15",
+          "DL_Shard_16",
+          "DL_Shard_17",
+          "DL_ThresholdChamber",
+          "DL_TunnelRing_00",
+          "DL_TunnelRing_02",
+          "DL_TunnelRing_03",
+          "DL_TunnelRing_04",
+          "DL_TunnelRing_05",
+          "DL_TunnelRing_06",
+          "DL_TunnelRing_07",
+          "DL_TunnelRing_08",
+          "DL_TunnelRing_09",
+          "DL_TunnelRing_10",
+          "DL_TunnelShell"
+        ]
+      },
+      {
+        "id": 1,
+        "size": 147,
+        "roles": [
+          "halo"
+        ],
+        "parts": [
+          "DL_Halo"
+        ]
+      }
+    ]
+  },
+  "stability": {
+    "maxWeightedDegree": 38.05665550194681,
+    "lambdaMaxBound": 76.11331100389361,
+    "diffusionDtMax": 0.02627661277142035,
+    "waveDtMax": 0.22924490298115835,
+    "note": "Explicit Euler. Simulation must satisfy kappa*dt < diffusionDtMax and c*dt < waveDtMax."
+  },
+  "roles": [
+    "exterior",
+    "shard",
+    "tunnel_ring",
+    "tunnel_shell",
+    "halo",
+    "latent",
+    "core",
+    "gyre",
+    "chamber",
+    "other"
+  ],
+  "roleCounts": {
+    "core": 88,
+    "gyre": 250,
+    "halo": 147,
+    "latent": 425,
+    "shard": 2135,
+    "chamber": 70,
+    "tunnel_ring": 2959,
+    "tunnel_shell": 84
+  },
+  "primitiveOrder": [
+    {
+      "nodeName": "DL_Core",
+      "meshIndex": 10,
+      "primIndex": 0,
+      "role": "core",
+      "vertexCount": 729
+    },
+    {
+      "nodeName": "DL_Gyre_crown_A",
+      "meshIndex": 11,
+      "primIndex": 0,
+      "role": "gyre",
+      "vertexCount": 4420
+    },
+    {
+      "nodeName": "DL_Gyre_crown_B",
+      "meshIndex": 11,
+      "primIndex": 0,
+      "role": "gyre",
+      "vertexCount": 4420
+    },
+    {
+      "nodeName": "DL_Gyre_crown_C",
+      "meshIndex": 11,
+      "primIndex": 0,
+      "role": "gyre",
+      "vertexCount": 4420
+    },
+    {
+      "nodeName": "DL_Gyre_laten_A",
+      "meshIndex": 11,
+      "primIndex": 0,
+      "role": "gyre",
+      "vertexCount": 4420
+    },
+    {
+      "nodeName": "DL_Gyre_laten_B",
+      "meshIndex": 11,
+      "primIndex": 0,
+      "role": "gyre",
+      "vertexCount": 4420
+    },
+    {
+      "nodeName": "DL_Gyre_laten_C",
+      "meshIndex": 11,
+      "primIndex": 0,
+      "role": "gyre",
+      "vertexCount": 4420
+    },
+    {
+      "nodeName": "DL_Halo",
+      "meshIndex": 7,
+      "primIndex": 0,
+      "role": "halo",
+      "vertexCount": 2236
+    },
+    {
+      "nodeName": "DL_LatentSeam",
+      "meshIndex": 8,
+      "primIndex": 0,
+      "role": "latent",
+      "vertexCount": 32
+    },
+    {
+      "nodeName": "DL_LatentSeam",
+      "meshIndex": 8,
+      "primIndex": 1,
+      "role": "latent",
+      "vertexCount": 154
+    },
+    {
+      "nodeName": "DL_LatentShell",
+      "meshIndex": 9,
+      "primIndex": 0,
+      "role": "latent",
+      "vertexCount": 48985
+    },
+    {
+      "nodeName": "DL_Shard_01",
+      "meshIndex": 12,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 18509
+    },
+    {
+      "nodeName": "DL_Shard_02",
+      "meshIndex": 13,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 25032
+    },
+    {
+      "nodeName": "DL_Shard_03",
+      "meshIndex": 14,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 16372
+    },
+    {
+      "nodeName": "DL_Shard_05",
+      "meshIndex": 22,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 1310
+    },
+    {
+      "nodeName": "DL_Shard_06",
+      "meshIndex": 21,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 1310
+    },
+    {
+      "nodeName": "DL_Shard_07",
+      "meshIndex": 15,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 7310
+    },
+    {
+      "nodeName": "DL_Shard_08",
+      "meshIndex": 16,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 5123
+    },
+    {
+      "nodeName": "DL_Shard_09",
+      "meshIndex": 23,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 5123
+    },
+    {
+      "nodeName": "DL_Shard_10",
+      "meshIndex": 17,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 3986
+    },
+    {
+      "nodeName": "DL_Shard_11",
+      "meshIndex": 18,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 2297
+    },
+    {
+      "nodeName": "DL_Shard_12",
+      "meshIndex": 19,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 958
+    },
+    {
+      "nodeName": "DL_Shard_13",
+      "meshIndex": 20,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 871
+    },
+    {
+      "nodeName": "DL_Shard_14",
+      "meshIndex": 0,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 11211
+    },
+    {
+      "nodeName": "DL_Shard_15",
+      "meshIndex": 1,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 8879
+    },
+    {
+      "nodeName": "DL_Shard_16",
+      "meshIndex": 3,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 13151
+    },
+    {
+      "nodeName": "DL_Shard_17",
+      "meshIndex": 2,
+      "primIndex": 0,
+      "role": "shard",
+      "vertexCount": 12561
+    },
+    {
+      "nodeName": "DL_ThresholdChamber",
+      "meshIndex": 4,
+      "primIndex": 0,
+      "role": "chamber",
+      "vertexCount": 224
+    },
+    {
+      "nodeName": "DL_TunnelRing_00",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_02",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_03",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_04",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_05",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_06",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_07",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_08",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_09",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelRing_10",
+      "meshIndex": 5,
+      "primIndex": 0,
+      "role": "tunnel_ring",
+      "vertexCount": 6902
+    },
+    {
+      "nodeName": "DL_TunnelShell",
+      "meshIndex": 6,
+      "primIndex": 0,
+      "role": "tunnel_shell",
+      "vertexCount": 280
+    }
+  ],
+  "files": {
+    "graph": {
+      "name": "graph.bin",
+      "bytes": 819070
+    },
+    "vertexMap": {
+      "name": "vertex-map.bin",
+      "bytes": 1128748,
+      "vertices": 282183
+    }
+  }
+}

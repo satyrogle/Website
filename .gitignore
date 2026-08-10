@@ -41,3 +41,8 @@ public/models/volume-*.glb
 # can be compared against every earlier one without asking the repo to
 # carry half a gigabyte of rejected geometry.
 references/models-archive/
+
+# Causal Pulse graph binaries. Deterministic from the source GLB —
+# regenerate with tools/build-causal-graph.mjs. The manifest IS committed,
+# because it is the record of what the spike was measured against.
+public/generated/causal-pulse/*.bin
