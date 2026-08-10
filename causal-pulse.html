@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Causal Pulse — Dark Lattice laboratory</title>
+<style>
+  :root {
+    --void: #010204;
+    --ink: #dff9ff;
+    --dim: #6d8894;
+    --cyan: #4dd0ff;
+    --magenta: #ff2b9a;
+    --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+
+  #lab-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .lab-head {
+    position: fixed;
+    top: 0; left: 0;
+    padding: 22px 26px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .lab-head h1 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .lab-head p {
+    margin: 8px 0 0;
+    max-width: 34ch;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--dim);
+  }
+
+  #lab-status {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--cyan);
+  }
+
+  #lab-inspector {
+    position: fixed;
+    top: 22px; right: 26px;
+    z-index: 2;
+    padding: 16px 18px;
+    border: 1px solid rgba(109, 136, 148, 0.22);
+    background: rgba(1, 2, 4, 0.72);
+    backdrop-filter: blur(3px);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+  }
+
+  .inspector__list {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 5px 22px;
+    margin: 0;
+  }
+
+  .inspector__list dt { color: var(--dim); }
+  .inspector__list dd { margin: 0; text-align: right; color: var(--ink); }
+
+  #lab-error {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    max-width: 46ch;
+    padding: 18px 22px;
+    border: 1px solid var(--magenta);
+    background: rgba(1, 2, 4, 0.94);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .lab-legend {
+    position: fixed;
+    left: 26px; bottom: 22px;
+    z-index: 2;
+    display: flex;
+    gap: 20px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    color: var(--dim);
+    pointer-events: none;
+  }
+
+  .lab-legend span::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    margin-right: 7px;
+    vertical-align: 1px;
+  }
+
+  .lab-legend .is-active::before { background: var(--cyan); }
+  .lab-legend .is-retained::before { background: var(--magenta); }
+
+  @media (max-width: 820px) {
+    #lab-inspector { top: auto; bottom: 58px; right: 12px; left: 12px; font-size: 10px; }
+    .inspector__list { grid-template-columns: repeat(2, auto auto); gap: 4px 14px; }
+    .lab-head p { display: none; }
+    .lab-legend { bottom: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="lab-canvas"></canvas>
+
+<div class="lab-head">
+  <h1>Causal Pulse — spike v1</h1>
+  <p>
+    Click the mass. The disturbance travels through the structure itself, not
+    through the space around it, then fades and leaves a permanent trace.
+    Every number on the right is measured while it runs.
+  </p>
+  <div id="lab-status">starting…</div>
+</div>
+
+<aside id="lab-inspector" aria-label="System inspector"></aside>
+
+<div class="lab-legend">
+  <span class="is-active">active now</span>
+  <span class="is-retained">retained consequence</span>
+</div>
+
+<div id="lab-error" role="alert" hidden></div>
+
+<script type="module" src="/src/labs/causal-pulse/CausalPulseApp.ts"></script>
+</body>
+</html>

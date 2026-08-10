@@ -46,3 +46,6 @@ references/models-archive/
 # regenerate with tools/build-causal-graph.mjs. The manifest IS committed,
 # because it is the record of what the spike was measured against.
 public/generated/causal-pulse/*.bin
+
+# Spike storyboard captures — regenerate with tools/causal-pulse-capture.mjs
+captures/causal-pulse/

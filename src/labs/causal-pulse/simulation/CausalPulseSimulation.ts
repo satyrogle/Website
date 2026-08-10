@@ -26,14 +26,24 @@ export interface SimulationParameters {
   /** Diffusion decay — activity fades rather than filling the object. */
   diffusionDecay: number;
   /**
-   * Memory deposition rate from wave amplitude, per second. Memory INTEGRATES
-   * the disturbance rather than recording its peak: a node the front dwells on
-   * retains more than one it merely brushed, which is what makes the trace read
-   * as the accumulation of the whole passage.
+   * Gain from wave amplitude into retained memory. Memory records the DEEPEST
+   * disturbance a node has felt, not a running total — see memoryFloor.
    */
   memoryFromWave: number;
-  /** Memory deposition rate from diffused activity, per second. */
+  /** Gain from diffused activity into retained memory. */
   memoryFromActivity: number;
+  /**
+   * Deadband on the recorded level, to keep numerical ringing out of the trace.
+   *
+   * Integrating the disturbance instead of taking its maximum was tried and
+   * abandoned: the wave decays slowly, so the residual tail kept depositing and
+   * mean retained memory ran past 0.88 with every node saturated — a uniform
+   * wash rather than a record of where the pulse went. Flooring the integrand
+   * did not rescue it, because at distance the travelling front and the
+   * residual ring have the same amplitude (~2e-3), so no threshold separates
+   * them. A maximum is bounded by the node's own peak and cannot creep.
+   */
+  memoryFloor: number;
   /** |u| above which a node counts as reached, for arrival-time measurement. */
   arrivalThreshold: number;
 }
@@ -49,8 +59,9 @@ export const DEFAULT_PARAMETERS: SimulationParameters = {
   waveDamping: 0.3,
   diffusionRate: 1.2,
   diffusionDecay: 0.35,
-  memoryFromWave: 60,
-  memoryFromActivity: 6,
+  memoryFromWave: 50,
+  memoryFromActivity: 4,
+  memoryFloor: 0.015,
   arrivalThreshold: 0.0005,
 };
 
@@ -185,7 +196,7 @@ export class CausalPulseSimulation {
     }
 
     const c2 = waveSpeed * waveSpeed;
-    const { memoryFromWave, memoryFromActivity, arrivalThreshold } = this.parameters;
+    const { memoryFromWave, memoryFromActivity, memoryFloor, arrivalThreshold } = this.parameters;
     const tick = this.tickCount + 1;
 
     for (let i = 0; i < n; i++) {
@@ -196,9 +207,10 @@ export class CausalPulseSimulation {
       s[i] += (diffusionRate * lapS[i] - diffusionDecay * s[i]) * dt;
       if (s[i] < 0) s[i] = 0;
 
-      // Monotonic by construction: only ever added to, and clamped at 1.
-      const deposit = (memoryFromWave * Math.abs(u[i]) + memoryFromActivity * s[i]) * dt;
-      if (deposit > 0) m[i] = clamp01(m[i] + deposit);
+      // The deepest disturbance this node has ever felt. Monotonic, bounded by
+      // the node's own peak, and it cannot creep.
+      const level = memoryFromWave * Math.abs(u[i]) + memoryFromActivity * s[i];
+      if (level > m[i] && level > memoryFloor) m[i] = clamp01(level);
 
       const abs = Math.abs(u[i]);
       if (this.arrivalTick[i] === -1 && abs >= arrivalThreshold) this.arrivalTick[i] = tick;
