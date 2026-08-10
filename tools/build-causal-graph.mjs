@@ -564,9 +564,12 @@ function writeGraphBin(path, nodes, csr, roleIndex) {
   const n = nodes.length;
   const e = csr.neighbours.length;
   const header = 24;
-  const bytes = header
-    + n * 12 + n * 12          // position, normal
-    + n * 2 + n                // primitive (u16), role (u8)
+  // The u16/u8 sections leave the cursor on an arbitrary byte boundary. Pad to
+  // 4 so the reader can take zero-copy Uint32Array/Float32Array views over the
+  // buffer instead of copying it.
+  const beforePad = header + n * 12 + n * 12 + n * 2 + n;
+  const padding = (4 - (beforePad % 4)) % 4;
+  const bytes = beforePad + padding
     + (n + 1) * 4              // offsets
     + e * 4 + e * 4;           // neighbours, weights
 
@@ -589,6 +592,7 @@ function writeGraphBin(path, nodes, csr, roleIndex) {
   }
   for (const node of nodes) { buffer.writeUInt16LE(node.primitive, at); at += 2; }
   for (const node of nodes) { buffer.writeUInt8(roleIndex.indexOf(node.role), at); at += 1; }
+  at += padding;
   for (let i = 0; i <= n; i++) { buffer.writeUInt32LE(csr.offsets[i], at); at += 4; }
   for (let i = 0; i < e; i++) { buffer.writeUInt32LE(csr.neighbours[i], at); at += 4; }
   for (let i = 0; i < e; i++) { buffer.writeFloatLE(csr.weights[i], at); at += 4; }

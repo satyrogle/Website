@@ -424,7 +424,7 @@
   "files": {
     "graph": {
       "name": "graph.bin",
-      "bytes": 819070
+      "bytes": 819072
     },
     "vertexMap": {
       "name": "vertex-map.bin",
