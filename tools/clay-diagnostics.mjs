@@ -211,19 +211,24 @@ async function main() {
         i.src = src;
       });
       const chart = 620;
+      // TOP clears the two header lines; GUTTER reserves room for the
+      // rotated bar labels, which are read downward from each bar's foot
+      // and ran off the bottom of a 760px canvas.
+      const TOP = 100;
+      const GUTTER = 200;
       const c = document.createElement('canvas');
       c.width = chart + 520;
-      c.height = 760;
+      c.height = 920;
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#0b0d11';
       ctx.fillRect(0, 0, c.width, c.height);
 
-      const scale = (c.height - 120) / (box.maxY - box.minY);
+      const scale = (c.height - TOP - GUTTER) / (box.maxY - box.minY);
       ctx.globalAlpha = 0.35;
       ctx.drawImage(
         img,
         box.minX - 60, box.minY, box.width + 120, box.height,
-        chart + 40, 60, (box.width + 120) * scale, box.height * scale
+        chart + 40, TOP, (box.width + 120) * scale, box.height * scale
       );
       ctx.globalAlpha = 1;
 
@@ -234,8 +239,8 @@ async function main() {
       const bar = 46;
       rows.forEach((a, i) => {
         const x = 130 + i * ((chart - 170) / rows.length);
-        const top = 60 + (a.top - box.minY) * scale;
-        const bottom = 60 + (a.bottom - box.minY) * scale;
+        const top = TOP + (a.top - box.minY) * scale;
+        const bottom = TOP + (a.bottom - box.minY) * scale;
         ctx.fillStyle = tierColour[a.tier];
         ctx.fillRect(x, top, bar, Math.max(bottom - top, 3));
         ctx.strokeStyle = '#0b0d11';
@@ -255,8 +260,8 @@ async function main() {
       order.forEach((tier, i) => {
         const members = areas.filter((a) => a.tier === tier);
         if (!members.length) return;
-        const top = 60 + (Math.min(...members.map((m) => m.top)) - box.minY) * scale;
-        const bottom = 60 + (Math.max(...members.map((m) => m.bottom)) - box.minY) * scale;
+        const top = TOP + (Math.min(...members.map((m) => m.top)) - box.minY) * scale;
+        const bottom = TOP + (Math.max(...members.map((m) => m.bottom)) - box.minY) * scale;
         ctx.strokeStyle = tierColour[tier];
         ctx.setLineDash([5, 5]);
         ctx.lineWidth = 1;
@@ -264,7 +269,10 @@ async function main() {
         ctx.setLineDash([]);
         ctx.fillStyle = tierColour[tier];
         ctx.font = '600 13px ui-monospace, monospace';
-        ctx.fillText(tier, 26 + i * 10, top - 6);
+        // Inside the band and stepped down per tier. Mid and rear both
+        // reach the crown, so labels hung above their band tops landed
+        // on each other and on the header.
+        ctx.fillText(tier, 30 + i * 10, top + 16 + i * 17);
       });
 
       ctx.fillStyle = '#eef0f2';

@@ -253,29 +253,48 @@ def build_plain_mass(mother, mass):
     return obj
 
 
-def section_solid(name, index, side):
+def section_solid(name, index, side, dy=0.0):
     """
     The convex region one side of the interface occupies inside one
     section's height band: a large box carved by the two band planes and
     by the section plane. Convex and manifold by construction.
+
+    `dy` is the vertical displacement of the mass this cell will be
+    subtracted from. A breakpoint is a height in the FINISHED form, but
+    the cell is cut before the mass is displaced, so the band has to be
+    carved that much lower. Without it each dominant changed section at
+    its own height — A at its breakpoint plus 0.03, B at its breakpoint
+    minus 0.13 — and across the 0.16 between them A still held its lower
+    section while B had already stepped to its upper one. The two
+    boundaries disagreed over that band and left a wedge belonging to
+    neither mass, which read as an enclosed hole in the silhouette.
     """
     spec = form.INTERFACE
     section = spec["sections"][index]
     overlap = spec["overlap"]
     # A local outset pulls BOTH masses back from this section, widening
     # the fracture across that band without moving the interface.
+    #
+    # The cell built here is the one SUBTRACTED from the opposite mass,
+    # so the sign is inverted with respect to the side it is named for:
+    # the 'b' cell must reach BACK past the plane to bite into A, and the
+    # 'a' cell must reach FORWARD past it to bite into B. Signing it the
+    # other way round grew both masses instead, and the two dominants
+    # overlapped by twice the outset rather than separating — which is
+    # why the fracture showed no air, B ran oversized and the spine was
+    # sealed off behind the join.
     outset = section.get("outset", 0.0)
     point = section["point"]
     normal = section["normal"]
     if outset:
-        scale = outset if side == "b" else -outset
+        scale = -outset if side == "b" else outset
         length = math.sqrt(sum(c * c for c in normal)) or 1.0
         point = tuple(point[i] + normal[i] / length * scale for i in range(3))
     obj = half_space_box(name, point, normal, side == "b")
     if section["from"] is not None:
-        carve(obj, (0.0, section["from"] - overlap, 0.0), (0.0, 1.0, 0.0), True, "band_lo")
+        carve(obj, (0.0, section["from"] - overlap - dy, 0.0), (0.0, 1.0, 0.0), True, "band_lo")
     if section["to"] is not None:
-        carve(obj, (0.0, section["to"] + overlap, 0.0), (0.0, 1.0, 0.0), False, "band_hi")
+        carve(obj, (0.0, section["to"] + overlap - dy, 0.0), (0.0, 1.0, 0.0), False, "band_hi")
     return obj
 
 
@@ -299,8 +318,9 @@ def build_interface_mass(mother, mass, side):
         carve(obj, point, normal, keep_positive, "cut%d" % cut_index)
 
     other = "b" if side == "a" else "a"
+    dy = mass["offset"][1]
     for index in range(len(form.INTERFACE["sections"])):
-        solid = section_solid("%s_SEC%d" % (mass["name"], index), index, other)
+        solid = section_solid("%s_SEC%d" % (mass["name"], index), index, other, dy)
         apply_boolean(obj, solid, "DIFFERENCE", "section%d" % index)
         bpy.data.objects.remove(solid, do_unlink=True)
     return obj

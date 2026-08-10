@@ -247,11 +247,22 @@ def main():
     set_visible(subj)
 
     if FAST:
+        # The three passes every quantitative gate reads: hero identity
+        # for the areas and the spine, front identity for the aperture
+        # and interface edges, and the gaps pass for the air widths.
         set_aa(False)
         flat_mode((0.0, 0.0, 0.0))
         set_colours(id_colours(), default=(0.0, 0.0, 0.0, 1.0))
         hero_frame(camera)
         render("A00-mask-hero", 1440, 900)
+
+        frame(camera, subj, 90.0, 0.0, 32.0, 1440, 900)
+        render("A00-mask-elevation", 1440, 900)
+
+        set_colours({o.name: (1.0, 1.0, 1.0, 1.0) for o in masses()}, default=(0.0, 0.0, 0.0, 1.0))
+        set_visible(masses())
+        frame(camera, masses(), 90.0, 0.0, 32.0, 1440, 900)
+        render("A07-gaps-only", 1440, 900)
         return
 
     # ---- Clay elevations -------------------------------------------

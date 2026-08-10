@@ -105,19 +105,19 @@ BASE_CUT = ((0.0, -3.14, 0.0), (0.26, 0.93, -0.26))
 RECESS = {
     # Frontal profile, in (x, y). Seven unequal points, leaning.
     "profile": [
-        (-0.57, -0.43),
-        (-0.08, -0.65),
-        ( 0.27, -0.06),
-        ( 0.14,  1.08),
-        (-0.23,  1.79),
-        (-0.65,  1.17),
-        (-0.73,  0.21),
+        (-0.50, -0.24),
+        (-0.12, -0.40),
+        ( 0.14,  0.06),
+        ( 0.04,  0.94),
+        (-0.24,  1.48),
+        (-0.56,  1.02),
+        (-0.62,  0.26),
     ],
     "z_front": 1.20,
-    "z_back": 0.10,
+    "z_back": 0.17,
     # The cut narrows as it goes in, so the recess is a wedge rather than
     # a box and never presents four parallel sides.
-    "taper": 0.80,
+    "taper": 0.58,
 }
 
 # ---------------------------------------------------------------------
@@ -135,11 +135,11 @@ RECESS = {
 CUTS = [
     # name,               point,                    normal
     ("primary-split",       (  0.45,  -0.10,   0.00), (  0.88,   0.14,   0.45)),
-    ("east-stack",          (  0.750,   0.20,  -0.10), ( 0.180,  0.940, -0.260)),
+    ("east-stack",          (  0.75,   0.20,  -0.10), (  0.18,   0.94,  -0.26)),
     ("east-upper-split",    (  1.00,   1.40,  -0.05), (  0.62,   0.24,   0.75)),
     ("west-columns",        ( -0.82,  -0.10,  -0.05), (  0.80,  -0.10,  -0.59)),
-    ("outer-stack",         ( -0.950,   0.25,  -0.10), ( 0.140,  0.960, -0.240)),
-    ("inner-stack",         ( -0.200,  -0.05,   0.05), ( 0.220,  0.930, -0.300)),
+    ("outer-stack",         ( -0.95,   0.25,  -0.10), (  0.14,   0.96,  -0.24)),
+    ("inner-stack",         ( -0.20,   0.12,   0.05), (  0.22,   0.93,  -0.30)),
 ]
 
 # ---------------------------------------------------------------------
@@ -151,21 +151,67 @@ CUTS = [
 #  the gate exists to prevent.
 #
 #  It is now four complementary sections stacked in height, each with its
-#  own normal and its own offset. Because the offsets differ the boundary
-#  STEPS at every breakpoint instead of continuing, and because the
-#  normals differ the sections run in visibly different directions:
+#  own normal, its own offset and its own air width. Because the offsets
+#  differ the boundary STEPS at every breakpoint instead of continuing,
+#  and because the normals differ the sections run in visibly different
+#  directions.
 #
-#      lower-oblique       dx/dy -0.11   near vertical, leaning east
-#      shoulder            dx/dy -0.84   short, strongly raked
-#      upper-counter       dx/dy +0.34   raked the other way
-#      upper-continuation  dx/dy -0.16   rejoins the primary split
+#  `x start` and `x end` are where the boundary crosses the section's
+#  lower and upper breakpoints at z = 0; `step` is the jump from the
+#  previous section's end to this one's start; `air` is the full width of
+#  the fracture, 2 x outset:
+#
+#    section             dx/dy   x start  x end    step    n_z    air
+#    lower-oblique       -0.110   0.660   0.512      -     0.07   0.230
+#    shoulder            -0.839   0.620   0.200   +0.108   0.10   0.280
+#    upper-counter       +0.080  -0.110  -0.030   -0.310   0.18   0.280
+#    upper-continuation  -0.159   0.522     -     +0.552   0.45   0.060
 #
 #  Mass A takes one side of each section and mass B the other, so the two
-#  are complementary by construction and separate only by their authored
-#  displacement. The continuation section is not a fourth direction: it
-#  returns the fracture to the form's primary split above the dominant
-#  pair, without which the sections diverge from their neighbours near
-#  the top and open a void that belongs to no mass.
+#  are complementary by construction. The continuation section is not a
+#  fourth direction: it returns the fracture to the form's primary split
+#  above the dominant pair, without which the sections diverge from their
+#  neighbours near the top and open a void that belongs to no mass.
+#
+#  STEPPING BOTH EDGES. The two masses do not step by the plane step. A
+#  keeps material up to the plane minus half the air and B from the plane
+#  plus half the air, so with S the plane step and D the change in half
+#  air across a breakpoint,
+#
+#      A steps by S - D,   B steps by S + D.
+#
+#  Air widths therefore cannot be chosen freely. An earlier draft of this
+#  interface dropped the air from 0.085 to 0.030 across the top
+#  breakpoint while the plane stepped +0.070, which left B's edge moving
+#  0.010 — one pixel. B's west edge ran smoothly through the breakpoint
+#  and the measured segment reached 30.5% of height. Every breakpoint
+#  below now moves both edges by at least four pixels:
+#
+#    breakpoint            S        D        A steps   B steps
+#    lower/shoulder      +0.108   +0.068     +0.040    +0.176
+#    shoulder/counter    -0.310   -0.041     -0.269    -0.351
+#    counter/continue    +0.552   -0.109     +0.661    +0.443
+#
+#  DEPTH RAKE. `n_z` is small on purpose. A fracture plane only shows as
+#  real air in the front elevation when the pair pull apart faster than
+#  the plane rakes away through the form's depth — when
+#
+#      air > z-extent * n_z
+#
+#  and the z-extent here is about 1.4. The first R2 submission carried
+#  n_z up to 0.59 on every section, so no column between the two masses
+#  was ever open: the fracture read as a shaded crease, dominant A
+#  blanketed the void behind it, and the inner spine — which is glimpsed
+#  BETWEEN the dominants, not only through the hero recess — fell to
+#  0.85% of visible structure. The rake still varies section to section,
+#  and the continuation keeps the primary split's steep 0.45 precisely so
+#  that band closes; the three lower sections are simply no longer steep
+#  enough to seal themselves.
+#
+#  The shoulder carries the swing: it takes the boundary from 0.620 to
+#  0.200 over half a unit of height, and the counter section then holds
+#  it out at -0.110..-0.030 for a full unit. That is what opens the
+#  sightline onto the spine, which stands at x -0.24..0.29.
 # ---------------------------------------------------------------------
 
 INTERFACE = {
@@ -179,28 +225,48 @@ INTERFACE = {
             "name": "lower-oblique",
             "from": None,
             "to": -2.05,
-            "point": (0.637, -3.40, 0.30),
-            "normal": (0.92, 0.10, 0.38),
+            "outset": 0.115,
+            "point": (0.660, -3.40, 0.00),
+            "normal": (0.990, 0.109, 0.070),
         },
         {
             "name": "shoulder",
             "from": -2.05,
             "to": -1.55,
-            "outset": 0.11,
-            "point": (0.670, -2.05, 0.30),
-            "normal": (0.62, 0.52, 0.59),
+            "outset": 0.140,
+            "point": (0.620, -2.05, 0.00),
+            "normal": (0.760, 0.638, 0.100),
         },
         {
             "name": "upper-counter",
             "from": -1.55,
             "to": -0.55,
-            "point": (0.090, -1.55, 0.30),
-            "normal": (0.86, -0.29, 0.42),
+            # Counter-raked, but only as far as the spine reaches. This
+            # section's air is the sightline onto the spine, and the open
+            # gap is not the air alone: dominant B is displaced +0.14
+            # east and dominant A +0.02, so the gap spans
+            #
+            #     [x - air/2 + 0.02, x + air/2 + 0.14]
+            #
+            # which is 0.40 wide against a spine 0.53 wide. It fits, but
+            # only if it stays centred on the spine — hence a shallow
+            # +0.08 rake rather than a steep one. Air running past the
+            # spine's edge is backed by nothing and punches an enclosed
+            # hole through the silhouette.
+            "outset": 0.140,
+            "point": (-0.110, -1.55, 0.00),
+            "normal": (0.988, -0.079, 0.180),
         },
         {
+            # The primary split itself, so dominant A rejoins masses 05
+            # and 06 above dominant B's head. Its steep rake is wanted
+            # here: the pair overlap in projection, so the band shows a
+            # contact fracture and not the open air the lower sections
+            # carry.
             "name": "upper-continuation",
             "from": -0.55,
             "to": None,
+            "outset": 0.030,
             "point": (0.45, -0.10, 0.00),
             "normal": (0.88, 0.14, 0.45),
         },
@@ -281,8 +347,8 @@ TIER_DEPTH = {TIER_FRONT: 0, TIER_MID: 1, TIER_REAR: 2}
 
 SPINE = {
     "name": "DL_FullForm_Spine",
-    "centre": (0.02, -0.16),
-    "plan_scale": 0.26,
+    "centre": (0.02, -0.32),
+    "plan_scale": 0.222,
     "levels": [
         # y,     scale
         (-3.40,  1.00),

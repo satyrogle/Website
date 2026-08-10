@@ -103,22 +103,24 @@ clay correction pass. Measured against
 
 | ID | Defect | Gate | Status |
 | --- | --- | --- | --- |
-| R1-01 | The dominant A/B interface projected as one near-straight boundary over roughly half the height. | A | corrected — the interface is now four authored complementary sections; longest contiguous segment 15.0% across 13 measured segments, against a 30% target |
-| R1-02 | The three depth tiers correlate with height rather than interleaving up the form. | A | open — diagnosed, not corrected. `A14-depth-height-interleave.png` shows the front tier occupying y -3.39..0.93 and the mid tier y 0.50..4.10, so the two overlap by about 0.4 of a unit rather than forming one uninterrupted horizontal boundary. Left for a scoped depth pass. |
-| R1-03 | Two labels overlapped in the mass-area overlay. | A | corrected — A11 now uses a side legend with leader lines |
+| R1-01 | The dominant A/B interface projected as one near-straight boundary over roughly half the height. | A | corrected — the interface is four authored complementary sections; longest contiguous segment 24.4% across 11 measured segments, against a 30% target, and `straight-aperture-edge` is 27.1% against < 40% |
+| R1-02 | The three depth tiers correlate with height rather than interleaving up the form. | A | open — diagnosed, deliberately not corrected. See R2-05 |
+| R1-03 | Two labels overlapped in the mass-area overlay. | A | corrected — A11 uses a side legend with leader lines, and A14's bar and tier-band labels were unclipped and de-collided in the same pass |
 
 ## Observed at Gate A R2
 
-Measured against `design/clay/gate-a-r2-measurements.json`; 14 of 17
-checks pass. The R2 objective — the piecewise dominant interface — is
-met. These are the three that do not pass.
+Measured against `design/clay/gate-a-r2-measurements.json`; 17 of 17
+checks pass. R2-01 to R2-04 were raised against the first R2 submission
+(commit `dc67545`) and are recorded with their causes because each was a
+wrong diagnosis worth not repeating.
 
 | ID | Defect | Gate | Status |
 | --- | --- | --- | --- |
-| R2-01 | `straight-aperture-edge` is 43.6% against < 40%. It is no longer the dominant interface: with that boundary made piecewise, the longest straight run in the form is the **west-columns fracture**, a different single plane. A one-plane step on that fracture brings the figure to 30.6% but exposes the rear mass behind it — the rear band goes to 13.1% against a 5–8% target, which §5 makes a fatal regression. The step was therefore reverted and the aggregate reported as-is. Correcting it needs the same piecewise treatment applied to that second fracture, which is outside the R2 scope. | A | open — needs founder scoping |
-| R2-02 | Dominant B is 22.3% against a 19–22% band. The dominant pair share one boundary, so moving the interface trades area between them one-for-one; 22.3 / 29.8 was the closest split reachable without pushing dominant A out of its own band. | A | open |
-| R2-03 | Spine visibility is 0.89% against 1.5–3.0%. In R1 the spine was seen through the gaps opened by the two single-mass notch planes, not through the recess. Those notches were the failed R1 attempt at this same straight-edge problem and had to be removed for R2 — with them present the notch, not the interface, forms dominant A's east edge as one straight run of 47.5%. The recess alone reaches the void but each displaced mass carries its own inner wall forward with it, so the hero projection sees that wall rather than the spine. Restoring spine visibility needs the recess re-authored against the displaced masses rather than against the mother volume. | A | open |
-| R2-04 | The fast preview render and the full render pass produced different object-ID masks for the same workbench during tuning, so intermediate readings disagreed with the authoritative full-pass numbers. All reported figures come from the full pass. Cause not yet found. | — | open — tooling |
+| R2-01 | `straight-aperture-edge` was 43.6% against < 40%, reported as an unfixable second straight plane in the west-columns fracture. That was a misreading. The run was at x 579 against a bounding box starting at x 576 — it was the **outer west silhouette**, which the aperture measure only sees because it takes the last gap-to-structure transition per row, and there were no gaps at all: rows 500–748 were solid from x 577 to x 865. The fracture opened no air anywhere, so an aperture measure had nothing to measure and fell through to the outer edge. | A | corrected — with real air at the interface the run is a genuine internal aperture edge at 27.1%, structure on both sides |
+| R2-02 | Dominant B was 22.3% against 19–22%, reported as the closest split reachable. Also a misreading: the pair only trade area one-for-one at a **fixed** air width. Widening the fracture removes area from both at once, so the interface position and the air width are two independent controls, and the two bands are reachable together. | A | corrected — 28.9% / 21.5%, both mid-band |
+| R2-03 | Spine visibility was 0.89% against 1.5–3.0%, reported as needing the recess re-authored against the displaced masses. The spine is glimpsed **between the dominants**, not only through the recess; R1 saw it through the notch-plane gaps. R2 removed the notches and sealed the sightline, and the enlarged recess and spine that were meant to compensate did not, because the obstruction was dominant A blanketing the void. | A | corrected — 2.38% with the R1 recess and spine restored unchanged; the interface itself carries the sightline |
+| R2-04 | Fast and full render passes were said to disagree on the object-ID masks, cause unknown. Cause found: `DL_FAST` wrote **only** `A00-mask-hero`, so every elevation- or gap-derived reading during tuning came from whatever the last full pass had left on disk. The readings were not disagreeing, they were of different vintages. | — | corrected — `DL_FAST` now writes the hero mask, the elevation mask and the gaps pass, using the same framing calls as the full pass; fast and full readings match figure for figure |
+| R2-05 | The front tier occupies 42–100% of visible height and the mid tier 0–47%, overlapping by only 5% of height. Front and mid are close to horizontally stacked, which is the R1-02 risk. No adjustment was made: §6 authorises one only when the diagnostic shows **one uninterrupted** horizontal tier boundary, and it does not — the rear tier spans 0–90% and crosses the front/mid transition, with mass 07 above it and mass 01 below. Evidence is `A14-depth-height-interleave.png`. | A | open — carried as a visual risk for founder scoping, not silently corrected |
 
 ## Introduced during v2
 
