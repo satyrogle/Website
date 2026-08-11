@@ -1,11 +1,136 @@
 # Dark Lattice — website architecture
 
-**Frozen 2026-08-10.** This is the build reference. It supersedes the
-nine-movement structure and the entire central-entity direction.
+**FROZEN 2026-08-10. LOCKED 2026-08-11. Direction: THE INTAKE.**
+
+This supersedes the trench/strata/truss stage, the Signal Horizon terrain, the
+nine-movement structure, the entire central-entity direction, the False Façade /
+Anamorphic Threshold Guardian candidate, and THE LATTICE excess-order ascent.
+The *argument* below has survived every one of those and is not up for
+renegotiation; only the set has been rebuilt.
+
+Paper only. Nothing is implemented against this yet — `src/` predates this
+document. Locking fixes the direction, not the schedule: work the build order at
+the end of this file one step at a time.
 
 ---
 
-## The argument
+## THE INTAKE
+
+A vertical descent into a system that grew.
+
+From the surface it looks like grace — golden, ordered, radiant, light pouring
+up out of the earth. You go down into it. The deeper you go, the less it looks
+like order and the more it looks like appetite. At the bottom you find what it
+was doing the whole time: **writing you down, wrong.** Looking back up from the
+floor, the radiant thing you entered through is still there, and you now
+understand that the divine face was never the system. It was the system's
+**record of itself**.
+
+The turn is not "pretty object becomes monster." It is:
+
+> **What looks like grace is the paperwork. What is underneath is the machine.**
+
+`INTAKE` is meant in both senses at once: a vent that swallows, and an
+admissions process.
+
+### Why this version holds
+
+Amber was already the colour of the record. So **the divine IS amber** — the
+theology and the thesis become the same statement. Every earlier version had a
+beautiful thing and, separately, an argument. Here the beauty *is* the argument,
+which is why it cannot decorate.
+
+## The five beats
+
+**1 — THE FACE**
+Black plain. A wound in it. Amber light rising out. Near-symmetric, calm, holy.
+
+> *A system in perfect order.*
+
+**2 — THE ASK**
+`Touch it.` The false first action is intact — act or do not, something gets
+logged as you.
+
+**3 — THE DESCENT** *(the turn — gradual, continuous, never captioned)*
+The touch sends the cyan disturbance down through the structure ahead of you and
+you follow your own consequence. Scroll is depth. Three things change
+continuously; all are parameters, none are set pieces:
+
+- **Growth gradient.** Walls run crystalline / ordered / cathedral-like near the
+  surface to tangled, dense and root-like at depth. One growth system top to
+  bottom, only its parameters slide. Order becomes appetite.
+- **Aperture.** At scripted beats the camera tilts up. The opening above is
+  smaller each time. Nothing says so.
+- **Registrations.** Amber sensor glints fire as you pass. The structure notices
+  you. This is the observations buffer made visible rather than explained.
+
+Meanwhile the record assembles **above and behind you** — always a few beats
+late, always simpler. Where you wound past three chambers, it logs one straight
+strut.
+
+**4 — THE FLOOR**
+Deepest chamber. Nearly dark, dense, and — uniquely — **still growing live**.
+Tendrils extending in real time, toward the camera.
+
+The reveal is not a creature. It is a file:
+
+```
+YOUR RECORD
+  RECORDED    Descent completed in 3 steps.
+  MEASURED    214 steps. 2 pauses. 1 look back.
+  DIVERGENCE  3 events.
+```
+
+The most diabolical thing at the bottom is that it is about *you*, and it is
+wrong.
+
+**5 — LOOK UP**
+From the floor, the full shaft. The amber reconstruction hangs above, clean and
+luminous — a false cathedral of your own descent. It looks exactly like the
+divinity from beat one because it **is** it. Cyan trace buried behind it, violet
+burning at the anchor points.
+
+> *The event took forty seconds. The record took one line.*
+
+Then machine off — hard cut, canvas stops rendering — onto solid editorial
+ground:
+
+> **You just descended through a deterministic system. It observed you. It
+> recorded you wrong. We build games about exactly this.**
+
+Desk42, Brawler, evidence, contact. Closing line unchanged:
+*This is only its current state.*
+
+## The central bet
+
+Stated honestly, because it is the thing that can fail:
+
+> Placement-variance read as debris. **Process-variance reads as alive.**
+
+A grown structure has no silhouette to judge because it has no outline — it has
+a history. Growth is the one generative mechanism where irregularity signals
+intent rather than randomness. That option was never available to the entity.
+
+If the bet is wrong we find out at **bake time, offline, cheaply** — not after a
+week of runtime work.
+
+## Not the old graveyard
+
+The retired tunnels died of **rotational symmetry** — mandala, octagon, turbine.
+
+- Growth is seeded from scattered points. **Zero cylindrical parameterisation
+  anywhere in the pipeline.**
+- The camera rail drifts and hugs walls; it does not run a clean central axis.
+- Capture review has a hard rule: **any frame that reads as concentric rings
+  fails.**
+
+Nothing is hand-modelled. The mouth is erosion, the shaft is growth, the
+cathedral is reconstruction from samples. What is authored is the camera rail
+and the depth-parameter curves — direction, not modelling.
+
+---
+
+## The argument (unchanged, canonical)
 
 ```
 WORLD
@@ -17,7 +142,7 @@ PHYSICAL STATE ................ cyan
 OBSERVATIONS .................. sparse, information-poor
   |  incomplete evidence
   v
-RECORDED MODEL ................ amber
+RECORDED MODEL ................ amber  ( = the divine face )
   |  acts back on the world
   v
 CONSEQUENCE
@@ -26,16 +151,14 @@ CONSEQUENCE
 ```
 
 **The record is incomplete because the institution never possessed reality. It
-possessed observations.** Nothing is artificially blurred — the amber path is
-simple because it was reconstructed from four samples, not because a filter was
-applied to it.
+possessed observations.** Nothing is artificially blurred — the amber structure
+is simple because it was reconstructed from a handful of samples.
 
-The middle layer is genuinely information-poor and is therefore NOT another
-simulation texture. It is a small event buffer:
+The middle layer is NOT a simulation texture. It is a small event buffer:
 
 ```ts
 type Observation = {
-  position: Vec2
+  position: Vec3
   time: number
   amplitude: number
   sourceAnchorId: number
@@ -43,19 +166,9 @@ type Observation = {
 ```
 
 Anchors are fixed contact points placed deterministically from the seed along
-the trench rim. **They exist before the event** — the sensors were already
-there — and they sample only when the disturbance passes them. Some never fire.
-The recorded path is fitted through whatever they caught.
-
-```
-cyan wave passes through terrain
-        |
-anchor samples:  A hit t17 | B hit t24 | C no sample | D hit t31
-        |
-record reconstructs a clean path
-        |
-amber structure spans between samples
-```
+the shaft. **They exist before the event** — the sensors were already there —
+and fire only when the disturbance passes. Some never fire. The recorded
+structure is fitted through whatever they caught.
 
 Directly exposable as copy:
 
@@ -65,151 +178,57 @@ WHAT WAS SEEN     4 samples
 WHAT WAS WRITTEN  1 reconstructed route
 ```
 
-## Fields
-
-Five things exist internally; the visitor is never shown five layers.
-
-| Field | Kind | Purpose |
-|---|---|---|
-| Live physical | ping-pong texture | the travelling disturbance |
-| Physical trace | texture, running max of abs(P) | where reality went — memory belonging to the physical layer, cyan |
-| Observations | small CPU buffer | what the anchors caught |
-| Recorded path | spline fitted to observations | what was written, amber |
-| Divergence | texture, monotonic | D x C — where disagreement becomes operative, violet |
-
-The **physical trace** is why the cross-section works: by the reveal the live
-wave is long gone, but the cyan scar remains. It persists for the current event
-so the reveal is stable, and resets on a new event rather than accumulating
-until the whole terrain is lit.
-
-Colour grammar, taught once in the trench and then reused everywhere without
-further explanation:
+## Colour grammar
 
 ```
 CYAN     the world
-AMBER    the model of the world
+AMBER    the model of the world  (and therefore the divine face)
 VIOLET   the consequence of their disagreement
 ```
 
-Violet renders `V = D x C`, where `D = |P - R|` is kept in full mathematically
-and `C` is the sparse contact mask. Disagreement can exist unseen for a long
-time; it becomes visible when the system acts on reality.
+`V = D x C`, where `D = |P - R|` is kept in full mathematically and `C` is the
+sparse contact mask. Disagreement can exist unseen for a long time; it becomes
+visible when the system acts on reality.
 
-**These three colours are never redefined per section.** Desk42, Brawler,
-technical diagrams, evidence panels and the visitor's own record all inherit
-this exact meaning. One grammar taught once and reused is worth more than a
-bespoke visual language per project.
+**Never redefined per section.** Desk42, Brawler, diagrams, evidence panels and
+the visitor's own record all inherit this exact meaning.
 
-## Interaction rule
+## Fields
 
-Every section, without exception:
-
-```
-EXPERIENCE  →  NOTICE SOMETHING IS WRONG  →  UNDERSTAND  →  ONLY THEN READ
-```
-
-Never heading → paragraph → screenshot → button. Demonstrate the mechanic
-first, name the project second. This rule is the studio identity; it is what
-stops the site collapsing into "cool indie studio website."
-
-## Three states, one height field
-
-No object is authored. Approach, enter, withdraw — the same terrain at three
-camera scales.
-
-| State | Question | Camera |
+| Field | Kind | Purpose |
 |---|---|---|
-| Approach | What is this? | Very high. An enormous unreadable fissure system below. Scroll pulls you down |
-| Interior | How does it work? | Trench floor. Cut stratified walls above you. The grammar is taught here |
-| Withdrawal | Who made it, where next? | Lifts out and keeps going until everything traversed — including this visit's violet scars — is one thin seam in black |
+| Live physical | simulation over the grown graph | the travelling disturbance |
+| Physical trace | running max of abs(P) | where reality went — cyan scar, survives to beat 5 |
+| Observations | small CPU buffer | what the anchors caught |
+| Recorded structure | fitted through observations | what was written — amber |
+| Divergence | monotonic | `D x C` — violet |
 
-**The final seam must stay geological and incomplete.** Not a logo, not a jewel,
-not a glyph, not a symmetrical mark, not a centred emblem. If it resolves into
-something neat we have recreated the entity problem in two dimensions. Enforce
-it at capture time: the seam must be off-centre, irregular in aspect, and broken
-into disconnected segments.
-
-Rock character is non-negotiable: **cut and stratified — an excavation or core
-sample, not scenery.** Terraced height, columnar jointing.
-
-## Flow
+## Interaction law
 
 ```
-COLD OPEN            near-black, one line, no nav. "Systems leave traces."
-    v
-YOU ARE ASKED TO ACT scroll locked until the visitor acts, or 8s elapse
-    v
-EVENT                cyan through real topology; energy exits, never returns
-    v
-INCORRECT RECORD     amber assembles overhead, late, from sparse samples
-    v
-REVEAL               camera lifts to cross-section; the contradiction is legible
-    v
-MACHINE OFF          canvas stops rendering. Hard cut, not a fade
-    v
-THESIS               "You caused an event. The system observed it.
-                      The record simplified it. Those are three different things."
-    v
-INSTANCES            SITE = instance 0, DESK42 = 1, BRAWLER = 2
-    v
-EVIDENCE             claim ladder, sources, deliberate absences, limitations
-    v
-YOUR OWN FILE        the site's evidence against its own account
-    v
-INSPECT SYSTEM       optional drawer, closed by default
+EXPERIENCE  ->  NOTICE SOMETHING IS WRONG  ->  UNDERSTAND  ->  ONLY THEN READ
 ```
 
-**Instance 0 is the breakthrough.** The WebGL opening is not an introduction to
-the portfolio — it is already a product argument. Desk42 and Brawler do not have
-to justify sitting beneath it, because all three are the same idea at different
-scales.
-
-## Skip path
-
-Persistent from frame one. Small, quiet, fixed position. No penalty, no modal,
-no confirmation.
-
-It jumps **directly to the editorial handoff** — it does not fast-forward the
-camera and it does not fake completion of the experience.
-
-The record then states the truth:
-
-```
-SIMULATION   Not entered.
-RECORD       Visitor requested direct access to work.
-```
-
-A system that accurately records someone declining to participate strengthens
-the thesis rather than weakening it. And a site arguing that records are
-incomplete must not trap a reader who needs the record.
+Never heading -> paragraph -> screenshot -> button. Demonstrate the mechanic
+first, name the project second. This is the studio identity and it is what stops
+the site collapsing into a portfolio.
 
 ## The false first action
 
 If the visitor does not act within 8 seconds the system acts and logs it as
-theirs. The lie must be **inspectable, not theatrical** — two parallel logs are
-kept and only diffed at the end:
+theirs. The lie must be **inspectable, not theatrical** — two parallel logs,
+diffed only at the bottom:
 
 ```ts
 physical_event  { source: 'SYSTEM' | 'VISITOR', position, timestamp }
 recorded_event  { source: 'VISITOR',            position: simplified, timestamp: quantised }
 ```
 
-The visitor sees only `TOUCH REGISTERED` at the time. At the bottom:
+### Mechanism vs catalogue
 
-```
-YOUR RECORD
-  RECORDED       You touched the eastern wall at 16:26:12.
-  MEASURED       No visitor input occurred.
-  ACTION SOURCE  System-generated.
-  DIVERGENCE     1 event.
-```
-
-### Mechanism vs catalogue — keep these separate
-
-**Route simplification is the fundamental mechanism of the site, not a catalogue
-item.** Sparse observation -> simplified reconstruction happens on every visit
-without exception. As one entry in a random table it would vanish on some
-visits, and the thesis would vanish with it.
+**Route simplification is the fundamental mechanism and happens on every visit.**
+As one entry in a random table it would vanish on some visits and take the
+thesis with it.
 
 The catalogue controls only the *additional* documentary failure, chosen
 deterministically by hashing `(seed, event position, visit index)`:
@@ -222,7 +241,22 @@ deterministically by hashing `(seed, event position, visit index)`:
 | Branching physical route | one branch omitted |
 | Multiple observations | observations collapsed into one event |
 
-Every visitor gets physical != recorded. Only the documentary failure varies.
+## Skip path
+
+Persistent from frame one. Small, quiet, fixed. No penalty, no modal, no
+confirmation. Jumps **directly to the editorial handoff** — it does not
+fast-forward the camera or fake completion.
+
+The record then states the truth:
+
+```
+SIMULATION   Not entered.
+RECORD       Visitor requested direct access to work.
+```
+
+A system that accurately records someone declining to participate strengthens
+the thesis. A site arguing that records are incomplete must not trap a reader
+who needs the record.
 
 ## Persistence
 
@@ -233,16 +267,11 @@ identity.
 darkLattice.record = { seed, visits: [], events: [] }
 ```
 
-Copy can then say "This browser has a record of 4 visits" — transparent and
-technically defensible, which is why it lands.
-
 ## Positioning
 
 The institutional-assessment subtext stays **implicit**. Making it explicit
-inverts the hierarchy into "Dark Lattice exists because its founder must
-convince an institution," which does not survive investors, publishers, hiring
-or press. The correct hierarchy is a coherent thesis whose interaction with
-institutions happens to be resonant.
+inverts the hierarchy into "the studio exists because its founder must convince
+an institution," which does not survive investors, publishers, hiring or press.
 
 ```
 DESK42          You operate the record.
@@ -250,104 +279,96 @@ PROJECT BRAWLER You operate the physical system.
 DARK LATTICE    We build worlds where neither layer waits for the other.
 ```
 
-## Scope
-
-**v1** — approach, trench interior, cyan wave + Gate A, physical trace, anchor
-observations, amber record, violet contact, cross-section reveal, thesis, Desk42
-evidence panel, studio statement, withdrawal, editorial evidence, your record,
-inspector drawer, skip path.
-
 **Project imagery.** No generated game-looking pictures, ever. The homepage uses
-abstract system diagrams that make no gameplay claim — a conventional screenshot
-under the cross-section slides the page straight back toward
-`unusual hero -> game card -> screenshot -> CTA`. Real build captures belong on
-the project detail pages, where normal evidence rules apply.
+abstract system diagrams that make no gameplay claim. Real build captures belong
+on project detail pages, where normal evidence rules apply.
 
-**v2** — Brawler simulation state (port `ReactionField.ts`, already in the repo),
-terminology morph, hover-linked system labels, team.
+---
 
-## Build order — do not reorder
+## Engineering
 
-1. Trench geometry + interior camera
-2. **GATE A** — cyan propagation + sponge boundaries
-3. Camera transition to cross-section
-4. Anchor sampling into the observations buffer (NO second simulation field)
-5. Fit the recorded path through those observations
-6. Instance amber bays along it
-7. Full difference field
-8. `D x C` → violet
+### Growth runs offline
+
+A build script, not a runtime system. Differential growth plus adaptive-network
+rules from the masterplan, deterministic from the seed, baked with a
+**birth-time per element**.
+
+Runtime "grows" by sliding a birth-time threshold with scroll depth: the
+presence of a living thing at the cost of instanced geometry. Target ~100k
+instances with fog and bloom — comfortable on the 3060.
+
+### The grown structure is natively a graph
+
+Which means `CausalPulseSimulation` runs on it **as is**. The Worker,
+edge-strain memory, quantised checksum and the whole validation harness stop
+being archived research and become the engine.
+
+That work is on `claude/causal-pulse-spike-v1` and its measurement discipline
+transfers unchanged.
 
 ### Gate A
 
-The only step that can kill the direction. Everything after it is comparatively
-conventional geometry and rendering.
+Restated for the new geometry, same instrument, same criteria:
 
-Measure two things. A monotonic total-energy curve is the WRONG criterion:
-legitimate interference, discretisation noise and internal reflection off real
-trench geometry all produce local rises while absorption is still excellent.
+> Energy injected at the mouth is absorbed at depth.
 
-**Interior energy**, excluding sponge cells:
+Measure **interior energy** with the absorbing region masked out, smoothed over
+~0.25s, plus a **return probe** near the injection point.
 
 ```
-E_interior(t) = sum over (x,z) NOT in sponge of P(x,z,t)^2
+PASS   interior residual  < 2% of peak
+       return amplitude   < 5% of outgoing peak
+       no visually obvious coherent return front
 ```
 
-The sponge holds energy it is in the process of dissipating, so including it
-muddies the signal. Reduce on the GPU with the sponge masked out, smooth the
-envelope over ~0.25s to reject discretisation noise, read back every ~10 frames.
-
-**Return probe** near the strike. After the outgoing wave has left:
-
-```
-R = largest returning amplitude / initial outgoing peak
-```
-
-> **PASS**
-> interior residual  < 2% of peak
-> return amplitude   < 5% of outgoing peak
-> no visually obvious coherent return front
-
-Percentages tune once the first GPU run exists.
-
-Expected shape:
-
-```
-energy
-  |      /  |     /    |    /    \____
-  |  _/          \__
-  |_/_________________ time
-```
+A monotonic total-energy curve is the WRONG criterion — legitimate interference,
+discretisation noise and internal reflection off real geometry all produce local
+rises while absorption is still excellent.
 
 **Keep a real-GPU capture beside the curve.** The graph proves absorption; the
-capture proves the geometry still makes the event visually readable. Neither is
-sufficient alone, and the capture must come from the 3060, not SwiftShader.
+capture proves the event is still visually readable. It must come from the 3060,
+never SwiftShader.
 
-**If Gate A fails, stop there.** Do not proceed to camera work, the recorded
-field, or anything downstream.
+### Implementation vocabulary
 
-Two ways this fails fixably rather than fundamentally:
-
-- **The sponge must ramp, not switch.** An abrupt sigma causes impedance
-  mismatch and the wave partially reflects off the absorber itself. Quadratic or
-  cubic over at least 10-15% of the domain width.
-- **Both ends of the trench must open into sponge.** Steep walls make the trench
-  a waveguide; energy exits almost entirely at the ends. A closed-ended trench
-  is a resonant cavity and will ring exactly as the 6,158-node graph did.
-
-## Implementation vocabulary
-
-The old concept must not creep back in through naming. **Banned from code,
-comments, commits, filenames and copy:**
+Banned from code, comments, commits, filenames and copy, so the dead concept
+cannot creep back through naming:
 
 ```
 FULL FORM   MONOLITH   SEVEN MASSES   TUNNEL ENTITY   LATENT FORM   HERO GLB
 ```
 
-**Use instead:** `approach`, `interior`, `cross-section`, `withdrawal`.
+Use instead: `face`, `mouth`, `descent`, `shaft`, `floor`, `cathedral`.
 
-One height field. One world. Three camera scales. No hero object.
-
-## Stack
+### Stack
 
 Vite, TypeScript, Three.js, WebGL2, GLSL, GSAP for scroll and camera only.
-No WebGPU, no Worker, no graph, no backend, no generated model, no hero asset.
+No WebGPU, no backend, no generated model, no hero asset, no authored mesh.
+
+---
+
+## Risks, named
+
+**Growth-bake aesthetics is the new art risk.** If the growth is ugly, the site
+is ugly, and closing that is a parameter search. It converges or it does not,
+and we will know within the first bake sessions rather than after a week.
+
+**Pacing a single vertical descent.** The aperture beats are the pacing tool.
+
+Both are honest unknowns. Neither is the silhouette problem returning: there is
+no outline to get right.
+
+## Build order
+
+1. Growth bake — offline, deterministic, birth-times. Judge the aesthetics here
+2. Shaft geometry + camera rail + depth-parameter curves
+3. **GATE A** — disturbance through the grown graph, absorbed at depth
+4. Aperture beats and the growth gradient
+5. Anchor sampling into the observations buffer
+6. Fit the recorded structure through those observations
+7. Difference field, `D x C` -> violet
+8. Floor, live growth, YOUR RECORD
+9. Machine-off, editorial band, evidence, skip path
+
+Steps 1 and 3 are the only ones that can kill it. Everything after is
+conventional geometry and rendering.
