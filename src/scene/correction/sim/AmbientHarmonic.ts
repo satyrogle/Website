@@ -46,7 +46,12 @@ export const DEFAULT_AMBIENT: AmbientParameters = {
   // threshold ε + θ_on = 0.10, while a typical filament still travels several
   // pixels on screen. Both halves are asserted in
   // tools/correction-validate.mjs — never engages, and never static.
-  amplitude: 0.07,
+  //
+  // Down from 0.07 when the camera moved into the flow's own altitude: the
+  // same world-unit breath is a third again larger on screen from there, and
+  // the calm was reading as sway rather than breathing. Held breath, not
+  // seaweed.
+  amplitude: 0.055,
   frequencies: [0.29, 0.43, 0.71],
   spatialFrequency: 0.26,
 };

@@ -4,6 +4,7 @@ import {
   EDGE_POWER,
   GLOW,
   RECORD_GAIN,
+  SHEEN,
 } from '../scene/correction/CorrectionModel';
 import { DEFAULT_WAVE, INJECTION } from '../scene/correction/sim/CausalPulseSimulation';
 import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
@@ -76,6 +77,8 @@ const KNOBS: Knob[] = [
   { label: 'displacement', group: 'render', key: 'uDisplacement', min: 0.5, max: 12, step: 0.1, value: DISPLACEMENT_SCALE, source: 'DISPLACEMENT_SCALE' },
   { label: 'record brightness', group: 'render', key: 'uRecordGain', min: 0.1, max: 4, step: 0.05, value: RECORD_GAIN, source: 'RECORD_GAIN' },
   { label: 'edge sharpness', group: 'render', key: 'uEdge', min: 0.5, max: 8, step: 0.1, value: EDGE_POWER, source: 'EDGE_POWER' },
+  { label: 'record light', group: 'render', key: 'uSheen', min: 0, max: 3, step: 0.05, value: SHEEN.weight, source: 'SHEEN.weight' },
+  { label: 'light tightness', group: 'render', key: 'uSheenPower', min: 4, max: 96, step: 2, value: SHEEN.power, source: 'SHEEN.power' },
   { label: 'deviation scale', group: 'render', key: 'uGlowScale', min: 0.5, max: 10, step: 0.1, value: GLOW.scale, source: 'GLOW.scale' },
   { label: 'deviation gamma', group: 'render', key: 'uGlowGamma', min: 0.3, max: 3, step: 0.05, value: GLOW.gamma, source: 'GLOW.gamma' },
 ];

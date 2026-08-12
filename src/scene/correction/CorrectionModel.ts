@@ -39,7 +39,19 @@ export interface CorrectionModelOptions {
 export const DISPLACEMENT_SCALE = 6.6;
 
 /** How sharply the grazing edge falls off across a ribbon's face. */
-export const EDGE_POWER = 2.8;
+export const EDGE_POWER = 2.4;
+
+/**
+ * The record's light.
+ *
+ * One fixed direction, held in view space so the field is lit the same way at
+ * every point on the rail. A ribbon runs bright where its length agrees with
+ * it, so what the light shows is the agreement itself — the calm is carried by
+ * long runs of aligned ribbons, and a deviating one falls out of the light as
+ * it falls out of the flow.
+ */
+export const SHEEN = { weight: 0.75, power: 48 };
+export const LIGHT_DIRECTION = { x: -0.38, y: 0.62, z: 0.69 };
 
 /**
  * Brightness of the approved state.
@@ -51,7 +63,7 @@ export const EDGE_POWER = 2.8;
 /** The deviation response. Exported so the dev panel cannot drift from it. */
 export const GLOW = { scale: 5.9, gamma: 2.05 };
 
-export const RECORD_GAIN = 1.85;
+export const RECORD_GAIN = 2.2;
 
 export class CorrectionModel {
   readonly group = new THREE.Group();
@@ -159,11 +171,20 @@ export class CorrectionModel {
         uState: { value: this.stateTexture },
         uTextureSize: { value: this.textureSize },
         uDisplacement: { value: DISPLACEMENT_SCALE },
-        uRecord: { value: new THREE.Color('#d9d5c8') },
+        // Amber in fact, not just in the grammar table — but barely. The
+        // original value measured as neutral grey off the canvas; the first
+        // correction overshot into gold. Parchment: warm enough to be read as
+        // the record's colour, pale enough to stay light rather than material.
+        uRecord: { value: new THREE.Color('#e7dcba') },
         uWorld: { value: new THREE.Color('#4dd0ff') },
         uConsequence: { value: new THREE.Color('#a45fd6') },
         uEdge: { value: EDGE_POWER },
         uRecordGain: { value: RECORD_GAIN },
+        uLightDir: {
+          value: new THREE.Vector3(LIGHT_DIRECTION.x, LIGHT_DIRECTION.y, LIGHT_DIRECTION.z).normalize(),
+        },
+        uSheen: { value: SHEEN.weight },
+        uSheenPower: { value: SHEEN.power },
         // Cyan is the deviation and only the deviation:
         //
         //   ambient drift  0.026  ->  0.02   effectively absent

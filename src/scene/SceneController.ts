@@ -38,13 +38,19 @@ export function isWebGL2Available(): boolean {
  *
  * Deliberately off every axis of the structure. A view down a clean central
  * axis is how the retired tunnels read as concentric rings, and the rule
- * outlived them: the veil is met obliquely and slightly from above, so it
- * recedes across the frame as a band with the void above and below it.
+ * outlived them: the veil is met obliquely.
+ *
+ * Met from inside its own altitude now, not from above. The first pose looked
+ * down on the field from well over it, which put the whole structure in the
+ * lower third as a band under the type — an underline, however good the
+ * ribbons. From within the flow's band, ribbons pass above and below the
+ * eyeline and the near ones sweep close, so the field is the frame's subject
+ * and the type sits inside its world.
  */
 const CAMERA = {
-  fov: 30,
-  position: new THREE.Vector3(9.2, 6.2, 22.0),
-  target: new THREE.Vector3(-2.0, 1.1, 0.6),
+  fov: 32,
+  position: new THREE.Vector3(9.2, 2.5, 17.2),
+  target: new THREE.Vector3(-3.2, 0.6, -0.2),
 };
 
 /**
@@ -62,11 +68,11 @@ const CAMERA = {
  */
 const RAIL = {
   /** Where the camera is looking, at the start and end of the descent. */
-  targetFrom: new THREE.Vector3(-2.0, 1.1, 0.6),
-  targetTo: new THREE.Vector3(-7.0, 0.2, -0.4),
+  targetFrom: new THREE.Vector3(-3.2, 0.6, -0.2),
+  targetTo: new THREE.Vector3(-7.6, -0.1, -0.8),
   /** Camera position relative to that look-point. */
-  offsetFrom: new THREE.Vector3(11.2, 5.1, 21.4),
-  offsetTo: new THREE.Vector3(8.0, 3.4, 15.6),
+  offsetFrom: new THREE.Vector3(12.4, 1.9, 17.4),
+  offsetTo: new THREE.Vector3(8.9, 1.3, 12.5),
 };
 
 /**
@@ -94,7 +100,7 @@ const GAIN = { from: 0.28, to: 0.75, low: 1.0, high: 2.2 };
  * rather than shrinks. The camera is still on a straight rail; only its
  * horizon is different.
  */
-const PORTRAIT = { fov: 34, roll: -0.92, below: 0.85 };
+const PORTRAIT = { fov: 34, roll: -0.92, below: 0.85, retreat: 1.7, drop: 1.0 };
 
 const smoothstep = (t: number): number => {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
@@ -623,7 +629,10 @@ export class SceneController {
     // get the landscape pose. A phone would otherwise inherit the portrait
     // roll and render three diagonal compositions inside three wide frames —
     // the recomposition applied to the one place it does not belong. The
+    // portrait flag is lowered for the same reason: applyCamera reads it for
+    // the retreat, and these frames are the landscape composition. The
     // closing resize() puts the viewport's own composition back.
+    this.portrait = false;
     this.camera.fov = CAMERA.fov;
     this.camera.up.set(0, 1, 0);
     this.camera.aspect = width / height;
@@ -686,6 +695,17 @@ export class SceneController {
 
     this.railTarget.copy(RAIL.targetFrom).lerp(RAIL.targetTo, t);
     this.railOffset.copy(RAIL.offsetFrom).lerp(RAIL.offsetTo, t);
+
+    // The rail was authored from inside the flow for a wide frame. A tall
+    // frame on the diagonal sees far more of the near field from there, and
+    // the composition drowned in ribbons — so portrait stands further back
+    // along the same line and aims below it, which carries the field into
+    // the frame's upper reach and leaves the copy on its own ground. Still
+    // one straight rail; only distance and aim move.
+    if (this.portrait) {
+      this.railOffset.multiplyScalar(PORTRAIT.retreat);
+      this.railTarget.y -= PORTRAIT.drop;
+    }
 
     this.camera.position.copy(this.railTarget).add(this.railOffset);
     this.camera.lookAt(this.railTarget);

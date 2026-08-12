@@ -21,6 +21,9 @@ uniform vec3 uWorld;
 uniform vec3 uConsequence;
 uniform float uEdge;
 uniform float uRecordGain;
+uniform vec3 uLightDir;
+uniform float uSheen;
+uniform float uSheenPower;
 uniform float uGlowScale;
 uniform float uGlowGamma;
 uniform float uContactScale;
@@ -34,6 +37,7 @@ in float vGlow;
 in float vBruise;
 in float vContact;
 in vec3 vNormal;
+in vec3 vTangent;
 in vec3 vView;
 
 out vec4 fragColour;
@@ -52,11 +56,29 @@ void main() {
   // Grazing edge. Bright where the ribbon turns away, dark across its face.
   float graze = pow(1.0 - abs(dot(n, v)), uEdge);
 
+  // The record's own light: one fixed direction for the whole field, and a
+  // ribbon runs bright exactly where its length lies against it. Alignment is
+  // what glows — the coordination is the illumination — so the calm can be
+  // loud without any ribbon gaining a silhouette. The graze factor in the
+  // weight keeps a face-on ribbon a body rather than a lit slab.
+  vec3 t = normalize(vTangent);
+  float th = dot(t, normalize(uLightDir + v));
+  float run = pow(max(1.0 - th * th, 0.0), uSheenPower * 0.5);
+  // Gated hard to the grazing zone. With a quarter of the run reaching
+  // face-on surfaces the field rendered as lit straps — solid, satin, an
+  // object pile. At six percent the light draws long edges and nothing owns
+  // a face.
+  float record = graze * uRecordGain + run * uSheen * (0.06 + 0.94 * graze);
+
   float live = response(vGlow, uGlowScale, uGlowGamma);
   float grip = response(vContact, uContactScale, uContactGamma);
   float trace = response(vBruise, uBruiseScale, uBruiseGamma);
 
-  vec3 colour = uRecord * graze * uRecordGain;
+  // The record's colour desaturates as it brightens: a peak is hot, not
+  // yellow. Held at constant hue the bright runs rendered as gilding — the
+  // difference between a field drawn in light and one painted in gold.
+  vec3 recordColour = mix(uRecord, vec3(1.0, 0.985, 0.93), clamp(record * 0.5, 0.0, 0.6));
+  vec3 colour = recordColour * record;
 
   // A deviating ribbon is lit along its length rather than only at its edge:
   // it has left the flow, and the point is that you can see which one.

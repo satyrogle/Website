@@ -19,6 +19,7 @@ out float vGlow;
 out float vBruise;
 out float vContact;
 out vec3 vNormal;
+out vec3 vTangent;
 out vec3 vView;
 
 void main() {
@@ -36,6 +37,9 @@ void main() {
 
   vec4 viewPosition = modelViewMatrix * vec4(placed, 1.0);
   vNormal = normalize(normalMatrix * aDirection);
+  // The ribbon's length direction, completing the frame the two attributes
+  // already span. The record's light reads against this.
+  vTangent = normalize(normalMatrix * cross(aBinormal, aDirection));
   vView = normalize(-viewPosition.xyz);
 
   gl_Position = projectionMatrix * viewPosition;

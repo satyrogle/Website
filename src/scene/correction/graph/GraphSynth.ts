@@ -84,22 +84,26 @@ export interface GraphSynthConfig {
 }
 
 /**
- * Twenty-six ribbons of up to a hundred and thirty-two samples.
+ * Thirty-eight ribbons of up to a hundred and thirty-two samples — about 3,800
+ * nodes, at the top of the plan's budget and still inside one Worker step at
+ * 120 Hz.
  *
- * Sized so the field reads as many separate things rather than as a few, and
- * so the whole graph still steps inside one Worker at 120 Hz on the low tier.
+ * Sized so the field reads as a society rather than a handful: coordination
+ * needs a crowd to be legible, and an escape of three or four reads as a
+ * breach only against enough bodies that stayed. The spread is wider than the
+ * count alone requires so the extra ribbons buy depth, not crowding.
  */
 export const DEFAULT_SYNTH: GraphSynthConfig = {
   seed: 0x5eed_c0de,
-  ribbons: 26,
+  ribbons: 38,
   samples: 132,
   step: 0.235,
-  spread: [0, 2.05, 3.9],
+  spread: [0, 2.6, 4.4],
   origin: -13.5,
   lengthRange: [0.52, 1.0],
   bend: 0.21,
   frequency: 0.115,
-  halfWidth: 0.2,
+  halfWidth: 0.16,
   rollSpread: 1.5,
   rollDrift: 0.9,
 
@@ -221,8 +225,10 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
   for (let r = 0; r < ribbons; r++) {
     const t = r / (ribbons - 1);
     const y = (t * 2 - 1) * config.spread[1] + (random() * 2 - 1) * config.spread[1] * 0.22;
+    // Jitter grows with the count: more ribbons on the same serpentine would
+    // otherwise pack into an even sheet, and a sheet is the surface again.
     const z =
-      Math.sin(t * Math.PI * 1.35) * config.spread[2] + (random() * 2 - 1) * config.spread[2] * 0.3;
+      Math.sin(t * Math.PI * 1.35) * config.spread[2] + (random() * 2 - 1) * config.spread[2] * 0.34;
     const x = config.origin + (random() * 2 - 1) * 1.9;
     seeds.push([x, y, z]);
 
