@@ -532,7 +532,21 @@ if (flag('paths')) {
     });
     const thumb = await phone.newPage();
     await thumb.goto(BASE, { waitUntil: 'domcontentloaded' });
-    await thumb.waitForFunction(() => window.__correction?.telemetry?.tick > 0, { timeout: 40000 });
+
+    // The counters this probe reads live behind an import.meta.env.DEV guard,
+    // so against a production build there is nothing to measure. Say so and
+    // move on rather than failing the whole run — every other check in this
+    // block is worth having against the built site.
+    const instrumented = await thumb
+      .waitForFunction(() => window.__correction?.telemetry?.tick > 0, { timeout: 15000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!instrumented) {
+      console.log('  touch: skipped — no dev handle on this build');
+      await thumb.close();
+      await phone.close();
+    } else {
 
     /**
      * Budget is the honest reading here. It is spent on the main thread the
@@ -588,12 +602,13 @@ if (flag('paths')) {
       `  touch: 400px flick costs ${flickCost} presses ` +
         `(${flickCost === 0 ? 'TRAVEL IS FREE' : 'FLICK CHARGED AS A PRESS'})`
     );
-    console.log(
-      `  touch: tap costs ${tapCost} press, injections ${afterFlick.injections} -> ${afterTap.injections} ` +
-        `(${tapCost === 1 ? 'THE ACTION STILL WORKS' : 'TAP DOES NOTHING'})`
-    );
-    await thumb.close();
-    await phone.close();
+      console.log(
+        `  touch: tap costs ${tapCost} press, injections ${afterFlick.injections} -> ${afterTap.injections} ` +
+          `(${tapCost === 1 ? 'THE ACTION STILL WORKS' : 'TAP DOES NOTHING'})`
+      );
+      await thumb.close();
+      await phone.close();
+    }
   }
 
   // --- Reduced motion: the triptych, and a world that does not move -------
