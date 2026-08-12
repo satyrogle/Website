@@ -64,8 +64,8 @@ export class CorrectionSystem {
     this.config = config;
     this.synthesised = synthesiseGraph(config.synth);
 
-    const { graph, bounds } = this.synthesised;
-    this.simulation = new DeviationField(graph, bounds, config.dynamics);
+    const { graph, membership, bounds } = this.synthesised;
+    this.simulation = new DeviationField(graph, membership, bounds, config.dynamics);
     this.operator = new CorrectionOperator(graph.nodeCount, config.correction);
     this.ambient = new AmbientDrift(graph.positions, config.ambient);
     this.recordSum = new Float64Array(graph.nodeCount);

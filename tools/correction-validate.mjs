@@ -95,7 +95,7 @@ gate('timestep is inside the accuracy bound', step <= 0.5, `dt·(γ + κ·λ) = 
 
 console.log(
   `  ${stats.nodes} blades, ${stats.edges} coupling edges, ` +
-    `${stats.shellNodes} in the shell, ${stats.giants} near field`
+    `${stats.shellNodes} in the shell, ${stats.families} families (${stats.smallestFamily}–${stats.largestFamily})`
 );
 
 // ------------------------------------------------------------------ the calm

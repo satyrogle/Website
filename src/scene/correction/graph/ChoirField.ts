@@ -119,7 +119,7 @@ export interface ChoirFieldConfig {
 export const DEFAULT_FIELD: ChoirFieldConfig = {
   seed: 0x0cd0_51a7,
   flow: [1.0, 0.14, -0.38],
-  extent: [10.5, 4.6, 4.8],
+  extent: [12.5, 5.6, 5.8],
   curl: {
     // Low. At 0.45 the flow wandered by nearly twenty-five degrees everywhere
     // and the choir read as grass in wind — every blade leaning somewhere
@@ -153,15 +153,23 @@ export const DEFAULT_FIELD: ChoirFieldConfig = {
   // radius; the density mask breaks the crowd around it into arcs; a third of
   // it is cropped past the frame edge. What is forbidden is a rim, not a hole.
   lobes: [
-    // Offset away from the eye along its own long axis. Centred on the field,
-    // the aperture's near end sat between the camera and everything else, so
-    // the crowd forced around that end was simultaneously the closest thing in
-    // the frame and the brightest — a pale knot in the corner with no apparent
-    // cause. Pushed back, what the eye meets is the opening, and the cavity
-    // runs away from it into the dark.
-    { centre: [-5.8, 2.1, 2.4], radii: [3.4, 5.8, 2.9], tilt: [0.34, -0.52, 0.21] },
-    { centre: [-3.7, 3.0, 1.6], radii: [2.4, 4.4, 2.2], tilt: [-0.22, 0.31, -0.44] },
-    { centre: [-7.6, 1.2, 3.5], radii: [2.0, 3.8, 1.7], tilt: [0.55, 0.18, 0.37] },
+    // Large, warped, and asymmetric — a region cutting through the field rather
+    // than a hole punched in it.
+    //
+    // Small, it was merely a gap: the families passed either side of it and the
+    // composition never acknowledged it. At this size the formations have to
+    // sweep and compress around it, which is where the halo sensation comes
+    // from — the eye reads a presence at the centre of an arrangement that is
+    // visibly organised by something, and nothing is drawn there at all.
+    //
+    // Offset away from the eye along its own long axis, so what the camera
+    // meets is the opening and the cavity runs away from it into the dark.
+    // Four lobes at unrelated tilts and unequal radii: no single radius, no
+    // centre, no silhouette that can resolve into a ring.
+    { centre: [-5.4, 2.2, 2.3], radii: [5.0, 7.0, 4.1], tilt: [0.34, -0.52, 0.21] },
+    { centre: [-2.6, 3.4, 1.2], radii: [3.6, 5.2, 3.0], tilt: [-0.22, 0.31, -0.44] },
+    { centre: [-8.4, 1.4, 3.6], radii: [3.0, 4.6, 2.4], tilt: [0.55, 0.18, 0.37] },
+    { centre: [-4.6, 1.0, 4.6], radii: [2.6, 4.0, 2.0], tilt: [-0.61, -0.24, 0.48] },
   ],
   lobeBlend: 1.1,
   // Thin. At 1.85 half the choir counted as shell, so the extra edge light and

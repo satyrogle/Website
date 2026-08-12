@@ -29,6 +29,13 @@
 
 import type { CausalGraph, StabilityBounds } from '../graph/GraphAsset';
 
+/** Which formation each blade belongs to, and where along it it sits. */
+export interface BladeMembership {
+  count: number;
+  family: Uint16Array;
+  param: Float32Array;
+}
+
 export interface FieldParameters {
   /** Fixed timestep in seconds. */
   dt: number;
@@ -58,15 +65,30 @@ export const DEFAULT_DYNAMICS: FieldParameters = {
   coupling: 6,
 };
 
-/** Radius of one press, in world units. Mutable so the dev panel can move it. */
 export const INJECTION = {
   /**
-   * Spatial rather than measured in graph hops. Over hops the profile jumped
-   * wherever a coupling edge happened to be long, so the initial disturbance
-   * was ragged before it had spread anywhere. A smooth falloff over distance
-   * gives a clean cluster whatever the topology under it.
+   * How far a press reaches into families it did not strike, in world units.
+   *
+   * Small. Neighbouring formations are supposed to *answer* a rupture, not
+   * share it — they feel it through the sparse bonds between families, on the
+   * coupling's own timescale, which is what makes their response read as a
+   * response.
    */
   radius: 2.6,
+  /**
+   * How much of the struck family departs, in units of its own length.
+   *
+   * The whole point of the rewrite. A press used to raise a spherical cluster
+   * of blades and the correction happened at the scale of sticks: sixty
+   * individual elements turning cyan inside a texture, which says nothing
+   * about a system. A deviation has to be structural — one coherent formation
+   * leaving the arrangement, opening a rupture the size of the composition —
+   * so the impulse runs along the family's own parameter and takes nearly all
+   * of it.
+   */
+  familySpan: 0.55,
+  /** Share of the impulse felt by blades outside the struck family. */
+  crossShare: 0.22,
 };
 
 export class DeviationField {
@@ -90,12 +112,19 @@ export class DeviationField {
   readonly forcing: Float32Array;
 
   private readonly graph: CausalGraph;
+  private readonly membership: BladeMembership;
   private readonly coupled: Float32Array;
   private tickCount = 0;
   private injections = 0;
 
-  constructor(graph: CausalGraph, bounds: StabilityBounds, parameters: FieldParameters = DEFAULT_DYNAMICS) {
+  constructor(
+    graph: CausalGraph,
+    membership: BladeMembership,
+    bounds: StabilityBounds,
+    parameters: FieldParameters = DEFAULT_DYNAMICS
+  ) {
     this.graph = graph;
+    this.membership = membership;
     this.parameters = parameters;
     this.nodeCount = graph.nodeCount;
 
@@ -126,29 +155,47 @@ export class DeviationField {
   }
 
   /**
-   * Knock a region of the choir out of the law.
+   * Take one structural family out of agreement.
    *
-   * Spread over a neighbourhood with a raised-cosine falloff rather than dumped
-   * on one blade: a single-blade disturbance is almost entirely high spatial
-   * frequency, and high frequencies on a coupled field are exactly what the
-   * coupling term smooths away fastest. It would die where it landed. A broad,
-   * smooth cluster is what survives long enough to be noticed, resisted and
-   * forced back — which is the event the whole site is about.
+   * The impulse runs along the struck family's own spine parameter rather than
+   * outward through space, so what leaves the arrangement is a formation, not a
+   * ball of blades that happened to be near the cursor. Blades move together —
+   * the raised cosine over the family's length is what gives them the
+   * controlled internal differences that keep it from reading as one rigid
+   * object being slid sideways.
+   *
+   * Other families get a small spatial share and nothing more. They are meant
+   * to answer the rupture through the sparse bonds between formations, on the
+   * coupling's own timescale; handing them the impulse directly would make the
+   * whole choir lurch at once and there would be no system left to watch.
    */
   inject(nodeId: number, energy = 1): void {
     if (nodeId < 0 || nodeId >= this.nodeCount) throw new RangeError(`node ${nodeId} out of range`);
 
     const { positions } = this.graph;
+    const { family, param } = this.membership;
+    const struck = family[nodeId];
+    const centre = param[nodeId];
     const radius = INJECTION.radius;
     const at = nodeId * 3;
 
     for (let i = 0; i < this.nodeCount; i++) {
-      const dx = positions[i * 3] - positions[at];
-      const dy = positions[i * 3 + 1] - positions[at + 1];
-      const dz = positions[i * 3 + 2] - positions[at + 2];
-      const d = Math.hypot(dx, dy, dz);
-      if (d >= radius) continue;
-      this.u[i] += 0.5 * (1 + Math.cos((Math.PI * d) / radius)) * energy;
+      let weight = 0;
+
+      if (family[i] === struck) {
+        const along = Math.abs(param[i] - centre) / INJECTION.familySpan;
+        if (along < 1) weight = 0.5 * (1 + Math.cos(Math.PI * along));
+      } else {
+        const dx = positions[i * 3] - positions[at];
+        const dy = positions[i * 3 + 1] - positions[at + 1];
+        const dz = positions[i * 3 + 2] - positions[at + 2];
+        const d = Math.hypot(dx, dy, dz);
+        if (d < radius) {
+          weight = 0.5 * (1 + Math.cos((Math.PI * d) / radius)) * INJECTION.crossShare;
+        }
+      }
+
+      if (weight > 0) this.u[i] += weight * energy;
     }
 
     this.injections++;

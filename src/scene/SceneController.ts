@@ -64,14 +64,15 @@ const CAMERA = { fov: 32 };
  * pose unreachable rather than merely unlikely.
  */
 const RAIL = {
-  // Solved rather than guessed: at this pose the forbidden volume lands at
-  // NDC (0.61, 0.67) with a third of its extent past the frame edge —
-  // off-centre, upper right, about a third cropped, which is the composition
-  // Jacob specified. The brain completes the missing part; nothing draws it.
-  eyeFrom: [-5.5, -17.0, 1.2] as const,
-  eyeTo: [1.5, -15.0, 0.1] as const,
-  aimFrom: [-0.5, 0, -1.2] as const,
-  aimTo: [5.0, 0, -0.6] as const,
+  // Solved rather than guessed. At this pose the absence spans well over half
+  // the frame in both axes and sits at NDC (0.68, 0.44) with about a third of
+  // it past the upper-right edge — the macro element, off-centre and cropped,
+  // with the formations sweeping and compressing around what is left. The
+  // brain completes the missing part; nothing draws it.
+  eyeFrom: [-5.5, -22.0, 1.5] as const,
+  eyeTo: [1.5, -19.5, 0.4] as const,
+  aimFrom: [2.0, 0, -1.4] as const,
+  aimTo: [7.5, 0, -0.8] as const,
 };
 
 /**
