@@ -36,7 +36,14 @@ in float vContact;
 out vec4 fragColour;
 
 float response(float value, float scale, float gamma) {
-  return pow(clamp(value * scale, 0.0, 1.0), gamma);
+  float x = clamp(value * scale, 0.0, 1.0);
+  // pow(0, y) is specified as 0 for y > 0 and has been returned as NaN by real
+  // drivers anyway. A NaN here propagates through the mix into the fragment
+  // and the structure renders black — which is exactly how an earlier object
+  // in this project disappeared on one machine while looking correct on
+  // another. At rest most of the veil has a channel sitting at zero, so this
+  // is the common case, not the edge case.
+  return x <= 0.0 ? 0.0 : pow(x, gamma);
 }
 
 void main() {

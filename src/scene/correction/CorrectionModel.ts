@@ -55,7 +55,24 @@ const DISPLACEMENT_SCALE = 2.8;
  * the world deviates, cyan comes out of it and amber is what the deviation is
  * measured against.
  */
-const GHOST_INTENSITY = 0.16;
+const GHOST_INTENSITY = 0.45;
+
+/**
+ * Overall brightness of the frame.
+ *
+ * Measured, not chosen by eye. The opening frame's typical lit pixel was
+ * RGB(31,39,39) against a ground of RGB(5,7,10) — a contrast ratio of about
+ * 1.3:1, which is below what any ordinary monitor in an ordinary room can
+ * show. The structure was there and correct and invisible.
+ *
+ * Applied as a single multiplier on the finished colour rather than by
+ * raising the response scales, because scale changes cost the event its
+ * headroom: a press peaks near the top of the curve already, and a brighter
+ * resting world would also be a lie about how much it is deviating. A gain
+ * preserves every ranking relationship in the frame and changes only how much
+ * of it reaches the eye.
+ */
+const BASE_GAIN = 2.4;
 
 export class CorrectionModel {
   readonly group = new THREE.Group();
@@ -213,7 +230,7 @@ export class CorrectionModel {
 
   /** Cold-open reveal and, later, the machine-off cut. */
   setExposure(value: number): void {
-    this.worldMaterial.uniforms.uExposure.value = value;
+    this.worldMaterial.uniforms.uExposure.value = value * BASE_GAIN;
     this.ghostMaterial.uniforms.uIntensity.value = GHOST_INTENSITY * value;
   }
 
