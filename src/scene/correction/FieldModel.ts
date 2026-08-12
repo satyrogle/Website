@@ -57,8 +57,20 @@ export const CORE_RADIUS = 2.6;
  */
 export const FISSURE = { scale: 1.45, depth: 0.16, heat: 1.6 };
 
-/** How far attention reaches across the frame, in NDC. */
-export const HOVER_RADIUS = 0.62;
+/**
+ * How the field answers a pointer held over it: how far attention reaches,
+ * how hard the fissures warm under it, and how strong the cool edge is.
+ *
+ * Bracketed by two failures rather than chosen. At gain 4.2 across all the
+ * structure the hovered region became a blue-white mass with none of the dead
+ * star's material left in it — measurably a success and visibly a disaster. At
+ * 1.15 on the fissures alone it was indistinguishable from rest. These sit
+ * between, and they are on sliders because the right value is a judgement, not
+ * a measurement.
+ */
+export const HOVER_RADIUS = 0.42;
+export const HOVER_GAIN = 2.6;
+export const HOVER_FRINGE = 0.7;
 
 /** How tightly the aureole gathers against the absence's boundary. */
 export const AUREOLE = 1.15;
@@ -107,6 +119,8 @@ export class FieldModel {
       uHover: { value: new THREE.Vector2(0, 0) },
       uHoverStrength: { value: 0 },
       uHoverRadius: { value: HOVER_RADIUS },
+      uHoverGain: { value: HOVER_GAIN },
+      uHoverFringe: { value: HOVER_FRINGE },
       uAureole: { value: AUREOLE },
       uGlow: { value: GLOW },
       uDensity: { value: DENSITY },

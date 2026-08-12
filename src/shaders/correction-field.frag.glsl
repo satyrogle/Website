@@ -62,6 +62,8 @@ uniform float uHeat;
 uniform vec2 uHover;
 uniform float uHoverStrength;
 uniform float uHoverRadius;
+uniform float uHoverGain;
+uniform float uHoverFringe;
 
 uniform float uAureole;
 uniform float uGlow;
@@ -316,16 +318,22 @@ void main() {
   // out. It is the consequence colour and it is not spent on a hover.
   float attention = uHoverStrength *
     (1.0 - smoothstep(0.0, uHoverRadius, distance(ndc * vec2(aspect, 1.0), uHover * vec2(aspect, 1.0))));
-  float structure = deep + heat * 0.7;
-  colour += uRecord * structure * attention * 4.2;
+  // Attention warms the cracks, and only the cracks.
+  //
+  // Weighted onto the residual heat rather than onto every lit surface. Spread
+  // across all the structure it lifted whole cavities at once and the hovered
+  // region became a blue-white mass with none of the dead star's material in
+  // it — bright enough to measure as a success and wrong enough to destroy the
+  // frame it was applied to. The fissures are what this object is; they are
+  // what should answer.
+  float structure = heat + deep * 0.25;
+  colour += uRecord * structure * attention * uHoverGain;
 
-  // Cyan sits at the *edge* of attention, not its centre. Squared, it piled up
-  // exactly where the amber was already brightest and cancelled itself into a
-  // faintly warmer blob; peaked at the halfway point it draws a cool fringe
-  // around whatever is being looked at — the world surfacing at the boundary
-  // of observation rather than a blue light being shone on it.
+  // Cyan is a hairline at the edge of attention, not a wash through it. It is
+  // the world surfacing at the boundary of observation, and at this weight it
+  // is a cool edge you notice rather than a light being shone on the object.
   float fringe = attention * (1.0 - attention) * 4.0;
-  colour += uWorld * structure * fringe * 2.6;
+  colour += uWorld * structure * fringe * uHoverFringe;
 
   fragColour = vec4(colour * uExposure, 1.0);
 }
