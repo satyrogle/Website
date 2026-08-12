@@ -33,10 +33,12 @@ export interface CorrectionModelOptions {
 /**
  * World units of movement per unit of simulation displacement.
  *
- * Deviations peak near 0.42, so a strike lifts the veil by roughly 1.2 units
- * against a body about 2.4 units thick. Large enough to read in silhouette
- * from any camera the narrative will use, small enough that the structure is
- * never torn apart by it.
+ * Deviations peak near 0.33, so a strike lifts the surface by roughly 0.9
+ * units out of a band about 6.6 units wide. Large enough that the deformation
+ * reads in silhouette against the flow lines around it from any camera the
+ * narrative uses, and small enough that the sheet is never torn out of its own
+ * shape — the deviation has to look like a violation of the surface, not a
+ * replacement for it.
  */
 const DISPLACEMENT_SCALE = 2.8;
 
@@ -163,15 +165,22 @@ export class CorrectionModel {
         uDisplacement: { value: DISPLACEMENT_SCALE },
         uWorld: { value: new THREE.Color('#4dd0ff') },
         uConsequence: { value: new THREE.Color('#a45fd6') },
-        // Calibrated against measured state, not by eye:
+        // Cyan is the deviation, and only the deviation.
         //
-        //   ambient drift  0.040  ->  0.24   present, plainly at rest
-        //   engagement     0.100  ->  0.40   the system starts to react here
-        //   struck peak    0.420  ->  0.91   the deviation
+        //   ambient drift  0.026  ->  0.02   effectively absent
+        //   engagement     0.100  ->  0.13   the system starts to react here
+        //   struck peak    0.350  ->  0.97   the deviation
         //
-        // Six times the calm at the crest is what makes a press an event.
-        uGlowScale: { value: 2.0 },
-        uGlowGamma: { value: 0.55 },
+        // The gamma is above one, which is the whole point. Below one it lifts
+        // the smallest values hardest, so the ambient drift — the movement the
+        // system is defined as unable to see — was rendering as visible cyan
+        // across the entire surface. The approved state was permanently
+        // showing as deviating, and after a strike the world never appeared to
+        // come back even once it had. Crushing the low end means the calm is
+        // carried by the record alone, in amber, and cyan is reserved for
+        // disagreement the system would actually recognise.
+        uGlowScale: { value: 2.8 },
+        uGlowGamma: { value: 1.6 },
         // Contact runs ~0.005/tick while the deviation resists and ~0.05 once
         // the ramp completes, so strain lands near a third and the snap fills.
         uContactScale: { value: 20 },

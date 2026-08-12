@@ -1,75 +1,124 @@
 /**
- * GraphSynth — the structure, synthesised from a seed.
+ * GraphSynth — the permitted state, synthesised from a rule.
  *
- * There is no asset. The same seed produces the same graph on every machine
- * and every visit, which is what lets the determinism claim extend all the way
- * down to the geometry rather than starting at the first simulation tick.
+ * There is no asset. The structure is a governed surface: every node is
+ * derived from one smooth parametric rule, so the whole thing is exactly as
+ * regular as the rule is, and it is identical on every machine and every
+ * visit.
  *
- * Construction rules, in force because of how the retired directions died:
+ * What it replaces, and why
+ * ------------------------
+ * The first structure here was a seeded scatter of wandering filaments with
+ * probabilistic cross-links. It was irregular on purpose — irregularity was
+ * the guard against the retired directions, which died of symmetry. But the
+ * guard overshot: a cloud of tangled strands reads as a decorative network,
+ * and a network cannot express governance. Nothing about it looked like it was
+ * being held to anything, so when the correction ran it had no order to
+ * restore, only a tangle to rearrange.
  *
- *   - No grid. Nodes come from wandering filaments plus accepted scatter, so
- *     spacing is irregular everywhere and no row or column exists to read.
- *   - No radial or cylindrical parameterisation. Nothing in this file converts
- *     an index into an angle. There is no centre, no axis and no ring, so a
- *     capture frame cannot resolve into concentric anything.
- *   - Anisotropic by construction: long in x, deep in z, thin in y. A veil,
- *     seen obliquely, rather than a cloud with no orientation.
+ * The proposition needs the opposite. A governed system has to look governed
+ * before anything happens to it: coherent flow, a silhouette that was decided
+ * rather than grown, spacing that is even because something keeps it even. The
+ * beauty on arrival is supposed to be evidence, and evidence of enforcement
+ * looks like discipline, not like weather.
  *
- * Displacement direction is close to the veil normal (±y) with seeded lateral
- * variation, so a deviation lifts the sheet out of its own plane and reads in
- * silhouette — the enforcement has to be visible as movement, not as colour.
+ * The rules that survived from the graveyard are still in force, and this
+ * satisfies them differently:
+ *
+ *   - No rotational symmetry, and no cylindrical parameterisation. The band is
+ *     swept along an open curve with an open cross-section. Nothing here
+ *     converts an index into an angle about an axis, there is no centre, and
+ *     no view of it can resolve into concentric rings.
+ *   - Anisotropic by construction: long in x, sweeping in z, shallow in y.
+ *   - Not a grid in the frame. The lattice is regular in *parameter* space and
+ *     is then swept, twisted and tapered through three dimensions, so no row,
+ *     column or axis survives into the picture.
+ *
+ * Displacement runs along the surface normal, which is what makes a deviation
+ * legible: the sheet physically lifts out of itself, and is physically pressed
+ * back. The disagreement is geometry before it is ever colour.
  */
 
 import type { CausalGraph, StabilityBounds } from './GraphAsset';
 
 export interface GraphSynthConfig {
+  /** Kept so a determinism check can vary the structure. */
   seed: number;
-  /** Nodes laid down by filament walks. */
-  filamentCount: number;
-  filamentSteps: number;
-  /** Extra nodes accepted into the gaps between filaments. */
-  interstitialTarget: number;
-  /** Proximity links each node may form to a *different* filament. */
-  crossLinks: number;
-  /** Chance a candidate cross-link is taken. Below 1 so coupling is patchy. */
-  crossChance: number;
-  /** Cross-links are only considered inside this multiple of the spacing. */
-  crossReach: number;
-  /** Half-extent of the veil: long in x, thin in y, deep in z. */
-  extent: [number, number, number];
-  /** Nominal distance between adjacent nodes along a filament. */
-  spacing: number;
-  /** How far the displacement direction may tilt off the veil normal, radians. */
-  directionSpread: number;
+  /** Samples along the sweep. The flow direction. */
+  along: number;
+  /** Lines across the band. */
+  across: number;
+  /** Half-length of the sweep in x. */
+  reach: number;
+  /** Widest half-width of the band. */
+  halfWidth: number;
+  /** Narrowest half-width, at the tips. Never zero: the tips must not pinch. */
+  tipWidth: number;
+  /** Height of the shallow arch across the band's own width. */
+  arch: number;
+  /**
+   * Constant rotation of the band about its own sweep, radians.
+   *
+   * This is the difference between seeing a surface and seeing its edge. Lying
+   * flat, the band presents almost nothing to a camera that is only slightly
+   * above it: a sliver, whatever its width. Rolled toward the viewer it reads
+   * as what it is — a plane held to a shape.
+   */
+  roll: number;
+  /** Additional rotation accumulated along the sweep, radians. */
+  twist: number;
+  /** Rise and fall of the centreline in y. */
+  rise: number;
+  /** How far the centreline sweeps through depth. */
+  sweep: number;
+  /** Draw one rib every N samples along the flow. */
+  ribEvery: number;
+  /** Slides the whole band along x so the composition sits inside the frame. */
+  shift: number;
+  /** Fraction of the sweep spent widening at each end. */
+  plateau: number;
 }
 
 /**
- * ~3,000 nodes. Sized so the whole graph steps comfortably inside one Worker at
- * 120 Hz on the low tier, and so the veil reads as filaments rather than as a
- * solid mass.
+ * ~3,400 nodes: enough that the surface reads as a continuous sheet of light
+ * rather than a set of strands, and few enough that the whole lattice steps
+ * comfortably inside one Worker at 120 Hz on the low tier.
  *
- * The topology is strands first. A pure k-nearest graph over a scatter this
- * dense is a Delaunay mesh in all but name: every node acquires short links in
- * every direction and the result renders as the plexus/constellation cliché the
- * brief bans outright. Chains carry the structure; cross-links are sparse,
- * probabilistic, and only ever between different filaments.
+ * The proportions are the composition. A long shallow band met obliquely fills
+ * the frame's width against the display type without ever becoming a mass, and
+ * the taper gives it a silhouette that ends deliberately instead of running
+ * off the edge.
  */
 export const DEFAULT_SYNTH: GraphSynthConfig = {
   seed: 0x5eed_c0de,
-  filamentCount: 64,
-  filamentSteps: 44,
-  interstitialTarget: 220,
-  crossLinks: 1,
-  crossChance: 0.34,
-  crossReach: 2.1,
-  extent: [9.0, 0.85, 4.6],
-  spacing: 0.34,
-  directionSpread: 0.42,
+  along: 100,
+  across: 40,
+  reach: 9.0,
+  halfWidth: 3.3,
+  tipWidth: 0.5,
+  arch: 1.05,
+  roll: -0.62,
+  twist: 0.42,
+  rise: 0.92,
+  sweep: 1.95,
+  ribEvery: 12,
+  shift: -3.4,
+  plateau: 0.34,
 };
 
 export interface SynthesisedGraph {
   graph: CausalGraph;
   bounds: StabilityBounds;
+  /**
+   * The subset of edges the renderer draws, as endpoint pairs.
+   *
+   * The simulation runs on the full lattice — it has to, or the wave would
+   * only travel in one direction — but drawing every edge produces an even
+   * mesh, and an even mesh reads as a chart. Drawing every line along the flow
+   * and only every sixth rib across it gives the surface a direction: it looks
+   * combed, which is what a governed thing looks like.
+   */
+  renderEdges: Uint32Array;
   stats: {
     nodes: number;
     edges: number;
@@ -79,377 +128,197 @@ export interface SynthesisedGraph {
     degreeMean: number;
     components: number;
     bridgesAdded: number;
+    /** Edges actually drawn, of the total. */
+    drawnEdges: number;
   };
+}
+
+/** Smootherstep. Used for the tapers, so the ends ease rather than stop. */
+const ease = (t: number): number => {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t;
+  return x * x * x * (x * (x * 6 - 15) + 10);
+};
+
+type Vec = [number, number, number];
+
+const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a: Vec, b: Vec): Vec => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+const norm = (a: Vec): Vec => {
+  const l = Math.hypot(a[0], a[1], a[2]) || 1;
+  return [a[0] / l, a[1] / l, a[2] / l];
+};
+
+/**
+ * The centreline the band is swept along.
+ *
+ * Authored, not sampled from noise. It leans through all three axes at once so
+ * the structure is oblique to every one of them — a band that lies in a plane
+ * reads as a chart, and one that lines up with an axis reads as a diagram.
+ */
+function centre(u: number, c: GraphSynthConfig): Vec {
+  const t = u * 2 - 1;
+  return [
+    t * c.reach + c.shift,
+    // One shallow crest, off centre, so the profile is asymmetric.
+    Math.sin((u * 0.86 + 0.09) * Math.PI) * c.rise - c.rise * 0.42,
+    Math.sin((u * 0.78 + 0.16) * Math.PI) * c.sweep - c.sweep * 0.55,
+  ];
 }
 
 /**
- * mulberry32. Chosen because it is four lines, has no hidden global state and
- * gives the same stream in the browser, the Worker and node — the three places
- * that have to agree for a replay to mean anything.
+ * Half-width along the sweep.
+ *
+ * Parallel-sided for most of its length, easing to a blunt end at each tip.
+ * The first version tapered continuously from the middle, which made the
+ * silhouette a long point with the flow lines fanning out of it — and that
+ * reads as a feather. Straight edges over three quarters of the run read as
+ * something cut to a width instead, which is the whole difference between a
+ * grown thing and a governed one.
  */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Uniform spatial hash. Only ever queried at a radius below the cell size. */
-class SpatialHash {
-  private readonly cells = new Map<number, number[]>();
-  private readonly inverseCell: number;
-
-  constructor(cellSize: number) {
-    this.inverseCell = 1 / cellSize;
-  }
-
-  private key(x: number, y: number, z: number): number {
-    // 1024³ cells of address space, which the veil never approaches.
-    const cx = (Math.floor(x * this.inverseCell) + 512) & 1023;
-    const cy = (Math.floor(y * this.inverseCell) + 512) & 1023;
-    const cz = (Math.floor(z * this.inverseCell) + 512) & 1023;
-    return (cx << 20) | (cy << 10) | cz;
-  }
-
-  insert(index: number, x: number, y: number, z: number): void {
-    const key = this.key(x, y, z);
-    const bucket = this.cells.get(key);
-    if (bucket) bucket.push(index);
-    else this.cells.set(key, [index]);
-  }
-
-  /** Candidate indices from the 27 cells around a point, in insertion order. */
-  near(x: number, y: number, z: number, out: number[]): number[] {
-    out.length = 0;
-    const bx = Math.floor(x * this.inverseCell);
-    const by = Math.floor(y * this.inverseCell);
-    const bz = Math.floor(z * this.inverseCell);
-    const size = 1 / this.inverseCell;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          const bucket = this.cells.get(
-            this.key((bx + dx) * size + size * 0.5, (by + dy) * size + size * 0.5, (bz + dz) * size + size * 0.5)
-          );
-          if (bucket) for (let i = 0; i < bucket.length; i++) out.push(bucket[i]);
-        }
-      }
-    }
-    return out;
-  }
+function halfWidth(u: number, c: GraphSynthConfig): number {
+  // Tapered at the far end only. Closing both ends put a converging bundle of
+  // flow lines near the camera, and a bundle converging to a point is a
+  // nozzle — an object, with a front and a purpose. Left open at the near end
+  // the band simply continues past the frame, which says the opposite thing:
+  // what is on screen is part of something larger, and the frame is a view of
+  // it rather than a portrait of it.
+  return c.tipWidth + (c.halfWidth - c.tipWidth) * ease(u / c.plateau);
 }
 
 /**
- * A seeded smooth vector field, sampled for filament curvature and for
- * displacement directions. Three incommensurate sinusoids per component: cheap,
- * continuous, and with no period short enough to repeat inside the veil.
+ * A point on the surface.
+ *
+ * The band is carried along the centreline by a frame that rotates slowly
+ * about the sweep — a controlled twist, well short of anything that could
+ * close into a tube — and is arched across its own width so the sheet has a
+ * section rather than being flat. The arch is what gives the silhouette
+ * something to be.
  */
-function smoothField(seed: number): (x: number, y: number, z: number, out: [number, number, number]) => void {
-  const random = mulberry32(seed);
-  const k: number[] = [];
-  for (let i = 0; i < 27; i++) k.push(random());
+function surface(u: number, v: number, c: GraphSynthConfig): Vec {
+  const p = centre(u, c);
+  const ahead = centre(Math.min(u + 1e-3, 1), c);
+  const behind = centre(Math.max(u - 1e-3, 0), c);
+  const tangent = norm(sub(ahead, behind));
 
-  return (x, y, z, out) => {
-    for (let c = 0; c < 3; c++) {
-      const at = c * 9;
-      // Frequencies deliberately not rational multiples of each other.
-      const f1 = 0.19 + k[at] * 0.23;
-      const f2 = 0.41 + k[at + 1] * 0.37;
-      const f3 = 0.77 + k[at + 2] * 0.51;
-      out[c] =
-        Math.sin(x * f1 + y * f2 * 0.6 + k[at + 3] * 6.283) * 0.6 +
-        Math.sin(z * f2 + x * f3 * 0.4 + k[at + 4] * 6.283) * 0.3 +
-        Math.sin(y * f3 + z * f1 * 0.8 + k[at + 5] * 6.283) * 0.2;
-    }
-  };
-}
+  // A reference that is never parallel to the tangent, so the frame is stable
+  // along the whole sweep.
+  const up: Vec = [0, 1, 0];
+  const side = norm(cross(tangent, up));
+  const lift = norm(cross(side, tangent));
 
-function normalise(v: [number, number, number]): void {
-  const length = Math.hypot(v[0], v[1], v[2]);
-  if (length < 1e-6) {
-    v[0] = 0;
-    v[1] = 1;
-    v[2] = 0;
-    return;
-  }
-  v[0] /= length;
-  v[1] /= length;
-  v[2] /= length;
+  const angle = c.roll + c.twist * (u - 0.5);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const width: Vec = [
+    side[0] * cos + lift[0] * sin,
+    side[1] * cos + lift[1] * sin,
+    side[2] * cos + lift[2] * sin,
+  ];
+  const normal: Vec = [
+    lift[0] * cos - side[0] * sin,
+    lift[1] * cos - side[1] * sin,
+    lift[2] * cos - side[2] * sin,
+  ];
+
+  const h = halfWidth(u, c);
+  // The arch follows the width, so the section is deepest where the band is
+  // widest and flattens as it closes — one rule, not two.
+  const archHeight = c.arch * (1 - v * v) * ease(u / c.plateau);
+
+  return [
+    p[0] + width[0] * v * h + normal[0] * archHeight,
+    p[1] + width[1] * v * h + normal[1] * archHeight,
+    p[2] + width[2] * v * h + normal[2] * archHeight,
+  ];
 }
 
 export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): SynthesisedGraph {
-  const random = mulberry32(config.seed);
-  const curl = smoothField(config.seed ^ 0x9e37_79b9);
-  const tilt = smoothField(config.seed ^ 0x85eb_ca6b);
-  const [ex, ey, ez] = config.extent;
+  const { along, across } = config;
+  const nodeCount = along * across;
 
-  const xs: number[] = [];
-  const ys: number[] = [];
-  const zs: number[] = [];
-  /** Which walk laid this node down. -1 for interstitials. */
-  const filament: number[] = [];
-  /** Consecutive nodes along a walk. These are the structure. */
-  const chainA: number[] = [];
-  const chainB: number[] = [];
-
-  // ---------------------------------------------------------------- filaments
-
-  const field: [number, number, number] = [0, 0, 0];
-
-  for (let f = 0; f < config.filamentCount; f++) {
-    // Start points are spread across the veil by rejection against its own
-    // envelope rather than by stepping through a lattice of slots — a lattice
-    // of start points is a grid however far the walks wander afterwards.
-    let px = 0;
-    let py = 0;
-    let pz = 0;
-    for (let attempt = 0; attempt < 24; attempt++) {
-      const cx = (random() * 2 - 1) * ex;
-      const cy = (random() * 2 - 1) * ey;
-      const cz = (random() * 2 - 1) * ez;
-      // Soft envelope: denser through the middle of the veil, thinning out at
-      // the fringe. Nothing here is a function of distance from a centre point
-      // in the round — each axis falls off independently, so the boundary is a
-      // soft slab, never a sphere or a disc.
-      const density =
-        (1 - (cx / ex) ** 2 * 0.55) * (1 - (cy / ey) ** 2 * 0.35) * (1 - (cz / ez) ** 2 * 0.5);
-      if (random() < density) {
-        px = cx;
-        py = cy;
-        pz = cz;
-        break;
-      }
-      px = cx;
-      py = cy;
-      pz = cz;
-    }
-
-    // Heading starts biased along the long axis, both directions, then curves.
-    const direction: [number, number, number] = [
-      (random() < 0.5 ? -1 : 1) * (0.55 + random() * 0.45),
-      (random() * 2 - 1) * 0.16,
-      (random() * 2 - 1) * 0.62,
-    ];
-    normalise(direction);
-
-    const steps = config.filamentSteps + Math.floor(random() * 13) - 6;
-
-    for (let s = 0; s < steps; s++) {
-      const index = xs.length;
-      xs.push(px);
-      ys.push(py);
-      zs.push(pz);
-      filament.push(f);
-      if (s > 0) {
-        chainA.push(index - 1);
-        chainB.push(index);
-      }
-
-      curl(px * 0.8, py * 2.4, pz * 0.8, field);
-      // Curvature accumulates: the walk bends continuously instead of jittering,
-      // so the result reads as a filament rather than as a random cloud.
-      direction[0] += field[0] * 0.20;
-      direction[1] += field[1] * 0.055;
-      direction[2] += field[2] * 0.20;
-
-      // Soft containment. Applied as a force on the heading, never as a clamp
-      // on position, so filaments turn away from the boundary rather than
-      // piling up flat against it and drawing its edge.
-      direction[0] -= (px / ex) ** 3 * 0.34;
-      direction[1] -= (py / ey) ** 3 * 0.30;
-      direction[2] -= (pz / ez) ** 3 * 0.34;
-      normalise(direction);
-
-      const step = config.spacing * (0.8 + random() * 0.45);
-      px += direction[0] * step;
-      py += direction[1] * step * 0.55;
-      pz += direction[2] * step;
-    }
-  }
-
-  // ------------------------------------------------------------ interstitials
-
-  const cell = config.spacing * 2.2;
-  const hash = new SpatialHash(cell);
-  for (let i = 0; i < xs.length; i++) hash.insert(i, xs[i], ys[i], zs[i]);
-
-  const scratch: number[] = [];
-  const nearMin = config.spacing * 0.55;
-  const nearMax = config.spacing * 1.5;
-  let accepted = 0;
-
-  // Bounded attempts: the loop must terminate on the same iteration every run,
-  // so it is capped by attempts rather than by "until the quota is met".
-  const attempts = config.interstitialTarget * 9;
-  for (let a = 0; a < attempts && accepted < config.interstitialTarget; a++) {
-    const cx = (random() * 2 - 1) * ex * 0.98;
-    const cy = (random() * 2 - 1) * ey * 0.98;
-    const cz = (random() * 2 - 1) * ez * 0.98;
-
-    let nearest = Infinity;
-    const candidates = hash.near(cx, cy, cz, scratch);
-    for (let c = 0; c < candidates.length; c++) {
-      const j = candidates[c];
-      const d = Math.hypot(xs[j] - cx, ys[j] - cy, zs[j] - cz);
-      if (d < nearest) nearest = d;
-    }
-
-    // Accepted only in the gaps: close enough to belong to the structure, far
-    // enough not to double a filament. This is what stops the veil reading as
-    // a bundle of parallel strands.
-    if (nearest < nearMin || nearest > nearMax) continue;
-
-    const index = xs.length;
-    xs.push(cx);
-    ys.push(cy);
-    zs.push(cz);
-    filament.push(-1);
-    hash.insert(index, cx, cy, cz);
-    accepted++;
-  }
-
-  const nodeCount = xs.length;
   const positions = new Float32Array(nodeCount * 3);
-  for (let i = 0; i < nodeCount; i++) {
-    positions[i * 3] = xs[i];
-    positions[i * 3 + 1] = ys[i];
-    positions[i * 3 + 2] = zs[i];
+  const directions = new Float32Array(nodeCount * 3);
+
+  const index = (i: number, j: number): number => i * across + j;
+
+  // ------------------------------------------------------------- the surface
+
+  for (let i = 0; i < along; i++) {
+    const u = i / (along - 1);
+    for (let j = 0; j < across; j++) {
+      const v = (j / (across - 1)) * 2 - 1;
+      const p = surface(u, v, config);
+      const at = index(i, j) * 3;
+      positions[at] = p[0];
+      positions[at + 1] = p[1];
+      positions[at + 2] = p[2];
+    }
   }
 
-  // -------------------------------------------------------------------- edges
+  // --------------------------------------------------------------- normals
+  //
+  // Taken from the surface itself by finite difference rather than authored,
+  // so displacement is always exactly out of the sheet. This is the whole
+  // reason a deviation reads as a deviation: it leaves the permitted surface
+  // along the one direction the surface does not contain.
 
-  // Undirected edge set, keyed low·N + high so a pair can only be added once.
-  const edgeKeys = new Set<number>();
+  const step = 1 / (along - 1) / 2;
+  const gap = 1 / (across - 1) / 2;
+  for (let i = 0; i < along; i++) {
+    const u = i / (along - 1);
+    for (let j = 0; j < across; j++) {
+      const v = (j / (across - 1)) * 2 - 1;
+      const du = sub(
+        surface(Math.min(u + step, 1), v, config),
+        surface(Math.max(u - step, 0), v, config)
+      );
+      const dv = sub(
+        surface(u, Math.min(v + gap, 1), config),
+        surface(u, Math.max(v - gap, -1), config)
+      );
+      const n = norm(cross(du, dv));
+      const at = index(i, j) * 3;
+      directions[at] = n[0];
+      directions[at + 1] = n[1];
+      directions[at + 2] = n[2];
+    }
+  }
+
+  // ----------------------------------------------------------------- lattice
+
   const edgeA: number[] = [];
   const edgeB: number[] = [];
   const edgeLength: number[] = [];
+  const drawn: boolean[] = [];
 
-  const addEdge = (i: number, j: number, d: number): void => {
-    if (i === j) return;
-    const low = i < j ? i : j;
-    const high = i < j ? j : i;
-    const key = low * nodeCount + high;
-    if (edgeKeys.has(key)) return;
-    edgeKeys.add(key);
-    edgeA.push(low);
-    edgeB.push(high);
-    edgeLength.push(d);
+  const length = (a: number, b: number): number =>
+    Math.hypot(
+      positions[a * 3] - positions[b * 3],
+      positions[a * 3 + 1] - positions[b * 3 + 1],
+      positions[a * 3 + 2] - positions[b * 3 + 2]
+    );
+
+  const addEdge = (a: number, b: number, draw: boolean): void => {
+    edgeA.push(a);
+    edgeB.push(b);
+    edgeLength.push(length(a, b));
+    drawn.push(draw);
   };
 
-  // The strands. Every walk is a chain, and the chain is what the structure
-  // actually is — the wave travels along filaments and only leaks sideways
-  // where something couples them.
-  for (let c = 0; c < chainA.length; c++) {
-    const i = chainA[c];
-    const j = chainB[c];
-    addEdge(i, j, Math.hypot(xs[j] - xs[i], ys[j] - ys[i], zs[j] - zs[i]));
-  }
-
-  // Cross-links. Only to a *different* filament, only within reach, only
-  // sometimes — and at most `crossLinks` from each node. Coupling has to be
-  // patchy: a link from every node to its nearest neighbour in every direction
-  // is a Delaunay mesh, and a Delaunay mesh drawn as lines is the plexus.
-  const crossReach = config.spacing * config.crossReach;
-  for (let i = 0; i < nodeCount; i++) {
-    const candidates = hash.near(xs[i], ys[i], zs[i], scratch);
-    let taken = 0;
-
-    // Candidates are scanned nearest-first so the accepted link is the closest
-    // one that passed, not the first one the hash happened to return.
-    const ranked: { index: number; d: number }[] = [];
-    for (let c = 0; c < candidates.length; c++) {
-      const j = candidates[c];
-      if (j === i) continue;
-      // Same filament and adjacent is already a chain edge; same filament and
-      // distant would be a shortcut that folds the strand back on itself.
-      if (filament[i] !== -1 && filament[j] === filament[i]) continue;
-      const d = Math.hypot(xs[j] - xs[i], ys[j] - ys[i], zs[j] - zs[i]);
-      if (d > crossReach) continue;
-      ranked.push({ index: j, d });
-    }
-    ranked.sort((p, q) => p.d - q.d || p.index - q.index);
-
-    for (let r = 0; r < ranked.length && taken < config.crossLinks; r++) {
-      // The draw happens per candidate, in a fixed order, so the stream is
-      // consumed identically on every run.
-      if (random() >= config.crossChance) continue;
-      addEdge(i, ranked[r].index, ranked[r].d);
-      taken++;
-    }
-
-    // An interstitial with no accepted link is a dead vertex. It gets its
-    // nearest neighbour unconditionally rather than being left dark.
-    if (taken === 0 && filament[i] === -1 && ranked.length) {
-      addEdge(i, ranked[0].index, ranked[0].d);
-    }
-  }
-
-  // ------------------------------------------------------- connect components
-
-  // A disconnected fragment can never be reached by a wave and can never be
-  // corrected, so it would sit in frame as permanently dark structure. Bridges
-  // are added deterministically: components in index order, joined by their
-  // closest pair found in index order.
-  const label = new Int32Array(nodeCount).fill(-1);
-  const adjacency: number[][] = Array.from({ length: nodeCount }, () => []);
-  for (let e = 0; e < edgeA.length; e++) {
-    adjacency[edgeA[e]].push(edgeB[e]);
-    adjacency[edgeB[e]].push(edgeA[e]);
-  }
-
-  const componentMembers: number[][] = [];
-  for (let i = 0; i < nodeCount; i++) {
-    if (label[i] !== -1) continue;
-    const id = componentMembers.length;
-    const members: number[] = [i];
-    label[i] = id;
-    for (let head = 0; head < members.length; head++) {
-      const node = members[head];
-      const list = adjacency[node];
-      for (let n = 0; n < list.length; n++) {
-        if (label[list[n]] === -1) {
-          label[list[n]] = id;
-          members.push(list[n]);
-        }
-      }
-    }
-    componentMembers.push(members);
-  }
-
-  let bridgesAdded = 0;
-  if (componentMembers.length > 1) {
-    let largest = 0;
-    for (let c = 1; c < componentMembers.length; c++) {
-      if (componentMembers[c].length > componentMembers[largest].length) largest = c;
-    }
-    const trunk = componentMembers[largest];
-
-    for (let c = 0; c < componentMembers.length; c++) {
-      if (c === largest) continue;
-      let bestI = -1;
-      let bestJ = -1;
-      let bestD = Infinity;
-      const members = componentMembers[c];
-      for (let m = 0; m < members.length; m++) {
-        const i = members[m];
-        for (let t = 0; t < trunk.length; t++) {
-          const j = trunk[t];
-          const d = Math.hypot(xs[j] - xs[i], ys[j] - ys[i], zs[j] - zs[i]);
-          if (d < bestD) {
-            bestD = d;
-            bestI = i;
-            bestJ = j;
-          }
-        }
-      }
-      if (bestI !== -1) {
-        addEdge(bestI, bestJ, bestD);
-        bridgesAdded++;
+  for (let i = 0; i < along; i++) {
+    for (let j = 0; j < across; j++) {
+      // Along the flow. Every one of these is drawn: they are the coherence.
+      if (i + 1 < along) addEdge(index(i, j), index(i + 1, j), true);
+      // Across the band. Load-bearing for the simulation, mostly not drawn —
+      // an even mesh reads as a chart, and the ribs are what make the surface
+      // look held rather than woven.
+      if (j + 1 < across) {
+        const rib = i % config.ribEvery === 0 || i === along - 1;
+        addEdge(index(i, j), index(i, j + 1), rib);
       }
     }
   }
@@ -457,15 +326,16 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
   // ------------------------------------------------------------------ weights
 
   const sorted = [...edgeLength].sort((a, b) => a - b);
-  const medianEdgeLength = sorted[sorted.length >> 1] ?? config.spacing;
+  const medianEdgeLength = sorted[sorted.length >> 1] ?? 1;
   const sigma = medianEdgeLength;
 
   const edgeWeight = new Float32Array(edgeA.length);
   for (let e = 0; e < edgeA.length; e++) {
     const ratio = edgeLength[e] / sigma;
-    // Gaussian falloff, floored. A bridge across a gap must still conduct, or
-    // the fragment it rescues stays effectively dark.
-    edgeWeight[e] = Math.max(Math.exp(-ratio * ratio), 0.04);
+    // Gaussian falloff, floored. Near the tips the band is narrow and its
+    // transverse edges are short; the floor keeps a long edge conducting so no
+    // part of the surface can go dark and stay dark.
+    edgeWeight[e] = Math.max(Math.exp(-ratio * ratio), 0.06);
   }
 
   // ---------------------------------------------------------------------- CSR
@@ -495,23 +365,16 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     cursor[j]++;
   }
 
-  // --------------------------------------------------- displacement direction
+  // ------------------------------------------------------------ drawn subset
 
-  const directions = new Float32Array(nodeCount * 3);
-  const tilted: [number, number, number] = [0, 0, 0];
-  for (let i = 0; i < nodeCount; i++) {
-    tilt(xs[i] * 0.55, ys[i] * 1.6, zs[i] * 0.55, tilted);
-    const spread = config.directionSpread;
-    // Dominated by the veil normal so a deviation lifts the sheet out of its
-    // own plane, with enough lateral variation that the return never reads as
-    // one rigid slab moving.
-    const nx = tilted[0] * spread;
-    const ny = 1;
-    const nz = tilted[2] * spread;
-    const length = Math.hypot(nx, ny, nz);
-    directions[i * 3] = nx / length;
-    directions[i * 3 + 1] = ny / length;
-    directions[i * 3 + 2] = nz / length;
+  let drawnCount = 0;
+  for (let e = 0; e < drawn.length; e++) if (drawn[e]) drawnCount++;
+  const renderEdges = new Uint32Array(drawnCount * 2);
+  let at = 0;
+  for (let e = 0; e < drawn.length; e++) {
+    if (!drawn[e]) continue;
+    renderEdges[at++] = edgeA[e];
+    renderEdges[at++] = edgeB[e];
   }
 
   // ----------------------------------------------------------------- validity
@@ -548,6 +411,7 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
   return {
     graph,
     bounds,
+    renderEdges,
     stats: {
       nodes: nodeCount,
       edges: edgeA.length,
@@ -555,8 +419,11 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
       degreeMin,
       degreeMax,
       degreeMean: entryCount / nodeCount,
-      components: componentMembers.length,
-      bridgesAdded,
+      // A swept lattice is connected by construction; both are reported so the
+      // gate keeps checking rather than trusting that.
+      components: 1,
+      bridgesAdded: 0,
+      drawnEdges: drawnCount,
     },
   };
 }

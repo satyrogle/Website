@@ -401,7 +401,18 @@ check(
   settledAt10s < SYSTEM.correction.thetaOff + EPSILON,
   `${f(settledAt10s)} < ${f(SYSTEM.correction.thetaOff + EPSILON)}`
 );
-check('and keeps settling toward the ambient floor', settledAt20s < settledAt10s, `${f(settledAt20s)}`);
+// The claim is that the world comes back to the calm, and the calm is the
+// ambient floor — not zero, and not a value that keeps descending forever.
+// Asserting a strict decrease only worked while the residual was still above
+// the floor; once the world actually arrives, the number stops falling and
+// starts moving with the harmonic, and a strict-decrease check reports the
+// success as a failure. What matters is that it got there.
+const returned = settledAt20s <= Math.max(calmPeak * 1.3, 0.0001);
+check(
+  'and returns to the ambient floor, or is still on its way down',
+  returned || settledAt20s < settledAt10s,
+  `${f(settledAt20s)} against a floor of ${f(calmPeak)}`
+);
 check('enforcement released', system.operator.engagedCount() === 0, `${system.operator.engagedCount()} held`);
 
 // What the floor panel prints, and why it is allowed to print a zero.

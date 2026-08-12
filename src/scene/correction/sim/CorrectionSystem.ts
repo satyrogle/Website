@@ -67,18 +67,11 @@ export class CorrectionSystem {
     this.ambient = new AmbientHarmonic(graph.positions, config.ambient);
     this.recordSum = new Float64Array(graph.nodeCount);
 
-    const pairs = new Uint32Array((graph.entryCount / 2) * 2);
-    let at = 0;
-    for (let i = 0; i < graph.nodeCount; i++) {
-      for (let k = graph.offsets[i]; k < graph.offsets[i + 1]; k++) {
-        const j = graph.neighbours[k];
-        if (i < j) {
-          pairs[at++] = i;
-          pairs[at++] = j;
-        }
-      }
-    }
-    this.edgeIndices = pairs.subarray(0, at);
+    // What is drawn is a subset of what is simulated. The lattice needs every
+    // edge or the wave could only travel along the flow; the picture needs
+    // far fewer, because an even mesh reads as a chart rather than as a
+    // surface under control.
+    this.edgeIndices = this.synthesised.renderEdges;
     this.operator.setGainField(CorrectionSystem.gainField(graph.positions, config.correction));
   }
 

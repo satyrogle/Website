@@ -257,11 +257,12 @@ if (flag('motion')) {
 
 if (flag('event')) {
   console.log('\nONE ENFORCEMENT EVENT');
-  // Press near the middle-left of the structure. Reported so the frame series
-  // can be tied to a specific strike.
+  // Struck clear of the display type, so the frames show the event rather
+  // than the event behind a letterform. Reported so the series can be tied to
+  // a specific strike.
   const node = await page.evaluate(
     ([x, y]) => window.__correction?.press(x, y) ?? -1,
-    [Math.round(WIDTH * 0.42), Math.round(HEIGHT * 0.52)]
+    [Math.round(WIDTH * 0.70), Math.round(HEIGHT * 0.46)]
   );
   console.log(`  struck node ${node}`);
 

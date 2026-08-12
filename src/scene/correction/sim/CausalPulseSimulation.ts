@@ -36,10 +36,18 @@ export const DEFAULT_WAVE: WaveParameters = {
   // The spectral bound allows nearly 60; the margin is deliberate headroom for
   // a denser graph later.
   waveSpeed: 14,
-  // Low. A deviation has to survive long enough to be noticed, resisted and
-  // forced back — if damping kills it first, the system never has to act and
-  // there is nothing to watch.
-  waveDamping: 0.55,
+  // The deviation has to survive long enough to be noticed, resisted and
+  // forced back — if damping kills it first the system never has to act, and
+  // there is nothing to watch. But it also has to stop.
+  //
+  // On the swept lattice the wave travels far better than it did on the old
+  // scatter, which was the point, and at 0.55 the consequence was that a
+  // single strike left the entire surface ringing below the sensor's
+  // threshold: permanently cyan, permanently deviating, never corrected. The
+  // approved state stopped being a state the world returns to. Raised until
+  // the residual dies away and the surface comes back to the record, while the
+  // strike itself still outlives the awareness latency by a wide margin.
+  waveDamping: 0.85,
 };
 
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
