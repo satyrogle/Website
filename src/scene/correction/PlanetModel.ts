@@ -111,7 +111,6 @@ export class PlanetModel {
 
     this.uniforms = {
       uStarPos: { value: options.starPosition.clone() },
-      uRecord: { value: new THREE.Color('#e7dcba') },
       uHeat: { value: MATERIAL.heat },
       uCrustLight: { value: MATERIAL.crustLight },
       uRim: { value: MATERIAL.rim },

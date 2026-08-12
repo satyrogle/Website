@@ -49,7 +49,15 @@ E  sparse fine debris / particulate — never noisy
 Every fragment must feel torn from the same world.
 
 - **Exterior crust:** very dark, dry, dead, cracked, heavy, almost black
-  with extremely restrained warm response.
+  with extremely restrained warm response. No warm response across whole
+  exterior faces — heat belongs only to fresh cut cross-sections, deep
+  fissures and the internal rupture; the crust's old underside on a detached
+  slab is dark burnt mass with embers, never a molten panel (Jacob,
+  2026-08-12).
+- **Geology, not noise:** the master planet — and therefore every slab cut
+  from it — carries terrain-scale relief: ridges, basins, scarps, broken
+  plateaus, crater-like depressions. Recognisable planetary surface
+  language, sized to survive the wide reveal (Jacob, 2026-08-12).
 - **NO GRID.** A repeating lattice across every surface is the single most
   damaging fault in the current build — it makes every piece read as a
   manufactured procedural object. If a semi-constructed read is wanted, do
@@ -91,6 +99,14 @@ a section stop, each revealing more of the catastrophe. Mid-journey the
 common origin becomes apparent. Near the end pull wide to reveal the body,
 the slabs and the corridor; then the core flares harder and fragments push
 outward, so the catastrophe feels alive and continuing.
+
+**The wide reveal stands on the blast side (Jacob, 2026-08-12, lifting the
+earlier camera freeze for exactly this).** Square to the corridor, every
+wound is edge-on and the body reads as an intact black sphere. The final
+camera looks into the missing sections: at least two major wounds and the
+slabs that came out of them share the frame, so a viewer can mentally
+reassemble the original sphere. That relationship outranks any previous
+camera coordinates.
 
 Each stop needs clean negative space for editorial content, a readable
 silhouette, and enough uniqueness to be memorable.

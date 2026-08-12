@@ -1,5 +1,5 @@
 """
-build-planet.py — one dying planet, shattered into its own parts. v3.
+build-planet.py — one dying planet, shattered into its own parts. v4.
 
 Run headless:
 
@@ -10,27 +10,35 @@ Writes `public/models/planet.glb` and `public/models/planet-manifest.json`.
 The v3 rule, from Jacob, verbatim in docs/HERO_DIRECTION.md: the five hero
 slabs and the surviving body must derive from ONE common fractured planet. A
 viewer looking at a detached slab should be able to mentally place it back
-into the missing region. v2 generated the slabs as independent curved patches
-beside the body — curvature alone does not make something planetary, and five
-smooth convex shields never fitted anything.
+into the missing region. That pipeline is unchanged here — same cutters, same
+staging numbers, same layout.
 
-So the pipeline is now literally his diagram:
+What v4 changes, from Jacob's read of the v3 frames ("black sphere plus
+orange shards, not one planet tearing itself apart"):
 
-    icosphere
-      -> large-scale displacement          (continents, silhouette)
-      -> medium geological displacement    (ridges, cliffs — ridged fbm)
-      -> micro roughness
-      -> solidify                          (real shell thickness)
-      -> five wound cutters on the blast hemisphere, each used twice:
-           slab_i = INTERSECT(shell copy, cutter_i)   the piece
-           body   = DIFFERENCE(body, cutter_i)        the hole it left
-      -> crust marking from the shared surface function
-      -> export body + slabs + chunks + cracks, plus the manifest
+1.  GEOLOGY, not noise. The surface function now speaks planetary language —
+    terraced plateaus split by scarps, ridge belts that run in chains and
+    leave dead plains between them, and irregular impact basins with raised
+    rims — instead of three octaves of smooth fbm that read as lumps. The
+    total is soft-capped so the body still reads as a sphere that came apart.
 
-Because the slab and its wound are cut by the same volume from the same
-displaced shell, the fit is exact by construction. The staging numbers — stop
-displacements, laterals, corridor — are unchanged from v2, so the approved
-camera rail and wide composition are untouched.
+2.  SOLIDIFY BEFORE DISPLACEMENT. v3 displaced the sphere and then thickened
+    it, and where the terrain curved harder than the crust is thick, the
+    inner surface self-intersected — which is what made the EXACT boolean
+    return an empty mesh for slab_00, the nearest and largest piece. Now the
+    clean sphere is thickened first and both surfaces are displaced radially
+    afterwards; the shells stay parallel by construction and every cutter
+    gets a manifold operand.
+
+3.  A GRADED MARK instead of a binary one. Faces are classified into three
+    kinds and baked into one colour attribute:
+        r  1.0 on the original exterior, 0.0 on anything the event exposed
+        g  temperature of the exposed face: 1.0 on true cut cross-sections
+           and wound walls, low on the solidify lining — the crust's old
+           underside, which has had a planet's age to cool and must read as
+           dark burnt mass, not as a dish of molten orange
+        b  terrain height on the exterior, for the material's value language
+           (highlands catch more of the void's light than basins)
 
 Deterministic from SEED. Same file every run.
 """
@@ -54,8 +62,10 @@ BODY_RADIUS = 4.6
 CRUST_THICKNESS = 0.72
 CORE_RADIUS = 3.55
 
-#: Subdivision of the master shell. Six holds the meso ridges; five loses them.
-SUBDIV = 6
+#: Subdivision of the master shell. Seven is where scarps and crater rims
+#: keep their crease: at six the vertex rows sit 0.17 units apart, a riser
+#: crosses two of them, and smooth shading rounds the step back into a lump.
+SUBDIV = 7
 
 #: The five wounds/slabs: angular size, corridor displacement, laterals.
 #: Same staging numbers as v2 — the rail and the wide reveal are approved.
@@ -118,49 +128,163 @@ def fbm(direction, seed, octaves=5):
     return value / max(norm, 1e-6)
 
 
-def radius_at(direction):
-    """
-    The planet's surface, as one function used twice: to displace the shell's
-    vertices and to decide, after the booleans have destroyed face identity,
-    whether a face sits on the original exterior. Three scales, big structure
-    first — geology, not noise:
+def _smooth01(x):
+    x = 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+    return x * x * (3.0 - 2.0 * x)
 
-      macro   continents and the torn silhouette
-      meso    ridge systems — ridged fbm, so crests are sharp and valleys wide
-      micro   weathered roughness
+
+def _make_craters(seed, count=11):
+    """
+    Impact basins, precomputed once. Each carries its own axis, its own
+    tangent basis and its own rim-modulation phases, so no two share an axis
+    and no outline is a circle — the no-rotational-symmetry rule, applied at
+    feature scale.
+    """
+    rng = np.random.default_rng(seed)
+    craters = []
+    for _ in range(count):
+        cdir = unit(rng.normal(size=3))
+        cu, cv = tangent_basis(cdir)
+        craters.append({
+            'dir': cdir, 'u': cu, 'v': cv,
+            'rho': float(rng.uniform(0.18, 0.50)),      # angular radius
+            'depth': float(rng.uniform(0.050, 0.100)),  # fraction of radius
+            'rim': float(rng.uniform(0.22, 0.40)),      # of depth
+            'ph': rng.uniform(0, math.tau, size=3),
+        })
+    return craters
+
+
+_CRATERS = _make_craters(SEED + 81)
+
+#: Soft cap on total elevation, as a fraction of radius. Geology has to be
+#: unmistakable and the body still has to read as a sphere that came apart.
+#: Two renders taught the scale: at 0.105 the body was a smooth ball, and the
+#: fault was not the light, it was that the features were smaller than the
+#: mesh's own vertex spacing — a 0.14-unit scarp cannot exist on a mesh with
+#: 0.17-unit edges, and a 0.2-unit crater is 0.3% of the frame at the reveal.
+#: Terrain a viewer must recognise from thirty-five units out is built from
+#: half-unit steps, not decoration.
+ELEV_CAP = 0.19
+
+
+def elevation(direction):
+    """
+    Terrain height at a direction, in fractions of the body radius. One
+    function used three times — to displace both shell surfaces, to recognise
+    the original exterior after the booleans have destroyed face identity,
+    and to tint the crust by altitude.
+
+    Planetary language, largest structure first:
+
+      macro     continents and the torn silhouette
+      plateaus  a terraced field — broad flat steps split by scarps
+      belts     ridge chains where the belt mask allows them, dead plains
+                where it does not — mountains run in systems, not everywhere
+      basins    irregular impact bowls with raised rims
+      micro     weathered roughness, kept far below everything above
     """
     d = unit(direction)
-    macro = 0.085 * fbm(d * 1.15, SEED + 11, octaves=3)
+
+    macro = 0.082 * fbm(d * 1.15, SEED + 11, octaves=3)
+
+    # Fewer, taller steps, with risers wide enough for the mesh to carry:
+    # each scarp stands about a third of a unit, and a riser spans several
+    # vertex rows instead of falling between two.
+    steps = 1.6
+    q = (fbm(d * 1.25, SEED + 71, octaves=3) + 1.0) * steps
+    level = math.floor(q)
+    riser = _smooth01((q - level - 0.52) / 0.30)
+    plateau = 0.110 * ((level + riser) / steps - 1.0)
+
+    belt = _smooth01((fbm(d * 1.35, SEED + 29, octaves=2) - 0.02) / 0.55)
     ridged = 1.0 - abs(fbm(d * 3.9, SEED + 23, octaves=4))
-    meso = 0.042 * (ridged ** 2.2 - 0.5)
-    micro = 0.011 * fbm(d * 11.0, SEED + 37, octaves=3)
-    return BODY_RADIUS * (1.0 + macro + meso + micro)
+    meso = 0.100 * belt * (ridged ** 2.4 - 0.30)
+
+    bowls = 0.0
+    for crater in _CRATERS:
+        cosang = float(np.dot(d, crater['dir']))
+        ang = math.acos(max(-1.0, min(1.0, cosang)))
+        if ang > crater['rho'] * 1.9:
+            continue
+        phi = math.atan2(float(np.dot(d, crater['v'])), float(np.dot(d, crater['u'])))
+        p0, p1, p2 = crater['ph']
+        rho = crater['rho'] * (1.0
+                               + 0.20 * math.sin(2.0 * phi + p0)
+                               + 0.12 * math.sin(3.0 * phi + p1)
+                               + 0.07 * math.sin(5.0 * phi + p2))
+        x = ang / max(rho, 1e-4)
+        if x < 1.0:
+            bowls -= crater['depth'] * (1.0 - _smooth01((x - 0.55) / 0.45))
+        lip = 1.0 - abs(x - 1.0) / 0.30
+        if lip > 0.0:
+            bowls += crater['depth'] * crater['rim'] * lip * lip
+
+    micro = 0.008 * fbm(d * 11.0, SEED + 37, octaves=3)
+
+    total = macro + plateau + meso + bowls + micro
+    return ELEV_CAP * math.tanh(total / ELEV_CAP)
 
 
-def displace(obj):
-    for vert in obj.data.vertices:
-        d = Vector(vert.co).normalized()
-        vert.co = d * radius_at(np.array(d[:]))
+def radius_at(direction):
+    return BODY_RADIUS * (1.0 + elevation(direction))
 
 
-def mark_crust(obj, tolerance=0.965):
+def mark_crust(obj, tolerance=0.955):
     """
-    Crust on faces that still lie on the original exterior; everything the
-    break exposed — cut walls, the solidify lining, wound rims — burns. The
-    exterior is recognised against `radius_at`, which is exact because it is
-    the same function that displaced the shell.
+    The graded mark, baked per corner into one colour attribute.
+
+      r  1.0 on faces still lying on the original exterior, 0.0 on anything
+         the event exposed. Recognised against `elevation`, which is exact
+         because it is the same function that displaced the shell.
+      g  temperature of an exposed face. Cut cross-sections and wound walls
+         are fresh — 1.0. The solidify lining — the crust's old underside,
+         parallel to the surface one thickness down and facing inward — has
+         had a planet's age to cool: it gets embers only. This is what keeps
+         a detached slab a dark mass instead of a dish of molten orange.
+      b  terrain altitude on the exterior, 0.5 neutral elsewhere, for the
+         highland/basin value language in the material.
     """
     mesh = obj.data
+    material_names = [m.name if m else '' for m in mesh.materials]
+    cut_slot = material_names.index('CUT_MAT') if 'CUT_MAT' in material_names else -1
     attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
+
+    # Altitude is sampled at the vertex, not the face centre, so the corners
+    # of neighbouring crust faces agree and the exporter can weld them — the
+    # per-face version split every vertex and quintupled the file. Class
+    # boundaries still split, which is exactly where the shader's lip needs
+    # the discontinuity.
+    vertex_altitude = [-1.0] * len(mesh.vertices)
+
+    def altitude_of(vertex_index):
+        cached = vertex_altitude[vertex_index]
+        if cached < 0.0:
+            d = Vector(mesh.vertices[vertex_index].co).normalized()
+            cached = min(max(0.5 + 0.5 * (elevation(np.array(d[:])) / ELEV_CAP), 0.0), 1.0)
+            vertex_altitude[vertex_index] = cached
+        return cached
+
     for poly in mesh.polygons:
         centre = Vector(poly.center)
         direction = centre.normalized()
-        surface = radius_at(np.array(direction[:]))
+        surface = BODY_RADIUS * (1.0 + elevation(np.array(direction[:])))
         outward = poly.normal.dot(direction)
-        is_crust = centre.length > surface * tolerance and outward > 0.2
-        value = 1.0 if is_crust else 0.0
-        for loop_index in poly.loop_indices:
-            attribute.data[loop_index].color = (value, value, value, 1.0)
+        if poly.material_index == cut_slot:
+            # The boolean marked this face itself: a wall of the wound, or
+            # the torn band around a slab's edge. Fresh, full temperature.
+            for loop_index in poly.loop_indices:
+                attribute.data[loop_index].color = (0.0, 1.0, 0.5, 1.0)
+        elif centre.length > surface * tolerance and outward > 0.05:
+            for loop_index in poly.loop_indices:
+                vertex_index = mesh.loops[loop_index].vertex_index
+                attribute.data[loop_index].color = (1.0, 0.0, altitude_of(vertex_index), 1.0)
+        else:
+            lining = (abs(centre.length - (surface - CRUST_THICKNESS)) < CRUST_THICKNESS * 0.35
+                      and outward < -0.05)
+            colour = (0.0, 0.24 if lining else 1.0, 0.5, 1.0)
+            for loop_index in poly.loop_indices:
+                attribute.data[loop_index].color = colour
         poly.use_smooth = True
 
 
@@ -176,8 +300,22 @@ def apply_boolean(target, cutter, operation):
     modifier.object = cutter
     if hasattr(modifier, 'solver'):
         modifier.solver = 'EXACT'
+    # Faces the cutter contributes arrive wearing the cutter's material, so a
+    # cut wall is identified by the boolean itself rather than re-derived from
+    # geometry afterwards. The radial re-derivation put wall faces exactly on
+    # its tolerance boundaries — the body shipped with no hot wound walls at
+    # all — and a mark that load-bearing cannot sit on a margin of 0.01.
+    if hasattr(modifier, 'material_mode'):
+        modifier.material_mode = 'TRANSFER'
     select_only(target)
     bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+
+def _marker_material(name):
+    material = bpy.data.materials.get(name)
+    if material is None:
+        material = bpy.data.materials.new(name)
+    return material
 
 
 def irregular_cutter(centre, extent, seed):
@@ -192,6 +330,15 @@ def irregular_cutter(centre, extent, seed):
     mesh = bpy.data.meshes.new('CUTTER_MESH')
     mesh.from_pydata([tuple(v) for v in verts], [], faces)
     mesh.update()
+    # The hand-authored face list winds inward — an inside-out solid. EXACT
+    # still cuts with it, but it cuts dirtier, and the material transfer that
+    # marks the walls silently matches nothing against inverted faces.
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.materials.append(_marker_material('CUT_MAT'))
     obj = bpy.data.objects.new('CUTTER', mesh)
     bpy.context.collection.objects.link(obj)
     obj.location = tuple(float(x) for x in centre)
@@ -226,17 +373,38 @@ def recentre(obj):
 # --------------------------------------------------------------------------
 
 def build_master_shell():
-    """One displaced, solidified world. Everything else is cut from this."""
+    """
+    One displaced, solidified world. Everything else is cut from this.
+
+    Thickened first, displaced second. Solidifying displaced terrain let the
+    inner surface self-intersect wherever the terrain curved harder than the
+    crust is thick, and a self-intersecting operand is what made the EXACT
+    boolean return slab_00 as an empty mesh. On the clean sphere the solidify
+    is exact — outer shell at BODY_RADIUS, inner at BODY_RADIUS minus the
+    thickness — so each vertex declares which surface it belongs to by radius
+    alone, and displacing both radially keeps the shells parallel and the
+    solid manifold under any terrain.
+    """
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=SUBDIV, radius=BODY_RADIUS)
     shell = bpy.context.active_object
     shell.name = 'MASTER_SHELL'
-    displace(shell)
+    # Slot 0, so the cut marker the booleans transfer can only ever land in
+    # slot 1 — original surface and cutter surface stay distinguishable by
+    # index. Materials are never exported; these are marks, not looks.
+    shell.data.materials.append(_marker_material('SHELL_MAT'))
 
     modifier = shell.modifiers.new('SHELL', 'SOLIDIFY')
     modifier.thickness = CRUST_THICKNESS
     modifier.offset = -1.0  # inward: the outer surface stays the real surface
     select_only(shell)
     bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+    split = BODY_RADIUS - CRUST_THICKNESS * 0.5
+    for vert in shell.data.vertices:
+        co = Vector(vert.co)
+        d = co.normalized()
+        r = radius_at(np.array(d[:]))
+        vert.co = d * (r if co.length > split else r - CRUST_THICKNESS)
     return shell
 
 
@@ -277,7 +445,12 @@ def main():
         apply_boolean(shell, cutter, 'DIFFERENCE')
         bpy.data.objects.remove(cutter, do_unlink=True)
 
+        # A silent cull here is a wound with no piece — v3 shipped exactly
+        # that, slab_00 lost to a degenerate boolean, and the reveal lost the
+        # one fragment that still hangs beside its own hole. Loud either way.
+        print(f'SLAB {i} polys {len(piece.data.polygons)}')
         if len(piece.data.polygons) < 8:
+            print(f'SLAB {i} CULLED — boolean returned a degenerate piece')
             bpy.data.objects.remove(piece, do_unlink=True)
             continue
         slabs.append((piece, slab))
@@ -354,19 +527,25 @@ def main():
     meshes = [o for o in bpy.data.objects if o.type == 'MESH']
     total = sum(len(o.data.polygons) for o in meshes)
     crust_faces = 0
-    hot_faces = 0
+    lining_faces = 0
+    cut_faces = 0
     for o in meshes:
         attr = o.data.color_attributes.get('crust')
         if attr is None:
             continue
         for poly in o.data.polygons:
-            if attr.data[poly.loop_indices[0]].color[0] > 0.5:
+            colour = attr.data[poly.loop_indices[0]].color
+            if colour[0] > 0.5:
                 crust_faces += 1
+            elif colour[1] < 0.5:
+                lining_faces += 1
             else:
-                hot_faces += 1
+                cut_faces += 1
+    marked = max(crust_faces + lining_faces + cut_faces, 1)
     print(f'PLANET_OBJECTS {len(meshes)}')
     print(f'PLANET_FACES {total}')
-    print(f'PLANET_CRUST_RATIO {crust_faces / max(crust_faces + hot_faces, 1):.2f}')
+    print(f'PLANET_COLD_RATIO {(crust_faces + lining_faces) / marked:.2f}')
+    print(f'PLANET_CRUST {crust_faces} LINING {lining_faces} CUT {cut_faces}')
     print(f'PLANET_OUT {OUT_GLB}')
     print(f'PLANET_MANIFEST {OUT_MANIFEST}')
 
@@ -425,11 +604,15 @@ def carve_chunks(count):
             bpy.data.meshes.remove(mesh)
             continue
 
+        # Secondary debris obeys the same law, tempered: dark crust outside,
+        # heat only on the cut — and a chunk's cut runs cooler than a hero
+        # slab's, so the corridor reads as dark mass with hot break edges
+        # rather than as a stream of embers competing with the wounds.
         attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
         for poly in mesh.polygons:
-            value = 0.0 if poly.material_index == 1 else 1.0
+            colour = (0.0, 0.72, 0.5, 1.0) if poly.material_index == 1 else (1.0, 0.0, 0.5, 1.0)
             for loop_index in poly.loop_indices:
-                attribute.data[loop_index].color = (value, value, value, 1.0)
+                attribute.data[loop_index].color = colour
             poly.use_smooth = True
 
         centre = Vector((0, 0, 0))
@@ -484,10 +667,12 @@ def crack_tubes(count=11):
             bpy.data.objects.remove(obj, do_unlink=True)
             continue
 
+        # Fissures: exposed and still venting — near-full temperature, so the
+        # surviving crust carries glowing crack lines against dead geology.
         attribute = obj.data.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
         for poly in obj.data.polygons:
             for loop_index in poly.loop_indices:
-                attribute.data[loop_index].color = (0.0, 0.0, 0.0, 1.0)
+                attribute.data[loop_index].color = (0.0, 0.82, 0.5, 1.0)
             poly.use_smooth = True
 
 

@@ -115,16 +115,21 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     });
   }
 
-  // The reveal. Far enough out, and square to the corridor, that the body,
-  // the slabs and the trail resolve into one event.
+  // The reveal, stood on the blast side. The freeze on this pose served its
+  // purpose and Jacob lifted it for exactly this: square to the corridor,
+  // every wound is edge-on and the body reads as an intact black sphere. The
+  // old eye sat ~68° off the blast axis; from ~34°, same lateral bearing, the
+  // camera looks into the missing sections — wounds and the slabs that came
+  // out of them share the frame, far enough out that the trail still resolves
+  // into one event. That is the reveal: the sphere can be mentally reassembled.
   waypoints.push({
     eye: asTriple(
       new THREE.Vector3()
-        .addScaledVector(side, 34)
-        .addScaledVector(lift, 12)
-        .addScaledVector(axis, 14)
+        .addScaledVector(axis, 30.5)
+        .addScaledVector(side, 17.0)
+        .addScaledVector(lift, 14.0)
     ),
-    aim: asTriple(new THREE.Vector3().addScaledVector(axis, 9)),
+    aim: asTriple(new THREE.Vector3().addScaledVector(axis, 4.2)),
   });
 
   return waypoints;

@@ -4,26 +4,26 @@
 // with cross-sections. Nothing here generates form — the vertex stage only
 // places the piece and hands the fragment stage the one attribute that matters.
 //
-// `color.r` is the crust mark baked in Blender: 1 on the original planetary
-// surface, 0 on a face made by the break. Every lighting decision downstream
-// keys off it, which is how the exterior stays nearly black while the
-// fractures burn.
+// `color` is the mark baked in Blender: r crust, g temperature, b altitude —
+// see the fragment stage. Every lighting decision downstream keys off it,
+// which is how the exterior stays nearly black while the fractures burn.
 
 uniform vec3 uStarPos;
 
 // `color` is not declared here: Three injects it when the material sets
 // vertexColors, and declaring it again is a redefinition that fails the whole
 // program — which renders the world invisible while the star behind it keeps
-// drawing, so the frame looks merely dark rather than broken.
+// drawing, so the frame looks merely dark rather than broken. Widened through
+// a vec4 constructor so the program survives either attribute width.
 
-out float vCrust;
+out vec4 vMark;
 out vec3 vNormal;
 out vec3 vWorld;
 out vec3 vLocal;
 out vec3 vView;
 
 void main() {
-  vCrust = color.r;
+  vMark = vec4(vec3(color).rgb, 1.0);
   vLocal = position;
 
   // The ejecta tier is instanced; the hero fragments are not. Same material,

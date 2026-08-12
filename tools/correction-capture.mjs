@@ -65,6 +65,10 @@ const gpu = await page.evaluate(() => {
 });
 console.log(`  GPU: ${gpu}`);
 
+// The dev tuning panel draws over the corridor and has no place in a judged
+// frame — these captures exist to be looked at as the composition.
+await page.evaluate(() => document.querySelector('.tuning')?.remove());
+
 const telemetry = () => page.evaluate(() => window.__correction?.telemetry ?? null);
 
 /**
