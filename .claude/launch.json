@@ -8,6 +8,13 @@
       "port": 5173
     },
     {
+      "name": "dark-lattice-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview"],
+      "port": 4173,
+      "autoPort": false
+    },
+    {
       "name": "dark-lattice-b",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "5341", "--strictPort"],

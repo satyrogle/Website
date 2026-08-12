@@ -326,6 +326,9 @@ if (import.meta.env.DEV) {
       get budget() {
         return scene?.budgetLeft ?? -1;
       },
+      get quality() {
+        return scene?.quality.settings ?? null;
+      },
       press: (x: number, y: number) => scene?.pressAt(x, y) ?? -1,
     },
   });
