@@ -67,7 +67,7 @@ export interface Stop {
 }
 
 /** Material response. On sliders; these are the shipped defaults. */
-export const MATERIAL = { heat: 1.0, crustLight: 2.6, rim: 1.3 };
+export const MATERIAL = { heat: 1.1, crustLight: 1.0, rim: 0.9 };
 
 /** The core's emission, and how much the flare drives it. */
 export const CORE_GLOW = { base: 2.1, flare: 3.6 };
