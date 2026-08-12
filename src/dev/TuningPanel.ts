@@ -1,18 +1,15 @@
 import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
 import {
-  CHISEL,
-  CREASE,
-  FOLD,
-  EDGE_POWER,
-  GHOST_GAIN,
+  AUREOLE,
+  BOX,
+  CORE_RADIUS,
+  DENSITY,
+  FOLD_OFFSET,
   GLOW,
-  RECESSION,
-  RECORD_GAIN,
-  SHEEN,
-  SHELL_GAIN,
-  SLIP,
-  SWING,
-} from '../scene/correction/CorrectionModel';
+  ROUND,
+  SCALE,
+  WARP,
+} from '../scene/correction/FieldModel';
 import { DEFAULT_DYNAMICS, INJECTION } from '../scene/correction/sim/DeviationField';
 import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
 
@@ -79,22 +76,18 @@ const KNOBS: Knob[] = [
   { label: 'ramp (ticks)', group: 'correction', key: 'rampTicks', min: 2, max: 120, step: 2, value: DEFAULT_CORRECTION.rampTicks, source: 'DEFAULT_CORRECTION' },
   { label: 'sensor memory (s)', group: 'correction', key: 'senseSeconds', min: 0.05, max: 2, step: 0.05, value: DEFAULT_CORRECTION.senseSeconds, source: 'DEFAULT_CORRECTION' },
 
-  // How far a blade turns on screen, and how the frame reads.
-  { label: 'swing (rad/unit)', group: 'render', key: 'uSwing', min: 0.05, max: 1.2, step: 0.01, value: SWING, source: 'SWING' },
-  { label: 'slip', group: 'render', key: 'uSlip', min: 0, max: 0.6, step: 0.01, value: SLIP, source: 'SLIP' },
-  { label: 'crease angle', group: 'render', key: 'uCrease', min: 0, max: 1.4, step: 0.01, value: CREASE, source: 'CREASE' },
-  { label: 'fold depth', group: 'render', key: 'uFold', min: 0, max: 0.8, step: 0.01, value: FOLD, source: 'FOLD' },
-  { label: 'chisel', group: 'render', key: 'uChisel', min: 0, max: 0.6, step: 0.01, value: CHISEL, source: 'CHISEL' },
-  { label: 'record brightness', group: 'render', key: 'uRecordGain', min: 0.1, max: 4, step: 0.05, value: RECORD_GAIN, source: 'RECORD_GAIN' },
-  { label: 'aureole gain', group: 'render', key: 'uShellGain', min: 0, max: 4, step: 0.05, value: SHELL_GAIN, source: 'SHELL_GAIN' },
-  { label: 'edge sharpness', group: 'render', key: 'uEdge', min: 0.5, max: 8, step: 0.1, value: EDGE_POWER, source: 'EDGE_POWER' },
-  { label: 'record light', group: 'render', key: 'uSheen', min: 0, max: 3, step: 0.05, value: SHEEN.weight, source: 'SHEEN.weight' },
-  { label: 'light tightness', group: 'render', key: 'uSheenPower', min: 4, max: 96, step: 2, value: SHEEN.power, source: 'SHEEN.power' },
-  { label: 'deviation scale', group: 'render', key: 'uGlowScale', min: 0.5, max: 10, step: 0.1, value: GLOW.scale, source: 'GLOW.scale' },
-  { label: 'deviation gamma', group: 'render', key: 'uGlowGamma', min: 0.3, max: 3, step: 0.05, value: GLOW.gamma, source: 'GLOW.gamma' },
-  { label: 'ghost brightness', group: 'render', key: 'uGhostGain', min: 0, max: 3, step: 0.05, value: GHOST_GAIN, source: 'GHOST_GAIN' },
-  { label: 'recession start', group: 'render', key: 'uRecessionNear', min: 2, max: 40, step: 1, value: RECESSION.near, source: 'RECESSION.near' },
-  { label: 'recession range', group: 'render', key: 'uRecessionRange', min: 2, max: 40, step: 1, value: RECESSION.range, source: 'RECESSION.range' },
+  // The field itself. These are the numbers that decide what the apparition
+  // is, and none of them describes an object — the form is whatever the fold
+  // leaves behind, so the only way to find it is to move them and look.
+  { label: 'fold scale', group: 'render', key: 'uScale', min: 1.3, max: 2.1, step: 0.01, value: SCALE, source: 'SCALE' },
+  { label: 'fold offset', group: 'render', key: 'uFoldOffset', min: 0, max: 2.4, step: 0.01, value: FOLD_OFFSET, source: 'FOLD_OFFSET' },
+  { label: 'seed box y', group: 'render', key: 'uBoxY', min: 0.1, max: 2.4, step: 0.01, value: BOX.y, source: 'BOX.y' },
+  { label: 'corner round', group: 'render', key: 'uRound', min: 0, max: 0.6, step: 0.01, value: ROUND, source: 'ROUND' },
+  { label: 'domain warp', group: 'render', key: 'uWarp', min: 0, max: 2.5, step: 0.01, value: WARP, source: 'WARP' },
+  { label: 'absence size', group: 'render', key: 'uCoreRadius', min: 0.4, max: 6, step: 0.05, value: CORE_RADIUS, source: 'CORE_RADIUS' },
+  { label: 'aureole tightness', group: 'render', key: 'uAureole', min: 0.15, max: 4, step: 0.05, value: AUREOLE, source: 'AUREOLE' },
+  { label: 'emission', group: 'render', key: 'uGlow', min: 0.2, max: 24, step: 0.1, value: GLOW, source: 'GLOW' },
+  { label: 'boundary sharpness', group: 'render', key: 'uDensity', min: 0.5, max: 24, step: 0.1, value: DENSITY, source: 'DENSITY' },
 ];
 
 export class TuningPanel {

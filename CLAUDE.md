@@ -31,7 +31,11 @@ Do not use a cheap monster reveal, jumpscare, generic evil-AI language, or arbit
 
 **THE CORRECTION: CHOSEN 2026-08-12. BUILD IN PROGRESS.**
 
-`docs/CHOIR_BUILD_PLAN.md` is the build order and is authoritative for implementation (carrier locked by Jacob 2026-08-12: a one-way anisotropic flow field of dark blades forced around an off-centre forbidden volume — any halo/aureole exists only as perceptual gestalt, never as geometry; it supersedes `docs/CORRECTION_BUILD_PLAN.md`, whose sim and interaction canon it carries forward). `docs/decision/02-correction-dossier.md` holds the design detail. Read the plan before any hero, scene, camera, system or editorial work.
+**Hero carrier: an implicit volumetric field.** Chosen by Jacob 2026-08-12 after five discrete-primitive carriers were rejected in turn. The hero is a raymarched SDF — domain warping, iterative folding, distance-estimated recursion — rendered as one screen-filling draw. **No lines, sticks, plates, lamellae, grids, visible mesh topology or repeated objects.** `src/scene/correction/FieldModel.ts` and `src/shaders/correction-field.*.glsl`.
+
+The diagnosis that killed the previous five, and the rule that replaces them: **visible primitives**. Filaments read as spaghetti, a swept surface as a cutting board, lamellae as hanging anatomy, plates as architectural junk. Whenever the eye can identify what the thing is made from, it classifies the object as mundane geometry before it can feel anything. The target is an apparition you perceive before you can name — halo, depth, latent form, impossible scale — so the carrier must have no recognisable primitive at any zoom.
+
+`docs/CHOIR_BUILD_PLAN.md` is **retired as a carrier** but remains authoritative for everything the carrier does not decide: colour grammar, the interaction canon (false first action, skip path, persistence, real `ADJUSTMENTS APPLIED: N`), determinism, integration bones and guardrails. `docs/decision/02-correction-dossier.md` holds the design detail. Read both before any hero, scene, camera, system or editorial work.
 
 Reality is permitted to deviate briefly; the system enforces convergence to the recorded, approved state. The opening calm is late-understood as maintained, not natural. At the floor: `YOUR RECORD — ADJUSTMENTS APPLIED: N.`
 
@@ -48,7 +52,8 @@ Work `docs/CORRECTION_BUILD_PLAN.md` one step at a time. Jacob judges the two vi
 Invariants that bind every edit:
 - **Colour grammar.** Cyan is the world, amber is the model of the world (and therefore the divine face), violet is the consequence of their disagreement. Never redefined per section.
 - **Banned vocabulary** in code, comments, commits, filenames and copy: `FULL FORM`, `MONOLITH`, `SEVEN MASSES`, `TUNNEL ENTITY`, `LATENT FORM`, `HERO GLB`. Use `face`, `mouth`, `descent`, `shaft`, `floor`, `cathedral`.
-- **No rotational symmetry.** Zero cylindrical parameterisation anywhere in the pipeline; any capture frame that reads as concentric rings fails. That is how the retired tunnels died.
+- **No rotational symmetry.** Zero cylindrical parameterisation anywhere in the pipeline; any capture frame that reads as concentric rings fails. That is how the retired tunnels died. In an implicit field this binds hardest: origin-centred mirrors and radial domain repetition are how a raymarcher manufactures concentric arcs, so every fold is offset before it mirrors and rotated on an unshared axis.
+- **No visible primitives.** If a viewer can name the element the hero is built from, the carrier has failed regardless of how the frame is lit.
 
 ## Technical direction
 

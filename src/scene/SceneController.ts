@@ -1,10 +1,8 @@
 import * as THREE from 'three';
 
 import { QualityManager } from './QualityManager';
-import { CorrectionModel } from './correction/CorrectionModel';
+import { FieldModel } from './correction/FieldModel';
 import { PulseClient } from './correction/sim/PulseClient';
-import { ChoirField } from './correction/graph/ChoirField';
-import { DEFAULT_SYNTH } from './correction/graph/GraphSynth';
 
 /**
  * SceneController
@@ -35,56 +33,28 @@ export function isWebGL2Available(): boolean {
   }
 }
 
-/**
- * The choir's own frame, so the camera is authored in the coordinates the
- * structure is built in.
- *
- * Written in world vectors first, which was a mistake worth recording: the
- * flow direction is diagonal to every world axis, so world-space camera
- * numbers are unreadable, unverifiable, and silently wrong the moment the flow
- * moves. In field coordinates the rail says what it means — travel downstream,
- * stay off the axis, look across the field rather than along it.
- */
-const FIELD = new ChoirField(DEFAULT_SYNTH.field);
-
-const CAMERA = { fov: 32 };
+const CAMERA = { fov: 38 };
 
 /**
- * The rail, in field coordinates: (along the flow, across it, above it).
+ * The rail, in world space.
  *
- * Scroll carries the camera downstream and closes on the field as it goes, so
- * the whole descent is one continuous move: travel plus approach, never a cut
- * and never an orbit.
+ * Authored in world coordinates now, and close in. The choir's rail lived in a
+ * flow frame that no longer exists, and it held the camera twenty units out
+ * from a form about four across — which is why the first frame off the implicit
+ * field read as a small contained lump rather than as something enormous.
  *
- * The eye stays far out on the `wide` axis for the entire run. That is the
- * composition — the flow crosses the frame rather than running into it — and it
- * is also the guardrail: the one pose that manufactures an annulus out of a
- * parted flow is the view straight down the flow axis, where the blades parting
- * around the absence close into a rim behind it. `assertCone` below makes that
- * pose unreachable rather than merely unlikely.
+ * An apparition has to exceed the frame. The eye is inside the field's outer
+ * folds looking through them, so the structure runs off every edge, parallax
+ * separates its layers as the camera moves, and there is no silhouette to
+ * measure it against. Scale is a lie the composition tells, and it can only
+ * tell it if the boundaries are outside the picture.
  */
 const RAIL = {
-  // Solved rather than guessed. At this pose the absence spans well over half
-  // the frame in both axes and sits at NDC (0.68, 0.44) with about a third of
-  // it past the upper-right edge — the macro element, off-centre and cropped,
-  // with the formations sweeping and compressing around what is left. The
-  // brain completes the missing part; nothing draws it.
-  eyeFrom: [-5.5, -22.0, 1.5] as const,
-  eyeTo: [1.5, -19.5, 0.4] as const,
-  aimFrom: [2.0, 0, -1.4] as const,
-  aimTo: [7.5, 0, -0.8] as const,
+  eyeFrom: [5.6, 2.05, 8.1] as const,
+  eyeTo: [3.4, 1.15, 5.0] as const,
+  aimFrom: [0.35, 0.15, -0.2] as const,
+  aimTo: [0.1, -0.05, -0.55] as const,
 };
-
-/**
- * How far off the flow axis the camera must stay, in degrees.
- *
- * Guardrail, not preference. Every retired direction here died as a ring, and
- * the ring is a property of the viewpoint at least as much as of the geometry:
- * the field itself cannot circulate — `ChoirField`'s cone clamp makes that
- * arithmetically impossible — but a camera looking straight down the flow would
- * still stack the parted blades into concentric arcs on the screen.
- */
-const CONE_LIMIT_DEGREES = 35;
 
 /**
  * Enforcement gain against narrative depth.
@@ -167,7 +137,7 @@ export class SceneController {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
 
-  model: CorrectionModel | null = null;
+  model: FieldModel | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private client: PulseClient | null = null;
@@ -247,7 +217,6 @@ export class SceneController {
     this.renderer.setSize(clientWidth, clientHeight, false);
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
-    this.assertCone();
     this.compose();
     this.applyCamera();
 
@@ -290,16 +259,14 @@ export class SceneController {
       throw new Error('correction: worker reported ready without a structure');
     }
 
-    this.model = new CorrectionModel({ structure: client.structure });
+    this.model = new FieldModel();
     this.scene.add(this.model.group);
+    this.resize();
 
-    // The first snapshot is published with the record, so the opening frame is
-    // the settled world rather than an undisplaced one.
+    // The first snapshot is drained so telemetry starts from the settled world
+    // rather than from zero. The field does not read it yet — see `consume`.
     const first = client.take();
-    if (first) {
-      this.model.applySnapshot(first);
-      client.release(first);
-    }
+    if (first) client.release(first);
 
     onProgress?.(1, 'record');
   }
@@ -431,7 +398,15 @@ export class SceneController {
     );
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-    const node = this.model.nodeUnderRay(this.raycaster.ray, tolerance);
+    // Deliberately dead while the carrier is being judged.
+    //
+    // The implicit field has no elements to raycast against and no deviation
+    // input attached yet, so a press would spend budget, mark the structure as
+    // struck, cancel the false first action, and show the visitor nothing. An
+    // action without an observable consequence is the one thing this
+    // interaction cannot be, so it is off rather than half-wired.
+    void tolerance;
+    const node = -1;
     if (node < 0) return -1;
 
     this.client.inject(node, this.pressEnergy);
@@ -528,9 +503,14 @@ export class SceneController {
 
   resize(): void {
     const { clientWidth, clientHeight } = this.canvasSize();
-    this.renderer.setPixelRatio(this.quality.pixelRatio());
+    const ratio = this.quality.pixelRatio();
+    this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(clientWidth, clientHeight, false);
     this.camera.aspect = clientWidth / Math.max(clientHeight, 1);
+    // The march is per pixel, so the quality tier buys steps here rather than
+    // elements. This is the whole performance story of the new carrier.
+    this.model?.setSize(clientWidth * ratio, clientHeight * ratio);
+    this.model?.setSteps(ratio > 1.25 ? 96 : 144);
     this.compose();
   }
 
@@ -658,7 +638,7 @@ export class SceneController {
     this.applyCamera();
 
     const stills = frames.map((frame) => {
-      this.model?.applyState(frame.data);
+      this.model?.setCamera(this.camera);
       this.renderer.render(this.scene, this.camera);
       return { stage: frame.stage, url: this.renderer.domElement.toDataURL('image/png') };
     });
@@ -676,6 +656,7 @@ export class SceneController {
     this.exposure = 1;
     this.consume();
     this.applyCamera();
+    this.model?.setCamera(this.camera);
     this.model?.setExposure(1);
     this.renderer.render(this.scene, this.camera);
   }
@@ -688,7 +669,11 @@ export class SceneController {
     const snapshot = client.take();
     if (!snapshot) return;
 
-    this.model.applySnapshot(snapshot);
+    // Telemetry only. The authoritative world is still stepped in the Worker
+    // and still counts its own corrections, but nothing renders it: the field
+    // carrier is being judged on the approved state before the deviation is
+    // attached to it, because every carrier before this one was wired to state
+    // first and then thrown away on the frame.
     this.telemetry = {
       tick: snapshot.tick,
       adjustments: snapshot.adjustments,
@@ -707,53 +692,30 @@ export class SceneController {
     const lerp = (from: readonly number[], to: readonly number[], index: number): number =>
       from[index] + (to[index] - from[index]) * t;
 
-    const eyeLocal = FIELD.toWorld([
+    eye.set(
       lerp(RAIL.eyeFrom, RAIL.eyeTo, 0),
       lerp(RAIL.eyeFrom, RAIL.eyeTo, 1),
-      lerp(RAIL.eyeFrom, RAIL.eyeTo, 2),
-    ]);
-    const aimLocal = FIELD.toWorld([
+      lerp(RAIL.eyeFrom, RAIL.eyeTo, 2)
+    );
+    aim.set(
       lerp(RAIL.aimFrom, RAIL.aimTo, 0),
       lerp(RAIL.aimFrom, RAIL.aimTo, 1),
-      lerp(RAIL.aimFrom, RAIL.aimTo, 2),
-    ]);
-
-    eye.set(eyeLocal[0], eyeLocal[1], eyeLocal[2]);
-    aim.set(aimLocal[0], aimLocal[1], aimLocal[2]);
+      lerp(RAIL.aimFrom, RAIL.aimTo, 2)
+    );
   }
 
   /**
-   * The camera never looks down the flow. Checked across the whole rail at
-   * construction, so a re-authored pose fails here rather than in a capture
-   * three steps later.
+   * The no-rings guardrail, restated for a field with no axis.
+   *
+   * The camera cone is retired with the flow it protected: there is no
+   * privileged direction here to look down. The rule that outlived four
+   * directions has not gone anywhere, it has moved into the shader — every
+   * fold is offset before it mirrors and rotated on an axis shared with
+   * nothing, because origin-centred mirrors and radial domain repetition are
+   * the two ways a raymarcher manufactures concentric arcs. That construction
+   * cannot be asserted from here; it is checked by looking, on real hardware,
+   * from several poses.
    */
-  private assertCone(): void {
-    const eye = new THREE.Vector3();
-    const aim = new THREE.Vector3();
-    const forward = new THREE.Vector3();
-    const axis = new THREE.Vector3(FIELD.axis[0], FIELD.axis[1], FIELD.axis[2]);
-    // The view must be at least CONE_LIMIT_DEGREES away from the flow axis, so
-    // the cosine of the angle between them must be at most cos(limit). Written
-    // once as cos(90 − limit), which reads plausibly and rejects every pose
-    // that actually satisfies the rule — a guardrail that fails closed on
-    // correct input is worse than none, because it gets loosened rather than
-    // fixed.
-    const limit = Math.cos(CONE_LIMIT_DEGREES * (Math.PI / 180));
-
-    for (let step = 0; step <= 20; step++) {
-      this.railPose(step / 20, eye, aim);
-      forward.copy(aim).sub(eye).normalize();
-      const along = Math.abs(forward.dot(axis));
-      if (along > limit) {
-        const degrees = (Math.acos(along) * 180) / Math.PI;
-        throw new Error(
-          `camera rail: at t=${(step / 20).toFixed(2)} the view is ${degrees.toFixed(1)}° off the ` +
-            `flow axis, inside the ${CONE_LIMIT_DEGREES}° guardrail. A camera looking down a parted ` +
-            `flow stacks it into concentric arcs — that is how every retired direction became a ring.`
-        );
-      }
-    }
-  }
 
   private applyCamera(): void {
     // Eased against progress rather than tweened against time: the camera is a
@@ -797,6 +759,8 @@ export class SceneController {
 
     this.consume();
     this.applyCamera();
+    this.model?.setCamera(this.camera);
+    this.model?.setTime(now / 1000);
     this.renderer.render(this.scene, this.camera);
   };
 

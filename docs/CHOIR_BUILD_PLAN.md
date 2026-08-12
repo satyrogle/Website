@@ -1,5 +1,16 @@
 # THE CORRECTION — Choir carrier build plan
 
+> **CARRIER RETIRED 2026-08-12.** Jacob killed the choir/blades/plates/lamellae
+> direction after five discrete-primitive carriers failed the same way — the
+> primitive stayed visible, so the eye classified the object as mundane
+> geometry. Do not rebuild or re-propose it. The hero is now a raymarched
+> implicit field (`FieldModel`, `correction-field.*.glsl`).
+>
+> Everything in this document that is *not* about the carrier still stands and
+> is still authoritative: the colour grammar, the interaction canon, the
+> determinism law, the integration bones, and the guardrails — including
+> no-rings, which binds harder in an implicit field than it did in geometry.
+
 **Authority.** Locked by Jacob 2026-08-12. This document supersedes
 `docs/CORRECTION_BUILD_PLAN.md` as the build order. The concept — THE
 CORRECTION — is unchanged. The colour grammar, interaction canon, determinism
