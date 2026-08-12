@@ -102,7 +102,7 @@ const smoothstep = (t: number): number => {
 };
 
 /** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
-const PRESS_ENERGY = 2.2;
+export const PRESS_ENERGY = 0.7;
 
 /** Longest a touch can rest and still be a tap rather than a hold. */
 const TAP_MS = 350;

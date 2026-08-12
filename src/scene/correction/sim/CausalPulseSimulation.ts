@@ -44,7 +44,7 @@ export const DEFAULT_WAVE: WaveParameters = {
   // ~0.3-unit median edge, so a strike crosses the veil in about two seconds.
   // The spectral bound allows nearly 60; the margin is deliberate headroom for
   // a denser graph later.
-  waveSpeed: 6,
+  waveSpeed: 7,
   // The deviation has to survive long enough to be noticed, resisted and
   // forced back — if damping kills it first the system never has to act, and
   // there is nothing to watch. But it also has to stop.
@@ -56,11 +56,11 @@ export const DEFAULT_WAVE: WaveParameters = {
   // approved state stopped being a state the world returns to. Raised until
   // the residual dies away and the surface comes back to the record, while the
   // strike itself still outlives the awareness latency by a wide margin.
-  waveDamping: 1.1,
+  waveDamping: 0.85,
 };
 
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
-export const INJECTION = { hops: 5 };
+export const INJECTION = { hops: 6 };
 
 export class CausalPulseSimulation {
   readonly nodeCount: number;

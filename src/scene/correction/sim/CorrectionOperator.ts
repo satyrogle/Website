@@ -68,7 +68,12 @@ export interface CorrectionParameters {
    * event the whole direction is judged on.
    */
   spatialGainLow: number;
-  /** Enforcement gain in the deep body, where the calm is more nearly total. */
+  /**
+   * Enforcement gain in the deep body, where the calm is more nearly total.
+   *
+   * Gain scales how soon the system notices and how hard it pulls, never what
+   * it can see, so the calm stays outside the sensor at every depth.
+   */
   spatialGainHigh: number;
   /**
    * Normalised depth at which the gradient starts to climb. Everything nearer
@@ -120,17 +125,17 @@ export interface CorrectionParameters {
  */
 export const DEFAULT_CORRECTION: CorrectionParameters = {
   epsilon: 0.04,
-  thetaOn: 0.06,
-  thetaOff: 0.025,
-  holdTicks: 48,
+  thetaOn: 0.14,
+  thetaOff: 0.06,
+  holdTicks: 26,
   iterations: 6,
   stiffnessFrom: 0.0028,
-  stiffnessTo: 0.075,
+  stiffnessTo: 0.15,
   rampTicks: 20,
   bruiseDecay: 0.9985,
   scarGain: 0.014,
   scarCeiling: 0.32,
-  senseSeconds: 0.40,
+  senseSeconds: 0.55,
   eventLogLimit: 256,
   spatialGainLow: 1.0,
   spatialGainHigh: 1.55,

@@ -36,10 +36,10 @@ export interface CorrectionModelOptions {
  * curvature and spacing are wrong rather than because it is a different colour
  * — and not so far that it leaves the field altogether.
  */
-const DISPLACEMENT_SCALE = 2.9;
+export const DISPLACEMENT_SCALE = 6.6;
 
 /** How sharply the grazing edge falls off across a ribbon's face. */
-const EDGE_POWER = 3.4;
+export const EDGE_POWER = 2.8;
 
 /**
  * Brightness of the approved state.
@@ -48,7 +48,10 @@ const EDGE_POWER = 3.4;
  * rest. Measured rather than chosen: below about this the field disappears on
  * an ordinary monitor, which has already happened once here.
  */
-const RECORD_GAIN = 0.95;
+/** The deviation response. Exported so the dev panel cannot drift from it. */
+export const GLOW = { scale: 5.9, gamma: 2.05 };
+
+export const RECORD_GAIN = 1.85;
 
 export class CorrectionModel {
   readonly group = new THREE.Group();
@@ -166,8 +169,8 @@ export class CorrectionModel {
         //   ambient drift  0.026  ->  0.02   effectively absent
         //   engagement     0.100  ->  0.13   the system starts to react here
         //   struck peak    0.350  ->  0.97   the escape
-        uGlowScale: { value: 2.8 },
-        uGlowGamma: { value: 1.6 },
+        uGlowScale: { value: GLOW.scale },
+        uGlowGamma: { value: GLOW.gamma },
         uContactScale: { value: 20 },
         uContactGamma: { value: 0.5 },
         uBruiseScale: { value: 8 },

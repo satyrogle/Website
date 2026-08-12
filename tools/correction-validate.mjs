@@ -652,13 +652,35 @@ check('and the system still engages at both ends', shallow.adjustments > 0 && de
     s.warmUp();
     for (let t = 0; t < 300; t++) s.step();
     const before = s.operator.adjustments;
+
+    // Measured over the neighbourhood of the strike, not over the whole
+    // structure. Gain is a local property and the wave travels out of the
+    // region it was struck in, so a global peak reports how long the deviation
+    // survived *somewhere* — which is not the claim. The claim is that this
+    // strike, here, is put back sooner because here is held harder.
+    const near = [];
+    for (let i = 0; i < s.simulation.u.length; i++) {
+      const d = Math.hypot(
+        graph.positions[i * 3] - graph.positions[node * 3],
+        graph.positions[i * 3 + 1] - graph.positions[node * 3 + 1],
+        graph.positions[i * 3 + 2] - graph.positions[node * 3 + 2]
+      );
+      if (d < 2.5) near.push(i);
+    }
+
     s.inject(node, ENERGY);
 
     let alive = 0;
     const settleAt = SYSTEM.correction.thetaOff + EPSILON;
+    const record = s.operator.record;
     for (let t = 0; t < 1800; t++) {
       s.step();
-      if (s.peakDeviation() > settleAt) alive = t;
+      let local = 0;
+      for (const i of near) {
+        const d = Math.abs(s.simulation.u[i] - record[i]);
+        if (d > local) local = d;
+      }
+      if (local > settleAt) alive = t;
     }
     return { alive, adjustments: s.operator.adjustments - before, gain: s.operator.gainField[node] };
   };

@@ -1,4 +1,12 @@
-import type { SceneController } from '../scene/SceneController';
+import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
+import {
+  DISPLACEMENT_SCALE,
+  EDGE_POWER,
+  GLOW,
+  RECORD_GAIN,
+} from '../scene/correction/CorrectionModel';
+import { DEFAULT_WAVE, INJECTION } from '../scene/correction/sim/CausalPulseSimulation';
+import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
 
 /**
  * TuningPanel — the feel of the system, on sliders.
@@ -37,30 +45,36 @@ interface Knob {
   source: string;
 }
 
+/**
+ * Every value is read from the shipped default rather than repeated here. The
+ * first version hardcoded them, and within one round of tuning the panel was
+ * displaying numbers the site was not running — a tuning tool that lies about
+ * the current state is worse than no tuning tool.
+ */
 const KNOBS: Knob[] = [
-  // How the deviation travels. This is the pair that decides whether a press
-  // reads as a wave or as a rigid displacement.
-  { label: 'wave speed', group: 'wave', key: 'waveSpeed', min: 1, max: 20, step: 0.25, value: 6, source: 'DEFAULT_WAVE' },
-  { label: 'damping', group: 'wave', key: 'waveDamping', min: 0.05, max: 3, step: 0.05, value: 1.1, source: 'DEFAULT_WAVE' },
+  // How the deviation travels. This pair decides whether a press reads as a
+  // wave or as a rigid displacement.
+  { label: 'wave speed', group: 'wave', key: 'waveSpeed', min: 1, max: 20, step: 0.25, value: DEFAULT_WAVE.waveSpeed, source: 'DEFAULT_WAVE' },
+  { label: 'damping', group: 'wave', key: 'waveDamping', min: 0.05, max: 3, step: 0.05, value: DEFAULT_WAVE.waveDamping, source: 'DEFAULT_WAVE' },
 
   // How much of the structure one press moves, and how hard.
-  { label: 'press energy', group: 'press', key: 'energy', min: 0.2, max: 8, step: 0.1, value: 2.2, source: 'PRESS_ENERGY' },
-  { label: 'press spread (hops)', group: 'press', key: 'hops', min: 1, max: 20, step: 1, value: 9, source: 'INJECTION.hops' },
+  { label: 'press energy', group: 'press', key: 'energy', min: 0.1, max: 8, step: 0.1, value: PRESS_ENERGY, source: 'PRESS_ENERGY' },
+  { label: 'press spread (hops)', group: 'press', key: 'hops', min: 1, max: 20, step: 1, value: INJECTION.hops, source: 'INJECTION.hops' },
 
   // What the system notices, how long it waits, and how hard it pulls back.
-  { label: 'sees violation above', group: 'correction', key: 'thetaOn', min: 0.01, max: 0.3, step: 0.005, value: 0.06, source: 'DEFAULT_CORRECTION' },
-  { label: 'releases below', group: 'correction', key: 'thetaOff', min: 0.005, max: 0.2, step: 0.005, value: 0.025, source: 'DEFAULT_CORRECTION' },
-  { label: 'waits (ticks)', group: 'correction', key: 'holdTicks', min: 4, max: 160, step: 2, value: 48, source: 'DEFAULT_CORRECTION' },
-  { label: 'pull, settled', group: 'correction', key: 'stiffnessTo', min: 0.005, max: 0.3, step: 0.005, value: 0.075, source: 'DEFAULT_CORRECTION' },
-  { label: 'ramp (ticks)', group: 'correction', key: 'rampTicks', min: 2, max: 120, step: 2, value: 20, source: 'DEFAULT_CORRECTION' },
-  { label: 'sensor memory (s)', group: 'correction', key: 'senseSeconds', min: 0.05, max: 2, step: 0.05, value: 0.4, source: 'DEFAULT_CORRECTION' },
+  { label: 'sees violation above', group: 'correction', key: 'thetaOn', min: 0.01, max: 0.3, step: 0.005, value: DEFAULT_CORRECTION.thetaOn, source: 'DEFAULT_CORRECTION' },
+  { label: 'releases below', group: 'correction', key: 'thetaOff', min: 0.005, max: 0.2, step: 0.005, value: DEFAULT_CORRECTION.thetaOff, source: 'DEFAULT_CORRECTION' },
+  { label: 'waits (ticks)', group: 'correction', key: 'holdTicks', min: 4, max: 160, step: 2, value: DEFAULT_CORRECTION.holdTicks, source: 'DEFAULT_CORRECTION' },
+  { label: 'pull, settled', group: 'correction', key: 'stiffnessTo', min: 0.005, max: 0.3, step: 0.005, value: DEFAULT_CORRECTION.stiffnessTo, source: 'DEFAULT_CORRECTION' },
+  { label: 'ramp (ticks)', group: 'correction', key: 'rampTicks', min: 2, max: 120, step: 2, value: DEFAULT_CORRECTION.rampTicks, source: 'DEFAULT_CORRECTION' },
+  { label: 'sensor memory (s)', group: 'correction', key: 'senseSeconds', min: 0.05, max: 2, step: 0.05, value: DEFAULT_CORRECTION.senseSeconds, source: 'DEFAULT_CORRECTION' },
 
-  // How far it moves on screen, and how bright the frame is.
-  { label: 'displacement', group: 'render', key: 'uDisplacement', min: 0.5, max: 8, step: 0.1, value: 2.9, source: 'DISPLACEMENT_SCALE' },
-  { label: 'record brightness', group: 'render', key: 'uRecordGain', min: 0.1, max: 4, step: 0.05, value: 0.95, source: 'RECORD_GAIN' },
-  { label: 'edge sharpness', group: 'render', key: 'uEdge', min: 0.5, max: 8, step: 0.1, value: 3.4, source: 'EDGE_POWER' },
-  { label: 'deviation scale', group: 'render', key: 'uGlowScale', min: 0.5, max: 8, step: 0.1, value: 2.8, source: 'uGlowScale' },
-  { label: 'deviation gamma', group: 'render', key: 'uGlowGamma', min: 0.3, max: 3, step: 0.05, value: 1.6, source: 'uGlowGamma' },
+  // How far it moves on screen, and how the frame reads.
+  { label: 'displacement', group: 'render', key: 'uDisplacement', min: 0.5, max: 12, step: 0.1, value: DISPLACEMENT_SCALE, source: 'DISPLACEMENT_SCALE' },
+  { label: 'record brightness', group: 'render', key: 'uRecordGain', min: 0.1, max: 4, step: 0.05, value: RECORD_GAIN, source: 'RECORD_GAIN' },
+  { label: 'edge sharpness', group: 'render', key: 'uEdge', min: 0.5, max: 8, step: 0.1, value: EDGE_POWER, source: 'EDGE_POWER' },
+  { label: 'deviation scale', group: 'render', key: 'uGlowScale', min: 0.5, max: 10, step: 0.1, value: GLOW.scale, source: 'GLOW.scale' },
+  { label: 'deviation gamma', group: 'render', key: 'uGlowGamma', min: 0.3, max: 3, step: 0.05, value: GLOW.gamma, source: 'GLOW.gamma' },
 ];
 
 export class TuningPanel {
