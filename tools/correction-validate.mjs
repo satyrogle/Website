@@ -49,6 +49,23 @@ const flag = (name) => process.argv.includes(`--${name}`);
 const ENERGY = arg('energy', 2.2);
 const TICKS = arg('ticks', 1200);
 
+/**
+ * Tuning overrides, so a sweep does not need a source edit between runs. With
+ * no flags this is exactly the shipped configuration.
+ */
+const SYSTEM = {
+  ...DEFAULT_SYSTEM,
+  correction: {
+    ...DEFAULT_SYSTEM.correction,
+    thetaOn: arg('thetaOn', DEFAULT_SYSTEM.correction.thetaOn),
+    thetaOff: arg('thetaOff', DEFAULT_SYSTEM.correction.thetaOff),
+    holdTicks: arg('hold', DEFAULT_SYSTEM.correction.holdTicks),
+    stiffnessTo: arg('stiffnessTo', DEFAULT_SYSTEM.correction.stiffnessTo),
+    rampTicks: arg('ramp', DEFAULT_SYSTEM.correction.rampTicks),
+    senseSeconds: arg('sense', DEFAULT_SYSTEM.correction.senseSeconds),
+  },
+};
+
 const failures = [];
 const check = (label, ok, detail) => {
   console.log(`${ok ? '  PASS' : '  FAIL'}  ${label}${detail ? `  ${detail}` : ''}`);
@@ -162,7 +179,7 @@ check('CSR adjacency symmetric', (() => {
 
 console.log('\nCALM AND RECORD');
 
-const system = new CorrectionSystem();
+const system = new CorrectionSystem(SYSTEM);
 const warmStart = performance.now();
 system.warmUp();
 const warmMs = performance.now() - warmStart;
@@ -179,8 +196,8 @@ for (let t = 0; t < 900; t++) {
   calmPeak = Math.max(calmPeak, system.peakDeviation());
 }
 
-const EPSILON = DEFAULT_SYSTEM.correction.epsilon;
-const THETA_ON = DEFAULT_SYSTEM.correction.thetaOn;
+const EPSILON = SYSTEM.correction.epsilon;
+const THETA_ON = SYSTEM.correction.thetaOn;
 console.log(`  peak |u - u*| over 7.5s of calm: ${f(calmPeak)}   epsilon ${EPSILON}   theta_on ${THETA_ON}`);
 console.log(`  wave peak |u| ${f(system.simulation.peak())}`);
 
@@ -217,6 +234,8 @@ let peakTick = -1;
 let firstEngageTick = -1;
 let lastEngageTick = -1;
 let maxEngaged = 0;
+let engagedTicks = 0;
+let engagedSum = 0;
 const trace = [];
 
 // Reach: nodes whose deviation ever became visible (past ε), and how far the
@@ -248,6 +267,8 @@ for (let t = 0; t < TICKS; t++) {
     if (firstEngageTick === -1) firstEngageTick = system.tick;
     lastEngageTick = system.tick;
     if (engaged > maxEngaged) maxEngaged = engaged;
+    engagedTicks++;
+    engagedSum += engaged;
   }
   if (flag('trace') && t % 24 === 0) {
     trace.push(
@@ -255,6 +276,12 @@ for (let t = 0; t < TICKS; t++) {
         `engaged ${String(engaged).padStart(4)}  adjustments ${system.operator.adjustments}`
     );
   }
+}
+
+function a_heldStats(log) {
+  if (!log.length) return { min: 0, median: 0, max: 0 };
+  const held = log.map((e) => e.heldTicks).sort((x, y) => x - y);
+  return { min: held[0], median: held[held.length >> 1], max: held[held.length - 1] };
 }
 
 const dt = DEFAULT_SYSTEM.wave.dt;
@@ -311,21 +338,53 @@ console.log(`  settle: |u-u*| ${f(settledAt10s)} at +10s  →  ${f(settledAt20s)
 
 check(
   'the world is returned below the release threshold',
-  settledAt10s < DEFAULT_SYSTEM.correction.thetaOff + EPSILON,
-  `${f(settledAt10s)} < ${f(DEFAULT_SYSTEM.correction.thetaOff + EPSILON)}`
+  settledAt10s < SYSTEM.correction.thetaOff + EPSILON,
+  `${f(settledAt10s)} < ${f(SYSTEM.correction.thetaOff + EPSILON)}`
 );
 check('and keeps settling toward the ambient floor', settledAt20s < settledAt10s, `${f(settledAt20s)}`);
 check('enforcement released', system.operator.engagedCount() === 0, `${system.operator.engagedCount()} held`);
+// Duty cycle. The span between the first and last engagement means nothing on
+// its own: enforcement that flickers on for four ticks at a time inside a
+// three-second window is not something a person can watch, it is a sparkle.
+const span = lastEngageTick - firstEngageTick + 1;
+const duty = engagedTicks / Math.max(span, 1);
+const held = a_heldStats(system.operator.log);
+console.log(
+  `  continuity: violet present on ${engagedTicks}/${span} ticks of the event (${f(duty * 100, 0)}%), ` +
+    `mean ${f(engagedSum / Math.max(engagedTicks, 1), 1)} nodes held`
+);
+console.log(`  per-node hold: min ${held.min} median ${held.median} max ${held.max} ticks (${ms(held.median)} typical)`);
+
+check('enforcement is continuous enough to watch (>=80% duty)', duty >= 0.8, `${f(duty * 100, 0)}%`);
+check('a single correction lasts long enough to read (>=0.15s)', held.median * dt >= 0.15, `${ms(held.median)}`);
+// If the ramp does not finish inside a typical hold, the node strains and is
+// then released as the wave moves on — the snap never happens and the operator
+// is only ever glowing at a deviation that was subsiding anyway.
+check(
+  'the stiffness ramp completes inside a typical hold',
+  held.median >= SYSTEM.correction.rampTicks,
+  `hold ${held.median} ticks vs ramp ${SYSTEM.correction.rampTicks}`
+);
+const meanRemoved = system.operator.log.reduce((t, e) => t + e.removed, 0) / Math.max(system.operator.log.length, 1);
+console.log(`  mean displacement removed per correction: ${f(meanRemoved, 4)}`);
+check('each correction removes real displacement', meanRemoved > 0.05, `${f(meanRemoved, 4)}`);
 check('a trace was retained', scarred > 0, `${scarred} nodes`);
-check('the count is derived, not authored', system.operator.adjustments === system.operator.log.length + system.operator.engagedCount(),
-  `${system.operator.adjustments} = ${system.operator.log.length} closed + ${system.operator.engagedCount()} open`);
+// The event log is a bounded ring, so it saturates at the limit while the
+// counter keeps going. The counter is what the floor panel reports.
+const limit = SYSTEM.correction.eventLogLimit;
+const closed = system.operator.adjustments - system.operator.engagedCount();
+check(
+  'the count is derived, not authored',
+  closed >= 0 && system.operator.log.length === Math.min(closed, limit),
+  `${system.operator.adjustments} adjustments, ${closed} closed, log holds ${system.operator.log.length} (cap ${limit})`
+);
 
 // ------------------------------------------------------------------- replay
 
 console.log('\nREPLAY');
 
 function run() {
-  const s = new CorrectionSystem();
+  const s = new CorrectionSystem(SYSTEM);
   s.warmUp();
   for (let t = 0; t < 900; t++) s.step();
   s.inject(target, ENERGY);
@@ -353,7 +412,7 @@ check(
 
 // A different seed must not accidentally produce the same run.
 const other = new CorrectionSystem({
-  ...DEFAULT_SYSTEM,
+  ...SYSTEM,
   synth: { ...DEFAULT_SYNTH, seed: DEFAULT_SYNTH.seed ^ 0x1234 },
 });
 other.warmUp();

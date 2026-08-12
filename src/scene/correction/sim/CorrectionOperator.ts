@@ -50,6 +50,12 @@ export interface CorrectionParameters {
   scarGain: number;
   /** Ceiling on the permanent scar, so a hammered node cannot go white. */
   scarCeiling: number;
+  /**
+   * The sensor's time constant in seconds — how long a reading persists in the
+   * system's own monitor. Sets how long enforcement keeps hold of a node after
+   * the deviation has actually gone.
+   */
+  senseSeconds: number;
   /** Most completed events retained for inspection. */
   eventLogLimit: number;
 }
@@ -65,25 +71,46 @@ export interface CorrectionParameters {
  * rescaled so the six-stage event has a timeline a person can watch.
  *
  *   stiffnessFrom 0.0028 → 1 − (1−s)⁶ ≈ 1.7% removed per tick  ≈ 0.5 s constant
- *   stiffnessTo   0.0380 → 1 − (1−s)⁶ ≈ 21%  removed per tick  ≈ 40 ms constant
+ *   stiffnessTo   0.0750 → 1 − (1−s)⁶ ≈ 37%  removed per tick  ≈ 27 ms constant
  *
- * ε, θ_on, θ_off, T_hold and K are the plan's values unchanged. Bruise decay is
- * slowed from 0.995 (1.2 s half-life — a blink) to 0.9985 (3.9 s), and split
- * into a decaying bruise plus a monotonic scar, because the plan requires the
- * trace to decay "but never fully clear".
+ * The ramp spans 20 ticks, not 54, and the sensor holds its reading for 0.40 s
+ * rather than 0.12. Both came out of the same measurement: at the plan's ramp a
+ * node released after 13 ticks, before the ramp had finished, so it strained and
+ * was then let go while the wave moved on. Nothing ever snapped, and an operator
+ * that only glows while a deviation subsides on its own is decoration. Swept
+ * together (tools/correction-validate.mjs --ramp --sense), 20/0.40 gives a
+ * median grip of 47 ticks with the ramp completing at 20 — 170 ms of visible
+ * resistance, then the node loses — and raises the region held at once from a
+ * mean of 10 to 28, peaking at 116.
+ *
+ * ε, T_hold and K are the plan's values unchanged.
+ *
+ * θ_on and θ_off are halved from 0.12/0.05. Swept against
+ * tools/correction-validate.mjs: at the plan's thresholds one strike engages a
+ * mean of 10 nodes and violet is present on 80% of the event's ticks, which
+ * renders as a sparkle rather than as the system taking hold of a region. At
+ * 0.06/0.025 the same strike engages a mean of 16 with peaks of 74, and violet
+ * is continuous across 96% of the event. The calm still produces zero
+ * enforcement and zero violet — engagement now sits at |u−u*| > 0.10 against an
+ * ambient peak of 0.020, which is five times the margin the sensor needs.
+ *
+ * Bruise decay is slowed from 0.995 (1.2 s half-life — a blink) to 0.9985
+ * (3.9 s), and split into a decaying bruise plus a monotonic scar, because the
+ * plan requires the trace to decay "but never fully clear".
  */
 export const DEFAULT_CORRECTION: CorrectionParameters = {
   epsilon: 0.04,
-  thetaOn: 0.12,
-  thetaOff: 0.05,
+  thetaOn: 0.06,
+  thetaOff: 0.025,
   holdTicks: 48,
   iterations: 6,
   stiffnessFrom: 0.0028,
-  stiffnessTo: 0.038,
-  rampTicks: 54,
+  stiffnessTo: 0.075,
+  rampTicks: 20,
   bruiseDecay: 0.9985,
   scarGain: 0.014,
   scarCeiling: 0.32,
+  senseSeconds: 0.40,
   eventLogLimit: 256,
 };
 
@@ -104,6 +131,19 @@ const CONTACT_DECAY = Math.exp(-(1 / 120) / 0.15);
 /** ~0.5 s time constant at 120 Hz, for the display envelope. */
 const GLOW_DECAY = Math.exp(-(1 / 120) / 0.5);
 
+/**
+ * The sensor thresholds on a short envelope of the disagreement, not on its
+ * instantaneous value. This is not smoothing for looks — the deviation is a
+ * wave, so it passes through the record twice per cycle, and a threshold on the
+ * raw value resets the hold clock every few ticks. The system would then only
+ * ever catch nodes carrying a steady offset and would be blind to an
+ * oscillation of any amplitude, which is not a sparse sensor, it is a broken
+ * one. An envelope gives the sensor a response time, which is what a real
+ * monitor has — and it is also what keeps the operator holding a node for long
+ * enough that the grip is something a person can watch.
+ */
+const senseDecay = (seconds: number, dt: number): number => Math.exp(-dt / seconds);
+
 export class CorrectionOperator {
   readonly parameters: CorrectionParameters;
 
@@ -117,6 +157,12 @@ export class CorrectionOperator {
   readonly scar: Float32Array;
   /** Smoothed |δ| applied this tick — V = D × C, for the renderer. */
   readonly contact: Float32Array;
+  /**
+   * What the system can see: a short envelope of |u − u*|. Every threshold in
+   * this file reads this and never the raw disagreement, so it is authoritative
+   * and is covered by the checksum.
+   */
+  readonly sensed: Float32Array;
   /**
    * Decaying envelope of |u − u*|. Display only: nothing in the enforcement
    * path reads it, and it is not in the checksum.
@@ -150,6 +196,7 @@ export class CorrectionOperator {
     this.bruise = new Float32Array(nodeCount);
     this.scar = new Float32Array(nodeCount);
     this.contact = new Float32Array(nodeCount);
+    this.sensed = new Float32Array(nodeCount);
     this.glow = new Float32Array(nodeCount);
     this.hold = new Uint16Array(nodeCount);
     this.engagedTicks = new Uint16Array(nodeCount);
@@ -190,7 +237,7 @@ export class CorrectionOperator {
    */
   apply(u: Float32Array, velocity: Float32Array, tick: number): void {
     const p = this.parameters;
-    const { record, engaged, bruise, scar, contact, glow, hold, engagedTicks, openedAt, openedRemoved } = this;
+    const { record, engaged, bruise, scar, contact, sensed, glow, hold, engagedTicks, openedAt, openedRemoved } = this;
     const n = record.length;
 
     if (!this.armed) {
@@ -209,11 +256,17 @@ export class CorrectionOperator {
     }
 
     const rampSpan = Math.max(p.rampTicks, 1);
+    const sense = senseDecay(p.senseSeconds, 1 / 120);
 
     for (let i = 0; i < n; i++) {
       const target = record[i];
-      const deviation = u[i] - target;
-      const violation = Math.abs(deviation) - p.epsilon;
+      const disagreement = Math.abs(u[i] - target);
+
+      // The sensor reading, before any threshold is applied to it.
+      const decayedSense = sensed[i] * sense;
+      sensed[i] = disagreement > decayedSense ? disagreement : decayedSense;
+
+      const violation = sensed[i] - p.epsilon;
       const v = violation > 0 ? violation : 0;
 
       if (engaged[i] === 0) {
@@ -287,9 +340,9 @@ export class CorrectionOperator {
 
       // Recomputed after the pass, so the envelope reflects the state the
       // renderer is about to be handed rather than the one before enforcement.
-      const disagreement = Math.abs(u[i] - target);
+      const corrected = Math.abs(u[i] - target);
       const decayedGlow = glow[i] * GLOW_DECAY;
-      glow[i] = disagreement > decayedGlow ? disagreement : decayedGlow;
+      glow[i] = corrected > decayedGlow ? corrected : decayedGlow;
     }
   }
 
@@ -315,6 +368,7 @@ export class CorrectionOperator {
     for (let i = 0; i < this.record.length; i++) {
       checksum.mixUnsigned(this.bruise[i], 4);
       checksum.mixUnsigned(this.scar[i], 1);
+      checksum.mixUnsigned(this.sensed[i], 2);
       checksum.mix(this.engaged[i]);
     }
     checksum.mix(this.adjustments & 0xffff);

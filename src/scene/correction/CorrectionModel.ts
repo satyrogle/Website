@@ -43,12 +43,19 @@ const DISPLACEMENT_SCALE = 2.8;
 /**
  * The record's brightness.
  *
- * Deliberately a whisper. Amber is flat across every edge, so at any strength
- * that competes with the live state it draws the entire adjacency as a uniform
- * wireframe — which is the plexus read. Kept subordinate, it does its actual
- * job: it is there, coincident, and you only notice it when the world leaves it.
+ * This is what carries the calm. Once the live channel was calibrated to rank
+ * magnitude honestly, a structure at rest emits almost nothing — correctly, but
+ * it left the opening frame nearly empty, and the visitor is supposed to meet
+ * beauty and order there. Raising cyan to fill it would have been a lie: it
+ * would say the world is deviating when it is not.
+ *
+ * So the calm is lit by the record instead. What you are admiring on arrival is
+ * the file — which is the whole proposition, arrived at through the light law
+ * rather than asserted on top of it. It stays flat and subordinate; the moment
+ * the world deviates, cyan comes out of it and amber is what the deviation is
+ * measured against.
  */
-const GHOST_INTENSITY = 0.05;
+const GHOST_INTENSITY = 0.16;
 
 export class CorrectionModel {
   readonly group = new THREE.Group();
@@ -139,12 +146,22 @@ export class CorrectionModel {
         uDisplacement: { value: DISPLACEMENT_SCALE },
         uWorld: { value: new THREE.Color('#4dd0ff') },
         uConsequence: { value: new THREE.Color('#a45fd6') },
-        // Ambient drift sits near 0.02, a strike near 0.45. A gain of 34 puts
-        // the calm at a quarter of full and the strike hard against the
-        // ceiling, which is the range the light law needs.
-        uGlowGain: { value: 34 },
-        uContactGain: { value: 34 },
-        uBruiseGain: { value: 9 },
+        // Calibrated against measured state, not by eye:
+        //
+        //   ambient drift  0.020  ->  0.16   present, plainly at rest
+        //   tolerance eps  0.040  ->  0.24   still nothing worth seeing
+        //   engagement     0.100  ->  0.40   the system starts to react here
+        //   struck peak    0.450  ->  0.94   the deviation
+        //
+        // Six times the calm at the crest is what makes a press an event.
+        uGlowScale: { value: 2.0 },
+        uGlowGamma: { value: 0.55 },
+        // Contact runs ~0.005/tick while the deviation resists and ~0.05 once
+        // the ramp completes, so strain lands near a third and the snap fills.
+        uContactScale: { value: 20 },
+        uContactGamma: { value: 0.5 },
+        uBruiseScale: { value: 8 },
+        uBruiseGamma: { value: 0.6 },
         uBruiseWeight: { value: 0.5 },
         uExposure: { value: 1 },
       },
