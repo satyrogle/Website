@@ -83,6 +83,9 @@ const KNOBS: Knob[] = [
   // overwrites every frame is a knob that lies.
   { label: 'star size', group: 'render', key: 'uStarRadius', min: 0.2, max: 2.5, step: 0.05, value: STAR.radius, source: 'STAR.radius' },
   { label: 'star glow', group: 'render', key: 'uStarGlow', min: 0.2, max: 12, step: 0.1, value: STAR.glow, source: 'STAR.glow' },
+  { label: 'crust radius', group: 'render', key: 'uStarBody', min: 0.5, max: 4, step: 0.05, value: STAR.body, source: 'STAR.body' },
+  { label: 'crust plate size', group: 'render', key: 'uStarFrac', min: 0.2, max: 3, step: 0.05, value: STAR.frac, source: 'STAR.frac' },
+  { label: 'crust split', group: 'render', key: 'uStarBreak', min: 0, max: 1.5, step: 0.01, value: STAR.break, source: 'STAR.break' },
   { label: 'star irregularity', group: 'render', key: 'uStarNoise', min: 0, max: 1, step: 0.01, value: STAR.noise, source: 'STAR.noise' },
   { label: 'star ejecta', group: 'render', key: 'uEjecta', min: 0, max: 5, step: 0.05, value: STAR.ejecta, source: 'STAR.ejecta' },
   { label: 'fragment trails', group: 'render', key: 'uTrail', min: 0, max: 4, step: 0.05, value: TRAIL, source: 'TRAIL' },

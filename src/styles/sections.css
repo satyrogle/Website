@@ -147,18 +147,27 @@
   padding-block: var(--movement-pad);
 }
 
-/* The event needs room to play out, and the turn needs longer than
-   the event: the gain gradient has to be travelled, not stepped. */
+/* The journey needs room, and it did not have it.
+   The machine's five bands used to total 660svh against roughly 740svh of
+   editorial, so the whole descent — every fragment, the wide reveal and the
+   flare — was over inside the first third of the page. Founder verdict:
+   "it is so quick." Each fragment stop now owns most of a screen or more,
+   and the last stretch owns the most, because arriving at the event and
+   watching it open are two separate beats that were sharing one. */
+.band--ask {
+  min-height: 170svh;
+}
+
 .band--notice {
-  min-height: 150svh;
+  min-height: 240svh;
 }
 
 .band--gradient {
-  min-height: 190svh;
+  min-height: 320svh;
 }
 
 .band--floor {
-  min-height: 120svh;
+  min-height: 300svh;
 }
 
 .band__ask {

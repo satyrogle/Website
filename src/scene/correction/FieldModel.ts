@@ -43,7 +43,22 @@ export const PLATING = {
  * luminous edge, `ejecta` throws radial filaments off the core. Zero on either
  * is the clean-orb read the direction explicitly kills.
  */
-export const STAR = { radius: 0.85, glow: 1.7, noise: 0.35, ejecta: 1.4 };
+export const STAR = {
+  /** Radius of the luminous core, which sits *inside* the crust. */
+  radius: 0.9,
+  glow: 1.7,
+  noise: 0.35,
+  ejecta: 1.4,
+  /** The ruptured crust around it. */
+  body: 2.45,
+  /** Plate size on the crust. */
+  frac: 0.7,
+  /** How far the plates have already drifted apart, before any flare. */
+  break: 0.42,
+};
+
+/** How much further the flare drives the crust apart. */
+export const FLARE_BREAK = 0.55;
 
 /** Trailing ejecta behind each great fragment, back toward the source. */
 export const TRAIL = 0.9;
@@ -161,6 +176,12 @@ export class FieldModel {
       uStarGlow: { value: STAR.glow },
       uStarNoise: { value: STAR.noise },
       uEjecta: { value: STAR.ejecta },
+      uStarBody: { value: STAR.body },
+      uStarFrac: { value: STAR.frac },
+      uStarBreak: { value: STAR.break },
+      // The rupture faces down the funnel — the direction the debris went, and
+      // therefore the direction it was thrown.
+      uRupture: { value: AXIS.clone() },
       uTrail: { value: TRAIL },
       uFlare: { value: 0 },
       uAxis: { value: AXIS.clone() },
@@ -253,6 +274,9 @@ export class FieldModel {
   setFlare(value: number): void {
     const flare = Math.max(0, Math.min(1, value));
     this.uniforms.uFlare.value = flare;
+    // The crust keeps coming apart as the event drives on, so the finale is
+    // the body opening further rather than a lamp being turned up.
+    this.uniforms.uStarBreak.value = STAR.break + FLARE_BREAK * flare;
 
     const fragments = this.uniforms.uFrag.value as THREE.Vector4[];
     for (let i = 0; i < DEBRIS.length; i++) {

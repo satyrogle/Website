@@ -51,6 +51,12 @@ uniform float uFlare;
 uniform float uStarNoise;
 /** Radial ejecta filaments thrown off the core. */
 uniform float uEjecta;
+/** The ruptured body around the core: radius, plate size, how far it has split. */
+uniform float uStarBody;
+uniform float uStarFrac;
+uniform float uStarBreak;
+/** Which way the rupture faces. Down the funnel: it is why the debris went. */
+uniform vec3 uRupture;
 /** Trailing ejecta behind each great fragment, back toward the source. */
 uniform float uTrail;
 
@@ -188,6 +194,53 @@ float chunk(vec3 q, float shell, float idx) {
 }
 
 /**
+ * The source: a body coming apart, not a lamp.
+ *
+ * Jacob's reference is a planet mid-rupture — dark crust, brilliant fractures,
+ * light blasting out of the interior — and that is also the cure for the frame
+ * being unlookable. A bare luminous core is an unoccluded disc and floods
+ * everything; a crust around it blocks most of the light and lets the rest out
+ * through the gaps, so what reaches the eye is shaped: rays through fractures,
+ * a burning limb, a blown-open face. Same total emission, a hundred times more
+ * legible.
+ *
+ * Built from the approved plating, broken into plates that have drifted apart
+ * along their own radii, with one whole side blown out — facing down the
+ * funnel, which is why the debris went that way. The flare widens the splits:
+ * the body still coming apart, not a brightness ramp.
+ */
+float starBody(vec3 p) {
+  vec3 q = p - uStarPos;
+  float r = length(q);
+  if (r > uStarBody * 2.2) return r - uStarBody * 1.6;
+
+  float relief = (hash31(floor(q * uPanelFreq)) * 0.62 +
+                  hash31(floor(q * uPanelFreq * 3.1) + 17.3) * 0.38 - 0.5) * uRelief;
+  float seams = fissure(q) * uGroove;
+
+  // Plates driven apart along their own radii. The gaps between them are what
+  // the interior light escapes through.
+  vec3 plate = floor(q * uStarFrac);
+  float split = uStarBreak * (0.2 + hash31(plate + 8.3));
+
+  float rough = terrain(q / max(r, 1e-4) * 2.7) * uStarBody * 0.1;
+  float d = r - (uStarBody + split + rough + relief - seams);
+
+  // The blown face. A cone opened toward the rupture direction, widening as
+  // the flare drives the event on.
+  float facing = dot(q / max(r, 1e-4), uRupture);
+  // A section broken away, not most of the body. Opened too far it stops being
+  // a planet coming apart and becomes a dark cap with a light behind it.
+  float open = smoothstep(0.62 - uFlare * 0.18, 0.97, facing);
+  d = max(d, -(r - uStarBody * (2.0 - 1.25 * open)));
+
+  gSeam = fissure(q);
+  // Every fracture face is incandescent: this is the interior, exposed.
+  gCut = smoothstep(0.0, uStarBody * 0.5, split) * 0.8 + open * 0.6;
+  return d;
+}
+
+/**
  * The small debris - everywhere, as the founder specified, not five props in
  * a void. Jittered domain repetition gated to the blast cone: one shard
  * evaluated per cell, presence decided by hash, density thinning toward the
@@ -263,6 +316,14 @@ float map(vec3 p) {
       bestSeam = gSeam;
       bestCut = gCut;
     }
+  }
+
+  // The ruptured body at the throat.
+  float sb = starBody(p);
+  if (sb < best) {
+    best = sb;
+    bestSeam = gSeam;
+    bestCut = gCut;
   }
 
   // The field of small debris. Dark: it carries no seam or break light of its
@@ -376,7 +437,10 @@ void main() {
   // The flare is the finale: the star's output climbs an order of magnitude
   // over the last stretch of scroll, and its colour runs from amber toward
   // white heat.
-  float flared = uStarGlow * (1.0 + uFlare * 9.0);
+  // Four, not nine. At nine the finale whited out the frame and the founder
+  // could not see the event he had scrolled to — and the crust now does most
+  // of the shaping work anyway, so the emission does not have to shout.
+  float flared = uStarGlow * (1.0 + uFlare * 4.0);
   star = star / steps * flared;
 
   // Amber carries everything. It desaturates as it brightens — hot, not gold.
@@ -387,7 +451,10 @@ void main() {
   // Overexposed where hottest: past a threshold the core clips to white, and
   // it is allowed to - a star you can comfortably look at is a lamp.
   colour += mix(uRecord, vec3(1.0, 0.95, 0.88), clamp(star * 0.7 + uFlare * 0.4, 0.0, 0.92)) * star;
-  colour += vec3(1.0) * max(star - 1.1, 0.0) * 0.85;
+  // Clipping to white is allowed only well past the point the core has
+  // already saturated, so the bloom stays inside the fractures instead of
+  // spreading across everything behind them.
+  colour += vec3(1.0) * max(star - 1.9, 0.0) * 0.5;
 
   // Attention warms the seams and the breaks, and only those. Cyan is a
   // hairline at the edge of attention — the world surfacing at the boundary

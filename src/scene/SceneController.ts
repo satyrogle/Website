@@ -116,10 +116,18 @@ const RAIL = { waypoints: buildRail() };
  * finish — the first capture of the floor band proved it, two fragments short
  * of the star.
  */
-const RAIL_END = 0.78;
+const RAIL_END = 0.71;
 
-/** Where in the scroll the star begins to flare, and where it peaks. */
-const FLARE = { from: 0.64, to: 0.8 };
+/**
+ * The flare starts after the camera has arrived, not while it is still
+ * travelling.
+ *
+ * They used to overlap almost entirely — the pull-back and the whiteout
+ * happened together, so the wide reveal the whole descent builds toward was
+ * never actually seen. Arriving somewhere and watching it come apart are two
+ * beats, and they get one each.
+ */
+const FLARE = { from: 0.73, to: 0.86 };
 
 /**
  * Enforcement gain against narrative depth.
