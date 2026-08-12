@@ -438,5 +438,155 @@ if (flag('record')) {
   await clean.close();
 }
 
+if (flag('paths')) {
+  console.log('\nTHE OTHER PATHS');
+
+  /** Company content has to be reachable and readable on every one of these. */
+  const companyCheck = () =>
+    page.evaluate(() => {
+      const sections = ['premise', 'studio'];
+      const missing = sections.filter((id) => !document.getElementById(id));
+      const contact = document.querySelector('a[href^="mailto:"]');
+      const words = (document.getElementById('main')?.innerText ?? '').trim().split(/\s+/).length;
+      return { missing, contact: !!contact, words };
+    });
+
+  // --- Mobile: a different composition, not a smaller one -----------------
+  {
+    const mobile = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 1,
+      isMobile: true,
+      hasTouch: true,
+    });
+    const phone = await mobile.newPage();
+    await phone.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await phone.waitForTimeout(6000);
+    await writeFile(path.join(OUT, '40-mobile-open.png'), await phone.screenshot({ type: 'png' }));
+
+    const shape = await phone.evaluate(() => {
+      const canvas = document.getElementById('lattice-canvas');
+      if (!canvas) return null;
+      const copy = document.createElement('canvas');
+      copy.width = 240;
+      copy.height = Math.round((240 * canvas.height) / canvas.width);
+      const c = copy.getContext('2d');
+      return new Promise((resolve) =>
+        requestAnimationFrame(() => {
+          c.drawImage(canvas, 0, 0, copy.width, copy.height);
+          const { data } = c.getImageData(0, 0, copy.width, copy.height);
+          let lit = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const l = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
+            if (l > 0.04) lit++;
+          }
+          resolve({ litShare: lit / (data.length / 4) });
+        })
+      );
+    });
+    console.log(`  mobile 390x844: structure covers ${(shape.litShare * 100).toFixed(1)}% of the frame`);
+    await phone.close();
+    await mobile.close();
+  }
+
+  // --- Reduced motion: the triptych, and a world that does not move -------
+  {
+    const still = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      reducedMotion: 'reduce',
+    });
+    const reader = await still.newPage();
+    await reader.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await reader.waitForTimeout(9000);
+
+    const triptych = await reader.evaluate(() => {
+      const figure = document.querySelector('[data-triptych]');
+      if (!figure) return { present: false };
+      const images = Array.from(figure.querySelectorAll('img'));
+      return {
+        present: !figure.hidden,
+        frames: images.length,
+        filled: images.filter((img) => img.src.startsWith('data:image/png')).length,
+        alt: images.map((img) => img.alt.slice(0, 34)),
+        askHidden: !document.querySelector('.band--ask')?.getBoundingClientRect().height,
+      };
+    });
+    console.log(
+      `  reduced motion: triptych shown ${triptych.present}, ${triptych.filled}/${triptych.frames} frames rendered, ` +
+        `invitation hidden ${triptych.askHidden}`
+    );
+
+    await reader.evaluate(() => {
+      document.querySelector('[data-triptych]')?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    });
+    await reader.waitForTimeout(600);
+    await writeFile(path.join(OUT, '41-reduced-triptych.png'), await reader.screenshot({ type: 'png' }));
+    await reader.close();
+    await still.close();
+  }
+
+  // --- No WebGL: the machine is simply absent -----------------------------
+  {
+    const blind = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
+    // Refusing the context is the honest simulation of a machine that cannot
+    // give us one, and it exercises the same branch as a driver failure.
+    await blind.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+        if (type === 'webgl2' || type === 'webgl') return null;
+        return original.call(this, type, ...rest);
+      };
+    });
+    const reader = await blind.newPage();
+    await reader.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await reader.waitForTimeout(3000);
+
+    const state = await reader.evaluate(() => ({
+      fallback: document.documentElement.classList.contains('no-webgl'),
+      bands: document.querySelectorAll('.band').length,
+      canvas: !!document.getElementById('lattice-canvas'),
+      enterHref: document.querySelector('[data-fallback-href]')?.getAttribute('href'),
+      premise: !!document.getElementById('premise'),
+      studio: !!document.getElementById('studio'),
+      loader: document.getElementById('loader')?.hidden,
+      stored: window.localStorage.getItem('darkLattice.record'),
+    }));
+    console.log(
+      `  no WebGL: fallback ${state.fallback}, machine bands left ${state.bands}, canvas ${state.canvas}, ` +
+        `loader cleared ${state.loader}`
+    );
+    console.log(`    "enter" now points at ${state.enterHref}; premise ${state.premise}, studio ${state.studio}`);
+    console.log(`    recorded: ${state.stored}`);
+    await writeFile(path.join(OUT, '42-no-webgl.png'), await reader.screenshot({ type: 'png' }));
+    await reader.close();
+    await blind.close();
+  }
+
+  // --- Keyboard only: the action, and the whole company ------------------
+  {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(400);
+    const stops = [];
+    for (let i = 0; i < 10; i++) {
+      await page.keyboard.press('Tab');
+      stops.push(
+        await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el || el === document.body) return '(body)';
+          const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 30);
+          return `${el.tagName.toLowerCase()}:${text || el.getAttribute('aria-label') || ''}`;
+        })
+      );
+    }
+    console.log(`  keyboard: ${stops.join(' -> ')}`);
+  }
+
+  const company = await companyCheck();
+  console.log(
+    `  company content on the live path: ${company.words} words, contact link ${company.contact}, ` +
+      `missing sections ${company.missing.length ? company.missing.join(',') : 'none'}`
+  );
+}
+
 console.log(`\nwritten to ${OUT}\n`);
 await browser.close();

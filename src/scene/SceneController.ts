@@ -81,6 +81,22 @@ const RAIL = {
  */
 const GAIN = { from: 0.28, to: 0.75, low: 1.0, high: 2.2 };
 
+/**
+ * Portrait recomposition.
+ *
+ * Not the landscape frame scaled down. The veil is eighteen units long and
+ * under two thick, and a tall viewport's horizontal field is narrow: held
+ * level it would be cropped to a fragment, and pulling back far enough to fit
+ * it would reduce it to a thread across the middle of the frame.
+ *
+ * So the frame turns instead of the object. Rolling the camera puts the veil
+ * on the diagonal, which is the longest run a portrait frame has — about
+ * sixteen units against seven across the width — and the composition fills
+ * rather than shrinks. The camera is still on a straight rail; only its
+ * horizon is different.
+ */
+const PORTRAIT = { fov: 34, roll: -0.92, below: 0.85 };
+
 const smoothstep = (t: number): number => {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
   return x * x * (3 - 2 * x);
@@ -116,6 +132,9 @@ export class SceneController {
 
   private raycaster = new THREE.Raycaster();
   private pointerNdc = new THREE.Vector2();
+
+  /** True when the viewport is tall enough to need its own composition. */
+  private portrait = false;
 
   /** Scratch for the camera rail, so a frame allocates nothing. */
   private railTarget = new THREE.Vector3();
@@ -174,6 +193,7 @@ export class SceneController {
     this.renderer.setSize(clientWidth, clientHeight, false);
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
+    this.compose();
     this.camera.position.copy(CAMERA.position);
     this.camera.lookAt(CAMERA.target);
 
@@ -197,14 +217,16 @@ export class SceneController {
    * the result. This is the site's real initialisation work, so the loader is
    * reporting progress rather than counting down a timer.
    */
-  async warmUp(onProgress?: (fraction: number) => void): Promise<void> {
+  async warmUp(
+    onProgress?: (fraction: number, stage: 'synth' | 'warmup' | 'record') => void
+  ): Promise<void> {
     const client = new PulseClient();
     this.client = client;
 
     client.onProgress = (message) => {
       // Graph synthesis is a tenth of it; the warm-up ticks are the rest.
       const fraction = message.stage === 'synth' ? 0 : 0.1 + message.fraction * 0.9;
-      onProgress?.(Math.min(fraction, 1));
+      onProgress?.(Math.min(fraction, 1), message.stage);
     };
 
     client.start();
@@ -225,7 +247,7 @@ export class SceneController {
       client.release(first);
     }
 
-    onProgress?.(1);
+    onProgress?.(1, 'record');
   }
 
   // ------------------------------------------------------------------
@@ -325,6 +347,20 @@ export class SceneController {
     this.renderer.setPixelRatio(this.quality.pixelRatio());
     this.renderer.setSize(clientWidth, clientHeight, false);
     this.camera.aspect = clientWidth / Math.max(clientHeight, 1);
+    this.compose();
+  }
+
+  /** Picks the composition the viewport shape needs, and nothing else. */
+  private compose(): void {
+    const { clientWidth, clientHeight } = this.canvasSize();
+    this.portrait = clientWidth / Math.max(clientHeight, 1) < PORTRAIT.below;
+
+    this.camera.fov = this.portrait ? PORTRAIT.fov : CAMERA.fov;
+    if (this.portrait) {
+      this.camera.up.set(Math.sin(PORTRAIT.roll), Math.cos(PORTRAIT.roll), 0);
+    } else {
+      this.camera.up.set(0, 1, 0);
+    }
     this.camera.updateProjectionMatrix();
   }
 
@@ -394,6 +430,46 @@ export class SceneController {
     cancelAnimationFrame(this.frameHandle);
   }
 
+  /**
+   * Three stills of one correction event, rendered off the same scene the
+   * live path uses.
+   *
+   * This is the reduced-motion explanation. A before-and-after pair would be
+   * the failure the direction was warned about — an unexplained change — so
+   * the middle frame is the one that matters: the system has hold of the
+   * deviation and has not won yet.
+   *
+   * Rendered at a fixed size rather than at the viewport's, so the three
+   * stills are the same shape on every machine, and taken while the loader is
+   * still up so the temporary resize is never seen.
+   */
+  async captureTriptych(width = 1000): Promise<Array<{ stage: string; url: string }>> {
+    if (!this.client || !this.model) return [];
+
+    const frames = await this.client.triptych();
+    const height = Math.round(width * 0.6);
+
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(width, height, false);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.model.setExposure(1);
+    this.applyCamera();
+
+    const stills = frames.map((frame) => {
+      this.model?.applyState(frame.data);
+      this.renderer.render(this.scene, this.camera);
+      return { stage: frame.stage, url: this.renderer.domElement.toDataURL('image/png') };
+    });
+
+    // Back to the viewport, and back to the world the event left behind.
+    this.resize();
+    this.consume();
+    this.renderStill();
+
+    return stills;
+  }
+
   /** Renders exactly one frame — used for the reduced-motion still. */
   renderStill(): void {
     this.exposure = 1;
@@ -426,16 +502,12 @@ export class SceneController {
   }
 
   private applyCamera(): void {
-    if (this.reducedMotion) {
-      this.camera.position.copy(CAMERA.position);
-      this.camera.lookAt(CAMERA.target);
-      return;
-    }
-
     // Eased against progress rather than tweened against time: the camera is a
     // readout of where the visitor is on the page, so it must be able to run
     // backwards exactly as it ran forwards, with no easing state to unwind.
-    const t = smoothstep(this.progress);
+    // Reduced motion holds it at the head of the rail, which is the same pose
+    // by construction rather than a second set of numbers to keep in step.
+    const t = this.reducedMotion ? 0 : smoothstep(this.progress);
 
     this.railTarget.copy(RAIL.targetFrom).lerp(RAIL.targetTo, t);
     this.railOffset.copy(RAIL.offsetFrom).lerp(RAIL.offsetTo, t);

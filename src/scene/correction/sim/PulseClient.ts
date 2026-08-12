@@ -9,11 +9,22 @@
  */
 
 import type {
+  FrameMessage,
   ProgressMessage,
   StateMessage,
   WorkerInbound,
   WorkerOutbound,
 } from './PulseWorker';
+
+/** One still from the scripted correction event. */
+export interface TriptychFrame {
+  stage: FrameMessage['stage'];
+  data: Float32Array;
+  tick: number;
+  adjustments: number;
+  engaged: number;
+  peakDeviation: number;
+}
 
 /** The synthesised structure, as the renderer needs it. */
 export interface StructureHandoff {
@@ -52,6 +63,8 @@ export class PulseClient {
 
   onProgress: ((message: ProgressMessage) => void) | null = null;
 
+  private readonly frames: TriptychFrame[] = [];
+  private resolveFrames: ((frames: TriptychFrame[]) => void) | null = null;
   private resolveReady: (() => void) | null = null;
   private rejectReady: ((reason: Error) => void) | null = null;
   /** Resolves when the structure exists AND the record has been taken. */
@@ -88,6 +101,21 @@ export class PulseClient {
           this.record = new Float32Array(message.record);
           this.resolveReady?.();
           this.resolveReady = null;
+          break;
+
+        case 'frame':
+          this.frames.push({
+            stage: message.stage,
+            data: new Float32Array(message.buffer),
+            tick: message.tick,
+            adjustments: message.adjustments,
+            engaged: message.engaged,
+            peakDeviation: message.peakDeviation,
+          });
+          if (this.frames.length === 3) {
+            this.resolveFrames?.(this.frames);
+            this.resolveFrames = null;
+          }
           break;
 
         case 'error':
@@ -148,6 +176,19 @@ export class PulseClient {
     this.gain = quantised;
     const message: WorkerInbound = { type: 'gain', value: quantised };
     this.worker.postMessage(message);
+  }
+
+  /**
+   * Runs one correction event and returns three stills of it. The world is
+   * left where the event left it, which is the state the reduced-motion path
+   * shows: struck, corrected, and still carrying the mark.
+   */
+  triptych(): Promise<TriptychFrame[]> {
+    const message: WorkerInbound = { type: 'triptych' };
+    this.worker.postMessage(message);
+    return new Promise((resolve) => {
+      this.resolveFrames = resolve;
+    });
   }
 
   setRunning(running: boolean): void {

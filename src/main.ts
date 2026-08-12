@@ -35,6 +35,25 @@ let record: RecordController | null = null;
 const loaderEl = document.getElementById('loader');
 const loaderBar = document.getElementById('loader-bar');
 const loaderCount = document.getElementById('loader-count');
+const loaderLabel = document.getElementById('loader-label');
+
+/**
+ * What the bar is actually waiting for. Each label is a real stage of
+ * initialisation reported by the Worker, so the loader describes work
+ * rather than decorating a timer.
+ */
+const LOADER_LABELS: Record<string, string> = {
+  fonts: 'Loading type',
+  synth: 'Synthesising the structure',
+  warmup: 'Running it unsupervised',
+  record: 'Recording the approved state',
+  frame: 'Composing the first frame',
+};
+
+function setLoaderStage(stage: keyof typeof LOADER_LABELS | string): void {
+  const label = LOADER_LABELS[stage];
+  if (label && loaderLabel) loaderLabel.textContent = label;
+}
 
 // Repeat visits within a session skip the loader entirely: the shaders
 // and fonts are already warm, so showing progress would be theatre.
@@ -123,6 +142,7 @@ async function boot(): Promise<void> {
     /* font loading is best-effort */
   }
   setLoaderProgress(0.3);
+  setLoaderStage('synth');
 
   const canvas = document.getElementById('lattice-canvas') as HTMLCanvasElement | null;
 
@@ -149,7 +169,10 @@ async function boot(): Promise<void> {
   //     enforcing anything, which is why the record can be derived from
   //     it rather than authored.
   try {
-    await scene.warmUp((fraction) => setLoaderProgress(0.55 + fraction * 0.32));
+    await scene.warmUp((fraction, stage) => {
+      setLoaderProgress(0.55 + fraction * 0.32);
+      setLoaderStage(stage);
+    });
   } catch (error) {
     scene.dispose();
     scene = null;
@@ -159,6 +182,7 @@ async function boot(): Promise<void> {
   }
 
   setLoaderProgress(0.88);
+  setLoaderStage('frame');
 
   // 5 — First frame. Rendering once here means the hero composition is
   //     already on screen behind the loader when it clears, so the
@@ -181,8 +205,11 @@ async function boot(): Promise<void> {
   director.start();
 
   if (motion.reduced) {
-    // Composed still. No drift, no travel, no smooth-scroll layer.
+    // Composed still. No drift, no travel, no smooth-scroll layer — and the
+    // event the visitor will never see running, rendered as three stills
+    // while the loader is still up.
     scene.setWake(1);
+    await buildTriptych(scene);
     scene.renderStill();
   } else {
     scene.setWake(1);
@@ -214,6 +241,36 @@ async function boot(): Promise<void> {
   // idle clock behind the false first action.
   record = new RecordController(scene, { falseAction: !motion.reduced });
   record.init();
+}
+
+// ---------------------------------------------------------------------
+//  Reduced motion — one correction event, as three stills
+// ---------------------------------------------------------------------
+
+/**
+ * Renders the event and puts it in the page. Raced against a timeout: the
+ * stills are an explanation, not a dependency, and a Worker that never
+ * answers must not be able to hold the loader up.
+ */
+async function buildTriptych(controller: SceneController): Promise<void> {
+  const figure = document.querySelector<HTMLElement>('[data-triptych]');
+  if (!figure) return;
+
+  try {
+    const stills = await Promise.race([
+      controller.captureTriptych(),
+      new Promise<never[]>((resolve) => window.setTimeout(() => resolve([]), 6000)),
+    ]);
+    if (!stills.length) return;
+
+    for (const still of stills) {
+      const image = figure.querySelector<HTMLImageElement>(`[data-triptych-frame="${still.stage}"]`);
+      if (image) image.src = still.url;
+    }
+    figure.hidden = false;
+  } catch (error) {
+    if (import.meta.env.DEV) console.warn('[dark-lattice] triptych unavailable:', error);
+  }
 }
 
 // ---------------------------------------------------------------------

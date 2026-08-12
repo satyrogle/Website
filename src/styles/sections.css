@@ -195,6 +195,89 @@
   cursor: default;
 }
 
+/* --- The strain triptych ------------------------------------------
+   Reduced motion gets the event as three stills of the real thing,
+   rendered from the same scene at boot. Laid out as a sequence, not a
+   gallery: they are one event read left to right, and the middle
+   frame is the one that stops it being an unexplained change. */
+
+.triptych {
+  margin: 0;
+  max-width: 108ch;
+}
+
+.triptych[hidden] {
+  display: none;
+}
+
+.triptych__frames {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(1rem, 2.5vw, 2.25rem);
+}
+
+.triptych__still {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line-faint);
+  background: var(--ground);
+}
+
+.triptych__caption {
+  margin: 0.9rem 0 0;
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 34ch;
+}
+
+.triptych__num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.24em;
+  color: var(--amber);
+  margin-block-end: 0.4rem;
+}
+
+.triptych__note {
+  margin-block-start: clamp(1.5rem, 4vh, 2.5rem);
+  padding-block-start: clamp(1rem, 2.5vh, 1.5rem);
+  border-top: 1px solid var(--line);
+  font-size: var(--step-0);
+  color: var(--text);
+  max-width: 52ch;
+}
+
+@media (max-width: 760px) {
+  .triptych__frames {
+    grid-template-columns: 1fr;
+  }
+
+  .triptych__caption {
+    max-width: none;
+  }
+}
+
+/* Reduced motion has no invitation to press: the still cannot answer
+   it. The triptych carries the beat instead. */
+:root.reduced-motion .band--ask {
+  display: none;
+}
+
+/* And it carries the explanation, so it has to be readable over the
+   held frame behind it. The same ground wash the dense editorial
+   sections use over the live field — not a glass panel, and only on
+   this path. */
+:root.reduced-motion .triptych {
+  background: var(--panel-veil-solid);
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+
 /* --- The record ---------------------------------------------------
    Amber, because it is the file talking, and mono because it is the
    file's own voice rather than the studio's. Set as a statement, not

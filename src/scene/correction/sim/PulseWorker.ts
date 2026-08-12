@@ -59,11 +59,30 @@ export interface StateMessage {
   stepMs: number;
 }
 
+/**
+ * One still from a scripted correction event, for the reduced-motion path.
+ *
+ * The three stages are found by watching the system rather than by naming
+ * ticks: a frame is taken the moment before enforcement first engages, again
+ * while the ramp is still climbing, and once the operator has let go and
+ * stayed off. The stills are therefore the event, not an illustration of it.
+ */
+export interface FrameMessage {
+  type: 'frame';
+  stage: 'deviation' | 'strain' | 'settled';
+  buffer: ArrayBuffer;
+  tick: number;
+  adjustments: number;
+  engaged: number;
+  peakDeviation: number;
+}
+
 export type WorkerOutbound =
   | ReadyMessage
   | ProgressMessage
   | RecordMessage
   | StateMessage
+  | FrameMessage
   | { type: 'error'; message: string };
 
 export type WorkerInbound =
@@ -75,6 +94,12 @@ export type WorkerInbound =
    * message stream still replays to an identical checksum.
    */
   | { type: 'gain'; value: number }
+  /**
+   * Run one correction event to completion and report three stills from it.
+   * The world is left where the event left it — struck, corrected, bruised —
+   * because that settled state is what the reduced-motion path shows live.
+   */
+  | { type: 'triptych' }
   | { type: 'recycle'; buffer: ArrayBuffer }
   | { type: 'setRunning'; running: boolean };
 
@@ -102,10 +127,7 @@ let stepMsAverage = 0;
 
 const pool: ArrayBuffer[] = [];
 
-function packSnapshot(s: CorrectionSystem): ArrayBuffer {
-  const floats = textureSize * textureSize * 4;
-  const buffer = pool.pop() ?? new ArrayBuffer(floats * 4);
-  const view = new Float32Array(buffer);
+function packInto(view: Float32Array, s: CorrectionSystem): void {
   const { u } = s.simulation;
   const { glow, bruise, scar, contact } = s.operator;
 
@@ -116,7 +138,12 @@ function packSnapshot(s: CorrectionSystem): ArrayBuffer {
     view[at + 2] = bruise[i] + scar[i];
     view[at + 3] = contact[i];
   }
+}
 
+function packSnapshot(s: CorrectionSystem): ArrayBuffer {
+  const floats = textureSize * textureSize * 4;
+  const buffer = pool.pop() ?? new ArrayBuffer(floats * 4);
+  packInto(new Float32Array(buffer), s);
   return buffer;
 }
 
@@ -135,6 +162,102 @@ function publish(s: CorrectionSystem): void {
     stepMs: stepMsAverage,
   };
   ctx.postMessage(message, [buffer]);
+}
+
+/**
+ * The strike point for the scripted event.
+ *
+ * A fixed position in the veil rather than a node index: the index would only
+ * mean anything for one seed, and the same seed has to produce the same
+ * three stills on every machine and every visit.
+ */
+const TRIPTYCH_POINT = [1.4, 0, -0.6];
+
+function nearestNode(s: CorrectionSystem): number {
+  const { positions } = s.synthesised.graph;
+  let best = 0;
+  let bestDistance = Infinity;
+  for (let i = 0; i < positions.length / 3; i++) {
+    const dx = positions[i * 3] - TRIPTYCH_POINT[0];
+    const dy = positions[i * 3 + 1] - TRIPTYCH_POINT[1];
+    const dz = positions[i * 3 + 2] - TRIPTYCH_POINT[2];
+    const distance = dx * dx + dy * dy + dz * dz;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/**
+ * One correction event, stepped to completion, reported as three stills.
+ *
+ * Run synchronously: it is a couple of thousand fixed steps inside a Worker,
+ * and nothing else may advance the state while it is happening or the stills
+ * would not belong to the same event.
+ */
+function runTriptych(s: CorrectionSystem): void {
+  running = false;
+
+  const floats = textureSize * textureSize * 4;
+  const scratch = new Float32Array(floats);
+
+  const send = (stage: FrameMessage['stage'], source: Float32Array): void => {
+    const buffer = new ArrayBuffer(floats * 4);
+    new Float32Array(buffer).set(source);
+    const message: FrameMessage = {
+      type: 'frame',
+      stage,
+      buffer,
+      tick: s.tick,
+      adjustments: s.operator.adjustments,
+      engaged: s.operator.engagedCount(),
+      peakDeviation: s.peakDeviation(),
+    };
+    ctx.postMessage(message, [buffer]);
+  };
+
+  s.inject(nearestNode(s), 2.2);
+
+  let engagedAt = -1;
+  let quiet = 0;
+  let sentStrain = false;
+
+  // Bounded so a configuration that never engages still terminates and still
+  // reports something rather than hanging the Worker.
+  for (let t = 0; t < 4000; t++) {
+    const held = s.operator.engagedCount();
+
+    if (engagedAt === -1 && held > 0) {
+      // The tick before this one: the deviation is at its most visible and
+      // nothing is holding it yet. That frame is the whole first stage.
+      engagedAt = t;
+      send('deviation', scratch);
+    }
+
+    packInto(scratch, s);
+
+    if (engagedAt !== -1 && !sentStrain && t >= engagedAt + 30) {
+      // Inside the stiffness ramp: the pull is on and has not won yet.
+      sentStrain = true;
+      send('strain', scratch);
+    }
+
+    if (engagedAt !== -1 && sentStrain) {
+      quiet = held === 0 ? quiet + 1 : 0;
+      if (quiet >= 240) break;
+    }
+
+    s.step();
+  }
+
+  packInto(scratch, s);
+  send('settled', scratch);
+
+  // The live canvas shows this state from here on: struck, corrected, and
+  // carrying the mark. Nothing further advances it.
+  publish(s);
 }
 
 function frame(): void {
@@ -222,6 +345,10 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
 
       case 'gain':
         system?.setGain(message.value);
+        break;
+
+      case 'triptych':
+        if (system) runTriptych(system);
         break;
 
       case 'recycle':

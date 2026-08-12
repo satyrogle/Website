@@ -202,7 +202,12 @@ export class CorrectionModel {
 
   /** Uploads one authoritative snapshot. The only path state takes to the GPU. */
   applySnapshot(snapshot: CorrectionSnapshot): void {
-    this.stateData.set(snapshot.data);
+    this.applyState(snapshot.data);
+  }
+
+  /** The same upload, for a state that did not arrive as a live snapshot. */
+  applyState(data: Float32Array): void {
+    this.stateData.set(data);
     this.stateTexture.needsUpdate = true;
   }
 

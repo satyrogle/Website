@@ -50,38 +50,21 @@ body {
   opacity: 1;
 }
 
-/* Static poster shown when WebGL fails, JS is off, or reduced
-   motion is requested. Composed, not an error state. */
+/* Ground for the paths with no live structure. Flat: the two radial
+   washes it used to carry were a cyan-and-teal glow behind a centred
+   object, which is both the retired direction's composition and the
+   generic look the brief rejects outright. Reduced motion does not use
+   it at all any more — that path has the real structure, held still,
+   plus three rendered stills of one correction. */
 .poster {
   position: fixed;
   inset: 0;
   z-index: var(--z-canvas);
   display: none;
-  background:
-    radial-gradient(120% 80% at 50% 42%, rgba(77, 208, 255, 0.09), transparent 62%),
-    radial-gradient(80% 55% at 50% 55%, rgba(54, 224, 176, 0.07), transparent 70%),
-    var(--ground);
+  background: var(--ground);
 }
 
-.poster::after {
-  /* Vignette so the poster reads as a deliberate frame. */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(100% 70% at 50% 45%, transparent 40%, rgba(4, 6, 9, 0.85) 100%);
-}
-
-.poster__art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 45%;
-}
-
-:root.no-webgl .poster,
-:root.reduced-motion .poster {
+:root.no-webgl .poster {
   display: block;
 }
 

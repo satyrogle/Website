@@ -41,22 +41,21 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
-    <!-- Static poster. Shown for reduced motion, WebGL failure and no-JS.
-         Composed as a deliberate frame, never as an error state. -->
-    <div class="poster" aria-hidden="true">
-      <img
-        class="poster__art"
-        src="./fallback/hero-poster.svg"
-        alt=""
-        decoding="async"
-      />
-    </div>
+    <!-- Ground for the paths with no live structure: WebGL failure and
+         no-JS. Deliberately empty. It used to carry a drawing of the
+         retired object — a haloed core with radiating plates — which was
+         both the wrong direction and a frame that resolved into
+         concentric rings. There is no still of the correction that could
+         replace it honestly without shipping a pre-rendered claim about a
+         simulation that is not running, so the composition is the type
+         and the company, on ground. -->
+    <div class="poster" aria-hidden="true"></div>
 
     <canvas id="lattice-canvas" aria-hidden="true"></canvas>
 
     <!-- Loader. Removed immediately if JS never runs. -->
     <div class="loader" id="loader" role="status" aria-live="polite">
-      <p class="loader__label">Initialising lattice</p>
+      <p class="loader__label" id="loader-label">Initialising</p>
       <div class="loader__track"><span class="loader__bar" id="loader-bar"></span></div>
       <p class="loader__count"><span id="loader-count">0</span>%</p>
     </div>
@@ -168,6 +167,51 @@
         <h2 class="sr-only" id="notice-title">
           The system notices the deviation and forces it back
         </h2>
+
+        <!-- Reduced motion only, and filled from three stills of one real
+             event rendered at boot. A before-and-after pair would be an
+             unexplained change; the middle frame is the explanation. -->
+        <figure class="triptych" data-triptych hidden>
+          <ol class="triptych__frames">
+            <li class="triptych__frame">
+              <img
+                class="triptych__still"
+                data-triptych-frame="deviation"
+                alt="The structure lifted out of line by a deviation. Nothing is acting on it."
+              />
+              <p class="triptych__caption">
+                <span class="triptych__num">01</span>
+                A deviation exists. The system has not noticed it yet.
+              </p>
+            </li>
+            <li class="triptych__frame">
+              <img
+                class="triptych__still"
+                data-triptych-frame="strain"
+                alt="The same region, now marked in violet where the system has taken hold of it and is pulling against the deviation."
+              />
+              <p class="triptych__caption">
+                <span class="triptych__num">02</span>
+                It has been noticed. The system pulls it back, and the deviation resists.
+              </p>
+            </li>
+            <li class="triptych__frame">
+              <img
+                class="triptych__still"
+                data-triptych-frame="settled"
+                alt="The structure back in line, with a faint violet trace where the correction happened."
+              />
+              <p class="triptych__caption">
+                <span class="triptych__num">03</span>
+                Returned inside the approved state. The mark stays.
+              </p>
+            </li>
+          </ol>
+          <figcaption class="triptych__note">
+            This is what one press does. The calm everywhere else on this page has the same
+            history.
+          </figcaption>
+        </figure>
       </section>
 
       <!-- ============================================================
@@ -939,6 +983,10 @@
         .loader { display: none !important; }
         #lattice-canvas { display: none !important; }
         .poster { display: block !important; }
+        /* The machine's bands are scroll length for something that cannot
+           run without scripting, so with none they are simply not there
+           and the editorial follows the hero directly. */
+        .band { display: none !important; }
         .reveal-line > span, .fade-in { transform: none !important; opacity: 1 !important; }
       </style>
     </noscript>
