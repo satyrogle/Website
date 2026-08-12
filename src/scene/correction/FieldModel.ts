@@ -35,28 +35,28 @@ export interface FieldModelOptions {
  * the estimator stops bounding anything; below about 1.4 the passes stop adding
  * detail and it reads as one smooth blob. The useful window is narrow.
  */
-export const SCALE = 1.72;
+export const SCALE = 0.62;
 
 /** How far each fold is offset before it mirrors. Zero here is a kaleidoscope. */
-export const FOLD_OFFSET = 0.86;
+export const FOLD_OFFSET = 0.35;
 
 /** The primitive at the bottom of the recursion, and how soft its corners are. */
 export const BOX = { x: 0.62, y: 0.94, z: 0.51 };
 export const ROUND = 0.14;
 
 /** Large-scale bend applied before the recursion starts. */
-export const WARP = 0.75;
+export const WARP = 2.2;
 
 /** Where the absence sits, and how large it is. Off-centre by mandate. */
-export const CORE = { x: 0.62, y: 0.34, z: -0.28 };
-export const CORE_RADIUS = 1.15;
+export const CORE = { x: 1.55, y: 0.85, z: -0.7 };
+export const CORE_RADIUS = 2.6;
 
 /** How tightly the aureole gathers against the absence's boundary. */
 export const AUREOLE = 1.15;
 
 /** Overall emission, and how sharply light concentrates at a boundary. */
-export const GLOW = 2.1;
-export const DENSITY = 5.5;
+export const GLOW = 2.4;
+export const DENSITY = 9.0;
 
 export class FieldModel {
   readonly group = new THREE.Group();

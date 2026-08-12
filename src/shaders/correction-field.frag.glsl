@@ -61,7 +61,7 @@ uniform float uExposure;
 
 out vec4 fragColour;
 
-const int ITERATIONS = 9;
+const int ITERATIONS = 4;
 const float FAR = 46.0;
 
 /** A rotation built from an axis and an angle, applied without a matrix. */
@@ -100,22 +100,35 @@ float core(vec3 p) {
 /**
  * The field.
  *
- * Iterated folding: mirror, rotate, scale, translate. Each pass multiplies the
- * detail already present, so structure appears at every scale the ray can
- * resolve and keeps appearing as the camera closes — recursion the eye reads as
- * impossible depth rather than as a fractal demo.
+ * A large irregular mass with architecture carved out of it, at four scales,
+ * each rotated on an axis the previous one does not share.
  *
- * Every fold is offset before the mirror. A bare `abs()` folds about the origin
- * and leaves mirror planes through the middle of the form, which is how this
- * kind of field becomes kaleidoscopic — and a kaleidoscope resolves into
- * concentric arcs from exactly one camera angle, which is the failure this
- * project has died of four times.
+ * The first version of this folded space nine times with a small contraction
+ * and produced detail at exactly one scale — a uniform crust over a blobby
+ * silhouette. Founder verdict: "this looks like a skin disease." He was right,
+ * and it was the same fault as the choir wearing different material: texture
+ * with no hierarchy. Uniform detail is noise whatever generates it.
+ *
+ * So the structure now has three reads, the way the composition always needed:
+ *
+ *   MACRO   an irregular silhouette from blended volumes and a domain warp,
+ *           with a large absence subtracted from it
+ *   MESO    openings, corridors and shafts cut clean through the mass by the
+ *           first carve, at a scale you could walk through
+ *   MICRO   the same cut repeated three times smaller each pass, so edges
+ *           keep resolving into finer edges as the camera closes
+ *
+ * The carve is a cross-section subtraction — the operation that turns a solid
+ * into architecture rather than into crust. It leaves flat faces, straight
+ * edges and deep square shafts, which is where "impossible machine" and
+ * "sacred architecture" come from; the rotations between passes are what stop
+ * it from reading as a grid, and the warp is what stops the outer boundary
+ * from reading as the primitive it started as.
  */
 float field(vec3 p) {
-  // Large-scale warp first, so the recursion is applied to space that is
+  // Large-scale warp first, so everything after it is applied to space that is
   // already bent. Non-radial by construction: each component is driven by a
-  // different pair of the others, so there is no centre for it to organise
-  // itself around.
+  // different pair of the others, so there is no centre to organise around.
   vec3 q = p;
   q += uWarp * vec3(
     sin(q.y * 0.31 + 1.7) * cos(q.z * 0.24 - 0.9),
@@ -123,39 +136,57 @@ float field(vec3 p) {
     sin(q.x * 0.23 + 2.9) * cos(q.y * 0.19 - 1.4)
   );
 
-  // Breathing lives in the fold offset rather than in any position, so the
-  // whole form reorganises very slightly instead of drifting. This is the only
-  // thing moving in the approved state and it is meant to be barely detectable.
-  float breath = uFoldOffset + uBreath * 0.045;
+  // The mass. Two blended volumes at unrelated proportions — enough to give an
+  // outline that is clearly *something* and clearly not a sphere, a box or
+  // anything else nameable.
+  float a = (length(q / vec3(3.1, 2.05, 2.5)) - 1.0) * 2.05;
+  float b = (length((q - vec3(2.4, 0.7, -1.5)) / vec3(1.9, 1.7, 2.3)) - 1.0) * 1.7;
+  float k = 0.85;
+  float d = -log(exp(-a / k) + exp(-b / k)) * k;
 
-  float scale = 1.0;
+  // Bites taken out of the outline.
+  //
+  // Two blended volumes still close into an ovoid, and a lit ovoid is a
+  // recognisable primitive however intricate its interior — the first carve
+  // rendered as a glowing egg full of machinery. These open the boundary so
+  // the mass has concavities and cut sides, and so no single silhouette can be
+  // read off it from any one direction.
+  float biteA = (length((q - vec3(-3.5, 2.3, 1.7)) / vec3(2.7, 2.3, 2.5)) - 1.0) * 2.3;
+  float biteB = (length((q - vec3(1.3, -3.0, 2.3)) / vec3(2.3, 2.0, 2.7)) - 1.0) * 2.0;
+  d = max(d, -biteA);
+  d = max(d, -biteB);
+
+  // Breathing lives in the carve's offset, so the architecture reorganises
+  // very slightly rather than the whole form drifting. This is the only thing
+  // moving in the approved state and it is meant to be barely detectable.
+  float breath = uFoldOffset * 0.1 + uBreath * 0.012;
+
   vec3 axisA = normalize(vec3(0.41, 0.83, -0.37));
   vec3 axisB = normalize(vec3(-0.72, 0.28, 0.63));
+
+  vec3 c = q;
+  float s = uScale;
 
   for (int i = 0; i < ITERATIONS; i++) {
     float fi = float(i);
 
-    // Offset, then mirror. The offset is what keeps the mirror planes off the
-    // centre and out of alignment with each other.
-    vec3 shift = vec3(breath, breath * 0.72 + 0.11, breath * 1.31 - 0.07);
-    q = abs(q + shift) - shift;
+    // Rotated before every carve, on two axes that advance independently. A
+    // carve repeated on fixed axes is a grid, and a grid is a visible
+    // primitive by another name.
+    c = turn(c, axisA, 0.5 + fi * 0.37);
+    c = turn(c, axisB, -0.31 + fi * 0.213);
+    c += breath;
 
-    // Two rotations on unrelated axes, advancing per iteration so no two passes
-    // fold the same way.
-    q = turn(q, axisA, 0.62 + fi * 0.191);
-    q = turn(q, axisB, 0.37 - fi * 0.127);
+    vec3 cell = mod(c * s, 2.0) - 1.0;
+    s *= 3.0;
 
-    q = q * uScale;
-    scale *= uScale;
+    vec3 r = abs(1.0 - 3.0 * abs(cell));
+    float shaft = (min(min(max(r.x, r.y), max(r.y, r.z)), max(r.z, r.x)) - 1.0) / s;
 
-    q -= vec3(0.87, 0.34, -0.55) * (1.0 + fi * 0.06);
+    // Subtraction, not union. This is the whole difference between carving a
+    // solid and encrusting one.
+    d = max(d, shaft);
   }
-
-  // A rounded box at the end of the recursion. What it was matters less than
-  // that it is small: by this depth the fold has carried it into structure that
-  // no longer resembles the primitive it started as.
-  vec3 b = abs(q) - uBox;
-  float d = (length(max(b, 0.0)) + min(max(b.x, max(b.y, b.z)), 0.0) - uRound) / scale;
 
   return d;
 }
@@ -219,9 +250,18 @@ void main() {
   // Amber carries the approved field. It desaturates as it brightens, so a
   // peak reads as hot rather than as gold — the difference between a form drawn
   // in light and one painted in metal.
-  vec3 colour = mix(uRecord, vec3(1.0, 0.97, 0.92), clamp(lit * 0.7, 0.0, 0.65)) * lit;
-  colour += uRecord * halo * 0.75;
-  colour += uRecord * deep * 0.35;
+  // Weighted hard toward the cavities. Spread evenly over every boundary the
+  // emission lit every bump equally, which is exactly what made a recursive
+  // solid read as a crust — light on all of it is light on none of it. Most of
+  // the frame is meant to be black, with the field appearing where it is deep.
+  // The broad proximity term is almost entirely suppressed. It accumulates
+  // along every grazing boundary, so it traces the outline — which is what
+  // drew a bright rim around the whole mass and made the silhouette the first
+  // thing the eye found. Depth is allowed to glow; outlines are not.
+  lit *= 0.35;
+  vec3 colour = mix(uRecord, vec3(1.0, 0.97, 0.92), clamp(deep * 0.9, 0.0, 0.7)) * deep;
+  colour += uRecord * lit * 0.1;
+  colour += uRecord * halo * 0.6;
 
   // Cyan and violet are wired and currently carry nothing: the deviation field
   // is not attached yet, and a colour grammar that lit up before the mechanism
