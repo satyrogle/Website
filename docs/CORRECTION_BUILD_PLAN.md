@@ -1,5 +1,11 @@
 # THE CORRECTION — build plan
 
+> **SUPERSEDED 2026-08-12 (later the same day).** The band carrier this plan
+> describes was rejected by Jacob. The build order is now
+> `docs/CHOIR_BUILD_PLAN.md`, which carries this plan's sim, interaction and
+> guardrail canon forward. This file stays as the record of what the canon
+> was; do not build the band from it.
+
 Direction chosen by Jacob 2026-08-12. This is the build order. Design detail
 (formal model, art dangers, cross-examination) lives in
 `docs/decision/02-correction-dossier.md` — read it once before step 2.

@@ -31,7 +31,7 @@ Do not use a cheap monster reveal, jumpscare, generic evil-AI language, or arbit
 
 **THE CORRECTION: CHOSEN 2026-08-12. BUILD IN PROGRESS.**
 
-`docs/CORRECTION_BUILD_PLAN.md` is the build order and is authoritative for implementation. `docs/decision/02-correction-dossier.md` holds the design detail. Read the plan before any hero, scene, camera, system or editorial work.
+`docs/CHOIR_BUILD_PLAN.md` is the build order and is authoritative for implementation (carrier locked by Jacob 2026-08-12: a one-way anisotropic flow field of dark blades forced around an off-centre forbidden volume — any halo/aureole exists only as perceptual gestalt, never as geometry; it supersedes `docs/CORRECTION_BUILD_PLAN.md`, whose sim and interaction canon it carries forward). `docs/decision/02-correction-dossier.md` holds the design detail. Read the plan before any hero, scene, camera, system or editorial work.
 
 Reality is permitted to deviate briefly; the system enforces convergence to the recorded, approved state. The opening calm is late-understood as maintained, not natural. At the floor: `YOUR RECORD — ADJUSTMENTS APPLIED: N.`
 
