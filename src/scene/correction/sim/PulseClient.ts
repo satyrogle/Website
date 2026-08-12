@@ -26,19 +26,20 @@ export interface TriptychFrame {
   peakDeviation: number;
 }
 
-/** The synthesised structure, as the renderer needs it. */
+/** The synthesised choir, as the renderer needs it. */
 export interface StructureHandoff {
   nodeCount: number;
   textureSize: number;
+  /** Anchor per blade. */
   positions: Float32Array;
+  /** Face normal per blade — the axis a deviation rotates about. */
   directions: Float32Array;
-  layout: {
-    count: number;
-    starts: Uint32Array;
-    lengths: Uint32Array;
-    widths: Float32Array;
-    binormals: Float32Array;
-  };
+  /** Approved long axis per blade. */
+  tangents: Float32Array;
+  /** Length and width per blade. */
+  dims: Float32Array;
+  /** Twist and edge gain per blade. */
+  shape: Float32Array;
   stats: Record<string, number>;
 }
 
@@ -99,13 +100,9 @@ export class PulseClient {
             textureSize: message.textureSize,
             positions: new Float32Array(message.positions),
             directions: new Float32Array(message.directions),
-            layout: {
-              count: message.ribbonCount,
-              starts: new Uint32Array(message.starts),
-              lengths: new Uint32Array(message.lengths),
-              widths: new Float32Array(message.widths),
-              binormals: new Float32Array(message.binormals),
-            },
+            tangents: new Float32Array(message.tangents),
+            dims: new Float32Array(message.dims),
+            shape: new Float32Array(message.shape),
             stats: message.stats,
           };
           break;
@@ -212,7 +209,11 @@ export class PulseClient {
   }
 
   /** Development only. See the Worker's `tune` message. */
-  tune(patch: { wave?: Record<string, number>; correction?: Record<string, number>; hops?: number }): void {
+  tune(patch: {
+    dynamics?: Record<string, number>;
+    correction?: Record<string, number>;
+    hops?: number;
+  }): void {
     const message: WorkerInbound = { type: 'tune', ...patch };
     this.worker.postMessage(message);
   }

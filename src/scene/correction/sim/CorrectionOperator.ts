@@ -25,7 +25,7 @@
  * to the same state, including the enforcement.
  */
 
-import type { Checksum } from './CausalPulseSimulation';
+import type { Checksum } from './Checksum';
 
 export interface CorrectionParameters {
   /** Tolerance half-width around the record. Inside this, nothing is wrong. */
@@ -317,11 +317,18 @@ export class CorrectionOperator {
   }
 
   /**
-   * One enforcement pass over the whole graph. `u` and `velocity` are the
+   * One enforcement pass over the whole graph. `u` and `rate` are the
    * simulation's own arrays and are written in place — this operator is not an
    * observer, it is the thing that acts.
+   *
+   * `rate` is du/dt as of the last step. Under the first-order field it is
+   * diagnostic: nothing integrates it, so taking it out of a held blade
+   * changes nothing. The line survives because the contract it expresses — the
+   * operator takes the momentum as well as the displacement — is the one that
+   * made enforcement terminate rather than vibrate, and the day this field
+   * gains momentum again it has to still be here.
    */
-  apply(u: Float32Array, velocity: Float32Array, tick: number): void {
+  apply(u: Float32Array, rate: Float32Array, tick: number): void {
     const p = this.parameters;
     const { record, engaged, bruise, scar, contact, sensed, glow, gainField, hold, engagedTicks, openedAt, openedRemoved } =
       this;
@@ -418,7 +425,7 @@ export class CorrectionOperator {
         // integrator immediately pushes the node back out and the enforcement
         // never terminates — it would read as a vibration, not a decision.
         const pull = 1 - Math.pow(1 - stiffness, p.iterations);
-        velocity[i] -= velocity[i] * pull;
+        rate[i] -= rate[i] * pull;
 
         if (engagedTicks[i] < 65535) engagedTicks[i]++;
         openedRemoved[i] += removed;

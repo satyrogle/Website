@@ -1,12 +1,18 @@
 import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
 import {
-  DISPLACEMENT_SCALE,
+  ARC,
+  CROSS,
   EDGE_POWER,
+  GHOST_GAIN,
   GLOW,
+  RECESSION,
   RECORD_GAIN,
   SHEEN,
+  SHELL_GAIN,
+  SLIP,
+  SWING,
 } from '../scene/correction/CorrectionModel';
-import { DEFAULT_WAVE, INJECTION } from '../scene/correction/sim/CausalPulseSimulation';
+import { DEFAULT_DYNAMICS, INJECTION } from '../scene/correction/sim/DeviationField';
 import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
 
 /**
@@ -35,7 +41,7 @@ import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
 interface Knob {
   label: string;
   /** Which layer owns it. */
-  group: 'wave' | 'correction' | 'render' | 'press';
+  group: 'dynamics' | 'correction' | 'render' | 'press';
   /** Property name within that group. */
   key: string;
   min: number;
@@ -53,16 +59,15 @@ interface Knob {
  * the current state is worse than no tuning tool.
  */
 const KNOBS: Knob[] = [
-  // How the deviation travels. Wave speed decides whether a press reads as a
-  // wave or as a rigid displacement, and its useful range is far wider than
-  // the first version of this panel allowed — capped at 20 it could not reach
-  // a value where the front visibly leaves, which made the one slider that
-  // mattered most useless.
-  { label: 'wave speed', group: 'wave', key: 'waveSpeed', min: 1, max: 120, step: 1, value: DEFAULT_WAVE.waveSpeed, source: 'DEFAULT_WAVE' },
-  { label: 'damping', group: 'wave', key: 'waveDamping', min: 0.05, max: 3, step: 0.05, value: DEFAULT_WAVE.waveDamping, source: 'DEFAULT_WAVE' },
+  // How a deviation behaves once it exists. Relaxation is how fast the world
+  // returns to the law on its own — too fast and the disturbance settles before
+  // the system has to act, so the whole proposition goes unwitnessed. Coupling
+  // is how far it bleeds into the blades around it.
+  { label: 'relaxation', group: 'dynamics', key: 'relaxation', min: 0.2, max: 8, step: 0.1, value: DEFAULT_DYNAMICS.relaxation, source: 'DEFAULT_DYNAMICS' },
+  { label: 'coupling', group: 'dynamics', key: 'coupling', min: 0.5, max: 20, step: 0.5, value: DEFAULT_DYNAMICS.coupling, source: 'DEFAULT_DYNAMICS' },
 
-  // How much of the structure one press moves, and how hard.
-  { label: 'press energy', group: 'press', key: 'energy', min: 0.1, max: 14, step: 0.1, value: PRESS_ENERGY, source: 'PRESS_ENERGY' },
+  // How much of the choir one press moves, and how hard.
+  { label: 'press energy', group: 'press', key: 'energy', min: 0.05, max: 3, step: 0.05, value: PRESS_ENERGY, source: 'PRESS_ENERGY' },
   { label: 'press radius', group: 'press', key: 'hops', min: 0.3, max: 6, step: 0.1, value: INJECTION.radius, source: 'INJECTION.radius' },
 
   // What the system notices, how long it waits, and how hard it pulls back.
@@ -73,14 +78,21 @@ const KNOBS: Knob[] = [
   { label: 'ramp (ticks)', group: 'correction', key: 'rampTicks', min: 2, max: 120, step: 2, value: DEFAULT_CORRECTION.rampTicks, source: 'DEFAULT_CORRECTION' },
   { label: 'sensor memory (s)', group: 'correction', key: 'senseSeconds', min: 0.05, max: 2, step: 0.05, value: DEFAULT_CORRECTION.senseSeconds, source: 'DEFAULT_CORRECTION' },
 
-  // How far it moves on screen, and how the frame reads.
-  { label: 'displacement', group: 'render', key: 'uDisplacement', min: 0.5, max: 12, step: 0.1, value: DISPLACEMENT_SCALE, source: 'DISPLACEMENT_SCALE' },
+  // How far a blade turns on screen, and how the frame reads.
+  { label: 'swing (rad/unit)', group: 'render', key: 'uSwing', min: 0.05, max: 1.2, step: 0.01, value: SWING, source: 'SWING' },
+  { label: 'slip', group: 'render', key: 'uSlip', min: 0, max: 0.6, step: 0.01, value: SLIP, source: 'SLIP' },
+  { label: 'edge fan', group: 'render', key: 'uCross', min: 0, max: 1.4, step: 0.01, value: CROSS, source: 'CROSS' },
+  { label: 'cross arc', group: 'render', key: 'uArc', min: 0, max: 0.8, step: 0.01, value: ARC, source: 'ARC' },
   { label: 'record brightness', group: 'render', key: 'uRecordGain', min: 0.1, max: 4, step: 0.05, value: RECORD_GAIN, source: 'RECORD_GAIN' },
+  { label: 'aureole gain', group: 'render', key: 'uShellGain', min: 0, max: 4, step: 0.05, value: SHELL_GAIN, source: 'SHELL_GAIN' },
   { label: 'edge sharpness', group: 'render', key: 'uEdge', min: 0.5, max: 8, step: 0.1, value: EDGE_POWER, source: 'EDGE_POWER' },
   { label: 'record light', group: 'render', key: 'uSheen', min: 0, max: 3, step: 0.05, value: SHEEN.weight, source: 'SHEEN.weight' },
   { label: 'light tightness', group: 'render', key: 'uSheenPower', min: 4, max: 96, step: 2, value: SHEEN.power, source: 'SHEEN.power' },
   { label: 'deviation scale', group: 'render', key: 'uGlowScale', min: 0.5, max: 10, step: 0.1, value: GLOW.scale, source: 'GLOW.scale' },
   { label: 'deviation gamma', group: 'render', key: 'uGlowGamma', min: 0.3, max: 3, step: 0.05, value: GLOW.gamma, source: 'GLOW.gamma' },
+  { label: 'ghost brightness', group: 'render', key: 'uGhostGain', min: 0, max: 3, step: 0.05, value: GHOST_GAIN, source: 'GHOST_GAIN' },
+  { label: 'recession start', group: 'render', key: 'uRecessionNear', min: 2, max: 40, step: 1, value: RECESSION.near, source: 'RECESSION.near' },
+  { label: 'recession range', group: 'render', key: 'uRecessionRange', min: 2, max: 40, step: 1, value: RECESSION.range, source: 'RECESSION.range' },
 ];
 
 export class TuningPanel {

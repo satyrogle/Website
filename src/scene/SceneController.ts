@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { QualityManager } from './QualityManager';
 import { CorrectionModel } from './correction/CorrectionModel';
 import { PulseClient } from './correction/sim/PulseClient';
+import { ChoirField } from './correction/graph/ChoirField';
+import { DEFAULT_SYNTH } from './correction/graph/GraphSynth';
 
 /**
  * SceneController
@@ -34,46 +36,54 @@ export function isWebGL2Available(): boolean {
 }
 
 /**
- * The opening camera.
+ * The choir's own frame, so the camera is authored in the coordinates the
+ * structure is built in.
  *
- * Deliberately off every axis of the structure. A view down a clean central
- * axis is how the retired tunnels read as concentric rings, and the rule
- * outlived them: the veil is met obliquely.
- *
- * Met from inside its own altitude now, not from above. The first pose looked
- * down on the field from well over it, which put the whole structure in the
- * lower third as a band under the type — an underline, however good the
- * ribbons. From within the flow's band, ribbons pass above and below the
- * eyeline and the near ones sweep close, so the field is the frame's subject
- * and the type sits inside its world.
+ * Written in world vectors first, which was a mistake worth recording: the
+ * flow direction is diagonal to every world axis, so world-space camera
+ * numbers are unreadable, unverifiable, and silently wrong the moment the flow
+ * moves. In field coordinates the rail says what it means — travel downstream,
+ * stay off the axis, look across the field rather than along it.
  */
-const CAMERA = {
-  fov: 32,
-  position: new THREE.Vector3(9.2, 2.5, 17.2),
-  target: new THREE.Vector3(-3.2, 0.6, -0.2),
+const FIELD = new ChoirField(DEFAULT_SYNTH.field);
+
+const CAMERA = { fov: 32 };
+
+/**
+ * The rail, in field coordinates: (along the flow, across it, above it).
+ *
+ * Scroll carries the camera downstream and closes on the field as it goes, so
+ * the whole descent is one continuous move: travel plus approach, never a cut
+ * and never an orbit.
+ *
+ * The eye stays far out on the `wide` axis for the entire run. That is the
+ * composition — the flow crosses the frame rather than running into it — and it
+ * is also the guardrail: the one pose that manufactures an annulus out of a
+ * parted flow is the view straight down the flow axis, where the blades parting
+ * around the absence close into a rim behind it. `assertCone` below makes that
+ * pose unreachable rather than merely unlikely.
+ */
+const RAIL = {
+  // Solved rather than guessed: at this pose the forbidden volume lands at
+  // NDC (0.61, 0.67) with a third of its extent past the frame edge —
+  // off-centre, upper right, about a third cropped, which is the composition
+  // Jacob specified. The brain completes the missing part; nothing draws it.
+  eyeFrom: [-5.5, -17.0, 1.2] as const,
+  eyeTo: [1.5, -15.0, 0.1] as const,
+  aimFrom: [-0.5, 0, -1.2] as const,
+  aimTo: [5.0, 0, -0.6] as const,
 };
 
 /**
- * The rail.
+ * How far off the flow axis the camera must stay, in degrees.
  *
- * Scroll slides the look-point along the veil's long axis and closes the
- * camera's offset as it goes, so the whole descent is one continuous move:
- * travel plus approach, never a cut and never an orbit. The offset keeps all
- * three components large throughout, which is what holds the veil oblique — a
- * camera that ends up on the structure's own axis is how the retired tunnels
- * resolved into rings, and the rule outlived them.
- *
- * The opening pose is the frame approved at checkpoint A and is not re-authored
- * here: at progress 0 this evaluates to exactly `CAMERA.position` / `.target`.
+ * Guardrail, not preference. Every retired direction here died as a ring, and
+ * the ring is a property of the viewpoint at least as much as of the geometry:
+ * the field itself cannot circulate — `ChoirField`'s cone clamp makes that
+ * arithmetically impossible — but a camera looking straight down the flow would
+ * still stack the parted blades into concentric arcs on the screen.
  */
-const RAIL = {
-  /** Where the camera is looking, at the start and end of the descent. */
-  targetFrom: new THREE.Vector3(-3.2, 0.6, -0.2),
-  targetTo: new THREE.Vector3(-7.6, -0.1, -0.8),
-  /** Camera position relative to that look-point. */
-  offsetFrom: new THREE.Vector3(12.4, 1.9, 17.4),
-  offsetTo: new THREE.Vector3(8.9, 1.3, 12.5),
-};
+const CONE_LIMIT_DEGREES = 35;
 
 /**
  * Enforcement gain against narrative depth.
@@ -110,12 +120,14 @@ const smoothstep = (t: number): number => {
 /**
  * Energy of one press. Bounded — the visitor gets an action, not a sandbox.
  *
- * Raised with the wave speed rather than independently of it. A faster wave
- * spreads the same impulse across more of the structure sooner, so the
- * amplitude at any one place falls; at the old energy the front travelled
- * properly and was too faint to see doing it.
+ * Under the first-order field this lands directly in the state rather than in a
+ * velocity to be integrated, so it is read in the same units the renderer
+ * swings by: 0.8 turns the struck blades about eighteen degrees out of the comb
+ * their neighbours are still in. Measured rather than chosen — at 0.8 the
+ * system notices after 0.28 s, takes hold of about fifty blades, and lets go
+ * 2.2 s later with the residual back at zero.
  */
-export const PRESS_ENERGY = 5;
+export const PRESS_ENERGY = 0.8;
 
 /** Longest a touch can rest and still be a tap rather than a hold. */
 const TAP_MS = 350;
@@ -234,9 +246,9 @@ export class SceneController {
     this.renderer.setSize(clientWidth, clientHeight, false);
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
+    this.assertCone();
     this.compose();
-    this.camera.position.copy(CAMERA.position);
-    this.camera.lookAt(CAMERA.target);
+    this.applyCamera();
 
     this.quality.onChange(() => this.resize());
     this.bindEvents();
@@ -448,14 +460,18 @@ export class SceneController {
    * anything the renderer reads.
    */
   tune(patch: {
-    wave?: Record<string, number>;
+    dynamics?: Record<string, number>;
     correction?: Record<string, number>;
     render?: Record<string, number>;
     hops?: number;
     energy?: number;
   }): void {
-    if (patch.wave || patch.correction || patch.hops !== undefined) {
-      this.client?.tune({ wave: patch.wave, correction: patch.correction, hops: patch.hops });
+    if (patch.dynamics || patch.correction || patch.hops !== undefined) {
+      this.client?.tune({
+        dynamics: patch.dynamics,
+        correction: patch.correction,
+        hops: patch.hops,
+      });
     }
     if (patch.render) this.model?.tune(patch.render);
     if (patch.energy !== undefined) this.pressEnergy = patch.energy;
@@ -685,6 +701,59 @@ export class SceneController {
     client.release(snapshot);
   }
 
+  /** A point on the rail, in world space, at rail parameter `t`. */
+  private railPose(t: number, eye: THREE.Vector3, aim: THREE.Vector3): void {
+    const lerp = (from: readonly number[], to: readonly number[], index: number): number =>
+      from[index] + (to[index] - from[index]) * t;
+
+    const eyeLocal = FIELD.toWorld([
+      lerp(RAIL.eyeFrom, RAIL.eyeTo, 0),
+      lerp(RAIL.eyeFrom, RAIL.eyeTo, 1),
+      lerp(RAIL.eyeFrom, RAIL.eyeTo, 2),
+    ]);
+    const aimLocal = FIELD.toWorld([
+      lerp(RAIL.aimFrom, RAIL.aimTo, 0),
+      lerp(RAIL.aimFrom, RAIL.aimTo, 1),
+      lerp(RAIL.aimFrom, RAIL.aimTo, 2),
+    ]);
+
+    eye.set(eyeLocal[0], eyeLocal[1], eyeLocal[2]);
+    aim.set(aimLocal[0], aimLocal[1], aimLocal[2]);
+  }
+
+  /**
+   * The camera never looks down the flow. Checked across the whole rail at
+   * construction, so a re-authored pose fails here rather than in a capture
+   * three steps later.
+   */
+  private assertCone(): void {
+    const eye = new THREE.Vector3();
+    const aim = new THREE.Vector3();
+    const forward = new THREE.Vector3();
+    const axis = new THREE.Vector3(FIELD.axis[0], FIELD.axis[1], FIELD.axis[2]);
+    // The view must be at least CONE_LIMIT_DEGREES away from the flow axis, so
+    // the cosine of the angle between them must be at most cos(limit). Written
+    // once as cos(90 − limit), which reads plausibly and rejects every pose
+    // that actually satisfies the rule — a guardrail that fails closed on
+    // correct input is worse than none, because it gets loosened rather than
+    // fixed.
+    const limit = Math.cos(CONE_LIMIT_DEGREES * (Math.PI / 180));
+
+    for (let step = 0; step <= 20; step++) {
+      this.railPose(step / 20, eye, aim);
+      forward.copy(aim).sub(eye).normalize();
+      const along = Math.abs(forward.dot(axis));
+      if (along > limit) {
+        const degrees = (Math.acos(along) * 180) / Math.PI;
+        throw new Error(
+          `camera rail: at t=${(step / 20).toFixed(2)} the view is ${degrees.toFixed(1)}° off the ` +
+            `flow axis, inside the ${CONE_LIMIT_DEGREES}° guardrail. A camera looking down a parted ` +
+            `flow stacks it into concentric arcs — that is how every retired direction became a ring.`
+        );
+      }
+    }
+  }
+
   private applyCamera(): void {
     // Eased against progress rather than tweened against time: the camera is a
     // readout of where the visitor is on the page, so it must be able to run
@@ -693,21 +762,19 @@ export class SceneController {
     // by construction rather than a second set of numbers to keep in step.
     const t = this.reducedMotion ? 0 : smoothstep(this.progress);
 
-    this.railTarget.copy(RAIL.targetFrom).lerp(RAIL.targetTo, t);
-    this.railOffset.copy(RAIL.offsetFrom).lerp(RAIL.offsetTo, t);
+    this.railPose(t, this.railOffset, this.railTarget);
 
-    // The rail was authored from inside the flow for a wide frame. A tall
-    // frame on the diagonal sees far more of the near field from there, and
-    // the composition drowned in ribbons — so portrait stands further back
-    // along the same line and aims below it, which carries the field into
-    // the frame's upper reach and leaves the copy on its own ground. Still
-    // one straight rail; only distance and aim move.
+    // A tall frame sees far less across its width, and the choir's long axis
+    // runs across the frame — held level it would be cropped to a fragment. So
+    // portrait stands further back along the same line and aims lower, which
+    // carries the field into the frame's upper reach and leaves the copy on its
+    // own ground. Still one straight rail; only distance and aim move.
     if (this.portrait) {
-      this.railOffset.multiplyScalar(PORTRAIT.retreat);
+      this.railOffset.sub(this.railTarget).multiplyScalar(PORTRAIT.retreat).add(this.railTarget);
       this.railTarget.y -= PORTRAIT.drop;
     }
 
-    this.camera.position.copy(this.railTarget).add(this.railOffset);
+    this.camera.position.copy(this.railOffset);
     this.camera.lookAt(this.railTarget);
   }
 

@@ -18,25 +18,22 @@
  */
 
 import { CorrectionSystem, DEFAULT_SYSTEM } from './CorrectionSystem';
-import { INJECTION } from './CausalPulseSimulation';
+import { INJECTION } from './DeviationField';
 
 export interface ReadyMessage {
   type: 'ready';
   nodeCount: number;
   textureSize: number;
-  /** p₀ per node, xyz. */
+  /** Anchor per blade, xyz — where the law says it belongs. */
   positions: ArrayBuffer;
-  /** n̂ per node, xyz — the direction a deviation leaves the flow along. */
+  /** n̂ per blade, xyz — the face normal a deviation rotates about. */
   directions: ArrayBuffer;
-  /** Ribbon-local sideways direction per node, xyz. */
-  binormals: ArrayBuffer;
-  /** Half-width per node. */
-  widths: ArrayBuffer;
-  /** First node index per ribbon. */
-  starts: ArrayBuffer;
-  /** Node count per ribbon. */
-  lengths: ArrayBuffer;
-  ribbonCount: number;
+  /** Approved long axis per blade, xyz. */
+  tangents: ArrayBuffer;
+  /** Length and width per blade. */
+  dims: ArrayBuffer;
+  /** Twist and edge gain per blade. */
+  shape: ArrayBuffer;
   stats: Record<string, number>;
 }
 
@@ -113,7 +110,12 @@ export type WorkerInbound =
    * part of the recorded trace: a run that was tuned mid-flight is not a run
    * that replays, and the panel that sends this is stripped from production.
    */
-  | { type: 'tune'; wave?: Record<string, number>; correction?: Record<string, number>; hops?: number }
+  | {
+      type: 'tune';
+      dynamics?: Record<string, number>;
+      correction?: Record<string, number>;
+      hops?: number;
+    }
   | { type: 'recycle'; buffer: ArrayBuffer }
   | { type: 'setRunning'; running: boolean };
 
@@ -179,13 +181,15 @@ function publish(s: CorrectionSystem): void {
 }
 
 /**
- * Where the scripted event lands.
+ * Where the scripted event lands, in field coordinates (along, wide, lift).
  *
- * A position rather than a node index: the index would only mean anything for
- * one seed, and the same seed has to produce the same three stills on every
- * machine and every visit.
+ * Field coordinates rather than world, and a position rather than a node index:
+ * an index would only mean anything for one seed, and a world point would have
+ * to be re-authored every time the flow direction moved. This sits upstream of
+ * the absence and below it, in the crowded stretch where the flow is squeezed
+ * past — so the event happens where the eye is already looking.
  */
-const TRIPTYCH_POINT: [number, number, number] = [1.4, 0, -0.6];
+const TRIPTYCH_POINT: [number, number, number] = [-1.4, 1.1, 0.4];
 
 /**
  * One correction event, reported as three stills.
@@ -220,7 +224,7 @@ function runTriptych(s: CorrectionSystem): void {
     ctx.postMessage(message, [buffer]);
   };
 
-  const [x, y, z] = TRIPTYCH_POINT;
+  const [x, y, z] = s.synthesised.field.toWorld(TRIPTYCH_POINT);
 
   s.scriptedEvent(
     s.nearestNode(x, y, z),
@@ -247,9 +251,9 @@ function frame(): void {
     let steps = 0;
     const started = performance.now();
 
-    while (accumulator >= system.config.wave.dt && steps < MAX_STEPS_PER_FRAME) {
+    while (accumulator >= system.config.dynamics.dt && steps < MAX_STEPS_PER_FRAME) {
       system.step();
-      accumulator -= system.config.wave.dt;
+      accumulator -= system.config.dynamics.dt;
       steps++;
     }
 
@@ -276,17 +280,16 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
         ctx.postMessage({ type: 'progress', fraction: 0, stage: 'synth' });
 
         system = new CorrectionSystem(DEFAULT_SYSTEM);
-        const { graph, layout, stats } = system.synthesised;
+        const { graph, blades, stats } = system.synthesised;
         textureSize = Math.ceil(Math.sqrt(graph.nodeCount));
 
         // Copies, because the originals stay in the Worker and these are
         // transferred out.
         const positions = graph.positions.slice().buffer;
         const directions = graph.directions.slice().buffer;
-        const binormals = layout.binormals.slice().buffer;
-        const widths = layout.widths.slice().buffer;
-        const starts = layout.starts.slice().buffer;
-        const lengths = layout.lengths.slice().buffer;
+        const tangents = blades.tangents.slice().buffer;
+        const dims = blades.dims.slice().buffer;
+        const shape = blades.shape.slice().buffer;
 
         const ready: ReadyMessage = {
           type: 'ready',
@@ -294,14 +297,12 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
           textureSize,
           positions,
           directions,
-          binormals,
-          widths,
-          starts,
-          lengths,
-          ribbonCount: layout.count,
+          tangents,
+          dims,
+          shape,
           stats: { ...stats },
         };
-        ctx.postMessage(ready, [positions, directions, binormals, widths, starts, lengths]);
+        ctx.postMessage(ready, [positions, directions, tangents, dims, shape]);
 
         // The world runs unsupervised, then the record is taken from it. This
         // is the bulk of real initialisation, so the loader reports it.
@@ -329,7 +330,7 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
 
       case 'tune': {
         if (!system) break;
-        if (message.wave) Object.assign(system.simulation.parameters, message.wave);
+        if (message.dynamics) Object.assign(system.simulation.parameters, message.dynamics);
         if (message.correction) Object.assign(system.operator.parameters, message.correction);
         if (message.hops !== undefined) INJECTION.radius = message.hops;
         break;

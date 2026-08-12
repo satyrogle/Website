@@ -1,69 +1,130 @@
 import * as THREE from 'three';
 
-import ribbonVert from '../../shaders/correction-ribbon.vert.glsl?raw';
-import ribbonFrag from '../../shaders/correction-ribbon.frag.glsl?raw';
+import bladeVert from '../../shaders/correction-blade.vert.glsl?raw';
+import bladeFrag from '../../shaders/correction-blade.frag.glsl?raw';
 import type { CorrectionSnapshot, StructureHandoff } from './sim/PulseClient';
 
 /**
- * CorrectionModel — the ribbon field as geometry.
+ * CorrectionModel — the choir as geometry.
  *
- * Each ribbon is a triangle strip two vertices wide, displaced every frame by
- * the authoritative state. They are surfaces with width, orientation and real
- * depth, so they occlude one another and turn their faces as they move.
+ * One instanced draw of thousands of thin tapered blades, each placed and
+ * oriented by the law, each displaced every frame by the authoritative state.
+ * They are solid bodies with width, orientation and real depth, so they occlude
+ * one another and turn their faces as they move.
  *
- * Not lines. A line set has no orientation and no thickness, so it cannot
- * occlude, cannot catch light at a grazing angle and cannot show that a ribbon
- * has turned — and a field of one-pixel strokes reads as a network diagram
- * whatever it is doing. The whole point of the field is that these are
- * separate physical things obeying one law, and a diagram cannot say that.
+ * Not lines and not points. A line has no orientation and no thickness, so it
+ * cannot occlude, cannot catch light at a grazing angle and cannot show that a
+ * blade has turned — and a field of one-pixel strokes reads as a network
+ * diagram whatever it is doing. The proposition is that these are separate
+ * physical things obeying one law, and a diagram cannot say that.
  *
- * There is no record object any more. The approved state used to be a second,
- * static line set drawn coincident with the world; here it is the grazing
- * light on the ribbons themselves, which is both cheaper and truer — the
- * record is not a thing beside the world, it is the state the world is held in.
+ * Two passes over the same geometry:
+ *
+ *   world   where each blade actually is
+ *   ghost   where the law says it should be — invisible while they agree
+ *
+ * The ghost is the record made visible, and it costs nothing at rest because
+ * its opacity is driven by the disagreement itself.
  */
 
 export interface CorrectionModelOptions {
   structure: StructureHandoff;
 }
 
-/**
- * World units of movement per unit of simulation displacement.
- *
- * A deviation of 0.35 lifts a ribbon about a unit out of the flow, against a
- * field roughly four units deep. Far enough that an escaped group is
- * unmistakably outside the permitted path — visible in grayscale, because its
- * curvature and spacing are wrong rather than because it is a different colour
- * — and not so far that it leaves the field altogether.
- */
-export const DISPLACEMENT_SCALE = 6.6;
+/** Segments along a blade. Enough for the taper and the bow to read as curves. */
+const SEGMENTS = 5;
 
-/** How sharply the grazing edge falls off across a ribbon's face. */
+/**
+ * Vertices across a blade's width.
+ *
+ * Four, not two. A two-vertex strip is flat, and a flat surface has one normal
+ * and therefore one tone — six thousand of them rendered as uniformly lit
+ * shards with nothing for a grazing light to catch. Four columns make the
+ * cross-section a shallow arc, which is what gives every blade a dark body and
+ * a lit edge.
+ */
+const COLUMNS = 4;
+
+/**
+ * Radians of swing per unit of state.
+ *
+ * A press peaks around 0.8, so an escaped blade turns about eighteen degrees
+ * out of the comb its neighbours are still in — unmistakable in greyscale.
+ * Ambient drift peaks at 0.027, which is under a degree: the held breath the
+ * opening is supposed to be, rather than sway.
+ */
+export const SWING = 0.38;
+
+/** Hard ceiling on the swing, so a runaway state cannot turn a blade inside out. */
+export const SWING_CLAMP = 0.52;
+
+/** Sideways slip per unit of state, as a fraction of blade length. */
+export const SLIP = 0.15;
+
+/**
+ * Blade width at the tip, as a fraction of its width at the base.
+ *
+ * Blunt, not pointed. At 0.14 the choir rendered as a thicket of thorns — a
+ * field of spikes is a threat display, and the opening is supposed to read as
+ * order before it reads as anything else. A stele ends; it does not stab.
+ */
+export const TIP = 0.34;
+
+/** Lengthwise bow, as a fraction of blade length. */
+export const BOW = 0.06;
+
+/**
+ * How far the face normal fans across the blade's width, in radians.
+ *
+ * The single most important number in the material. At zero every blade is a
+ * flat plate with one tone; at this value the normal swings about sixty degrees
+ * from edge to edge, so the body stays dark and the long edges catch the light.
+ */
+export const CROSS = 0.55;
+
+/** Depth of the cross-section arc, as a fraction of blade width. */
+export const ARC = 0.22;
+
+/** How sharply the grazing edge falls off across a blade's face. */
 export const EDGE_POWER = 2.4;
 
 /**
  * The record's light.
  *
- * One fixed direction, held in view space so the field is lit the same way at
- * every point on the rail. A ribbon runs bright where its length agrees with
- * it, so what the light shows is the agreement itself — the calm is carried by
- * long runs of aligned ribbons, and a deviating one falls out of the light as
- * it falls out of the flow.
+ * One fixed direction, held in view space so the choir is lit the same way at
+ * every point on the rail. A blade runs bright where its length agrees with it,
+ * so what the light shows is the agreement itself.
  */
 export const SHEEN = { weight: 0.75, power: 48 };
 export const LIGHT_DIRECTION = { x: -0.38, y: 0.62, z: 0.69 };
 
+/** Brightness of the approved state. This is what carries the calm. */
+export const RECORD_GAIN = 1.7;
+
 /**
- * Brightness of the approved state.
+ * Extra edge light on blades crowding past the absence.
  *
- * This is what carries the calm, and it is the only light in the frame at
- * rest. Measured rather than chosen: below about this the field disappears on
- * an ordinary monitor, which has already happened once here.
+ * The aureole, and the only place in the pipeline that knows the absence
+ * exists at all. It is a gain on an accumulation of lit edges — never an
+ * emitter, never a disc, never a ring.
  */
+export const SHELL_GAIN = 4.2;
+
+/**
+ * Where the far field starts giving its light back, and over what distance.
+ *
+ * The choir is about twenty-two units deep and was rendering every blade at the
+ * same brightness whatever its distance, which is why it read as one flat sheet
+ * of texture rather than as three zones. Everything nearer than `near` is at
+ * full strength; past it, light falls away exponentially into black.
+ */
+export const RECESSION = { near: 13, range: 11 };
+
 /** The deviation response. Exported so the dev panel cannot drift from it. */
 export const GLOW = { scale: 5.9, gamma: 2.05 };
 
-export const RECORD_GAIN = 2.2;
+/** Brightness of the ghost where the world and the record disagree. */
+export const GHOST_GAIN = 0.85;
 
 export class CorrectionModel {
   readonly group = new THREE.Group();
@@ -71,24 +132,32 @@ export class CorrectionModel {
 
   private readonly positions: Float32Array;
   private readonly directions: Float32Array;
+  private readonly tangents: Float32Array;
+  private readonly dims: Float32Array;
 
   private readonly stateTexture: THREE.DataTexture;
   private readonly stateData: Float32Array<ArrayBuffer>;
   private readonly textureSize: number;
 
-  private readonly ribbons: THREE.Mesh;
+  private readonly geometry: THREE.InstancedBufferGeometry;
   private readonly material: THREE.ShaderMaterial;
+  private readonly ghostMaterial: THREE.ShaderMaterial;
+  private readonly uniforms: Record<string, THREE.IUniform>;
 
   private readonly hitPoint = new THREE.Vector3();
+  private readonly axis = new THREE.Vector3();
+  private readonly arm = new THREE.Vector3();
 
   /** Live so the dev panel can move it; the shipped value is the default. */
-  private displacement = DISPLACEMENT_SCALE;
+  private swing = SWING;
 
   constructor(options: CorrectionModelOptions) {
     const { structure } = options;
     this.nodeCount = structure.nodeCount;
     this.positions = structure.positions;
     this.directions = structure.directions;
+    this.tangents = structure.tangents;
+    this.dims = structure.dims;
     this.textureSize = structure.textureSize;
 
     // --------------------------------------------------------- state texture
@@ -101,116 +170,146 @@ export class CorrectionModel {
       THREE.FloatType
     );
     // texelFetch at exact integer coordinates: no filtering, no wrapping, no
-    // chance of a node reading a neighbour's state.
+    // chance of a blade reading a neighbour's state.
     this.stateTexture.minFilter = THREE.NearestFilter;
     this.stateTexture.magFilter = THREE.NearestFilter;
     this.stateTexture.generateMipmaps = false;
     this.stateTexture.needsUpdate = true;
 
-    // -------------------------------------------------------------- geometry
+    // ------------------------------------------------------- the unit blade
     //
-    // Two vertices per node, one either side of the ribbon's centreline, and a
-    // pair of triangles between consecutive samples.
+    // A strip two vertices wide, carried in `position` as (side, along, 0).
+    // The vertex shader builds the real thing from the instance's own frame,
+    // so this buffer is the same twelve vertices for every blade in the choir.
 
-    const { starts, lengths, widths, binormals } = structure.layout;
-    const vertexCount = this.nodeCount * 2;
-
-    const position = new Float32Array(vertexCount * 3);
-    const direction = new Float32Array(vertexCount * 3);
-    const binormal = new Float32Array(vertexCount * 3);
-    const width = new Float32Array(vertexCount);
-    const side = new Float32Array(vertexCount);
-    const nodeIndex = new Float32Array(vertexCount);
-
-    for (let node = 0; node < this.nodeCount; node++) {
-      const from = node * 3;
-      for (let s = 0; s < 2; s++) {
-        const vertex = node * 2 + s;
-        const at = vertex * 3;
-        position[at] = this.positions[from];
-        position[at + 1] = this.positions[from + 1];
-        position[at + 2] = this.positions[from + 2];
-        direction[at] = this.directions[from];
-        direction[at + 1] = this.directions[from + 1];
-        direction[at + 2] = this.directions[from + 2];
-        binormal[at] = binormals[from];
-        binormal[at + 1] = binormals[from + 1];
-        binormal[at + 2] = binormals[from + 2];
-        width[vertex] = widths[node];
-        side[vertex] = s === 0 ? -1 : 1;
-        nodeIndex[vertex] = node;
+    const rows = SEGMENTS + 1;
+    const unit = new Float32Array(rows * COLUMNS * 3);
+    for (let r = 0; r < rows; r++) {
+      const along = r / SEGMENTS;
+      for (let c = 0; c < COLUMNS; c++) {
+        const at = (r * COLUMNS + c) * 3;
+        unit[at] = (c / (COLUMNS - 1)) * 2 - 1;
+        unit[at + 1] = along;
+        unit[at + 2] = 0;
       }
     }
 
-    const triangles: number[] = [];
-    for (let r = 0; r < structure.layout.count; r++) {
-      const start = starts[r];
-      for (let i = 0; i + 1 < lengths[r]; i++) {
-        const a = (start + i) * 2;
+    const indices: number[] = [];
+    for (let r = 0; r < SEGMENTS; r++) {
+      for (let c = 0; c < COLUMNS - 1; c++) {
+        const a = r * COLUMNS + c;
         const b = a + 1;
-        const c = (start + i + 1) * 2;
-        const d = c + 1;
-        triangles.push(a, b, c, b, d, c);
+        const d = a + COLUMNS;
+        const e = d + 1;
+        indices.push(a, b, d, b, e, d);
       }
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
-    geometry.setAttribute('aDirection', new THREE.BufferAttribute(direction, 3));
-    geometry.setAttribute('aBinormal', new THREE.BufferAttribute(binormal, 3));
-    geometry.setAttribute('aWidth', new THREE.BufferAttribute(width, 1));
-    geometry.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
-    geometry.setAttribute('aNode', new THREE.BufferAttribute(nodeIndex, 1));
-    geometry.setIndex(triangles);
+    // ---------------------------------------------------------- per instance
+
+    const nodeIndex = new Float32Array(this.nodeCount);
+    for (let i = 0; i < this.nodeCount; i++) nodeIndex[i] = i;
+
+    this.geometry = new THREE.InstancedBufferGeometry();
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(unit, 3));
+    this.geometry.setIndex(indices);
+    this.geometry.setAttribute('iAnchor', new THREE.InstancedBufferAttribute(structure.positions, 3));
+    this.geometry.setAttribute('iTangent', new THREE.InstancedBufferAttribute(structure.tangents, 3));
+    this.geometry.setAttribute('iNormal', new THREE.InstancedBufferAttribute(structure.directions, 3));
+    this.geometry.setAttribute('iDims', new THREE.InstancedBufferAttribute(structure.dims, 2));
+    this.geometry.setAttribute('iShape', new THREE.InstancedBufferAttribute(structure.shape, 3));
+    this.geometry.setAttribute('iNode', new THREE.InstancedBufferAttribute(nodeIndex, 1));
+    this.geometry.instanceCount = this.nodeCount;
+
+    // Shared between both passes, so a tuning change cannot leave the world and
+    // its record describing different numbers.
+    this.uniforms = {
+      uState: { value: this.stateTexture },
+      uTextureSize: { value: this.textureSize },
+      uSwing: { value: SWING },
+      uSwingClamp: { value: SWING_CLAMP },
+      uSlip: { value: SLIP },
+      uTip: { value: TIP },
+      uBow: { value: BOW },
+      uCross: { value: CROSS },
+      uArc: { value: ARC },
+      // Amber in fact, not just in the grammar table — but barely. The original
+      // value measured as neutral grey off the canvas; the first correction
+      // overshot into gold. Parchment: warm enough to read as the record's
+      // colour, pale enough to stay light rather than material.
+      uRecord: { value: new THREE.Color('#e7dcba') },
+      uWorld: { value: new THREE.Color('#4dd0ff') },
+      uConsequence: { value: new THREE.Color('#a45fd6') },
+      uEdge: { value: EDGE_POWER },
+      uRecordGain: { value: RECORD_GAIN },
+      uShellGain: { value: SHELL_GAIN },
+      uLightDir: {
+        value: new THREE.Vector3(
+          LIGHT_DIRECTION.x,
+          LIGHT_DIRECTION.y,
+          LIGHT_DIRECTION.z
+        ).normalize(),
+      },
+      uSheen: { value: SHEEN.weight },
+      uSheenPower: { value: SHEEN.power },
+      // Cyan is the deviation and only the deviation:
+      //
+      //   ambient drift  0.027  ->  0.02   effectively absent
+      //   engagement     0.180  ->  0.42   the system starts to react here
+      //   struck peak    0.810  ->  1.00   the escape
+      uGlowScale: { value: GLOW.scale },
+      uGlowGamma: { value: GLOW.gamma },
+      uContactScale: { value: 20 },
+      uContactGamma: { value: 0.5 },
+      uBruiseScale: { value: 8 },
+      uBruiseGamma: { value: 0.6 },
+      uBruiseWeight: { value: 0.55 },
+      uGhostGain: { value: GHOST_GAIN },
+      uRecessionNear: { value: RECESSION.near },
+      uRecessionRange: { value: RECESSION.range },
+      uExposure: { value: 1 },
+    };
 
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
-      vertexShader: ribbonVert,
-      fragmentShader: ribbonFrag,
-      uniforms: {
-        uState: { value: this.stateTexture },
-        uTextureSize: { value: this.textureSize },
-        uDisplacement: { value: DISPLACEMENT_SCALE },
-        // Amber in fact, not just in the grammar table — but barely. The
-        // original value measured as neutral grey off the canvas; the first
-        // correction overshot into gold. Parchment: warm enough to be read as
-        // the record's colour, pale enough to stay light rather than material.
-        uRecord: { value: new THREE.Color('#e7dcba') },
-        uWorld: { value: new THREE.Color('#4dd0ff') },
-        uConsequence: { value: new THREE.Color('#a45fd6') },
-        uEdge: { value: EDGE_POWER },
-        uRecordGain: { value: RECORD_GAIN },
-        uLightDir: {
-          value: new THREE.Vector3(LIGHT_DIRECTION.x, LIGHT_DIRECTION.y, LIGHT_DIRECTION.z).normalize(),
-        },
-        uSheen: { value: SHEEN.weight },
-        uSheenPower: { value: SHEEN.power },
-        // Cyan is the deviation and only the deviation:
-        //
-        //   ambient drift  0.026  ->  0.02   effectively absent
-        //   engagement     0.100  ->  0.13   the system starts to react here
-        //   struck peak    0.350  ->  0.97   the escape
-        uGlowScale: { value: GLOW.scale },
-        uGlowGamma: { value: GLOW.gamma },
-        uContactScale: { value: 20 },
-        uContactGamma: { value: 0.5 },
-        uBruiseScale: { value: 8 },
-        uBruiseGamma: { value: 0.6 },
-        uBruiseWeight: { value: 0.55 },
-        uExposure: { value: 1 },
-      },
-      // Opaque and depth-tested, because the ribbons have to occlude each
-      // other. Additive blending would make the field one transparent haze
-      // with no depth order, which is exactly the particle-cloud read.
+      vertexShader: bladeVert,
+      fragmentShader: bladeFrag,
+      uniforms: this.uniforms,
+      // Opaque and depth-tested, because the blades have to occlude each other.
+      // Additive blending would make the choir one transparent haze with no
+      // depth order, which is exactly the particle-cloud read.
       transparent: false,
       side: THREE.DoubleSide,
       depthWrite: true,
       depthTest: true,
     });
 
-    this.ribbons = new THREE.Mesh(geometry, this.material);
-    this.ribbons.frustumCulled = false;
-    this.group.add(this.ribbons);
+    this.ghostMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: bladeVert,
+      fragmentShader: bladeFrag,
+      uniforms: this.uniforms,
+      defines: { GHOST: '' },
+      // Additive and depth-tested but not depth-writing: the record is not a
+      // second object in the world, it is a claim about where the world should
+      // be. It must not occlude anything, and it must be hidden by anything in
+      // front of it.
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: true,
+    });
+
+    const world = new THREE.Mesh(this.geometry, this.material);
+    world.frustumCulled = false;
+
+    const ghost = new THREE.Mesh(this.geometry, this.ghostMaterial);
+    ghost.frustumCulled = false;
+    ghost.renderOrder = 1;
+
+    this.group.add(world);
+    this.group.add(ghost);
   }
 
   /** Uploads one authoritative snapshot. The only path state takes to the GPU. */
@@ -227,22 +326,24 @@ export class CorrectionModel {
   /** Development only: the render-side numbers, live. */
   tune(patch: Record<string, number>): void {
     for (const [key, value] of Object.entries(patch)) {
-      const uniform = this.material.uniforms[key];
+      const uniform = this.uniforms[key];
       if (uniform) uniform.value = value;
     }
-    if (patch.uDisplacement !== undefined) this.displacement = patch.uDisplacement;
+    if (patch.uSwing !== undefined) this.swing = patch.uSwing;
   }
 
   /** Cold-open reveal, and the machine-off cut. */
   setExposure(value: number): void {
-    this.material.uniforms.uExposure.value = value;
+    this.uniforms.uExposure.value = value;
   }
 
   /**
-   * Nearest node to a ray, by perpendicular distance.
+   * Nearest blade to a ray, by perpendicular distance to its midpoint.
    *
-   * Tested against the displaced structure rather than the rest positions, so
-   * a press lands on the ribbon the visitor can actually see.
+   * Tested against the deviated pose rather than the approved one, so a press
+   * lands on the blade the visitor can actually see — which matters most
+   * exactly when it matters at all, on a blade that has already been knocked
+   * out of the comb.
    */
   nodeUnderRay(ray: THREE.Ray, tolerance = 1.4): number {
     let best = -1;
@@ -250,12 +351,18 @@ export class CorrectionModel {
 
     for (let i = 0; i < this.nodeCount; i++) {
       const at = i * 3;
-      const u = this.stateData[i * 4] * this.displacement;
-      this.hitPoint.set(
-        this.positions[at] + this.directions[at] * u,
-        this.positions[at + 1] + this.directions[at + 1] * u,
-        this.positions[at + 2] + this.directions[at + 2] * u
-      );
+      const u = this.stateData[i * 4];
+      const angle = Math.max(Math.min(u * this.swing, SWING_CLAMP), -SWING_CLAMP);
+
+      this.axis.set(this.directions[at], this.directions[at + 1], this.directions[at + 2]);
+      this.arm
+        .set(this.tangents[at], this.tangents[at + 1], this.tangents[at + 2])
+        .applyAxisAngle(this.axis, angle)
+        .multiplyScalar(this.dims[i * 2] * 0.5);
+
+      this.hitPoint
+        .set(this.positions[at], this.positions[at + 1], this.positions[at + 2])
+        .add(this.arm);
 
       const distance = ray.distanceSqToPoint(this.hitPoint);
       if (distance < bestScore) {
@@ -268,8 +375,9 @@ export class CorrectionModel {
   }
 
   dispose(): void {
-    this.ribbons.geometry.dispose();
+    this.geometry.dispose();
     this.material.dispose();
+    this.ghostMaterial.dispose();
     this.stateTexture.dispose();
   }
 }

@@ -1,5 +1,5 @@
 /**
- * CorrectionSystem — graph, wave, harmonic and operator as one steppable unit.
+ * CorrectionSystem — graph, field, drift and operator as one steppable unit.
  *
  * This is the composition root for everything authoritative. It has no Worker
  * and no DOM dependency, so `tools/correction-validate.mjs` steps the exact
@@ -8,25 +8,31 @@
  *
  * Order inside a tick is fixed and load-bearing:
  *
- *   1. ambient forcing        the world is nudged
- *   2. wave integration       the world moves
+ *   1. ambient drift          the world is nudged, under the threshold
+ *   2. relaxation             the world moves
  *   3. correction pass        the system reads the world and acts on it
  *
  * The operator runs last because it must see the state the renderer will show.
  */
 
-import { synthesiseGraph, DEFAULT_SYNTH, type GraphSynthConfig, type SynthesisedGraph } from '../graph/GraphSynth';
-import { CausalPulseSimulation, Checksum, DEFAULT_WAVE, type WaveParameters } from './CausalPulseSimulation';
+import {
+  synthesiseGraph,
+  DEFAULT_SYNTH,
+  type GraphSynthConfig,
+  type SynthesisedGraph,
+} from '../graph/GraphSynth';
+import { DeviationField, DEFAULT_DYNAMICS, type FieldParameters } from './DeviationField';
+import { Checksum } from './Checksum';
 import {
   CorrectionOperator,
   DEFAULT_CORRECTION,
   type CorrectionParameters,
 } from './CorrectionOperator';
-import { AmbientHarmonic, DEFAULT_AMBIENT, type AmbientParameters } from './AmbientHarmonic';
+import { AmbientDrift, DEFAULT_AMBIENT, type AmbientParameters } from './AmbientDrift';
 
 export interface CorrectionSystemConfig {
   synth: GraphSynthConfig;
-  wave: WaveParameters;
+  dynamics: FieldParameters;
   correction: CorrectionParameters;
   ambient: AmbientParameters;
   /** Ticks stepped before the record is taken. 10 s of simulated time. */
@@ -37,7 +43,7 @@ export interface CorrectionSystemConfig {
 
 export const DEFAULT_SYSTEM: CorrectionSystemConfig = {
   synth: DEFAULT_SYNTH,
-  wave: DEFAULT_WAVE,
+  dynamics: DEFAULT_DYNAMICS,
   correction: DEFAULT_CORRECTION,
   ambient: DEFAULT_AMBIENT,
   warmUpTicks: 1200,
@@ -47,9 +53,9 @@ export const DEFAULT_SYSTEM: CorrectionSystemConfig = {
 export class CorrectionSystem {
   readonly config: CorrectionSystemConfig;
   readonly synthesised: SynthesisedGraph;
-  readonly simulation: CausalPulseSimulation;
+  readonly simulation: DeviationField;
   readonly operator: CorrectionOperator;
-  readonly ambient: AmbientHarmonic;
+  readonly ambient: AmbientDrift;
 
   private readonly recordSum: Float64Array;
   private recordSamples = 0;
@@ -59,14 +65,9 @@ export class CorrectionSystem {
     this.synthesised = synthesiseGraph(config.synth);
 
     const { graph, bounds } = this.synthesised;
-    this.simulation = new CausalPulseSimulation(
-      graph,
-      bounds,
-      config.wave,
-      this.synthesised.absorption
-    );
+    this.simulation = new DeviationField(graph, bounds, config.dynamics);
     this.operator = new CorrectionOperator(graph.nodeCount, config.correction);
-    this.ambient = new AmbientHarmonic(graph.positions, config.ambient);
+    this.ambient = new AmbientDrift(graph.positions, config.ambient);
     this.recordSum = new Float64Array(graph.nodeCount);
 
     this.operator.setGainField(
@@ -75,13 +76,13 @@ export class CorrectionSystem {
   }
 
   /**
-   * How hard the file is enforced, per node.
+   * How hard the file is enforced, per blade.
    *
-   * A single monotone gradient along the structure's own sweep: loosest at the
-   * end the camera opens on, total at the end it travels into. Deliberately
-   * not a radial or distance-from-centre field — that would draw a soft
-   * ellipse across the structure, and a frame that resolves into concentric
-   * anything is how every retired direction died.
+   * A single monotone gradient along the flow's own axis: loosest at the end
+   * the camera opens on, total at the end it travels into. Deliberately not a
+   * radial or distance-from-centre field — that would draw a soft ellipse
+   * across the choir, and a frame that resolves into concentric anything is how
+   * every retired direction died.
    *
    * Nothing about the structure changes as the visitor travels; only how
    * quickly and how hard deviation is put back. That is the whole turn: the
@@ -92,11 +93,11 @@ export class CorrectionSystem {
     const onset = Math.min(Math.max(p.spatialGainOnset, 0), 0.99);
 
     for (let i = 0; i < depth.length; i++) {
-      // Depth is the structure's own coordinate: 0 where the camera opens, 1
-      // at the far end it travels into. The climb starts past the opening
-      // view, so the event the visitor is first shown is enforced at the
-      // tuning that was judged, and the gradient is something they travel into
-      // rather than something applied to the frame they arrived on.
+      // Depth is the field's own coordinate along the flow: 0 where the camera
+      // opens, 1 at the far end it travels into. The climb starts past the
+      // opening view, so the event the visitor is first shown is enforced at
+      // the tuning that was judged, and the gradient is something they travel
+      // into rather than something applied to the frame they arrived on.
       const t = Math.min(Math.max((depth[i] - onset) / (1 - onset), 0), 1);
       const shaped = t * t * (3 - 2 * t);
       field[i] = p.spatialGainLow + (p.spatialGainHigh - p.spatialGainLow) * shaped;
@@ -120,14 +121,14 @@ export class CorrectionSystem {
 
   /** One authoritative tick. */
   step(): void {
-    const { dt } = this.config.wave;
-    this.ambient.drive(this.simulation.velocity, this.simulation.tick, dt);
+    const { dt } = this.config.dynamics;
+    this.ambient.drive(this.simulation.forcing, this.simulation.tick, dt);
     this.simulation.step();
-    this.operator.apply(this.simulation.u, this.simulation.velocity, this.simulation.tick);
+    this.operator.apply(this.simulation.u, this.simulation.rate, this.simulation.tick);
   }
 
   /**
-   * Steps the world to a settled harmonic and then takes the record from it.
+   * Steps the world to a settled state and then takes the record from it.
    *
    * The operator is inert throughout — there is nothing to enforce against
    * until the record exists — so warm-up is the one stretch of the run in which
@@ -162,7 +163,7 @@ export class CorrectionSystem {
   }
 
   /**
-   * The node nearest a point in space.
+   * The blade nearest a point in space.
    *
    * A position rather than an index, because an index only means something for
    * one seed and the scripted event has to land in the same place on every
@@ -248,7 +249,7 @@ export class CorrectionSystem {
   }
 
   /**
-   * Largest |u − u*| anywhere. Reported so the ambient harmonic can be checked
+   * Largest |u − u*| anywhere. Reported so the ambient drift can be checked
    * against ε rather than assumed to sit under it.
    */
   peakDeviation(): number {
