@@ -706,6 +706,16 @@ if (flag('paths')) {
     );
     console.log(`    "enter" now points at ${state.enterHref}; premise ${state.premise}, studio ${state.studio}`);
     console.log(`    recorded: ${state.stored}`);
+
+    // The re-aimed control has to carry the keyboard with it, not just the
+    // scroll position.
+    const focus = await reader.evaluate(async () => {
+      document.querySelector('[data-fallback-href]')?.click();
+      await new Promise((r) => setTimeout(r, 700));
+      const active = document.activeElement;
+      return { id: active?.id ?? '(none)', tag: active?.tagName.toLowerCase() ?? '' };
+    });
+    console.log(`    after "enter", focus is on ${focus.tag}#${focus.id}`);
     await writeFile(path.join(OUT, '42-no-webgl.png'), await reader.screenshot({ type: 'png' }));
     await reader.close();
     await blind.close();

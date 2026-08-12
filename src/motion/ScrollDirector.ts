@@ -159,6 +159,10 @@ export class ScrollDirector {
    * writing that name onto the root element makes `<html>` match the
    * section selector, and since its box is the whole document the first
    * band then swallows every other one at the next re-measure.
+   *
+   * `data-narrative-band` is the public hook. No CSS reads it today;
+   * `tools/correction-capture.mjs` does, to confirm a captured frame sits
+   * where the narrative says it does.
    */
   private setBand(id: string): void {
     if (id === this.band) return;

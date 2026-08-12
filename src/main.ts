@@ -112,6 +112,10 @@ function enterFallback(reason: string): void {
   record = new RecordController(null, { falseAction: false });
   record.init();
 
+  // Anchors are wired on this path too: the hero's entry control was just
+  // re-aimed at the editorial, and it has to carry focus with it.
+  wireScrollAnchors();
+
   if (import.meta.env.DEV) console.warn(`[dark-lattice] 3D disabled: ${reason}`);
 }
 
@@ -128,6 +132,7 @@ async function boot(): Promise<void> {
   a11y.init();
   reveals.init();
   setLoaderProgress(0.1);
+  setLoaderStage('fonts');
 
   // 2 — Fonts. Real work, and worth waiting for: the hero must not
   //     land and then reflow as the display face swaps in.
@@ -295,10 +300,18 @@ function wireScrollAnchors(): void {
       const href = anchor.getAttribute('href');
       if (!href?.startsWith('#')) return;
       const target = document.querySelector<HTMLElement>(href);
-      if (!target || !director) return;
+      if (!target) return;
+
       event.preventDefault();
-      director.scrollTo(target);
-      // Keep the keyboard in sync with the visual position.
+
+      // The director owns scrolling when there is one. Without it — the
+      // no-WebGL path — the anchor still has to move the page AND move the
+      // keyboard with it, which a native jump does not do. Bailing out here
+      // is how a fallback visitor ends up looking at a section their focus
+      // is not in.
+      if (director) director.scrollTo(target);
+      else target.scrollIntoView({ behavior: motion.reduced ? 'auto' : 'smooth', block: 'start' });
+
       target.setAttribute('tabindex', '-1');
       target.focus({ preventScroll: true });
     });

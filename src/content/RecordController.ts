@@ -50,6 +50,22 @@ const FALSE_ACTION_DELAY = 8000;
 
 const MACHINE_BANDS = new Set(['open', 'ask', 'notice', 'gradient', 'floor']);
 
+/**
+ * The one rule this string has to obey: it reads "0" if and only if the
+ * system's own reading is zero.
+ *
+ * Two decimals alone breaks that. A residual of 0.004 is a violation the
+ * sensor can see and would have printed as "0.00" — a zero the arithmetic
+ * never produced, in the one line on the site whose entire weight rests on
+ * being a reading rather than a statement. Small readings therefore keep a
+ * significant figure instead of being rounded into the claim.
+ */
+function formatResidual(value: number): string {
+  if (value <= 0) return '0';
+  if (value < 0.005) return value.toPrecision(1);
+  return value.toFixed(2);
+}
+
 function loadStored(): StoredRecord | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -236,10 +252,7 @@ export class RecordController {
 
     if (this.adjustmentsOut) this.adjustmentsOut.textContent = String(adjustments);
     if (this.residualOut) {
-      // Printed at the precision the system holds it to. A settled world reads
-      // as a flat zero because that is genuinely what the sensor returns, not
-      // because the string was written that way.
-      this.residualOut.textContent = residual > 0 ? residual.toFixed(2) : '0';
+      this.residualOut.textContent = formatResidual(residual);
     }
 
     if (!this.noteOut) return;
