@@ -60,6 +60,13 @@ export class PulseClient {
   error: string | null = null;
   /** Last gain sent. The Worker holds the authoritative copy. */
   gain = 1;
+  /**
+   * Adjustments the system had already made to itself before the visitor
+   * arrived. Zero on the live path; on the reduced-motion path the scripted
+   * event that produces the triptych is a real correction on the real world,
+   * so its count is the system's, not theirs.
+   */
+  systemAdjustments = 0;
 
   onProgress: ((message: ProgressMessage) => void) | null = null;
 
@@ -112,6 +119,9 @@ export class PulseClient {
             engaged: message.engaged,
             peakDeviation: message.peakDeviation,
           });
+          // The settled frame closes the scripted event, so its count is
+          // exactly what the demonstration cost.
+          if (message.stage === 'settled') this.systemAdjustments = message.adjustments;
           if (this.frames.length === 3) {
             this.resolveFrames?.(this.frames);
             this.resolveFrames = null;

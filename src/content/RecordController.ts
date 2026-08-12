@@ -32,10 +32,17 @@ interface StoredRecord {
  * layer does not import the renderer.
  */
 export interface RecordSource {
-  readonly telemetry: { adjustments: number; residual: number; injections: number };
+  readonly telemetry: { residual: number; injections: number };
+  /**
+   * Adjustments this visit is answerable for — the Worker's count minus any
+   * the system made to itself before the visitor did anything.
+   */
+  readonly visitAdjustments: number;
   readonly struck: boolean;
   readonly budgetLeft: number;
   pressCentre(): number;
+  /** Pulls the newest counters without drawing. */
+  pollTelemetry(): void;
 }
 
 /** Idle before the system supplies the visitor's first action for them. */
@@ -219,7 +226,12 @@ export class RecordController {
   }
 
   private render(): void {
-    const adjustments = this.scene?.telemetry.adjustments ?? 0;
+    // The panel is the only place these numbers are read, and on the
+    // reduced-motion path nothing else is consuming snapshots, so the read
+    // has to pull them itself.
+    this.scene?.pollTelemetry();
+
+    const adjustments = this.scene?.visitAdjustments ?? 0;
     const residual = this.scene?.telemetry.residual ?? 0;
 
     if (this.adjustmentsOut) this.adjustmentsOut.textContent = String(adjustments);
@@ -257,7 +269,7 @@ export class RecordController {
     const record: StoredRecord = {
       version: 1,
       visits: (this.previous?.visits ?? 0) + 1,
-      adjustments: (this.previous?.adjustments ?? 0) + (this.scene?.telemetry.adjustments ?? 0),
+      adjustments: (this.previous?.adjustments ?? 0) + (this.scene?.visitAdjustments ?? 0),
       entered: this.entered,
     };
 

@@ -410,6 +410,30 @@ export class SceneController {
     return this.pressesLeft;
   }
 
+  /**
+   * Adjustments this visit is answerable for.
+   *
+   * Not the same as the Worker's total. The reduced-motion path runs a real
+   * correction event at boot to render the triptych, and those two hundred
+   * adjustments belong to the demonstration, not to a visitor who has not
+   * touched anything — putting them on the record would say they did
+   * something they were never even shown happening. Subtracting the
+   * system's own work is what makes YOUR RECORD true on every path.
+   */
+  get visitAdjustments(): number {
+    const own = this.telemetry.adjustments - (this.client?.systemAdjustments ?? 0);
+    return own > 0 ? own : 0;
+  }
+
+  /**
+   * Takes the newest counters without drawing anything. The reduced-motion
+   * path has no render loop, so this is how the record panel reads a world
+   * that is otherwise only ever consumed by a frame.
+   */
+  pollTelemetry(): void {
+    this.consume();
+  }
+
   /** Whether the structure has been struck at all yet. */
   get struck(): boolean {
     return this.pressed;

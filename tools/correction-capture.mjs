@@ -623,6 +623,24 @@ if (flag('paths')) {
         `invitation hidden ${triptych.askHidden}`
     );
 
+    // The triptych is a real correction event on the real world, so the
+    // Worker's adjustment count is around two hundred before the visitor has
+    // done anything. None of it is theirs, and none of it may reach the
+    // record.
+    await reader.evaluate(() => {
+      const parts = Array.from(document.querySelectorAll('[data-band="floor"]'));
+      if (!parts.length) return;
+      const top = Math.min(...parts.map((el) => el.getBoundingClientRect().top + window.scrollY));
+      window.scrollTo(0, top);
+    });
+    await reader.waitForTimeout(1200);
+    const owned = await reader.evaluate(() => ({
+      panel: (document.querySelector('[data-record]')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+      stored: window.localStorage.getItem('darkLattice.record'),
+    }));
+    console.log(`  reduced motion record: ${owned.panel}`);
+    console.log(`    stored: ${owned.stored}`);
+
     await reader.evaluate(() => {
       document.querySelector('[data-triptych]')?.scrollIntoView({ block: 'center', behavior: 'instant' });
     });
