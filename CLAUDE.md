@@ -29,18 +29,21 @@ Do not use a cheap monster reveal, jumpscare, generic evil-AI language, or arbit
 
 ## Direction status
 
-**THE INTAKE: LOCKED 2026-08-11.**
+**THE CORRECTION: CHOSEN 2026-08-12. BUILD IN PROGRESS.**
 
-`docs/ARCHITECTURE.md` is the direction specification. Read it before any hero, scene, camera, system or editorial work.
+`docs/CORRECTION_BUILD_PLAN.md` is the build order and is authoritative for implementation. `docs/decision/02-correction-dossier.md` holds the design detail. Read the plan before any hero, scene, camera, system or editorial work.
 
-A vertical descent into a system that grew. What looks like grace is the paperwork; what is underneath is the machine. At the floor it writes the visitor down, wrong.
+Reality is permitted to deviate briefly; the system enforces convergence to the recorded, approved state. The opening calm is late-understood as maintained, not natural. At the floor: `YOUR RECORD — ADJUSTMENTS APPLIED: N.`
+
+The causal argument in `docs/ARCHITECTURE.md` — colour grammar, observation model, `V = D × C`, the false first action, YOUR RECORD, skip path, persistence, positioning — remains canonical and carries into THE CORRECTION. Only its INTAKE staging (descent/growth/cathedral) is retired.
 
 Retired. Do not rebuild, re-propose, or audit against:
+- THE INTAKE descent/growth/cathedral staging (founder-vetoed before build),
 - False Façade / Anamorphic Threshold Guardian — `.claude/skills/dark-lattice-web/references/hero-concept.md` is kept as a record only,
 - THE LATTICE / excess-order ascent,
 - the central entity, the trench/strata/truss stage, the Signal Horizon terrain, the nine-movement structure.
 
-**Locked does not mean implemented.** ARCHITECTURE.md is paper; the current `src/` predates it. Do not audit the existing site as though it were THE INTAKE, and do not demolish the current implementation unasked. Work the build order at the end of ARCHITECTURE.md one step at a time, and let Jacob call each step.
+Work `docs/CORRECTION_BUILD_PLAN.md` one step at a time. Jacob judges the two visual checkpoints on his own GPU. Audits and QA phases run after the build stands, not before.
 
 Invariants that bind every edit:
 - **Colour grammar.** Cyan is the world, amber is the model of the world (and therefore the divine face), violet is the consequence of their disagreement. Never redefined per section.

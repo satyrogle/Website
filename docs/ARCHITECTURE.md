@@ -1,6 +1,13 @@
 # Dark Lattice — website architecture
 
-**FROZEN 2026-08-10. LOCKED 2026-08-11. Direction: THE INTAKE.**
+**SET RETIRED 2026-08-12. The live direction is THE CORRECTION — build order in
+`docs/CORRECTION_BUILD_PLAN.md`. This file is kept as the INTAKE record. Its
+argument sections — colour grammar, observation model, `V = D × C`, false first
+action, YOUR RECORD, skip path, persistence, positioning — remain canonical and
+carry into THE CORRECTION unchanged. Its staging (descent, growth, cathedral)
+and its build order are void.**
+
+**FROZEN 2026-08-10. LOCKED 2026-08-11. RETIRED 2026-08-12. Direction was: THE INTAKE.**
 
 This supersedes the trench/strata/truss stage, the Signal Horizon terrain, the
 nine-movement structure, the entire central-entity direction, the False Façade /
