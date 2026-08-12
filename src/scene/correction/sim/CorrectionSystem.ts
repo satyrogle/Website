@@ -51,9 +51,6 @@ export class CorrectionSystem {
   readonly operator: CorrectionOperator;
   readonly ambient: AmbientHarmonic;
 
-  /** Endpoint pairs for the rendered edges, i < j, CSR order. */
-  readonly edgeIndices: Uint32Array;
-
   private readonly recordSum: Float64Array;
   private recordSamples = 0;
 
@@ -67,11 +64,6 @@ export class CorrectionSystem {
     this.ambient = new AmbientHarmonic(graph.positions, config.ambient);
     this.recordSum = new Float64Array(graph.nodeCount);
 
-    // What is drawn is a subset of what is simulated. The lattice needs every
-    // edge or the wave could only travel along the flow; the picture needs
-    // far fewer, because an even mesh reads as a chart rather than as a
-    // surface under control.
-    this.edgeIndices = this.synthesised.renderEdges;
     this.operator.setGainField(
       CorrectionSystem.gainField(this.synthesised.depth, config.correction)
     );

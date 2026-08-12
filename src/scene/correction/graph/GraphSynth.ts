@@ -1,147 +1,127 @@
 /**
- * GraphSynth — the permitted state, synthesised from a rule.
+ * GraphSynth — a laminar ribbon field, and the law that keeps it in agreement.
  *
- * There is no asset. The structure is a governed surface: every node is
- * derived from one smooth parametric rule, so the whole thing is exactly as
- * regular as the rule is, and it is identical on every machine and every
- * visit.
+ * The structure is not an object. It is twenty-odd narrow ribbons suspended
+ * independently in space, each integrated through the same smooth flow field:
+ * different lengths, different depths, different spacing, never quite
+ * parallel, with no perimeter, no cross-ribs, no end caps and no footprint.
+ * Nothing here draws a boundary, because the thing the visitor is meant to
+ * perceive is not a shape.
+ *
+ * **The entity is the rule, not the ribbons.** What reads on arrival is
+ * coordination: separate elements all plainly obeying something, and the
+ * something is not visible. That is why the correction works as an idea —
+ * when a few of them escape and the rest force them back, the law is what the
+ * visitor has been looking at the whole time.
  *
  * What it replaces, and why
  * ------------------------
- * The first structure here was a seeded scatter of wandering filaments with
- * probabilistic cross-links. It was irregular on purpose — irregularity was
- * the guard against the retired directions, which died of symmetry. But the
- * guard overshot: a cloud of tangled strands reads as a decorative network,
- * and a network cannot express governance. Nothing about it looked like it was
- * being held to anything, so when the correction ran it had no order to
- * restore, only a tangle to rearrange.
+ * Two structures died here. First a seeded scatter of filaments, which read as
+ * a decorative network — irregular, but with nothing holding it, so there was
+ * no order for the correction to restore. Then a swept surface, which read as
+ * a cutting board: a continuous sheet with longitudinal lines, cross ribs and
+ * a visible perimeter is a CAD mesh whatever its shape, and giving it
+ * thickness only made it a thicker board.
  *
- * The proposition needs the opposite. A governed system has to look governed
- * before anything happens to it: coherent flow, a silhouette that was decided
- * rather than grown, spacing that is even because something keeps it even. The
- * beauty on arrival is supposed to be evidence, and evidence of enforcement
- * looks like discipline, not like weather.
+ * The fault both times was the carrier. A surface has an outline, and an
+ * outline is an object. A field of separate elements under a shared constraint
+ * has no outline to read, so there is nothing to recognise and nothing to
+ * dismiss — only the coordination.
  *
- * The rules that survived from the graveyard are still in force, and this
- * satisfies them differently:
+ * Rules still in force from the graveyard, satisfied by construction: nothing
+ * converts an index into an angle, there is no centre, no axis and no closed
+ * section, so no view can resolve into concentric anything.
  *
- *   - No rotational symmetry, and no cylindrical parameterisation. The band is
- *     swept along an open curve with an open cross-section. Nothing here
- *     converts an index into an angle about an axis, there is no centre, and
- *     no view of it can resolve into concentric rings.
- *   - Anisotropic by construction: long in x, sweeping in z, shallow in y.
- *   - Not a grid in the frame. The lattice is regular in *parameter* space and
- *     is then swept, twisted and tapered through three dimensions, so no row,
- *     column or axis survives into the picture.
- *
- * Displacement runs along the surface normal, which is what makes a deviation
- * legible: the sheet physically lifts out of itself, and is physically pressed
- * back. The disagreement is geometry before it is ever colour.
+ * Coupling
+ * --------
+ * Ribbons are linked to their neighbours by edges that are never drawn. That
+ * is the constraint field: it is how a deviation in one ribbon becomes tension
+ * in the ones beside it, and how correction transfers outward through the
+ * field instead of being applied to each ribbon separately. The law is
+ * invisible and acts anyway, which is the entire proposition.
  */
 
 import type { CausalGraph, StabilityBounds } from './GraphAsset';
 
 export interface GraphSynthConfig {
-  /** Kept so a determinism check can vary the structure. */
   seed: number;
-  /** Samples along the sweep. The flow direction. */
-  along: number;
-  /** Lines across the band. */
-  across: number;
-  /** Half-length of the sweep in x. */
-  reach: number;
-  /** Widest half-width of the band. */
+  /** Ribbons in the field. */
+  ribbons: number;
+  /** Samples along the longest ribbon. Sets how smoothly it curves. */
+  samples: number;
+  /** World distance between samples. */
+  step: number;
+  /** Half-extent of the region the ribbons are seeded into, xyz. */
+  spread: [number, number, number];
+  /** Where the field begins, in x. Ribbons run from here toward +x. */
+  origin: number;
+  /** Shortest and longest ribbon, as a fraction of `samples`. */
+  lengthRange: [number, number];
+  /** How far the flow bends in y and z. */
+  bend: number;
+  /** Spatial frequency of the flow field. */
+  frequency: number;
+  /** Half-width of a ribbon at its fullest. */
   halfWidth: number;
-  /** Narrowest half-width, at the tips. Never zero: the tips must not pinch. */
-  tipWidth: number;
-  /** Height of the shallow arch across the band's own width. */
-  arch: number;
   /**
-   * Constant rotation of the band about its own sweep, radians.
+   * How far each ribbon is rolled about its own path, and how much that roll
+   * drifts along its length.
    *
-   * This is the difference between seeing a surface and seeing its edge. Lying
-   * flat, the band presents almost nothing to a camera that is only slightly
-   * above it: a sliver, whatever its width. Rolled toward the viewer it reads
-   * as what it is — a plane held to a shape.
+   * Without this every ribbon shares one orientation, so the whole field sits
+   * at the same angle to the eye and lights identically — which produced a set
+   * of uniformly bright strands rather than dark bodies with a caught edge.
+   * Varying the roll is what makes some of them present a face and others an
+   * edge, and what makes a single ribbon change as it travels.
    */
-  roll: number;
-  /** Additional rotation accumulated along the sweep, radians. */
-  twist: number;
-  /** Rise and fall of the centreline in y. */
-  rise: number;
-  /** How far the centreline sweeps through depth. */
-  sweep: number;
-  /** Draw one rib every N samples along the flow. */
-  ribEvery: number;
-  /**
-   * Separation between the two shells, in world units.
-   *
-   * A single sheet is a skin, and a skin seen obliquely from above is a board
-   * — flat, with a pattern on it. Two coupled shells with struts between them
-   * give the structure an inside: you see the near face, the far face through
-   * it, and the section at the edge. That is the difference between a surface
-   * and a body, and a governed system has to be a body.
-   */
-  thickness: number;
-  /** Draw one strut between the shells every N samples along the flow. */
-  strutEvery: number;
-  /** Slides the whole band along x so the composition sits inside the frame. */
-  shift: number;
-  /** Fraction of the sweep spent widening at each end. */
-  plateau: number;
+  rollSpread: number;
+  rollDrift: number;
+  /** Neighbouring ribbons each one is coupled to. Never drawn. */
+  coupling: number;
+  /** Strength of a coupling edge relative to a ribbon's own stiffness. */
+  couplingWeight: number;
 }
 
 /**
- * ~3,400 nodes: enough that the surface reads as a continuous sheet of light
- * rather than a set of strands, and few enough that the whole lattice steps
- * comfortably inside one Worker at 120 Hz on the low tier.
+ * Twenty-six ribbons of up to a hundred and thirty-two samples.
  *
- * The proportions are the composition. A long shallow band met obliquely fills
- * the frame's width against the display type without ever becoming a mass, and
- * the taper gives it a silhouette that ends deliberately instead of running
- * off the edge.
+ * Sized so the field reads as many separate things rather than as a few, and
+ * so the whole graph still steps inside one Worker at 120 Hz on the low tier.
  */
 export const DEFAULT_SYNTH: GraphSynthConfig = {
   seed: 0x5eed_c0de,
-  along: 84,
-  across: 23,
-  reach: 9.0,
-  halfWidth: 3.3,
-  tipWidth: 0.5,
-  arch: 0.86,
-  roll: -0.26,
-  twist: 0.55,
-  rise: 1.25,
-  sweep: 2.2,
-  ribEvery: 11,
-  thickness: 0.62,
-  strutEvery: 11,
-  shift: -3.4,
-  plateau: 0.34,
+  ribbons: 26,
+  samples: 132,
+  step: 0.235,
+  spread: [0, 2.05, 3.9],
+  origin: -13.5,
+  lengthRange: [0.52, 1.0],
+  bend: 0.21,
+  frequency: 0.115,
+  halfWidth: 0.2,
+  rollSpread: 1.5,
+  rollDrift: 0.9,
+  coupling: 2,
+  couplingWeight: 0.22,
 };
 
 export interface SynthesisedGraph {
   graph: CausalGraph;
   bounds: StabilityBounds;
   /**
-   * The subset of edges the renderer draws, as endpoint pairs.
-   *
-   * The simulation runs on the full lattice — it has to, or the wave would
-   * only travel in one direction — but drawing every edge produces an even
-   * mesh, and an even mesh reads as a chart. Drawing every line along the flow
-   * and only every sixth rib across it gives the surface a direction: it looks
-   * combed, which is what a governed thing looks like.
+   * Ribbon layout, for the renderer. Each ribbon owns a contiguous run of node
+   * indices, which is what lets the strip geometry be built without a second
+   * pass over the topology.
    */
-  renderEdges: Uint32Array;
-  /**
-   * How far along the sweep each node sits, 0 at the near end and 1 at the far
-   * one.
-   *
-   * The structure's own coordinate, not a world axis. Enforcement gain is a
-   * gradient along this: keyed to x it drifted out of alignment the moment the
-   * band was given curvature, because the deep end of the sweep and the far
-   * end of the x axis stopped being the same place.
-   */
+  layout: {
+    count: number;
+    starts: Uint32Array;
+    lengths: Uint32Array;
+    /** Half-width per node, tapering to nothing at both ends. */
+    widths: Float32Array;
+    /** Ribbon-local sideways direction, xyz per node. */
+    binormals: Float32Array;
+  };
+  /** Position along the flow, 0..1, for the enforcement gain gradient. */
   depth: Float32Array;
   stats: {
     nodes: number;
@@ -152,232 +132,230 @@ export interface SynthesisedGraph {
     degreeMean: number;
     components: number;
     bridgesAdded: number;
-    /** Edges actually drawn, of the total. */
-    drawnEdges: number;
+    couplingEdges: number;
   };
 }
 
-/** Smootherstep. Used for the tapers, so the ends ease rather than stop. */
+/** mulberry32 — same stream in the browser, the Worker and node. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const ease = (t: number): number => {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
-  return x * x * x * (x * (x * 6 - 15) + 10);
+  return x * x * (3 - 2 * x);
 };
 
 type Vec = [number, number, number];
 
-const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const norm = (a: Vec): Vec => {
+  const l = Math.hypot(a[0], a[1], a[2]) || 1;
+  return [a[0] / l, a[1] / l, a[2] / l];
+};
 const cross = (a: Vec, b: Vec): Vec => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0],
 ];
-const norm = (a: Vec): Vec => {
-  const l = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / l, a[1] / l, a[2] / l];
-};
 
 /**
- * The centreline the band is swept along.
+ * The law.
  *
- * Authored, not sampled from noise. It leans through all three axes at once so
- * the structure is oblique to every one of them — a band that lies in a plane
- * reads as a chart, and one that lines up with an axis reads as a diagram.
- */
-function centre(u: number, c: GraphSynthConfig): Vec {
-  const t = u * 2 - 1;
-  return [
-    t * c.reach + c.shift,
-    // Enough curvature that the body turns through space, and not so much
-    // that it starts to swoop. Overdone it reads as a wing; flat it reads as
-    // a plate. This is the narrow band between the two.
-    Math.sin((u * 0.95 + 0.07) * Math.PI) * c.rise - c.rise * 0.46,
-    Math.sin((u * 0.85 + 0.18) * Math.PI) * c.sweep - c.sweep * 0.58,
-  ];
-}
-
-/**
- * Half-width along the sweep.
+ * One smooth field, evaluated at a point, returning the direction a ribbon
+ * must travel there. Every ribbon integrates through this and nothing else,
+ * which is why they agree without being parallel and without being connected:
+ * they are not copies of each other, they are separate solutions to the same
+ * constraint.
  *
- * Parallel-sided for most of its length, easing to a blunt end at each tip.
- * The first version tapered continuously from the middle, which made the
- * silhouette a long point with the flow lines fanning out of it — and that
- * reads as a feather. Straight edges over three quarters of the run read as
- * something cut to a width instead, which is the whole difference between a
- * grown thing and a governed one.
+ * Deliberately gentle. A field with strong vorticity produces tangles, and a
+ * tangle is the decorative network this replaced.
  */
-function halfWidth(u: number, c: GraphSynthConfig): number {
-  // Tapered at the far end only. Closing both ends put a converging bundle of
-  // flow lines near the camera, and a bundle converging to a point is a
-  // nozzle — an object, with a front and a purpose. Left open at the near end
-  // the band simply continues past the frame, which says the opposite thing:
-  // what is on screen is part of something larger, and the frame is a view of
-  // it rather than a portrait of it.
-  return c.tipWidth + (c.halfWidth - c.tipWidth) * ease(u / c.plateau);
-}
-
-/**
- * A point on the surface.
- *
- * The band is carried along the centreline by a frame that rotates slowly
- * about the sweep — a controlled twist, well short of anything that could
- * close into a tube — and is arched across its own width so the sheet has a
- * section rather than being flat. The arch is what gives the silhouette
- * something to be.
- */
-function surface(u: number, v: number, c: GraphSynthConfig): Vec {
-  const p = centre(u, c);
-  const ahead = centre(Math.min(u + 1e-3, 1), c);
-  const behind = centre(Math.max(u - 1e-3, 0), c);
-  const tangent = norm(sub(ahead, behind));
-
-  // A reference that is never parallel to the tangent, so the frame is stable
-  // along the whole sweep.
-  const up: Vec = [0, 1, 0];
-  const side = norm(cross(tangent, up));
-  const lift = norm(cross(side, tangent));
-
-  const angle = c.roll + c.twist * (u - 0.5);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const width: Vec = [
-    side[0] * cos + lift[0] * sin,
-    side[1] * cos + lift[1] * sin,
-    side[2] * cos + lift[2] * sin,
-  ];
-  const normal: Vec = [
-    lift[0] * cos - side[0] * sin,
-    lift[1] * cos - side[1] * sin,
-    lift[2] * cos - side[2] * sin,
-  ];
-
-  const h = halfWidth(u, c);
-  // The arch follows the width, so the section is deepest where the band is
-  // widest and flattens as it closes — one rule, not two.
-  const archHeight = c.arch * (1 - v * v) * ease(u / c.plateau);
-
-  return [
-    p[0] + width[0] * v * h + normal[0] * archHeight,
-    p[1] + width[1] * v * h + normal[1] * archHeight,
-    p[2] + width[2] * v * h + normal[2] * archHeight,
-  ];
+function flow(p: Vec, c: GraphSynthConfig): Vec {
+  const k = c.frequency;
+  return norm([
+    1,
+    Math.sin(p[0] * k + p[2] * k * 1.7) * c.bend + Math.sin(p[2] * k * 2.3) * c.bend * 0.35,
+    Math.cos(p[0] * k * 0.85 - p[1] * k * 1.3) * c.bend * 0.72,
+  ]);
 }
 
 export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): SynthesisedGraph {
-  const { along, across } = config;
-  const shellSize = along * across;
-  // Two shells: an outer and an inner, the same surface offset along its own
-  // normal. The structure is a body with a section, not a sheet with a
-  // pattern on it.
-  const nodeCount = shellSize * 2;
+  const random = mulberry32(config.seed);
+  const { ribbons, samples } = config;
+
+  const starts = new Uint32Array(ribbons);
+  const lengths = new Uint32Array(ribbons);
+
+  // ------------------------------------------------------------- seed points
+  //
+  // Scattered in depth and height, never on a lattice. Spacing is uneven on
+  // purpose: evenly spaced ribbons read as a comb, which is the surface again.
+  // Index order stays coherent with position, so neighbours in index are
+  // neighbours in space — that is what lets a group of them escape together.
+
+  const seeds: Vec[] = [];
+  const rollPhase: number[] = [];
+  const rollRate: number[] = [];
+  for (let r = 0; r < ribbons; r++) {
+    const t = r / (ribbons - 1);
+    const y = (t * 2 - 1) * config.spread[1] + (random() * 2 - 1) * config.spread[1] * 0.22;
+    const z =
+      Math.sin(t * Math.PI * 1.35) * config.spread[2] + (random() * 2 - 1) * config.spread[2] * 0.3;
+    const x = config.origin + (random() * 2 - 1) * 1.9;
+    seeds.push([x, y, z]);
+
+    const span = config.lengthRange[1] - config.lengthRange[0];
+    lengths[r] = Math.max(8, Math.round(samples * (config.lengthRange[0] + random() * span)));
+    rollPhase.push((random() * 2 - 1) * config.rollSpread);
+    rollRate.push((random() * 2 - 1) * config.rollDrift);
+  }
+
+  let nodeCount = 0;
+  for (let r = 0; r < ribbons; r++) {
+    starts[r] = nodeCount;
+    nodeCount += lengths[r];
+  }
 
   const positions = new Float32Array(nodeCount * 3);
   const directions = new Float32Array(nodeCount * 3);
+  const binormals = new Float32Array(nodeCount * 3);
+  const widths = new Float32Array(nodeCount);
   const depth = new Float32Array(nodeCount);
 
-  const index = (i: number, j: number, shell = 0): number => shell * shellSize + i * across + j;
+  // ---------------------------------------------------------- integrate them
 
-  // ------------------------------------------------------------- the surface
+  for (let r = 0; r < ribbons; r++) {
+    let p: Vec = seeds[r];
+    const count = lengths[r];
 
-  // Normals first: the shells are offset along them, so they have to exist
-  // before the positions do.
-  const step = 1 / (along - 1) / 2;
-  const gap = 1 / (across - 1) / 2;
+    for (let i = 0; i < count; i++) {
+      const node = starts[r] + i;
+      const at = node * 3;
+      const tangent = flow(p, config);
 
-  for (let i = 0; i < along; i++) {
-    const u = i / (along - 1);
-    for (let j = 0; j < across; j++) {
-      const v = (j / (across - 1)) * 2 - 1;
-      const du = sub(
-        surface(Math.min(u + step, 1), v, config),
-        surface(Math.max(u - step, 0), v, config)
-      );
-      const dv = sub(
-        surface(u, Math.min(v + gap, 1), config),
-        surface(u, Math.max(v - gap, -1), config)
-      );
-      const n = norm(cross(du, dv));
-      const p = surface(u, v, config);
-      const half = config.thickness * 0.5;
+      // A fixed reference for the frame, so neighbouring ribbons end up with
+      // nearly the same sideways direction and the field reads as coordinated
+      // rather than as each element doing its own thing.
+      const flat = norm(cross(tangent, [0, 1, 0]));
+      const lift = norm(cross(flat, tangent));
 
-      for (let shell = 0; shell < 2; shell++) {
-        const offset = shell === 0 ? half : -half;
-        depth[index(i, j, shell)] = u;
-        const at = index(i, j, shell) * 3;
-        positions[at] = p[0] + n[0] * offset;
-        positions[at + 1] = p[1] + n[1] * offset;
-        positions[at + 2] = p[2] + n[2] * offset;
-        // Both shells displace along the same normal, so a deviation lifts the
-        // whole body rather than peeling one face off the other.
-        directions[at] = n[0];
-        directions[at + 1] = n[1];
-        directions[at + 2] = n[2];
-      }
+      // Rolled about its own path. Each ribbon has its own phase and its own
+      // slow drift, so the field presents a mixture of faces and edges instead
+      // of one shared angle.
+      const roll = rollPhase[r] + rollRate[r] * (i / Math.max(count - 1, 1));
+      const cos = Math.cos(roll);
+      const sin = Math.sin(roll);
+      const side: Vec = [
+        flat[0] * cos + lift[0] * sin,
+        flat[1] * cos + lift[1] * sin,
+        flat[2] * cos + lift[2] * sin,
+      ];
+      const normal: Vec = [
+        lift[0] * cos - flat[0] * sin,
+        lift[1] * cos - flat[1] * sin,
+        lift[2] * cos - flat[2] * sin,
+      ];
+
+      positions[at] = p[0];
+      positions[at + 1] = p[1];
+      positions[at + 2] = p[2];
+
+      // Displacement is out of the flow, along the ribbon's normal: an escape
+      // leaves the permitted path rather than sliding along it.
+      directions[at] = normal[0];
+      directions[at + 1] = normal[1];
+      directions[at + 2] = normal[2];
+
+      binormals[at] = side[0];
+      binormals[at + 1] = side[1];
+      binormals[at + 2] = side[2];
+
+      // Tapered to nothing at both ends. A ribbon that stops at full width has
+      // an end cap, and an end cap is a piece of an object.
+      const along = i / Math.max(count - 1, 1);
+      widths[node] = config.halfWidth * Math.min(ease(along / 0.14), ease((1 - along) / 0.14));
+
+      depth[node] = Math.min(Math.max((p[0] - config.origin) / (2 * -config.origin), 0), 1);
+
+      p = [
+        p[0] + tangent[0] * config.step,
+        p[1] + tangent[1] * config.step,
+        p[2] + tangent[2] * config.step,
+      ];
     }
   }
 
-  // ----------------------------------------------------------------- lattice
+  // ------------------------------------------------------------------- edges
 
   const edgeA: number[] = [];
   const edgeB: number[] = [];
+  const edgeWeightRaw: number[] = [];
   const edgeLength: number[] = [];
-  const drawn: boolean[] = [];
 
-  const length = (a: number, b: number): number =>
+  const distance = (a: number, b: number): number =>
     Math.hypot(
       positions[a * 3] - positions[b * 3],
       positions[a * 3 + 1] - positions[b * 3 + 1],
       positions[a * 3 + 2] - positions[b * 3 + 2]
     );
 
-  const addEdge = (a: number, b: number, draw: boolean): void => {
+  const addEdge = (a: number, b: number, weight: number): void => {
     edgeA.push(a);
     edgeB.push(b);
-    edgeLength.push(length(a, b));
-    drawn.push(draw);
+    edgeWeightRaw.push(weight);
+    edgeLength.push(distance(a, b));
   };
 
-  for (let shell = 0; shell < 2; shell++) {
-    for (let i = 0; i < along; i++) {
-      for (let j = 0; j < across; j++) {
-        // Along the flow. Every one of these is drawn: they are the coherence.
-        if (i + 1 < along) addEdge(index(i, j, shell), index(i + 1, j, shell), true);
-        // Across the band. Load-bearing for the simulation, mostly not drawn —
-        // an even mesh reads as a chart, and the ribs are what make the
-        // surface look held rather than woven.
-        if (j + 1 < across) {
-          const rib = i % config.ribEvery === 0 || i === along - 1;
-          addEdge(index(i, j, shell), index(i, j + 1, shell), rib);
-        }
+  // A ribbon's own stiffness: it is one continuous thing along its length.
+  for (let r = 0; r < ribbons; r++) {
+    for (let i = 0; i + 1 < lengths[r]; i++) addEdge(starts[r] + i, starts[r] + i + 1, 1);
+  }
+
+  // The constraint field. Never drawn, and the only reason a deviation in one
+  // ribbon becomes tension in its neighbours — without it each ribbon would be
+  // corrected in isolation, and the field would look like a set of unrelated
+  // events rather than one system responding.
+  let couplingEdges = 0;
+  for (let r = 0; r < ribbons; r++) {
+    for (let n = 1; n <= config.coupling; n++) {
+      const other = r + n;
+      if (other >= ribbons) break;
+
+      // Matched by position along the flow, so a link joins parts of two
+      // ribbons that are actually beside each other.
+      const steps = Math.min(lengths[r], lengths[other]);
+      for (let i = 0; i < steps; i += 2) {
+        const t = i / Math.max(steps - 1, 1);
+        const a = starts[r] + Math.round(t * (lengths[r] - 1));
+        const b = starts[other] + Math.round(t * (lengths[other] - 1));
+        addEdge(a, b, config.couplingWeight / n);
+        couplingEdges++;
       }
     }
   }
 
-  // Struts. Every pair is coupled so the body moves as one; only a sparse
-  // grid of them is drawn, and those are what the eye reads as thickness.
-  for (let i = 0; i < along; i++) {
-    for (let j = 0; j < across; j++) {
-      const show =
-        (i % config.strutEvery === 0 || i === along - 1) && (j === 0 || j === across - 1);
-      addEdge(index(i, j, 0), index(i, j, 1), show);
-    }
-  }
-
-  // ------------------------------------------------------------------ weights
+  // ----------------------------------------------------------------- weights
 
   const sorted = [...edgeLength].sort((a, b) => a - b);
-  const medianEdgeLength = sorted[sorted.length >> 1] ?? 1;
-  const sigma = medianEdgeLength;
+  const medianEdgeLength = sorted[sorted.length >> 1] ?? config.step;
 
-  const edgeWeight = new Float32Array(edgeA.length);
+  const weightsPerEdge = new Float32Array(edgeA.length);
   for (let e = 0; e < edgeA.length; e++) {
-    const ratio = edgeLength[e] / sigma;
-    // Gaussian falloff, floored. Near the tips the band is narrow and its
-    // transverse edges are short; the floor keeps a long edge conducting so no
-    // part of the surface can go dark and stay dark.
-    edgeWeight[e] = Math.max(Math.exp(-ratio * ratio), 0.06);
+    // Coupling edges span the gap between ribbons and are deliberately weak: a
+    // ribbon is stiffer along itself than it is bound to its neighbour, or the
+    // whole field would move as one slab.
+    const ratio = edgeLength[e] / (medianEdgeLength * 4);
+    weightsPerEdge[e] = edgeWeightRaw[e] * Math.max(Math.exp(-ratio * ratio), 0.05);
   }
 
-  // ---------------------------------------------------------------------- CSR
+  // --------------------------------------------------------------------- CSR
 
   const degree = new Uint32Array(nodeCount);
   for (let e = 0; e < edgeA.length; e++) {
@@ -397,26 +375,14 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     const i = edgeA[e];
     const j = edgeB[e];
     neighbours[cursor[i]] = j;
-    weights[cursor[i]] = edgeWeight[e];
+    weights[cursor[i]] = weightsPerEdge[e];
     cursor[i]++;
     neighbours[cursor[j]] = i;
-    weights[cursor[j]] = edgeWeight[e];
+    weights[cursor[j]] = weightsPerEdge[e];
     cursor[j]++;
   }
 
-  // ------------------------------------------------------------ drawn subset
-
-  let drawnCount = 0;
-  for (let e = 0; e < drawn.length; e++) if (drawn[e]) drawnCount++;
-  const renderEdges = new Uint32Array(drawnCount * 2);
-  let at = 0;
-  for (let e = 0; e < drawn.length; e++) {
-    if (!drawn[e]) continue;
-    renderEdges[at++] = edgeA[e];
-    renderEdges[at++] = edgeB[e];
-  }
-
-  // ----------------------------------------------------------------- validity
+  // ---------------------------------------------------------------- validity
 
   let maxWeightedDegree = 0;
   let degreeMin = Infinity;
@@ -450,7 +416,7 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
   return {
     graph,
     bounds,
-    renderEdges,
+    layout: { count: ribbons, starts, lengths, widths, binormals },
     depth,
     stats: {
       nodes: nodeCount,
@@ -459,11 +425,9 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
       degreeMin,
       degreeMax,
       degreeMean: entryCount / nodeCount,
-      // A swept lattice is connected by construction; both are reported so the
-      // gate keeps checking rather than trusting that.
       components: 1,
       bridgesAdded: 0,
-      drawnEdges: drawnCount,
+      couplingEdges,
     },
   };
 }

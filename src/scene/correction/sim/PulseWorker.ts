@@ -22,14 +22,20 @@ import { CorrectionSystem, DEFAULT_SYSTEM } from './CorrectionSystem';
 export interface ReadyMessage {
   type: 'ready';
   nodeCount: number;
-  edgeCount: number;
   textureSize: number;
   /** p₀ per node, xyz. */
   positions: ArrayBuffer;
-  /** n̂ per node, xyz. */
+  /** n̂ per node, xyz — the direction a deviation leaves the flow along. */
   directions: ArrayBuffer;
-  /** Endpoint pairs, i < j. */
-  edges: ArrayBuffer;
+  /** Ribbon-local sideways direction per node, xyz. */
+  binormals: ArrayBuffer;
+  /** Half-width per node. */
+  widths: ArrayBuffer;
+  /** First node index per ribbon. */
+  starts: ArrayBuffer;
+  /** Node count per ribbon. */
+  lengths: ArrayBuffer;
+  ribbonCount: number;
   stats: Record<string, number>;
 }
 
@@ -262,26 +268,32 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
         ctx.postMessage({ type: 'progress', fraction: 0, stage: 'synth' });
 
         system = new CorrectionSystem(DEFAULT_SYSTEM);
-        const { graph, stats } = system.synthesised;
+        const { graph, layout, stats } = system.synthesised;
         textureSize = Math.ceil(Math.sqrt(graph.nodeCount));
 
         // Copies, because the originals stay in the Worker and these are
         // transferred out.
         const positions = graph.positions.slice().buffer;
         const directions = graph.directions.slice().buffer;
-        const edges = system.edgeIndices.slice().buffer;
+        const binormals = layout.binormals.slice().buffer;
+        const widths = layout.widths.slice().buffer;
+        const starts = layout.starts.slice().buffer;
+        const lengths = layout.lengths.slice().buffer;
 
         const ready: ReadyMessage = {
           type: 'ready',
           nodeCount: graph.nodeCount,
-          edgeCount: system.edgeIndices.length / 2,
           textureSize,
           positions,
           directions,
-          edges,
+          binormals,
+          widths,
+          starts,
+          lengths,
+          ribbonCount: layout.count,
           stats: { ...stats },
         };
-        ctx.postMessage(ready, [positions, directions, edges]);
+        ctx.postMessage(ready, [positions, directions, binormals, widths, starts, lengths]);
 
         // The world runs unsupervised, then the record is taken from it. This
         // is the bulk of real initialisation, so the loader reports it.

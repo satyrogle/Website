@@ -29,11 +29,16 @@ export interface TriptychFrame {
 /** The synthesised structure, as the renderer needs it. */
 export interface StructureHandoff {
   nodeCount: number;
-  edgeCount: number;
   textureSize: number;
   positions: Float32Array;
   directions: Float32Array;
-  edges: Uint32Array;
+  layout: {
+    count: number;
+    starts: Uint32Array;
+    lengths: Uint32Array;
+    widths: Float32Array;
+    binormals: Float32Array;
+  };
   stats: Record<string, number>;
 }
 
@@ -91,11 +96,16 @@ export class PulseClient {
         case 'ready':
           this.structure = {
             nodeCount: message.nodeCount,
-            edgeCount: message.edgeCount,
             textureSize: message.textureSize,
             positions: new Float32Array(message.positions),
             directions: new Float32Array(message.directions),
-            edges: new Uint32Array(message.edges),
+            layout: {
+              count: message.ribbonCount,
+              starts: new Uint32Array(message.starts),
+              lengths: new Uint32Array(message.lengths),
+              widths: new Float32Array(message.widths),
+              binormals: new Float32Array(message.binormals),
+            },
             stats: message.stats,
           };
           break;

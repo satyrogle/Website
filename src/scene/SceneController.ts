@@ -184,7 +184,9 @@ export class SceneController {
       alpha: false,
       powerPreference: 'high-performance',
       stencil: false,
-      depth: false,
+      // The ribbons are opaque and have to occlude one another, so there is a
+      // depth buffer now. The old line field was additive and order-free.
+      depth: true,
     });
     this.renderer.setClearColor(new THREE.Color('#05070a'), 1);
     this.renderer.setPixelRatio(this.quality.pixelRatio());
@@ -242,7 +244,7 @@ export class SceneController {
       throw new Error('correction: worker reported ready without a structure');
     }
 
-    this.model = new CorrectionModel({ structure: client.structure, record: client.record });
+    this.model = new CorrectionModel({ structure: client.structure });
     this.scene.add(this.model.group);
 
     // The first snapshot is published with the record, so the opening frame is
