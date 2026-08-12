@@ -243,6 +243,27 @@
 }
 
 /* ============================================================
+   The ground
+
+   Past the floor the machine is off, and the editorial does not sit
+   over it — it sits on something. Each editorial section carries the
+   ground colour itself, so scrolling out of the floor raises an opaque
+   surface over the canvas and the cut is a fact of the layout rather
+   than a fade timed against it. The washes those sections used to need
+   over the live field are redundant against it.
+   ============================================================ */
+
+/* Not scoped to .movement: the three game states are articles inside a
+   plain wrapper section, and the ground has to be continuous. */
+[data-band='editorial'] {
+  background: var(--ground);
+}
+
+[data-band='editorial'].movement--washed::before {
+  display: none;
+}
+
+/* ============================================================
    Movement 02 — The premise
    Type sits in the negative space between lattice plates, so the
    layout is deliberately offset rather than centred.
@@ -900,6 +921,51 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* ============================================================
+   Editorial 07 — Studio and contact
+   Two columns, the same 12-track grid as the premise. The contact
+   route is type, not a form: there is nothing to submit and nothing
+   to collect.
+   ============================================================ */
+
+.studio__head {
+  margin-block-end: clamp(2.5rem, 7vh, 5rem);
+}
+
+.studio__body {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
+}
+
+.studio__prose {
+  grid-column: 1 / span 6;
+}
+
+.studio__contact {
+  grid-column: 8 / span 5;
+  border-top: 1px solid var(--line);
+  padding-top: clamp(1.2rem, 3vh, 1.9rem);
+}
+
+.studio__contact .label {
+  margin-block-end: 1.2rem;
+}
+
+.studio__address {
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  letter-spacing: 0.06em;
+  margin-block: 1.4rem;
+}
+
+@media (max-width: 900px) {
+  .studio__prose,
+  .studio__contact {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ============================================================

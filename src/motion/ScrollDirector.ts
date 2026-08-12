@@ -164,6 +164,8 @@ export class ScrollDirector {
     if (id === this.band) return;
     this.band = id;
     document.documentElement.dataset.narrativeBand = id;
+    // Machine off past the floor, and on again on the way back up.
+    this.scene.setMachine(id !== 'editorial');
     document.dispatchEvent(new CustomEvent('bandchange', { detail: { band: id } }));
   }
 

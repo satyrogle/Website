@@ -294,6 +294,70 @@ if (flag('scroll')) {
   }
 }
 
+/**
+ * Is the copy actually on screen?
+ *
+ * The editorial animates in, and an animation that never runs leaves real
+ * company content invisible while every other check still passes. This reads
+ * the computed state of the elements that carry the reveal, so "readable" is
+ * measured rather than assumed.
+ */
+async function copyState(id) {
+  return page.evaluate((target) => {
+    const root = document.getElementById(target);
+    if (!root) return { total: 0, hidden: 0, sample: 'section missing' };
+    const items = root.querySelectorAll('.reveal-line > span, .fade-in');
+    let hidden = 0;
+    let sample = '';
+    items.forEach((el) => {
+      const style = getComputedStyle(el);
+      const masked = style.transform !== 'none' && !style.transform.endsWith(', 0, 0)');
+      const faded = Number(style.opacity) < 0.9;
+      if (masked || faded) {
+        hidden++;
+        if (!sample) sample = (el.textContent ?? '').trim().slice(0, 42);
+      }
+    });
+    return { total: items.length, hidden, sample };
+  }, id);
+}
+
+if (flag('editorial')) {
+  console.log('\nTHE GROUND');
+  for (const id of ['premise', 'studio']) {
+    await page.evaluate((target) => {
+      document.getElementById(target)?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    }, id);
+    // Long enough for the masked headline reveal (1.15s plus stagger) to have
+    // finished, so a hidden line means it never ran rather than that it is
+    // still running.
+    await page.waitForTimeout(2600);
+    await shot(`30-${id}`);
+    const copy = await copyState(id);
+    console.log(
+      `    copy: ${copy.total - copy.hidden}/${copy.total} revealed` +
+        (copy.hidden ? `   still hidden e.g. "${copy.sample}"` : '')
+    );
+  }
+  const machine = await telemetry();
+  await page.waitForTimeout(800);
+  const stillOff = await telemetry();
+  console.log(
+    `  machine at the editorial: tick ${machine.tick} -> ${stillOff.tick} after 0.8s ` +
+      `(${machine.tick === stillOff.tick ? 'OFF' : 'STILL RUNNING'})`
+  );
+
+  // Back up the page. The machine restarts where it was left, not where it
+  // started: the count and the damage do not rewind.
+  await scrollToBand('floor');
+  await page.waitForTimeout(1200);
+  const back = await telemetry();
+  console.log(
+    `  scrolled back to the floor: tick ${stillOff.tick} -> ${back.tick}, ` +
+      `adjustments ${stillOff.adjustments} -> ${back.adjustments}`
+  );
+}
+
 if (flag('record')) {
   console.log('\nTHE RECORD');
 

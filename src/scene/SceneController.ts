@@ -121,6 +121,8 @@ export class SceneController {
   private railTarget = new THREE.Vector3();
   private railOffset = new THREE.Vector3();
 
+  /** False past the floor, where the machine is off. */
+  private machineOn = true;
   /** Bounded injection energy, in presses. */
   private pressesLeft = PRESS_BUDGET;
   /** True once anything has struck the structure, whoever started it. */
@@ -252,7 +254,10 @@ export class SceneController {
     if (document.hidden) {
       this.stop();
       this.client?.setRunning(false);
-    } else if (!this.disposed) {
+    } else if (!this.disposed && this.machineOn) {
+      // Only resume what the narrative says should be running: returning to
+      // the tab while the visitor is reading the editorial must not restart
+      // the machine behind it.
       this.client?.setRunning(true);
       this.start();
     }
@@ -344,6 +349,33 @@ export class SceneController {
   /** Drives the cold-open reveal out of darkness. */
   setWake(target: number): void {
     this.exposureTarget = Math.min(Math.max(target, 0), 1);
+  }
+
+  /**
+   * Machine off.
+   *
+   * Past the floor there is nothing more to say and the system stops: the
+   * render loop ends and the Worker is paused, so the editorial is not a page
+   * with a simulation still running behind it. The cut itself is done by the
+   * layout — the editorial carries its own ground and rises over the canvas —
+   * because a fade timed against the scroll would be a transition, and what
+   * the beat needs is a stop.
+   *
+   * Coming back up restarts it exactly where it was. The state was never
+   * rewound, so the bruises and the count are still there: scrolling back is
+   * how the visitor finds that out.
+   */
+  setMachine(running: boolean): void {
+    if (this.machineOn === running || this.disposed) return;
+    this.machineOn = running;
+
+    if (running) {
+      this.client?.setRunning(true);
+      if (!this.reducedMotion) this.start();
+    } else {
+      this.stop();
+      this.client?.setRunning(false);
+    }
   }
 
   // ------------------------------------------------------------------
