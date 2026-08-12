@@ -18,6 +18,7 @@
  */
 
 import { CorrectionSystem, DEFAULT_SYSTEM } from './CorrectionSystem';
+import { INJECTION } from './CausalPulseSimulation';
 
 export interface ReadyMessage {
   type: 'ready';
@@ -106,6 +107,13 @@ export type WorkerInbound =
    * because that settled state is what the reduced-motion path shows live.
    */
   | { type: 'triptych' }
+  /**
+   * Development only. Mutates the live parameters so the feel of the system
+   * can be found by hand instead of by rebuild-and-capture. Deliberately NOT
+   * part of the recorded trace: a run that was tuned mid-flight is not a run
+   * that replays, and the panel that sends this is stripped from production.
+   */
+  | { type: 'tune'; wave?: Record<string, number>; correction?: Record<string, number>; hops?: number }
   | { type: 'recycle'; buffer: ArrayBuffer }
   | { type: 'setRunning'; running: boolean };
 
@@ -318,6 +326,14 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
       case 'gain':
         system?.setGain(message.value);
         break;
+
+      case 'tune': {
+        if (!system) break;
+        if (message.wave) Object.assign(system.simulation.parameters, message.wave);
+        if (message.correction) Object.assign(system.operator.parameters, message.correction);
+        if (message.hops !== undefined) INJECTION.hops = message.hops;
+        break;
+      }
 
       case 'triptych':
         if (system) runTriptych(system);

@@ -211,6 +211,12 @@ export class PulseClient {
     });
   }
 
+  /** Development only. See the Worker's `tune` message. */
+  tune(patch: { wave?: Record<string, number>; correction?: Record<string, number>; hops?: number }): void {
+    const message: WorkerInbound = { type: 'tune', ...patch };
+    this.worker.postMessage(message);
+  }
+
   setRunning(running: boolean): void {
     const message: WorkerInbound = { type: 'setRunning', running };
     this.worker.postMessage(message);

@@ -60,7 +60,7 @@ export const DEFAULT_WAVE: WaveParameters = {
 };
 
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
-const INJECTION_HOPS = 5;
+export const INJECTION = { hops: 5 };
 
 export class CausalPulseSimulation {
   readonly nodeCount: number;
@@ -123,7 +123,7 @@ export class CausalPulseSimulation {
     if (nodeId < 0 || nodeId >= this.nodeCount) throw new RangeError(`node ${nodeId} out of range`);
     const { offsets, neighbours } = this.graph;
 
-    const radius = INJECTION_HOPS;
+    const radius = INJECTION.hops;
     const hop = this.injectHop;
     hop.fill(-1);
     hop[nodeId] = 0;

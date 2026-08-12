@@ -66,6 +66,9 @@ export class CorrectionModel {
 
   private readonly hitPoint = new THREE.Vector3();
 
+  /** Live so the dev panel can move it; the shipped value is the default. */
+  private displacement = DISPLACEMENT_SCALE;
+
   constructor(options: CorrectionModelOptions) {
     const { structure } = options;
     this.nodeCount = structure.nodeCount;
@@ -197,6 +200,15 @@ export class CorrectionModel {
     this.stateTexture.needsUpdate = true;
   }
 
+  /** Development only: the render-side numbers, live. */
+  tune(patch: Record<string, number>): void {
+    for (const [key, value] of Object.entries(patch)) {
+      const uniform = this.material.uniforms[key];
+      if (uniform) uniform.value = value;
+    }
+    if (patch.uDisplacement !== undefined) this.displacement = patch.uDisplacement;
+  }
+
   /** Cold-open reveal, and the machine-off cut. */
   setExposure(value: number): void {
     this.material.uniforms.uExposure.value = value;
@@ -214,7 +226,7 @@ export class CorrectionModel {
 
     for (let i = 0; i < this.nodeCount; i++) {
       const at = i * 3;
-      const u = this.stateData[i * 4] * DISPLACEMENT_SCALE;
+      const u = this.stateData[i * 4] * this.displacement;
       this.hitPoint.set(
         this.positions[at] + this.directions[at] * u,
         this.positions[at + 1] + this.directions[at + 1] * u,

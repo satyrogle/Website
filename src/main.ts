@@ -246,6 +246,15 @@ async function boot(): Promise<void> {
   // idle clock behind the false first action.
   record = new RecordController(scene, { falseAction: !motion.reduced });
   record.init();
+
+  // Development only, and dynamically imported so the panel is not in the
+  // production bundle at all. Judging motion means looking at it on the
+  // machine it runs on, and a slider settles in seconds what a rebuild and a
+  // capture settle in minutes.
+  if (import.meta.env.DEV && scene) {
+    const { TuningPanel } = await import('./dev/TuningPanel');
+    new TuningPanel(scene);
+  }
 }
 
 // ---------------------------------------------------------------------

@@ -166,6 +166,8 @@ export class SceneController {
   private pressesLeft = PRESS_BUDGET;
   /** When the budget was last reconciled against the clock. */
   private budgetAt = 0;
+  /** Live so the dev panel can move it. */
+  private pressEnergy = PRESS_ENERGY;
   /** True once anything has struck the structure, whoever started it. */
   private pressed = false;
   /** A touch in progress that has not yet disqualified itself as a tap. */
@@ -406,7 +408,7 @@ export class SceneController {
     const node = this.model.nodeUnderRay(this.raycaster.ray, tolerance);
     if (node < 0) return -1;
 
-    this.client.inject(node, PRESS_ENERGY);
+    this.client.inject(node, this.pressEnergy);
     this.pressesLeft--;
     this.pressed = true;
     document.dispatchEvent(
@@ -425,6 +427,25 @@ export class SceneController {
    */
   pressCentre(): number {
     return this.pressAt(window.innerWidth * 0.5, window.innerHeight * 0.5, Infinity);
+  }
+
+  /**
+   * Development only. Routes a tuning patch to whichever layer owns each
+   * number — the Worker for anything the simulation reads, the material for
+   * anything the renderer reads.
+   */
+  tune(patch: {
+    wave?: Record<string, number>;
+    correction?: Record<string, number>;
+    render?: Record<string, number>;
+    hops?: number;
+    energy?: number;
+  }): void {
+    if (patch.wave || patch.correction || patch.hops !== undefined) {
+      this.client?.tune({ wave: patch.wave, correction: patch.correction, hops: patch.hops });
+    }
+    if (patch.render) this.model?.tune(patch.render);
+    if (patch.energy !== undefined) this.pressEnergy = patch.energy;
   }
 
   /** Returns spent presses at a fixed rate, up to the cap. */
