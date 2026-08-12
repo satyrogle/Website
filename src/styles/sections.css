@@ -100,10 +100,20 @@
   font-weight: 400;
 }
 
+.hero__actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.9rem;
+}
+
 @media (max-width: 760px) {
   .hero__foot {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .hero__actions {
+    justify-items: start;
   }
 }
 
@@ -183,6 +193,53 @@
 .band__word[disabled] {
   color: var(--muted);
   cursor: default;
+}
+
+/* --- The record ---------------------------------------------------
+   Amber, because it is the file talking, and mono because it is the
+   file's own voice rather than the studio's. Set as a statement, not
+   as a readout: no gauges, no axes, no chrome. The band is geometry
+   everywhere else in this direction and the record is a sentence here
+   for the same reason — the moment it becomes a dashboard it stops
+   being about you. */
+
+.record {
+  max-width: 46ch;
+}
+
+.record__label {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 1.4rem;
+}
+
+.record__statement {
+  font-family: var(--font-mono);
+  font-size: var(--step-1);
+  line-height: 1.75;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.record__note {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.9;
+  color: var(--muted);
+  margin: 1.8rem 0 0;
+  max-width: 40ch;
+}
+
+.record__note[hidden] {
+  display: none;
 }
 
 /* ============================================================

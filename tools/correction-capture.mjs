@@ -216,6 +216,26 @@ async function shot(name) {
   return { stats, telemetry: t };
 }
 
+/** Lands a band's own middle on the viewport middle — where the director measures. */
+async function scrollToBand(id) {
+  await page.evaluate((band) => {
+    const parts = Array.from(document.querySelectorAll(`[data-band="${band}"]`));
+    if (!parts.length) return;
+    const top = Math.min(...parts.map((el) => el.getBoundingClientRect().top + window.scrollY));
+    const bottom = Math.max(...parts.map((el) => el.getBoundingClientRect().bottom + window.scrollY));
+    window.scrollTo(0, (top + bottom) / 2 - window.innerHeight / 2);
+  }, id);
+}
+
+/** The record as a visitor reads it, straight off the DOM. */
+async function recordText() {
+  return page.evaluate(() => {
+    const panel = document.querySelector('[data-record]');
+    if (!panel || panel.hidden) return '(no panel)';
+    return panel.innerText.replace(/\s+/g, ' ').trim();
+  });
+}
+
 console.log('\nOPENING FRAME');
 await page.waitForTimeout(1600);
 await shot('01-opening');
@@ -265,21 +285,93 @@ if (flag('scroll')) {
 
   for (let i = 0; i < seen.length; i++) {
     const band = seen[i];
-    // Land the band's own middle on the viewport middle, which is what the
-    // director measures against — so the capture sits where the narrative
-    // says it does rather than wherever scrollIntoView happened to stop.
-    await page.evaluate((id) => {
-      const parts = Array.from(document.querySelectorAll(`[data-band="${id}"]`));
-      const top = Math.min(...parts.map((el) => el.getBoundingClientRect().top + window.scrollY));
-      const bottom = Math.max(...parts.map((el) => el.getBoundingClientRect().bottom + window.scrollY));
-      window.scrollTo(0, (top + bottom) / 2 - window.innerHeight / 2);
-    }, band);
+    await scrollToBand(band);
     await page.waitForTimeout(900);
 
     const reported = await page.evaluate(() => document.documentElement.dataset.narrativeBand ?? '');
     await shot(`${String(10 + i)}-band-${band}`);
     if (reported !== band) console.log(`    band attribute reads "${reported}"`);
   }
+}
+
+if (flag('record')) {
+  console.log('\nTHE RECORD');
+
+  // 1 — Do nothing at all. The system is supposed to supply the action.
+  const before = await telemetry();
+  await page.waitForTimeout(9500);
+  const after = await telemetry();
+  console.log(
+    `  idle 9.5s:  injections ${before.injections} -> ${after.injections}   ` +
+      `adjustments ${before.adjustments} -> ${after.adjustments}`
+  );
+  console.log(
+    `  ${after.injections === 1 ? 'THE SYSTEM ACTED FOR THE VISITOR' : 'NO FALSE FIRST ACTION'}`
+  );
+
+  // 2 — The floor, typeset from the counters.
+  await scrollToBand('floor');
+  await page.waitForTimeout(1200);
+  await shot('20-floor-record');
+  console.log(`  panel: ${await recordText()}`);
+
+  // 3 — The budget is bounded.
+  const spent = await page.evaluate(() => {
+    for (let i = 0; i < 20; i++) window.__correction?.press(700, 450);
+    return window.__correction?.budget ?? -1;
+  });
+  console.log(`  after 20 presses, budget left ${spent}`);
+  // The counters live in the Worker and reach the page on the next published
+  // snapshot, so reading them in the same turn as the presses reads the state
+  // from before them.
+  await page.waitForTimeout(600);
+  const injectedTotal = (await telemetry()).injections;
+  console.log(`  total injections accepted this visit: ${injectedTotal}`);
+
+  // 4 — Come back. The record came back with you.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page
+    .waitForFunction(
+      () => {
+        const loader = document.getElementById('loader');
+        return !loader || loader.hidden || loader.classList.contains('is-done');
+      },
+      { timeout: 30000 }
+    )
+    .catch(() => console.log('  loader never cleared on the second visit'));
+  await page.waitForTimeout(1200);
+  await scrollToBand('floor');
+  await page.waitForTimeout(900);
+  await shot('21-second-visit');
+  console.log(`  second visit: ${await recordText()}`);
+
+  // 5 — The way out, from the first frame. It has to be recorded as what it
+  //     was, which is the one thing a skip path can get dishonest about.
+  //
+  //     In a clean context, because a visitor who has already been here is a
+  //     different case: clearing storage in the current page does not survive
+  //     the reload, since the outgoing page commits its own record on pagehide
+  //     — which is the behaviour that makes the history reliable in the first
+  //     place.
+  const clean = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
+  const visitor = await clean.newPage();
+  await visitor.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await visitor.waitForTimeout(3000);
+  const skipped = await visitor.evaluate(async () => {
+    const link = document.querySelector('[data-skip]');
+    if (!link) return { stored: 'no skip control', reachable: false };
+    link.click();
+    await new Promise((r) => setTimeout(r, 600));
+    const premise = document.getElementById('premise');
+    return {
+      stored: window.localStorage.getItem('darkLattice.record') ?? '(nothing stored)',
+      reachable: !!premise && premise.getBoundingClientRect().height > 0,
+      heading: premise?.querySelector('h2')?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+    };
+  });
+  console.log(`  skipped from frame one: ${skipped.stored}`);
+  console.log(`  company content reachable: ${skipped.reachable} — "${skipped.heading}"`);
+  await clean.close();
 }
 
 console.log(`\nwritten to ${OUT}\n`);

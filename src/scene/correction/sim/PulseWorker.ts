@@ -53,6 +53,8 @@ export interface StateMessage {
   engaged: number;
   correctionEnergy: number;
   peakDeviation: number;
+  /** The largest violation the system can still see. What the floor reports. */
+  residual: number;
   injections: number;
   stepMs: number;
 }
@@ -128,6 +130,7 @@ function publish(s: CorrectionSystem): void {
     engaged: s.operator.engagedCount(),
     correctionEnergy: s.operator.correctionEnergy,
     peakDeviation: s.peakDeviation(),
+    residual: s.operator.visibleResidual(),
     injections: s.simulation.injectionCount,
     stepMs: stepMsAverage,
   };

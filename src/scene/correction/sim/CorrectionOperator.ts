@@ -263,6 +263,25 @@ export class CorrectionOperator {
     return this.events;
   }
 
+  /**
+   * The largest violation the system can still see anywhere.
+   *
+   * Measured against the release threshold, not against the record: below
+   * ε + θ_off the operator has let go, so as far as the file is concerned
+   * there is nothing there. This is the number the floor reports, and it is
+   * derived rather than authored — which is the only reason it is allowed to
+   * be a zero printed under a world that is still visibly moving.
+   */
+  visibleResidual(): number {
+    const limit = this.parameters.epsilon + this.parameters.thetaOff;
+    let peak = 0;
+    for (let i = 0; i < this.sensed.length; i++) {
+      const over = this.sensed[i] - limit;
+      if (over > peak) peak = over;
+    }
+    return peak;
+  }
+
   /** Nodes the operator is holding right now. */
   engagedCount(): number {
     let count = 0;

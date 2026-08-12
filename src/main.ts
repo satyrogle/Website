@@ -8,6 +8,7 @@ import { TextReveals } from './motion/TextReveals';
 import { AccessibilityController } from './accessibility/AccessibilityController';
 import { SceneController, isWebGL2Available } from './scene/SceneController';
 import { ScrollDirector } from './motion/ScrollDirector';
+import { RecordController } from './content/RecordController';
 import { verifyEvidenceIntegrity } from './content/verify';
 
 /**
@@ -25,6 +26,7 @@ const reveals = new TextReveals(motion.animated);
 
 let scene: SceneController | null = null;
 let director: ScrollDirector | null = null;
+let record: RecordController | null = null;
 
 // ---------------------------------------------------------------------
 //  Loader — genuine progress against real initialisation milestones
@@ -78,7 +80,19 @@ function enterFallback(reason: string): void {
   // Controls that only affect the 3D object are removed, not disabled:
   // a dead control is worse than an absent one.
   document.querySelectorAll('[data-webgl-only]').forEach((el) => el.remove());
+  // Anything that pointed into the removed sections is re-aimed at the
+  // editorial rather than left as a link to nowhere.
+  document.querySelectorAll<HTMLAnchorElement>('[data-fallback-href]').forEach((anchor) => {
+    anchor.href = anchor.dataset.fallbackHref ?? '#main';
+  });
   dismissLoader();
+
+  // The visit still happened, and it did not enter the simulation. Recording
+  // that is the honest thing to do: a later visit on a working context reads a
+  // history that says so rather than an empty one.
+  record = new RecordController(null, { falseAction: false });
+  record.init();
+
   if (import.meta.env.DEV) console.warn(`[dark-lattice] 3D disabled: ${reason}`);
 }
 
@@ -194,6 +208,12 @@ async function boot(): Promise<void> {
 
   wireScrollAnchors();
   wireInjectControls();
+
+  // The record comes up last, because it reads the counters the Worker is
+  // already producing. It owns the floor panel, the visit history and the
+  // idle clock behind the false first action.
+  record = new RecordController(scene, { falseAction: !motion.reduced });
+  record.init();
 }
 
 // ---------------------------------------------------------------------
@@ -245,6 +265,9 @@ if (import.meta.env.DEV) {
     value: {
       get telemetry() {
         return scene?.telemetry ?? null;
+      },
+      get budget() {
+        return scene?.budgetLeft ?? -1;
       },
       press: (x: number, y: number) => scene?.pressAt(x, y) ?? -1,
     },

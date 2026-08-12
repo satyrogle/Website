@@ -34,6 +34,7 @@ export interface CorrectionSnapshot {
   engaged: number;
   correctionEnergy: number;
   peakDeviation: number;
+  residual: number;
   injections: number;
   stepMs: number;
 }
@@ -115,6 +116,7 @@ export class PulseClient {
       engaged: message.engaged,
       correctionEnergy: message.correctionEnergy,
       peakDeviation: message.peakDeviation,
+      residual: message.residual,
       injections: message.injections,
       stepMs: message.stepMs,
     };

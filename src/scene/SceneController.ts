@@ -89,6 +89,17 @@ const smoothstep = (t: number): number => {
 /** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
 const PRESS_ENERGY = 2.2;
 
+/**
+ * How many presses a visit is worth.
+ *
+ * The bound is the difference between an action and a toy. Twelve is enough to
+ * strike, watch the whole event, and try it again somewhere else to see whether
+ * the system behaves the same way — which is the comparison the GRADIENT band
+ * depends on — and few enough that the structure can never become a thing to
+ * play with while the meaning drains out of it.
+ */
+const PRESS_BUDGET = 12;
+
 export class SceneController {
   readonly quality: QualityManager;
   readonly scene = new THREE.Scene();
@@ -110,6 +121,11 @@ export class SceneController {
   private railTarget = new THREE.Vector3();
   private railOffset = new THREE.Vector3();
 
+  /** Bounded injection energy, in presses. */
+  private pressesLeft = PRESS_BUDGET;
+  /** True once anything has struck the structure, whoever started it. */
+  private pressed = false;
+
   private progress = 0;
   private exposure = 0;
   private exposureTarget = 0;
@@ -122,6 +138,7 @@ export class SceneController {
     engaged: 0,
     correctionEnergy: 0,
     peakDeviation: 0,
+    residual: 0,
     injections: 0,
     stepMs: 0,
   };
@@ -256,6 +273,7 @@ export class SceneController {
    */
   pressAt(clientX: number, clientY: number, tolerance?: number): number {
     if (!this.model || !this.client) return -1;
+    if (this.pressesLeft <= 0) return -1;
 
     this.pointerNdc.set(
       (clientX / window.innerWidth) * 2 - 1,
@@ -267,6 +285,11 @@ export class SceneController {
     if (node < 0) return -1;
 
     this.client.inject(node, PRESS_ENERGY);
+    this.pressesLeft--;
+    this.pressed = true;
+    document.dispatchEvent(
+      new CustomEvent('injected', { detail: { node, left: this.pressesLeft } })
+    );
     return node;
   }
 
@@ -280,6 +303,16 @@ export class SceneController {
    */
   pressCentre(): number {
     return this.pressAt(window.innerWidth * 0.5, window.innerHeight * 0.5, Infinity);
+  }
+
+  /** Presses remaining this visit. */
+  get budgetLeft(): number {
+    return this.pressesLeft;
+  }
+
+  /** Whether the structure has been struck at all yet. */
+  get struck(): boolean {
+    return this.pressed;
   }
 
   resize(): void {
@@ -353,6 +386,7 @@ export class SceneController {
       engaged: snapshot.engaged,
       correctionEnergy: snapshot.correctionEnergy,
       peakDeviation: snapshot.peakDeviation,
+      residual: snapshot.residual,
       injections: snapshot.injections,
       stepMs: snapshot.stepMs,
     };

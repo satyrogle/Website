@@ -403,6 +403,21 @@ check(
 );
 check('and keeps settling toward the ambient floor', settledAt20s < settledAt10s, `${f(settledAt20s)}`);
 check('enforcement released', system.operator.engagedCount() === 0, `${system.operator.engagedCount()} held`);
+
+// What the floor panel prints, and why it is allowed to print a zero.
+//
+// RESIDUAL DEVIATION is the largest violation the system can still see, and
+// below its own release threshold it can see nothing. So the settled world is
+// still visibly moving while the file reports that there is nothing left to
+// correct. Both halves are asserted, because the line is only worth anything
+// if the zero is arithmetic rather than a string.
+const trueResidual = system.peakDeviation();
+const seenResidual = system.operator.visibleResidual();
+console.log(
+  `  the record's reading: residual ${f(seenResidual)} against a true |u-u*| of ${f(trueResidual)}`
+);
+check('the settled world is still deviating', trueResidual > EPSILON * 0.5, `${f(trueResidual)}`);
+check('and the system reports nothing left to correct', seenResidual === 0, `${f(seenResidual)}`);
 // Duty cycle. The span between the first and last engagement means nothing on
 // its own: enforcement that flickers on for four ticks at a time inside a
 // three-second window is not something a person can watch, it is a sparkle.

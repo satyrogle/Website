@@ -246,6 +246,25 @@ a {
   transform: translate3d(0, 0, 0);
 }
 
+/* The way past the simulation. Present from the first frame and plainly
+   labelled, but without the plate — it is an exit, not an invitation, and
+   two equal buttons would make the choice look like a menu. */
+.action--quiet {
+  border-color: transparent;
+  padding-inline: 0;
+  color: var(--muted);
+}
+
+.action--quiet::before {
+  display: none;
+}
+
+.action--quiet:hover,
+.action--quiet:focus-visible {
+  color: var(--text);
+  border-color: transparent;
+}
+
 .action__arrow {
   transition: transform 520ms var(--ease-out-expo);
 }

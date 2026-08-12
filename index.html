@@ -109,10 +109,24 @@
             </p>
           </div>
 
-          <a class="action fade-in" href="#premise" data-magnetic data-scroll-to>
-            Enter the system
-            <span class="action__arrow" aria-hidden="true">↓</span>
-          </a>
+          <div class="hero__actions">
+            <a
+              class="action fade-in"
+              href="#ask"
+              data-fallback-href="#premise"
+              data-magnetic
+              data-scroll-to
+            >
+              Enter the system
+              <span class="action__arrow" aria-hidden="true">↓</span>
+            </a>
+
+            <!-- The way out, offered in the first frame rather than buried
+                 after the simulation. Taking it is recorded honestly. -->
+            <a class="action action--quiet fade-in" href="#premise" data-skip data-scroll-to>
+              Skip to company information
+            </a>
+          </div>
         </div>
       </section>
 
@@ -126,6 +140,7 @@
            ============================================================ -->
       <section
         class="movement band band--ask"
+        id="ask"
         data-band="ask"
         data-webgl-only
         aria-labelledby="ask-title"
@@ -183,6 +198,18 @@
         aria-labelledby="floor-title"
       >
         <h2 class="sr-only" id="floor-title">Your record</h2>
+
+        <!-- Hidden until the controller is running: with no JS there are no
+             counters, and a panel of zeros would be a claim rather than a
+             reading. Every figure below is written from the Worker. -->
+        <div class="record" data-record hidden>
+          <p class="record__label">Your record</p>
+          <p class="record__statement">
+            Adjustments applied: <span data-record-adjustments>0</span>.<br />
+            Residual deviation: <span data-record-residual>0</span>.
+          </p>
+          <p class="record__note" data-record-note hidden></p>
+        </div>
       </section>
 
       <!-- ============================================================
