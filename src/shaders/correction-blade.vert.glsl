@@ -21,8 +21,9 @@ uniform float uSwingClamp;
 uniform float uSlip;
 uniform float uTip;
 uniform float uBow;
-uniform float uCross;
-uniform float uArc;
+uniform float uCrease;
+uniform float uFold;
+uniform float uChisel;
 
 in vec3 iAnchor;
 in vec3 iTangent;
@@ -81,28 +82,38 @@ void main() {
   vec3 spine = rotateAbout(normal, tangent, iShape.x * along);
   vec3 across = cross(tangent, spine);
 
-  // Tapered at one end only, and only over the last stretch. Tapering both ends
-  // makes a converging bundle near the camera — a nozzle, which reads as an
-  // object with a front and a purpose. Tapering continuously from the base
-  // makes a wedge, and a field of wedges reads as broken glass rather than as a
-  // congregation of blades. Parallel-sided most of the way, then a tip.
-  float taper = mix(1.0, uTip, smoothstep(0.55, 1.0, along));
+  // Tapered at one end only. Tapering both ends makes a converging bundle near
+  // the camera — a nozzle, which reads as an object with a front and a purpose.
+  // Tapering continuously from the base makes a wedge, and a field of wedges
+  // reads as broken glass.
+  float taper = mix(1.0, uTip, smoothstep(0.35, 1.0, along));
 
-  // The cross-section is a shallow arc rather than flat.
+  // Two flat facets meeting at a crease, not a smooth arc.
   //
-  // This is the whole reason the choir is visible. A flat quad has one normal
-  // across its entire surface, so it lights as a single flat tone — the first
-  // build of this rendered six thousand uniformly lit shards, because there was
-  // no geometry for a grazing light to graze. Fanning the normal across the
-  // width gives every blade a dark body and a bright edge, which is what turns
-  // the field from a pile of plates into something discovered by light.
-  vec3 face = rotateAbout(spine, tangent, -side * uCross);
+  // The arc was the right fix for the wrong problem. A flat quad has one normal
+  // and lights as one flat tone, so the section needed to turn across the width
+  // — but bulging it smoothly made every blade a rounded tube with a blunt
+  // rounded end, and a field of pale rounded tubes hanging vertically reads as
+  // something other than architecture. Founder verdict, 2026-08-12, and he was
+  // not wrong.
+  //
+  // A crease turns the section without rounding it. Each half is flat and takes
+  // the light at its own angle, so one side of a blade goes bright while the
+  // other stays black and the ridge between them draws a hard line. That is
+  // folded blackened steel: obsidian fin, ceremonial stele, architectural
+  // blade — the vocabulary the brief actually asked for.
+  float facet = side < 0.0 ? -1.0 : 1.0;
+  vec3 face = rotateAbout(spine, tangent, facet * uCrease);
+
+  // Cut off on a slant. A blade that ends square reads as machined stock and
+  // one that ends round reads as grown; a chisel reads as made and sharpened.
+  float reach = along * (1.0 - uChisel * (side * 0.5 + 0.5));
 
   vec3 placed =
     anchor +
-    tangent * (along * iDims.x) +
+    tangent * (reach * iDims.x) +
     across * (side * 0.5 * iDims.y * taper) +
-    spine * (uArc * (1.0 - side * side) * iDims.y + uBow * along * along * iDims.x);
+    spine * (uFold * (1.0 - abs(side)) * iDims.y + uBow * along * along * iDims.x);
 
   vec4 viewPosition = modelViewMatrix * vec4(placed, 1.0);
   vNormal = normalize(normalMatrix * face);

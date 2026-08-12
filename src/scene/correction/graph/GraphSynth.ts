@@ -140,7 +140,7 @@ export const DEFAULT_SYNTH: GraphSynthConfig = {
     span: [11.0, 21.0],
     height: [4.5, 9.0],
     thickness: [0.3, 0.85],
-    roll: 1.15,
+    roll: 0.9,
     rollWavelength: 17,
     population: [150, 330],
     compression: 0.55,
@@ -149,7 +149,7 @@ export const DEFAULT_SYNTH: GraphSynthConfig = {
   },
   blade: {
     length: [1.0, 2.6],
-    width: [0.055, 0.13],
+    width: [0.05, 0.1],
     cant: 0.12,
     twist: 0.1,
     roll: 0.42,

@@ -1,7 +1,8 @@
 import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
 import {
-  ARC,
-  CROSS,
+  CHISEL,
+  CREASE,
+  FOLD,
   EDGE_POWER,
   GHOST_GAIN,
   GLOW,
@@ -81,8 +82,9 @@ const KNOBS: Knob[] = [
   // How far a blade turns on screen, and how the frame reads.
   { label: 'swing (rad/unit)', group: 'render', key: 'uSwing', min: 0.05, max: 1.2, step: 0.01, value: SWING, source: 'SWING' },
   { label: 'slip', group: 'render', key: 'uSlip', min: 0, max: 0.6, step: 0.01, value: SLIP, source: 'SLIP' },
-  { label: 'edge fan', group: 'render', key: 'uCross', min: 0, max: 1.4, step: 0.01, value: CROSS, source: 'CROSS' },
-  { label: 'cross arc', group: 'render', key: 'uArc', min: 0, max: 0.8, step: 0.01, value: ARC, source: 'ARC' },
+  { label: 'crease angle', group: 'render', key: 'uCrease', min: 0, max: 1.4, step: 0.01, value: CREASE, source: 'CREASE' },
+  { label: 'fold depth', group: 'render', key: 'uFold', min: 0, max: 0.8, step: 0.01, value: FOLD, source: 'FOLD' },
+  { label: 'chisel', group: 'render', key: 'uChisel', min: 0, max: 0.6, step: 0.01, value: CHISEL, source: 'CHISEL' },
   { label: 'record brightness', group: 'render', key: 'uRecordGain', min: 0.1, max: 4, step: 0.05, value: RECORD_GAIN, source: 'RECORD_GAIN' },
   { label: 'aureole gain', group: 'render', key: 'uShellGain', min: 0, max: 4, step: 0.05, value: SHELL_GAIN, source: 'SHELL_GAIN' },
   { label: 'edge sharpness', group: 'render', key: 'uEdge', min: 0.5, max: 8, step: 0.1, value: EDGE_POWER, source: 'EDGE_POWER' },

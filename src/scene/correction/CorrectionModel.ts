@@ -64,26 +64,31 @@ export const SLIP = 0.15;
 /**
  * Blade width at the tip, as a fraction of its width at the base.
  *
- * Blunt, not pointed. At 0.14 the choir rendered as a thicket of thorns — a
- * field of spikes is a threat display, and the opening is supposed to read as
- * order before it reads as anything else. A stele ends; it does not stab.
+ * Between the thicket of thorns 0.14 produced and the blunt rounded heads 0.34
+ * produced. Narrow enough to be a blade, square enough not to be a spike — and
+ * the slant cut does most of the work of making the end read as made.
  */
-export const TIP = 0.34;
+export const TIP = 0.28;
 
 /** Lengthwise bow, as a fraction of blade length. */
 export const BOW = 0.06;
 
 /**
- * How far the face normal fans across the blade's width, in radians.
+ * The angle between a blade's two facets, in radians.
  *
  * The single most important number in the material. At zero every blade is a
- * flat plate with one tone; at this value the normal swings about sixty degrees
- * from edge to edge, so the body stays dark and the long edges catch the light.
+ * flat plate with one tone. Smoothly fanned it becomes a rounded tube. Creased,
+ * each half is flat and takes the light at its own angle, so one side goes
+ * bright while the other stays black and the ridge draws a hard line down the
+ * blade.
  */
-export const CROSS = 0.55;
+export const CREASE = 0.5;
 
-/** Depth of the cross-section arc, as a fraction of blade width. */
-export const ARC = 0.22;
+/** Depth of the fold along the crease, as a fraction of blade width. */
+export const FOLD = 0.32;
+
+/** How far the tip is cut back on one side, as a fraction of blade length. */
+export const CHISEL = 0.12;
 
 /** How sharply the grazing edge falls off across a blade's face. */
 export const EDGE_POWER = 2.4;
@@ -231,8 +236,9 @@ export class CorrectionModel {
       uSlip: { value: SLIP },
       uTip: { value: TIP },
       uBow: { value: BOW },
-      uCross: { value: CROSS },
-      uArc: { value: ARC },
+      uCrease: { value: CREASE },
+      uFold: { value: FOLD },
+      uChisel: { value: CHISEL },
       // Amber in fact, not just in the grammar table — but barely. The original
       // value measured as neutral grey off the canvas; the first correction
       // overshot into gold. Parchment: warm enough to read as the record's
