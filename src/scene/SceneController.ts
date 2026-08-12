@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 import { QualityManager } from './QualityManager';
-import { FieldModel } from './correction/FieldModel';
+import { DEBRIS, FUNNEL, FieldModel } from './correction/FieldModel';
 import { PulseClient } from './correction/sim/PulseClient';
 
 /**
@@ -35,46 +35,91 @@ export function isWebGL2Available(): boolean {
 
 const CAMERA = { fov: 38 };
 
+/** A waypoint the rail can interpolate: where the eye is, what it looks at. */
+interface Waypoint {
+  eye: readonly [number, number, number];
+  aim: readonly [number, number, number];
+}
+
+const asTriple = (v: THREE.Vector3): readonly [number, number, number] => [v.x, v.y, v.z];
+
 /**
- * The rail, in world space.
+ * The rail, derived from the debris itself.
  *
- * Authored in world coordinates now, and close in. The choir's rail lived in a
- * flow frame that no longer exists, and it held the camera twenty units out
- * from a form about four across — which is why the first frame off the implicit
- * field read as a small contained lump rather than as something enormous.
+ * Jacob, 2026-08-12: "each floating debris will be our scrolling and we travel
+ * like a funnel and we go see the exploding star." So the waypoints are not
+ * authored beside the layout, they are computed from it — the approach, then
+ * one stop at every fragment in order down the funnel, then the wide view of
+ * the whole event. Move a fragment and its stop moves with it; the scroll can
+ * never visit a place that is not really there.
  *
- * An apparition has to exceed the frame. The eye is inside the field's outer
- * folds looking through them, so the structure runs off every edge, parallax
- * separates its layers as the camera moves, and there is no silhouette to
- * measure it against. Scale is a lie the composition tells, and it can only
- * tell it if the boundaries are outside the picture.
+ * At each stop the eye stands outside the funnel, upstream of the fragment,
+ * looking past it toward the star — so every leg travels starward and the
+ * throat is always ahead, without the view ever lying along the funnel's own
+ * axis. The wide view at the floor is from far off to the side: the funnel is
+ * seen as a trail, never as concentric depth.
  */
-const RAIL = {
-  /**
-   * The descent, as places on the body rather than as a camera move.
-   *
-   * Jacob, 2026-08-12: every scroll beat has to land on a part of the planet
-   * you are actually looking at. So this is a list of *locations* — an
-   * approach, three broken regions visited in turn along the surface, and a
-   * long pull back at the floor to see the whole dying body with its fragments
-   * at once. The camera does not drift past the object; it goes somewhere.
-   *
-   * Waypoints rather than a straight line, because a two-point rail can only
-   * express "closer" and the descent has to express "elsewhere".
-   */
-  waypoints: [
-    // 0 — approach. The whole body, off-centre, dish toward the upper right.
-    { eye: [5.6, 2.05, 8.1], aim: [0.35, 0.15, -0.2] },
-    // 1 — the first break, low on the near face.
-    { eye: [3.1, -0.9, 5.3], aim: [1.1, -1.4, 1.6] },
-    // 2 — travelling across the surface, along a crevasse.
-    { eye: [-1.4, 1.6, 5.4], aim: [-0.6, 0.4, 1.9] },
-    // 3 — the dish, close enough that its rim fills one side.
-    { eye: [2.4, 2.9, 4.6], aim: [1.62, 1.05, 2.15] },
-    // 4 — the floor. Far enough back that the fragments read as one event.
-    { eye: [10.4, 4.1, 15.2], aim: [0.2, 0.1, 0.1] },
-  ] as const,
+const buildRail = (): Waypoint[] => {
+  const { axis, lift, side } = FUNNEL;
+  const waypoints: Waypoint[] = [];
+
+  const first = DEBRIS[0];
+  const firstOut = first.position.clone().projectOnPlane(axis).normalize();
+  waypoints.push({
+    eye: asTriple(
+      first.position
+        .clone()
+        .addScaledVector(axis, 5.2)
+        .addScaledVector(firstOut, 3.4)
+        .addScaledVector(lift, 1.2)
+    ),
+    aim: asTriple(first.position.clone().multiplyScalar(0.78)),
+  });
+
+  for (const fragment of DEBRIS) {
+    const out = fragment.position.clone().projectOnPlane(axis).normalize();
+    waypoints.push({
+      eye: asTriple(
+        fragment.position
+          .clone()
+          .addScaledVector(out, fragment.shell * 2.3)
+          .addScaledVector(axis, fragment.shell * 3.0)
+          .addScaledVector(lift, fragment.shell * 0.7)
+      ),
+      // Pulled slightly starward of the fragment, so the piece sits off-centre
+      // in frame with the throat of the funnel beyond it.
+      aim: asTriple(fragment.position.clone().multiplyScalar(0.84)),
+    });
+  }
+
+  waypoints.push({
+    eye: asTriple(
+      new THREE.Vector3()
+        .addScaledVector(side, 17.5)
+        .addScaledVector(lift, 6.0)
+        .addScaledVector(axis, 8.5)
+    ),
+    aim: asTriple(new THREE.Vector3().addScaledVector(axis, 3.4)),
+  });
+
+  return waypoints;
 };
+
+const RAIL = { waypoints: buildRail() };
+
+/**
+ * The machine's visible life ends at narrative 0.82 — the editorial band owns
+ * the rest and the canvas is covered there. The rail finishes its journey just
+ * inside that: the wide view of the whole event arrives at 0.78, and the flare
+ * climbs through the floor band so YOUR RECORD is typeset over a star that is
+ * letting go. A rail spread over 0..1 was a journey the visitor could never
+ * finish — the first capture of the floor band proved it, two fragments short
+ * of the star.
+ */
+const RAIL_END = 0.78;
+
+/** Where in the scroll the star begins to flare, and where it peaks. */
+const FLARE = { from: 0.64, to: 0.8 };
 
 /**
  * Enforcement gain against narrative depth.
@@ -696,8 +741,21 @@ export class SceneController {
     this.consume();
     this.applyCamera();
     this.model?.setCamera(this.camera);
+    this.model?.setFlare(this.flareAt(this.progress));
     this.model?.setExposure(1);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * The finale, as a readout of scroll.
+   *
+   * A function of progress rather than a triggered animation, so it runs
+   * backwards exactly as it ran forwards: scroll away from the floor and the
+   * star settles, scroll back and it flares again. The explosion is a place
+   * the visitor goes, not a fuse they lit.
+   */
+  private flareAt(progress: number): number {
+    return smoothstep((progress - FLARE.from) / (FLARE.to - FLARE.from));
   }
 
   /** Takes the newest authoritative snapshot, if one has arrived. */
@@ -764,7 +822,7 @@ export class SceneController {
     // backwards exactly as it ran forwards, with no easing state to unwind.
     // Reduced motion holds it at the head of the rail, which is the same pose
     // by construction rather than a second set of numbers to keep in step.
-    const t = this.reducedMotion ? 0 : this.progress;
+    const t = this.reducedMotion ? 0 : Math.min(this.progress / RAIL_END, 1);
 
     this.railPose(t, this.railOffset, this.railTarget);
 
@@ -810,6 +868,7 @@ export class SceneController {
     this.applyCamera();
     this.model?.setCamera(this.camera);
     this.model?.setTime(now / 1000);
+    this.model?.setFlare(this.flareAt(this.progress));
     this.renderer.render(this.scene, this.camera);
   };
 

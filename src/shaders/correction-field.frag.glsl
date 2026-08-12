@@ -1,32 +1,28 @@
-// THE CORRECTION — the apparition.
+// THE HERO — a star that has already blown apart.
 //
-// There is no carrier object here. No lines, no sticks, no plates, no grid, no
-// mesh, no repeated element. The form is a distance field, marched, and every
-// surface you can see is a level set of that field rather than a thing that was
-// placed. That is the entire point of this file.
+// One marched scene: a dying star, and the debris of the world it destroyed
+// floating in the void around it. The fragments trail away from the star in a
+// narrowing funnel; scroll travels from fragment to fragment down that funnel,
+// and the floor pulls wide to see the whole event at once before the star
+// flares.
 //
-// Why, in one line: five carriers died here and every one of them died the same
-// way. Filaments read as spaghetti. A swept surface read as a cutting board.
-// Lamellae read as hanging anatomy. Plates read as architectural junk. The
-// common fault was never the shape — it was that the primitive stayed visible,
-// so the eye identified the material and filed the whole thing as mundane
-// geometry before it could feel anything. An implicit field has no primitive to
-// recognise. You perceive a presence and then fail to classify it, which is the
-// order the site needs.
+// Two things in this file are approved and are not to be redecorated:
+//
+//   - the plating: rectilinear armour at two scales with grooves along the
+//     seams — every fragment is a piece of a made thing, not a rock;
+//   - the glow: light accumulated along the ray, gathering in seams, in open
+//     cuts and around the star. Nothing is painted onto a surface.
 //
 // Colour grammar, never redefined:
 //
-//   amber   the record       the approved field, and the light it emits
-//   cyan    the world        a region whose parameters have left the basin
-//   violet  the consequence  V = D × C — where the system closed the gap
+//   amber   the record       the plating's light, the heat in the cuts, the star
+//   cyan    the world        deviation (surfaces under attention's fringe)
+//   violet  the consequence  reserved — not spent on decoration
 //
-// No rings. That rule outlived four directions and it applies here with more
-// force, not less: radial domain repetition and origin-centred spherical folds
-// are the two easiest ways to make a raymarcher produce concentric arcs. Every
-// fold below is offset before it is mirrored and rotated on an axis shared with
-// nothing, and the core is carved off-centre. The halo is meant to be an
-// accident of density and light around an irregular absence — never a ring, and
-// never a shape anything was drawn along.
+// No rings. The funnel is a scatter along an axis with irregular angles and
+// radii, never a drawn spiral; the camera never looks straight down its
+// throat; and every capture is judged for concentric reads. That rule has
+// outlived six carriers.
 
 precision highp float;
 
@@ -38,7 +34,6 @@ uniform vec3 uCamForward;
 uniform float uTanFov;
 
 uniform float uTime;
-/** Slow parameter breathing. Not motion — the field is nearly still. */
 uniform float uBreath;
 uniform int uSteps;
 
@@ -46,26 +41,24 @@ uniform vec3 uRecord;
 uniform vec3 uWorld;
 uniform vec3 uConsequence;
 
-uniform float uScale;
-uniform float uFoldOffset;
-uniform vec3 uBox;
-uniform float uRound;
-uniform float uWarp;
+// The star.
+uniform vec3 uStarPos;
+uniform float uStarRadius;
+uniform float uStarGlow;
+/** The finale. 0 for the whole descent, ramping to 1 at the very floor. */
+uniform float uFlare;
 
-uniform vec3 uCore;
-uniform float uCoreRadius;
+// The debris. Position + shell radius, and a rotation as axis + angle.
+const int FRAGS = 5;
+uniform vec4 uFrag[FRAGS];
+uniform vec4 uFragRot[FRAGS];
+
+// The approved plating.
 uniform float uPanelFreq;
 uniform float uRelief;
 uniform float uGroove;
-uniform float uTrench;
-uniform float uRadius;
-uniform vec3 uDish;
-uniform float uDishRadius;
 uniform float uHeat;
-uniform float uFractureFreq;
-uniform float uBreak;
-uniform float uMoltenRadius;
-uniform float uLavaDensity;
+/** Heat escaping from the broken faces of each fragment. */
 uniform float uLava;
 
 /** Pointer in NDC, and how far the field has come up to meet it. */
@@ -75,17 +68,18 @@ uniform float uHoverRadius;
 uniform float uHoverGain;
 uniform float uHoverFringe;
 
-uniform float uAureole;
 uniform float uGlow;
 uniform float uDensity;
 uniform float uExposure;
 
 out vec4 fragColour;
 
-const int ITERATIONS = 4;
-const float FAR = 46.0;
+const float FAR = 60.0;
 
-/** A rotation built from an axis and an angle, applied without a matrix. */
+float hash31(vec3 c) {
+  return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+}
+
 vec3 turn(vec3 p, vec3 axis, float angle) {
   float c = cos(angle);
   float s = sin(angle);
@@ -93,42 +87,8 @@ vec3 turn(vec3 p, vec3 axis, float angle) {
 }
 
 /**
- * The absence.
- *
- * Three ellipsoids blended into one irregular body, then roughened by a
- * low-frequency warp so its boundary has no single radius anywhere on it. It is
- * subtracted from the field: nothing exists inside it, so it is dark because it
- * is empty rather than because something black was drawn there.
- */
-float core(vec3 p) {
-  vec3 q = p - uCore;
-
-  float a = length(q / vec3(1.35, 0.92, 1.08)) - 1.0;
-  float b = length((q - vec3(1.1, 0.55, -0.7)) / vec3(0.78, 1.12, 0.85)) - 1.0;
-  float c = length((q + vec3(0.9, -0.75, 1.05)) / vec3(0.95, 0.7, 1.25)) - 1.0;
-
-  // Smooth union, so it reads as one body rather than three balls with creases.
-  float k = 0.55;
-  float d = -log(exp(-a / k) + exp(-b / k) + exp(-c / k)) * k;
-
-  // Roughened. A clean ellipsoid boundary is the one thing here that could
-  // still resolve into a recognisable primitive.
-  d += 0.12 * sin(q.x * 1.7 + 0.6) * sin(q.y * 1.3 - 1.1) * sin(q.z * 1.9 + 2.2);
-
-  return d * uCoreRadius;
-}
-
-float hash31(vec3 c) {
-  return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-}
-
-/**
- * The seams between plates.
- *
- * Returns roughly 0 across a plate face and rises to 1 in the groove between
- * plates. The emission term reads it, so light collects in the seams of the
- * armour rather than on its faces — which is the same accumulation the glow
- * already used, pointed at a machine instead of at geology.
+ * The seams between armour plates. Roughly 0 across a plate face, rising to 1
+ * in the groove — the emission reads it, so light collects in the seams.
  */
 float fissure(vec3 p) {
   vec3 g = abs(fract(p * uPanelFreq) - 0.5);
@@ -143,86 +103,82 @@ float fissure(vec3 p) {
   );
 }
 
+// Feature values at the winning surface, written by map() as it runs. GLSL
+// module globals, so the march does not have to re-derive which fragment it
+// hit to know what should glow there.
+float gSeam = 0.0;
+float gCut = 0.0;
+
 /**
- * The field: an armoured sphere.
+ * One piece of the broken world, in its own local frame.
  *
- * The previous body was an irregular warped mass and it was unreadable —
- * founder verdict, and correct: a shape you cannot name is not automatically a
- * shape that means something. "No visible primitives" was a rule about
- * *material*, about being able to see the sticks and plates a thing was
- * assembled from. It was never a licence to make the silhouette illegible.
- * A coherent body covered in detail you cannot resolve is the target; an
- * amorphous blob is just the same failure wearing mathematics.
- *
- * So: a sphere, plated. Rectilinear armour panels at two scales, each plate
- * sitting at its own slight height, with grooves cut along every seam. One
- * enormous concave dish taken out of it, off-centre. Broad trenches cutting
- * across the plating, offset and broken rather than running as one clean
- * equator — a single continuous equatorial band is a ring, and that rule has
- * outlived five carriers.
- *
- * The relief is applied to the radius rather than folded into space, so the
- * body stays legible at every distance: a machine the size of a moon, whose
- * surface keeps resolving into more machine as you approach.
+ * A curved shard: the intersection of a plated sphere with two cutting planes.
+ * The outer face carries the armour — it used to be the surface of something —
+ * and the flat faces are the fresh breaks, which is where the heat comes out.
+ * The same chunk is reused for every fragment at its own rotation and scale,
+ * and the plating samples the rotated coordinates, so no two fragments show
+ * the same face.
  */
-float field(vec3 p) {
-  vec3 q = p;
-
-  // A little warp, only enough that the horizon is not a perfect circle.
-  // Any more and the body stops being one thing again.
-  q += uWarp * 0.14 * vec3(
-    sin(q.y * 0.51 + 1.7),
-    sin(q.z * 0.43 + 0.4),
-    sin(q.x * 0.37 + 2.9)
-  );
-
-  float r = length(q);
-
-  // Armour plating: two scales of blocky relief, each plate at its own height.
-  float coarse = hash31(floor(q * uPanelFreq));
-  float fine = hash31(floor(q * uPanelFreq * 3.1) + 17.3);
-  float relief = (coarse * 0.62 + fine * 0.38 - 0.5) * uRelief;
-
-  // Grooves along every seam, cut into the plating.
+float chunk(vec3 q, float shell) {
+  float relief = (hash31(floor(q * uPanelFreq)) * 0.62 +
+                  hash31(floor(q * uPanelFreq * 3.1) + 17.3) * 0.38 - 0.5) * uRelief;
   float seams = fissure(q) * uGroove;
 
-  // The fracture.
-  //
-  // The crust is broken into large plates, each shifted out along its own
-  // radius by its own amount, so the gaps between them are real crevasses
-  // rather than drawn lines. This is the event the whole hero is about: a made
-  // thing the size of a world, coming apart along the seams it was built on.
-  vec3 plate = floor(q * uFractureFreq);
-  float drift = hash31(plate + 4.1);
-  float split = uBreak * (0.25 + drift);
+  float sphere = length(q) - (shell + relief - seams);
 
-  float surface = uRadius + split + relief - seams;
+  // Two cuts, off the centre and at an odd angle to each other: a broken
+  // piece, not a machined hemisphere.
+  float cutA = dot(q, normalize(vec3(0.78, 0.31, -0.55))) - shell * 0.34;
+  float cutB = dot(q, normalize(vec3(-0.25, 0.91, 0.33))) - shell * 0.52;
 
-  // Trenches. Three broad cuts on unrelated axes, each offset from the centre
-  // and each broken by the plating it crosses — the Death Star's equator read
-  // as a machined channel, not as a drawn circle.
-  vec3 t = q;
-  float trench = 1e9;
-  trench = min(trench, abs(dot(t, normalize(vec3(0.08, 1.0, 0.05))) - 0.35) - 0.16);
-  trench = min(trench, abs(dot(t, normalize(vec3(0.94, 0.22, -0.26))) + 1.55) - 0.10);
-  trench = min(trench, abs(dot(t, normalize(vec3(-0.31, 0.42, 0.85))) - 2.05) - 0.07);
-  surface -= (1.0 - smoothstep(0.0, 0.09, max(trench, 0.0))) * uTrench;
+  float d = max(sphere, max(cutA, cutB));
 
-  float d = r - surface;
+  // Remember what the surface here is made of, for the light. The cut glow
+  // hugs the two break planes and stays inside the shell.
+  float nearCut = min(abs(cutA), abs(cutB));
+  gSeam = fissure(q);
+  gCut = exp(-nearCut * 3.2) * (1.0 - smoothstep(shell * 0.55, shell, length(q)));
 
-  // The dish. One enormous concavity, off the centre of the face, and the
-  // absence the whole composition is organised around.
-  float dish = length(q - uDish) - uDishRadius;
-  d = max(d, -dish);
-
-  // Give the estimator some slack: the relief is not Lipschitz-1, so the march
-  // takes shorter steps rather than overshooting through a plate edge.
-  return d * 0.55;
+  return d;
 }
 
-/** The field with the absence removed from it. */
+/**
+ * The scene: every fragment of the world the star destroyed.
+ *
+ * The star itself is deliberately not here. As a surface it rendered as a flat
+ * disc with a bright rim — grazing rays accumulate the most halo, which is
+ * limb brightening, which is an eclipse ring, which is the one read this
+ * project is forbidden to produce. A star is not a surface; it is a volume of
+ * light, and it lives entirely in the accumulation loop where rays pass
+ * through it and come out brighter, brightest through the middle where the
+ * path is longest. No surface, no rim, no ring.
+ */
 float map(vec3 p) {
-  return max(field(p), -core(p));
+  float best = 1e9;
+  float bestSeam = 0.0;
+  float bestCut = 0.0;
+
+  for (int i = 0; i < FRAGS; i++) {
+    vec3 w = p - uFrag[i].xyz;
+    float shell = uFrag[i].w;
+
+    // Cheap bound first. Most rays spend most steps nowhere near most
+    // fragments, and the plating hashes are the expensive part.
+    float bound = length(w) - shell * 1.45;
+    if (bound > best + 0.4) continue;
+
+    vec3 q = turn(w, normalize(uFragRot[i].xyz), uFragRot[i].w);
+    float d = chunk(q, shell);
+    if (d < best) {
+      best = d;
+      bestSeam = gSeam;
+      bestCut = gCut;
+    }
+  }
+
+  gSeam = bestSeam;
+  gCut = bestCut;
+  return best;
 }
 
 void main() {
@@ -235,17 +191,12 @@ void main() {
 
   float travelled = 0.0;
 
-  // Light is accumulated along the ray rather than shaded onto a surface.
-  //
-  // This is what makes the glow belong to the mathematics: it collects wherever
-  // the ray spends time close to a boundary, which is exactly the folds, the
-  // cavities and the narrow gaps where recursive detail is densest. Nothing is
-  // painted onto geometry, so there is no geometry to look painted.
-  float lit = 0.0;
-  float halo = 0.0;
-  float deep = 0.0;
-  float heat = 0.0;
-  float lava = 0.0;
+  // Light accumulated along the ray — the approved glow, unchanged in kind.
+  float lit = 0.0;    // proximity to any surface
+  float deep = 0.0;   // time spent close against structure
+  float heat = 0.0;   // the plating's seams
+  float lava = 0.0;   // the broken faces
+  float star = 0.0;   // the dying star's own halo
 
   for (int i = 0; i < 256; i++) {
     if (i >= uSteps) break;
@@ -253,101 +204,56 @@ void main() {
     vec3 p = uCamPos + direction * travelled;
     float d = map(p);
 
-    // Proximity emission. The exponential is what concentrates it at the
-    // boundary instead of smearing it through the volume.
     float near = exp(-abs(d) * uDensity);
     lit += near;
-
-    // Cavities: places the ray is inside the field's influence but not against
-    // a wall. This is the depth that reads as interior rather than as shell.
     deep += near * clamp(1.0 - abs(d) * 3.0, 0.0, 1.0);
+    heat += near * gSeam;
+    lava += near * gCut;
 
-    // Residual heat, gathered in the seams only.
-    heat += near * fissure(p);
-
-    // Lava.
-    //
-    // The molten interior is a second surface below the crust. A ray that
-    // meets armour stops at it and never sees this; a ray that goes down a
-    // crevasse reaches it and comes back carrying light. So the fractures glow
-    // from underneath because they are actually open, not because anything was
-    // painted into them.
-    // Gated to rays that have actually got below the crust. Ungated it
-    // accumulated against every surface in the frame, so the molten interior
-    // bled through solid armour and the planet rendered as a glowing ball with
-    // a shell drawn on it. Light only comes out of a fracture if the fracture
-    // is open.
-    float below = 1.0 - smoothstep(uRadius - 0.35, uRadius + 0.05, length(p));
-    lava += near * below * exp(-abs(length(p) - uMoltenRadius) * uLavaDensity);
-
-    // The aureole. Density gathered around the absence, falling off with
-    // distance from its boundary — a volumetric brightening the arrangement
-    // produces, not a ring anything was drawn along.
-    halo += exp(-abs(core(p)) * uAureole) * near;
+    // The star, as light along the path. Falloff is scaled to its radius so
+    // the core saturates and the halo carries two or three radii beyond it,
+    // bleeding around the debris silhouettes.
+    float dStar = length(p - uStarPos);
+    star += exp(-max(dStar - uStarRadius, 0.0) * (1.4 / uStarRadius));
 
     if (d < 0.0006 * travelled) break;
 
-    travelled += max(d * 0.62, 0.004);
+    // Steps are also bounded by the distance to the star. The fragments no
+    // longer contribute a surface there, so the estimator reports empty space
+    // and would stride straight through the core in two samples — a star that
+    // flickered with every camera move. The bound densifies sampling exactly
+    // where the light is.
+    float stepLen = min(d, max(dStar - uStarRadius * 0.6, 0.1));
+    travelled += max(stepLen * 0.6, 0.004);
     if (travelled > FAR) break;
   }
 
   float steps = float(uSteps);
-  lit = lit / steps * uGlow;
+  lit = lit / steps * uGlow * 0.35;
   deep = deep / steps * uGlow;
-  halo = halo / steps * uGlow;
   heat = heat / steps * uGlow * uHeat;
   lava = lava / steps * uGlow * uLava;
 
-  // Amber carries the approved field. It desaturates as it brightens, so a
-  // peak reads as hot rather than as gold — the difference between a form drawn
-  // in light and one painted in metal.
-  // Weighted hard toward the cavities. Spread evenly over every boundary the
-  // emission lit every bump equally, which is exactly what made a recursive
-  // solid read as a crust — light on all of it is light on none of it. Most of
-  // the frame is meant to be black, with the field appearing where it is deep.
-  // The broad proximity term is almost entirely suppressed. It accumulates
-  // along every grazing boundary, so it traces the outline — which is what
-  // drew a bright rim around the whole mass and made the silhouette the first
-  // thing the eye found. Depth is allowed to glow; outlines are not.
-  lit *= 0.35;
+  // The flare is the finale: the star's output climbs an order of magnitude
+  // over the last stretch of scroll, and its colour runs from amber toward
+  // white heat.
+  float flared = uStarGlow * (1.0 + uFlare * 9.0);
+  star = star / steps * flared;
+
+  // Amber carries everything. It desaturates as it brightens — hot, not gold.
   vec3 colour = mix(uRecord, vec3(1.0, 0.97, 0.92), clamp(deep * 0.9, 0.0, 0.7)) * deep;
   colour += uRecord * lit * 0.1;
-  colour += uRecord * halo * 0.6;
   colour += mix(uRecord, vec3(1.0, 0.86, 0.62), 0.5) * heat;
+  colour += mix(uRecord, vec3(1.0, 0.66, 0.3), 0.8) * lava;
+  colour += mix(uRecord, vec3(1.0, 0.94, 0.86), clamp(star * 0.5 + uFlare * 0.4, 0.0, 0.9)) * star;
 
-  // Hotter than the record's own light, and never a different hue family.
-  // What is coming out of the cracks is amber because the light in a fracture
-  // is a record of a state, not the state — the same thing the colour has
-  // always meant here.
-  colour += mix(uRecord, vec3(1.0, 0.72, 0.34), 0.75) * lava;
-
-  // Attention.
-  //
-  // The field comes up to meet a pointer held over it. Gated by the structure
-  // rather than added on top of it, so what brightens is whatever architecture
-  // is actually there — a glow that ignored the field would be a torch shining
-  // on a picture, and this has to read as the thing responding.
-  //
-  // Amber deepens at the centre of attention and the world's own cyan surfaces
-  // at its edge, which is the observation model the site already runs on:
-  // looking at something is the first step of it being recorded. Violet stays
-  // out. It is the consequence colour and it is not spent on a hover.
+  // Attention warms the seams and the breaks, and only those. Cyan is a
+  // hairline at the edge of attention — the world surfacing at the boundary
+  // of observation, not a light shone on the object.
   float attention = uHoverStrength *
     (1.0 - smoothstep(0.0, uHoverRadius, distance(ndc * vec2(aspect, 1.0), uHover * vec2(aspect, 1.0))));
-  // Attention warms the cracks, and only the cracks.
-  //
-  // Weighted onto the residual heat rather than onto every lit surface. Spread
-  // across all the structure it lifted whole cavities at once and the hovered
-  // region became a blue-white mass with none of the dead star's material in
-  // it — bright enough to measure as a success and wrong enough to destroy the
-  // frame it was applied to. The fissures are what this object is; they are
-  // what should answer.
-  float structure = heat + deep * 0.25;
+  float structure = heat + lava * 0.6 + deep * 0.25;
   colour += uRecord * structure * attention * uHoverGain;
-
-  // Cyan is a hairline at the edge of attention, not a wash through it. It is
-  // the world surfacing at the boundary of observation, and at this weight it
-  // is a cool edge you notice rather than a light being shone on the object.
   float fringe = attention * (1.0 - attention) * 4.0;
   colour += uWorld * structure * fringe * uHoverFringe;
 

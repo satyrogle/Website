@@ -1,20 +1,13 @@
 import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
 import {
-  AUREOLE,
-  BOX,
-  CORE_RADIUS,
   DENSITY,
-  FRACTURE,
-  PLATING,
-  RADIUS,
+  GLOW,
   HOVER_FRINGE,
   HOVER_GAIN,
   HOVER_RADIUS,
-  FOLD_OFFSET,
-  GLOW,
-  ROUND,
-  SCALE,
-  WARP,
+  LAVA,
+  PLATING,
+  STAR,
 } from '../scene/correction/FieldModel';
 import { DEFAULT_DYNAMICS, INJECTION } from '../scene/correction/sim/DeviationField';
 import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
@@ -82,25 +75,16 @@ const KNOBS: Knob[] = [
   { label: 'ramp (ticks)', group: 'correction', key: 'rampTicks', min: 2, max: 120, step: 2, value: DEFAULT_CORRECTION.rampTicks, source: 'DEFAULT_CORRECTION' },
   { label: 'sensor memory (s)', group: 'correction', key: 'senseSeconds', min: 0.05, max: 2, step: 0.05, value: DEFAULT_CORRECTION.senseSeconds, source: 'DEFAULT_CORRECTION' },
 
-  // The field itself. These are the numbers that decide what the apparition
-  // is, and none of them describes an object — the form is whatever the fold
-  // leaves behind, so the only way to find it is to move them and look.
-  { label: 'fold scale', group: 'render', key: 'uScale', min: 1.3, max: 2.1, step: 0.01, value: SCALE, source: 'SCALE' },
-  { label: 'fold offset', group: 'render', key: 'uFoldOffset', min: 0, max: 2.4, step: 0.01, value: FOLD_OFFSET, source: 'FOLD_OFFSET' },
-  { label: 'seed box y', group: 'render', key: 'uBoxY', min: 0.1, max: 2.4, step: 0.01, value: BOX.y, source: 'BOX.y' },
-  { label: 'corner round', group: 'render', key: 'uRound', min: 0, max: 0.6, step: 0.01, value: ROUND, source: 'ROUND' },
-  { label: 'domain warp', group: 'render', key: 'uWarp', min: 0, max: 2.5, step: 0.01, value: WARP, source: 'WARP' },
-  { label: 'absence size', group: 'render', key: 'uCoreRadius', min: 0.4, max: 6, step: 0.05, value: CORE_RADIUS, source: 'CORE_RADIUS' },
-  { label: 'aureole tightness', group: 'render', key: 'uAureole', min: 0.15, max: 4, step: 0.05, value: AUREOLE, source: 'AUREOLE' },
-  { label: 'fracture size', group: 'render', key: 'uFractureFreq', min: 0.1, max: 2, step: 0.02, value: FRACTURE.freq, source: 'FRACTURE.freq' },
-  { label: 'break open', group: 'render', key: 'uBreak', min: 0, max: 1.5, step: 0.01, value: FRACTURE.open, source: 'FRACTURE.open' },
-  { label: 'molten depth', group: 'render', key: 'uMoltenRadius', min: 0.5, max: 4, step: 0.05, value: FRACTURE.molten, source: 'FRACTURE.molten' },
-  { label: 'lava', group: 'render', key: 'uLava', min: 0, max: 8, step: 0.1, value: FRACTURE.lava, source: 'FRACTURE.lava' },
+  // The event. The star at the funnel's throat, the heat coming out of the
+  // broken faces, and the approved plating on every fragment. The flare is
+  // deliberately not here: scroll owns it, and a knob the render loop
+  // overwrites every frame is a knob that lies.
+  { label: 'star size', group: 'render', key: 'uStarRadius', min: 0.2, max: 2.5, step: 0.05, value: STAR.radius, source: 'STAR.radius' },
+  { label: 'star glow', group: 'render', key: 'uStarGlow', min: 0.2, max: 12, step: 0.1, value: STAR.glow, source: 'STAR.glow' },
+  { label: 'break heat (lava)', group: 'render', key: 'uLava', min: 0, max: 8, step: 0.1, value: LAVA, source: 'LAVA' },
   { label: 'plate size', group: 'render', key: 'uPanelFreq', min: 0.4, max: 6, step: 0.05, value: PLATING.freq, source: 'PLATING.freq' },
   { label: 'plate relief', group: 'render', key: 'uRelief', min: 0, max: 0.3, step: 0.005, value: PLATING.relief, source: 'PLATING.relief' },
   { label: 'seam depth', group: 'render', key: 'uGroove', min: 0, max: 0.3, step: 0.005, value: PLATING.groove, source: 'PLATING.groove' },
-  { label: 'trench depth', group: 'render', key: 'uTrench', min: 0, max: 0.8, step: 0.01, value: PLATING.trench, source: 'PLATING.trench' },
-  { label: 'body radius', group: 'render', key: 'uRadius', min: 1, max: 6, step: 0.05, value: RADIUS, source: 'RADIUS' },
   { label: 'seam light', group: 'render', key: 'uHeat', min: 0, max: 6, step: 0.05, value: PLATING.heat, source: 'PLATING.heat' },
   { label: 'hover reach', group: 'render', key: 'uHoverRadius', min: 0.1, max: 1.2, step: 0.02, value: HOVER_RADIUS, source: 'HOVER_RADIUS' },
   { label: 'hover warmth', group: 'render', key: 'uHoverGain', min: 0, max: 8, step: 0.1, value: HOVER_GAIN, source: 'HOVER_GAIN' },
