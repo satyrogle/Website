@@ -120,6 +120,72 @@
 }
 
 /* ============================================================
+   The machine — ASK, NOTICE, GRADIENT, FLOOR
+
+   These bands exist to give the descent scroll length. Almost
+   nothing is drawn in them on purpose: the structure behind the
+   DOM is the content, and two of the four carry no visible copy
+   at all. Their heights are the pacing of the narrative, which is
+   why they are set here and not left to the copy.
+   ============================================================ */
+
+.band {
+  position: relative;
+  display: grid;
+  align-content: center;
+  min-height: 100svh;
+  padding-block: var(--movement-pad);
+}
+
+/* The event needs room to play out, and the turn needs longer than
+   the event: the gain gradient has to be travelled, not stepped. */
+.band--notice {
+  min-height: 150svh;
+}
+
+.band--gradient {
+  min-height: 190svh;
+}
+
+.band--floor {
+  min-height: 120svh;
+}
+
+.band__ask {
+  margin: 0;
+  max-width: 12ch;
+}
+
+/* The word is the button. No border, no plate, no arrow — the same
+   type it would be if it were not a control, because the invitation
+   is the composition and a UI affordance would answer the question
+   the beat is asking. */
+.band__word {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out-expo);
+}
+
+.band__word:hover,
+.band__word:focus-visible {
+  color: var(--cold-white);
+}
+
+/* Spent, or struck already. The invitation stops asking. */
+.band__word[disabled] {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* ============================================================
    Movement 02 — The premise
    Type sits in the negative space between lattice plates, so the
    layout is deliberately offset rather than centred.

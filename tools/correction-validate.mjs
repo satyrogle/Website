@@ -454,16 +454,119 @@ check(
   `${system.operator.adjustments} adjustments, ${closed} closed, log holds ${system.operator.log.length} (cap ${limit})`
 );
 
+// -------------------------------------------------------- enforcement gain
+
+console.log('\nENFORCEMENT GAIN');
+
+// The spatial field. It must be a single monotone gradient along the veil's
+// long axis: anything centred would draw a soft ellipse across the structure,
+// and a frame that resolves into concentric anything fails outright.
+{
+  const field = system.operator.gainField;
+  const order = Array.from({ length: graph.nodeCount }, (_, i) => i).sort(
+    (i, j) => graph.positions[j * 3] - graph.positions[i * 3]
+  );
+
+  let monotone = true;
+  for (let k = 1; k < order.length; k++) {
+    // Sorted from +x to -x, gain must never fall.
+    if (field[order[k]] < field[order[k - 1]] - 1e-6) { monotone = false; break; }
+  }
+
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < field.length; i++) {
+    if (field[i] < lo) lo = field[i];
+    if (field[i] > hi) hi = field[i];
+  }
+  console.log(`  spatial gain  fringe ${f(lo, 3)}  deep ${f(hi, 3)}`);
+  check('gain is monotone along the long axis, not radial', monotone);
+  check(
+    'gain spans the configured range',
+    Math.abs(lo - SYSTEM.correction.spatialGainLow) < 0.02 &&
+      Math.abs(hi - SYSTEM.correction.spatialGainHigh) < 0.02,
+    `${f(lo, 2)}..${f(hi, 2)}`
+  );
+}
+
+/**
+ * Same strike, same node, different narrative depth. The claim being tested is
+ * the one the descent is built on: deeper down, deviation dies sooner.
+ */
+function strikeAt(gain) {
+  const s = new CorrectionSystem(SYSTEM);
+  s.warmUp();
+  s.setGain(gain);
+  for (let t = 0; t < 600; t++) s.step();
+  const before = s.operator.adjustments;
+  s.inject(target, ENERGY);
+
+  let alive = 0;
+  const settleAt = SYSTEM.correction.thetaOff + EPSILON;
+  for (let t = 0; t < 1800; t++) {
+    s.step();
+    if (s.peakDeviation() > settleAt) alive = t;
+  }
+  return { s, alive, adjustments: s.operator.adjustments - before };
+}
+
+const shallow = strikeAt(1.0);
+const deep = strikeAt(2.2);
+console.log(
+  `  gain 1.0 (opening)  deviation stays visible ${ms(shallow.alive)}, ${shallow.adjustments} adjustments`
+);
+console.log(
+  `  gain 2.2 (floor)    deviation stays visible ${ms(deep.alive)}, ${deep.adjustments} adjustments`
+);
+check('raising gain shortens the life of a deviation', deep.alive < shallow.alive * 0.9, `${ms(deep.alive)} < ${ms(shallow.alive)}`);
+check('and the system still engages at both ends', shallow.adjustments > 0 && deep.adjustments > 0);
+
+// The calm has to survive the deepest enforcement. Thresholds are deliberately
+// not scaled by gain — if they were, the ambient harmonic would eventually be
+// seen, the deep calm would fill with violet, and the opening frame would be a
+// lie about what the system does.
+{
+  const s = new CorrectionSystem(SYSTEM);
+  s.warmUp();
+  s.setGain(2.2);
+  let peak = 0;
+  for (let t = 0; t < 3600; t++) {
+    s.step();
+    peak = Math.max(peak, s.peakDeviation());
+  }
+  console.log(`  calm at maximum gain: peak |u - u*| ${f(peak)}, ${s.operator.adjustments} adjustments`);
+  check('the calm is never enforced, even at maximum gain', s.operator.adjustments === 0, `${s.operator.adjustments}`);
+}
+
 // ------------------------------------------------------------------- replay
 
 console.log('\nREPLAY');
 
-function run() {
+/**
+ * The recorded trace is every input that changes what the system does: the
+ * injection AND the scroll-driven gain. If gain were applied outside this
+ * channel the determinism claim would quietly stop covering half the run.
+ */
+const GAIN_TRACE = [
+  [0, 1.0],
+  [240, 1.4],
+  [600, 2.2],
+];
+const OTHER_TRACE = [
+  [0, 1.0],
+  [240, 1.0],
+  [600, 1.2],
+];
+
+function run(gainTrace = GAIN_TRACE) {
   const s = new CorrectionSystem(SYSTEM);
   s.warmUp();
   for (let t = 0; t < 900; t++) s.step();
   s.inject(target, ENERGY);
-  for (let t = 0; t < TICKS; t++) s.step();
+  for (let t = 0; t < TICKS; t++) {
+    for (const [at, value] of gainTrace) if (at === t) s.setGain(value);
+    s.step();
+  }
   return s;
 }
 
@@ -474,6 +577,10 @@ console.log(`  A checksum 0x${a.checksum().toString(16).padStart(8, '0')}   adju
 console.log(`  B checksum 0x${b.checksum().toString(16).padStart(8, '0')}   adjustments ${b.operator.adjustments}`);
 
 check('same seed + same trace replays to the same checksum', a.checksum() === b.checksum());
+check(
+  'a different scroll is a different run',
+  run(OTHER_TRACE).checksum() !== a.checksum()
+);
 check('same adjustment count', a.operator.adjustments === b.operator.adjustments);
 check(
   'correction events match 1:1',

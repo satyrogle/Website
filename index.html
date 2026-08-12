@@ -80,11 +80,12 @@
 
     <main id="main">
       <!-- ============================================================
-           MOVEMENT 01 — Cold open
+           OPEN — the calm
            ============================================================ -->
       <section
         class="movement hero"
         data-movement="hero"
+        data-band="open"
         aria-labelledby="hero-title"
         data-hero-reveal
       >
@@ -116,11 +117,81 @@
       </section>
 
       <!-- ============================================================
-           MOVEMENT 02 — The premise
+           ASK — one action, and it is the visitor's
+
+           The word is the control. A keyboard user activates it; a pointer
+           or touch user can press the structure anywhere. There is no
+           second affordance, no panel and no instructions, because the
+           point of the beat is that one press is all there is to do.
+           ============================================================ -->
+      <section
+        class="movement band band--ask"
+        data-band="ask"
+        data-webgl-only
+        aria-labelledby="ask-title"
+      >
+        <h2 class="band__ask display display--md" id="ask-title">
+          <button class="band__word" type="button" data-inject>Touch it.</button>
+        </h2>
+      </section>
+
+      <!-- ============================================================
+           NOTICE — permitted, noticed, forced back
+
+           Uncaptioned by design. Naming the six stages while they are
+           happening would replace the comprehension with a label, and the
+           whole direction rests on the visitor arriving at it themselves.
+           The heading exists for assistive technology, which cannot see
+           the event at all.
+           ============================================================ -->
+      <section
+        class="movement band band--notice"
+        data-band="notice"
+        data-webgl-only
+        aria-labelledby="notice-title"
+      >
+        <h2 class="sr-only" id="notice-title">
+          The system notices the deviation and forces it back
+        </h2>
+      </section>
+
+      <!-- ============================================================
+           GRADIENT — the turn
+
+           Also uncaptioned. Descending raises enforcement gain: near the
+           fringe a deviation lives visibly longer; deeper down it is put
+           back almost before it exists. The calm was never natural.
+           ============================================================ -->
+      <section
+        class="movement band band--gradient"
+        data-band="gradient"
+        data-webgl-only
+        aria-labelledby="gradient-title"
+      >
+        <h2 class="sr-only" id="gradient-title">
+          Deeper in the structure, deviation is corrected faster
+        </h2>
+      </section>
+
+      <!-- ============================================================
+           FLOOR — your record
+           ============================================================ -->
+      <section
+        class="movement band band--floor"
+        data-band="floor"
+        data-webgl-only
+        aria-labelledby="floor-title"
+      >
+        <h2 class="sr-only" id="floor-title">Your record</h2>
+      </section>
+
+      <!-- ============================================================
+           EDITORIAL 02 — The premise
            ============================================================ -->
       <section
         class="movement movement--washed premise"
         data-movement="premise"
+        data-band="editorial"
         id="premise"
         aria-labelledby="premise-title"
       >
@@ -174,7 +245,7 @@
       <!-- ============================================================
            MOVEMENT 03 — Three states of one system
            ============================================================ -->
-      <section aria-labelledby="states-title">
+      <section data-band="editorial" aria-labelledby="states-title">
         <h2 class="sr-only" id="states-title">Three games, one accumulating system</h2>
 
         <!-- State A -->
@@ -327,6 +398,7 @@
       <section
         class="movement movement--washed foundation"
         data-movement="foundation"
+        data-band="editorial"
         aria-labelledby="foundation-title"
       >
         <p class="movement__index">04 / Foundation</p>
@@ -532,6 +604,7 @@
       <section
         class="movement movement--washed"
         data-movement="accumulation"
+        data-band="editorial"
         aria-labelledby="accumulation-title"
       >
         <p class="movement__index">05 / Accumulation</p>
@@ -602,6 +675,7 @@
       <section
         class="movement boundary"
         data-movement="evidence"
+        data-band="editorial"
         aria-labelledby="boundary-title"
       >
         <div class="boundary__head">
@@ -755,6 +829,7 @@
       <footer
         class="movement resolution"
         data-movement="resolution"
+        data-band="editorial"
         aria-labelledby="resolution-title"
       >
         <div class="resolution__mark" data-reveal data-reveal-stagger="0.12">

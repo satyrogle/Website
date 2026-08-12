@@ -46,6 +46,8 @@ export class PulseClient {
   /** u* — available once the warm-up has been recorded. */
   record: Float32Array | null = null;
   error: string | null = null;
+  /** Last gain sent. The Worker holds the authoritative copy. */
+  gain = 1;
 
   onProgress: ((message: ProgressMessage) => void) | null = null;
 
@@ -130,6 +132,19 @@ export class PulseClient {
 
   inject(node: number, energy = 1): void {
     const message: WorkerInbound = { type: 'inject', node, energy };
+    this.worker.postMessage(message);
+  }
+
+  /**
+   * Narrative gain. Quantised and deduplicated here rather than in the caller:
+   * scroll produces a value every frame, and an unfiltered stream would post
+   * sixty messages a second and make the recorded trace unreadable.
+   */
+  setGain(value: number): void {
+    const quantised = Math.round(value * 256) / 256;
+    if (quantised === this.gain) return;
+    this.gain = quantised;
+    const message: WorkerInbound = { type: 'gain', value: quantised };
     this.worker.postMessage(message);
   }
 

@@ -58,6 +58,26 @@ export interface CorrectionParameters {
   senseSeconds: number;
   /** Most completed events retained for inspection. */
   eventLogLimit: number;
+  /**
+   * Enforcement gain at the fringe of the veil, where the file is loosest.
+   *
+   * Pinned at 1: the fringe is the region the site opens on and the region the
+   * first press lands in, and its behaviour is the tuning that was judged. The
+   * gradient is only ever allowed to tighten from here, never to loosen — a
+   * spatial field that scaled enforcement down would quietly re-tune the one
+   * event the whole direction is judged on.
+   */
+  spatialGainLow: number;
+  /** Enforcement gain in the deep body, where the calm is more nearly total. */
+  spatialGainHigh: number;
+  /**
+   * Normalised depth at which the gradient starts to climb. Everything nearer
+   * than this — which is the whole of the opening view and where the first
+   * press lands — is enforced at exactly the judged tuning.
+   */
+  spatialGainOnset: number;
+  /** Hard ceiling on per-iteration stiffness, so gain can never reach 1. */
+  stiffnessCeiling: number;
 }
 
 /**
@@ -112,6 +132,10 @@ export const DEFAULT_CORRECTION: CorrectionParameters = {
   scarCeiling: 0.32,
   senseSeconds: 0.40,
   eventLogLimit: 256,
+  spatialGainLow: 1.0,
+  spatialGainHigh: 1.55,
+  spatialGainOnset: 0.55,
+  stiffnessCeiling: 0.3,
 };
 
 /** One completed correction, as it will be reported and replayed against. */
@@ -175,6 +199,21 @@ export class CorrectionOperator {
    * differ, not merely where the world has moved.
    */
   readonly glow: Float32Array;
+  /**
+   * Per-node enforcement gain, fixed at construction from where the node sits
+   * in the veil. One scalar with three consequences — the system notices
+   * sooner, loses patience sooner, and pulls harder — so a low-gain region does
+   * not merely correct more gently, it lets a deviation live.
+   */
+  readonly gainField: Float32Array;
+
+  /**
+   * Narrative gain. Multiplies the field, and is the one quantity the site
+   * drives from outside: scrolling deeper raises it. It arrives as a message on
+   * the same channel as an injection, so it is part of the recorded trace and a
+   * replay still reproduces the run exactly.
+   */
+  gain = 1;
 
   /** OFF→ON transitions. This is the N the floor panel will report. */
   adjustments = 0;
@@ -198,10 +237,25 @@ export class CorrectionOperator {
     this.contact = new Float32Array(nodeCount);
     this.sensed = new Float32Array(nodeCount);
     this.glow = new Float32Array(nodeCount);
+    this.gainField = new Float32Array(nodeCount).fill(1);
     this.hold = new Uint16Array(nodeCount);
     this.engagedTicks = new Uint16Array(nodeCount);
     this.openedAt = new Int32Array(nodeCount).fill(-1);
     this.openedRemoved = new Float32Array(nodeCount);
+  }
+
+  /** Installed once, by the system that knows the geometry. */
+  setGainField(field: Float32Array): void {
+    this.gainField.set(field);
+  }
+
+  /**
+   * Narrative gain. Clamped rather than trusted: this is the one value the
+   * outside world sets, and the stiffness ceiling below depends on it staying
+   * in a sane range.
+   */
+  setGain(value: number): void {
+    this.gain = value < 0.25 ? 0.25 : value > 4 ? 4 : value;
   }
 
   /** Completed events, oldest first, capped at `eventLogLimit`. */
@@ -237,7 +291,8 @@ export class CorrectionOperator {
    */
   apply(u: Float32Array, velocity: Float32Array, tick: number): void {
     const p = this.parameters;
-    const { record, engaged, bruise, scar, contact, sensed, glow, hold, engagedTicks, openedAt, openedRemoved } = this;
+    const { record, engaged, bruise, scar, contact, sensed, glow, gainField, hold, engagedTicks, openedAt, openedRemoved } =
+      this;
     const n = record.length;
 
     if (!this.armed) {
@@ -255,10 +310,18 @@ export class CorrectionOperator {
       return;
     }
 
-    const rampSpan = Math.max(p.rampTicks, 1);
     const sense = senseDecay(p.senseSeconds, 1 / 120);
+    const narrative = this.gain;
 
     for (let i = 0; i < n; i++) {
+      // Thresholds are deliberately NOT scaled by gain. What the system can see
+      // is a property of its sensor and stays fixed, so the ambient harmonic
+      // remains under the threshold at every gain and the calm is never
+      // enforced anywhere. Gain changes what happens once something IS seen.
+      const g = gainField[i] * narrative;
+      const rampSpan = Math.max(p.rampTicks / g, 1);
+      const holdRequired = Math.max(p.holdTicks / g, 1);
+
       const target = record[i];
       const disagreement = Math.abs(u[i] - target);
 
@@ -278,7 +341,7 @@ export class CorrectionOperator {
           hold[i] = 0;
         }
 
-        if (hold[i] >= p.holdTicks) {
+        if (hold[i] >= holdRequired) {
           engaged[i] = 1;
           engagedTicks[i] = 0;
           hold[i] = 0;
@@ -304,7 +367,8 @@ export class CorrectionOperator {
         // Eased so the transition from strain to snap is a turn rather than a
         // linear slide. Parameters glide; behaviour snaps.
         const shaped = ramp * ramp * (3 - 2 * ramp);
-        const stiffness = p.stiffnessFrom + (p.stiffnessTo - p.stiffnessFrom) * shaped;
+        const raw = (p.stiffnessFrom + (p.stiffnessTo - p.stiffnessFrom) * shaped) * g;
+        const stiffness = raw > p.stiffnessCeiling ? p.stiffnessCeiling : raw;
 
         const low = target - p.epsilon;
         const high = target + p.epsilon;
@@ -373,5 +437,8 @@ export class CorrectionOperator {
     }
     checksum.mix(this.adjustments & 0xffff);
     checksum.mix((this.adjustments >>> 16) & 0xffff);
+    // Narrative gain is an input to the run, so it belongs in the run's
+    // identity: a replay that scrolled differently is a different run.
+    checksum.mix(Math.round(this.gain * 256));
   }
 }

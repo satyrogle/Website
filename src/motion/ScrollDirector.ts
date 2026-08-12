@@ -39,23 +39,20 @@ interface Band {
  * Narrative bands — the mapping from document position to narrative
  * progress, and nothing else.
  *
- * These are still the retired movements' ids because they are what the
- * editorial DOM is marked up with. Step 4 of the build plan replaces them
- * with THE CORRECTION's own bands (OPEN, ASK, NOTICE, GRADIENT, FLOOR,
- * EDITORIAL) and hangs the rising enforcement gain off them. Until then
- * this file does one job: turn scroll into a single 0..1 progress value
- * and hand it across the seam.
+ * Five beats of the machine, then the ground. Each owns a fixed slice of
+ * progress whatever its measured height, so the descent is paced by the
+ * narrative rather than by how much copy happens to sit in a section.
+ *
+ * EDITORIAL is one band spanning every editorial section, because the
+ * machine is off by then and there is nothing left for progress to drive.
  */
 const BANDS: Band[] = [
-  { id: 'hero', from: 0.0, to: 0.1 },
-  { id: 'premise', from: 0.1, to: 0.26 },
-  { id: 'desk42', from: 0.26, to: 0.4 },
-  { id: 'brawler', from: 0.4, to: 0.5 },
-  { id: 'roguelite', from: 0.5, to: 0.6 },
-  { id: 'foundation', from: 0.6, to: 0.71 },
-  { id: 'accumulation', from: 0.71, to: 0.82 },
-  { id: 'evidence', from: 0.82, to: 0.93 },
-  { id: 'resolution', from: 0.93, to: 1.0 },
+  { id: 'open', from: 0.0, to: 0.12 },
+  { id: 'ask', from: 0.12, to: 0.28 },
+  { id: 'notice', from: 0.28, to: 0.46 },
+  { id: 'gradient', from: 0.46, to: 0.68 },
+  { id: 'floor', from: 0.68, to: 0.82 },
+  { id: 'editorial', from: 0.82, to: 1.0 },
 ];
 
 interface MeasuredSection {
@@ -74,6 +71,7 @@ export class ScrollDirector {
   private running = false;
   private progressReadout: HTMLElement | null;
   private lastReadout = -1;
+  private band = '';
 
   constructor(scene: SceneController, reduced: boolean) {
     this.scene = scene;
@@ -95,16 +93,33 @@ export class ScrollDirector {
     ScrollTrigger.refresh();
   };
 
-  /** Cached layout read. Never called from the scroll handler. */
+  /**
+   * Cached layout read. Never called from the scroll handler.
+   *
+   * A band may be marked up as several sections — EDITORIAL is six of them —
+   * so a band's span runs from the top of its first element to the bottom of
+   * its last. Missing elements are skipped rather than defaulted: the
+   * no-WebGL path removes the machine's sections outright, and the remaining
+   * editorial must still map cleanly onto progress.
+   */
   private measure = (): void => {
     const measured: MeasuredSection[] = [];
+
     for (const band of BANDS) {
-      const el = document.querySelector<HTMLElement>(`[data-movement="${band.id}"]`);
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      const top = rect.top + window.scrollY;
-      measured.push({ band, top, height: Math.max(rect.height, 1) });
+      const elements = document.querySelectorAll<HTMLElement>(`[data-band="${band.id}"]`);
+      if (!elements.length) continue;
+
+      let top = Infinity;
+      let bottom = -Infinity;
+      elements.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        top = Math.min(top, rect.top + window.scrollY);
+        bottom = Math.max(bottom, rect.bottom + window.scrollY);
+      });
+
+      measured.push({ band, top, height: Math.max(bottom - top, 1) });
     }
+
     this.sections = measured;
   };
 
@@ -118,17 +133,38 @@ export class ScrollDirector {
 
     const viewportMid = scrollY + window.innerHeight * 0.5;
 
-    if (viewportMid <= sections[0].top) return 0;
+    if (viewportMid <= sections[0].top) {
+      this.setBand(sections[0].band.id);
+      return 0;
+    }
 
     for (let i = 0; i < sections.length; i++) {
       const s = sections[i];
       const end = s.top + s.height;
       if (viewportMid < end || i === sections.length - 1) {
         const t = Math.min(Math.max((viewportMid - s.top) / s.height, 0), 1);
+        this.setBand(s.band.id);
         return s.band.from + (s.band.to - s.band.from) * t;
       }
     }
     return 1;
+  }
+
+  /**
+   * Publishes the current band to the document so CSS and the editorial
+   * layer can respond to narrative position without reading scroll
+   * themselves. One writer, one attribute.
+   *
+   * Deliberately NOT `data-band`, which is the sections' own attribute:
+   * writing that name onto the root element makes `<html>` match the
+   * section selector, and since its box is the whole document the first
+   * band then swallows every other one at the next re-measure.
+   */
+  private setBand(id: string): void {
+    if (id === this.band) return;
+    this.band = id;
+    document.documentElement.dataset.narrativeBand = id;
+    document.dispatchEvent(new CustomEvent('bandchange', { detail: { band: id } }));
   }
 
   start(): void {
@@ -153,6 +189,10 @@ export class ScrollDirector {
   private onReducedScroll = (): void => {
     const max = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
     this.docProgress = Math.min(Math.max(window.scrollY / max, 0), 1);
+    // Nothing spatial moves, but the band still has to be published: the
+    // editorial hand-off is a DOM state change, not a camera move, and it
+    // must happen on this path too.
+    this.narrative = this.toNarrative(window.scrollY);
     this.updateReadout();
   };
 

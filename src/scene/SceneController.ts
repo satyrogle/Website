@@ -46,8 +46,44 @@ const CAMERA = {
   fov: 30,
   position: new THREE.Vector3(9.2, 6.2, 22.0),
   target: new THREE.Vector3(-2.0, 1.1, 0.6),
-  /** How far scroll walks the camera along the veil. Step 4 authors the rest. */
-  travel: new THREE.Vector3(-6.5, -1.4, -4.2),
+};
+
+/**
+ * The rail.
+ *
+ * Scroll slides the look-point along the veil's long axis and closes the
+ * camera's offset as it goes, so the whole descent is one continuous move:
+ * travel plus approach, never a cut and never an orbit. The offset keeps all
+ * three components large throughout, which is what holds the veil oblique — a
+ * camera that ends up on the structure's own axis is how the retired tunnels
+ * resolved into rings, and the rule outlived them.
+ *
+ * The opening pose is the frame approved at checkpoint A and is not re-authored
+ * here: at progress 0 this evaluates to exactly `CAMERA.position` / `.target`.
+ */
+const RAIL = {
+  /** Where the camera is looking, at the start and end of the descent. */
+  targetFrom: new THREE.Vector3(-2.0, 1.1, 0.6),
+  targetTo: new THREE.Vector3(-7.0, 0.2, -0.4),
+  /** Camera position relative to that look-point. */
+  offsetFrom: new THREE.Vector3(11.2, 5.1, 21.4),
+  offsetTo: new THREE.Vector3(8.0, 3.4, 15.6),
+};
+
+/**
+ * Enforcement gain against narrative depth.
+ *
+ * Flat through the opening and the invitation — the visitor's first press has
+ * to meet the system at its most permissive, or the six stages have no room to
+ * happen. It rises through NOTICE and GRADIENT and plateaus at the floor.
+ * Falling back up the page lowers it again: the gradient is scroll-bound in
+ * both directions. What does not come back is the damage.
+ */
+const GAIN = { from: 0.28, to: 0.75, low: 1.0, high: 2.2 };
+
+const smoothstep = (t: number): number => {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t;
+  return x * x * (3 - 2 * x);
 };
 
 /** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
@@ -69,6 +105,10 @@ export class SceneController {
 
   private raycaster = new THREE.Raycaster();
   private pointerNdc = new THREE.Vector2();
+
+  /** Scratch for the camera rail, so a frame allocates nothing. */
+  private railTarget = new THREE.Vector3();
+  private railOffset = new THREE.Vector3();
 
   private progress = 0;
   private exposure = 0;
@@ -214,7 +254,7 @@ export class SceneController {
    * deviation starts where the visitor touched — the causal link between the
    * action and what happens next is the whole point of the interaction.
    */
-  pressAt(clientX: number, clientY: number): number {
+  pressAt(clientX: number, clientY: number, tolerance?: number): number {
     if (!this.model || !this.client) return -1;
 
     this.pointerNdc.set(
@@ -223,11 +263,23 @@ export class SceneController {
     );
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-    const node = this.model.nodeUnderRay(this.raycaster.ray);
+    const node = this.model.nodeUnderRay(this.raycaster.ray, tolerance);
     if (node < 0) return -1;
 
     this.client.inject(node, PRESS_ENERGY);
     return node;
+  }
+
+  /**
+   * The same action, without a pointer.
+   *
+   * Fired from the centre of the frame with no distance tolerance, so it
+   * always lands on the structure: a keyboard or assistive user gets the
+   * action itself, not a control that silently does nothing because their
+   * ray missed a filament.
+   */
+  pressCentre(): number {
+    return this.pressAt(window.innerWidth * 0.5, window.innerHeight * 0.5, Infinity);
   }
 
   resize(): void {
@@ -243,15 +295,17 @@ export class SceneController {
   // ------------------------------------------------------------------
 
   /**
-   * Global scroll progress, 0..1.
+   * Global narrative progress, 0..1.
    *
-   * For now this only walks the camera along the veil so the page is not dead
-   * under the scrollbar. Step 4 of the build plan owns the real bands — OPEN,
-   * ASK, NOTICE, GRADIENT, FLOOR — and the enforcement gain that rises with
-   * them.
+   * Two things hang off it: where the camera is on the rail, and how hard the
+   * system enforces. The second is authoritative state, so it is not applied
+   * here — it is posted to the Worker, which owns it.
    */
   setProgress(p: number): void {
     this.progress = Math.min(Math.max(p, 0), 1);
+
+    const depth = smoothstep((this.progress - GAIN.from) / (GAIN.to - GAIN.from));
+    this.client?.setGain(GAIN.low + (GAIN.high - GAIN.low) * depth);
   }
 
   /** Drives the cold-open reveal out of darkness. */
@@ -312,8 +366,16 @@ export class SceneController {
       return;
     }
 
-    this.camera.position.copy(CAMERA.position).addScaledVector(CAMERA.travel, this.progress);
-    this.camera.lookAt(CAMERA.target);
+    // Eased against progress rather than tweened against time: the camera is a
+    // readout of where the visitor is on the page, so it must be able to run
+    // backwards exactly as it ran forwards, with no easing state to unwind.
+    const t = smoothstep(this.progress);
+
+    this.railTarget.copy(RAIL.targetFrom).lerp(RAIL.targetTo, t);
+    this.railOffset.copy(RAIL.offsetFrom).lerp(RAIL.offsetTo, t);
+
+    this.camera.position.copy(this.railTarget).add(this.railOffset);
+    this.camera.lookAt(this.railTarget);
   }
 
   private tick = (): void => {

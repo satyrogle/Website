@@ -9,6 +9,8 @@
  *   node tools/correction-capture.mjs                    opening frame
  *   node tools/correction-capture.mjs --event            opening + one full
  *                                                        enforcement event
+ *   node tools/correction-capture.mjs --scroll           one frame per band,
+ *                                                        down the whole descent
  *   node tools/correction-capture.mjs --url http://... --out captures/x
  */
 
@@ -249,6 +251,34 @@ if (flag('event')) {
   for (const [name, wait] of beats) {
     await page.waitForTimeout(wait);
     await shot(name);
+  }
+}
+
+if (flag('scroll')) {
+  console.log('\nTHE DESCENT');
+  const bands = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-band]')).map((el) => el.dataset.band)
+  );
+  // A band may be several sections; the first one is where it starts.
+  const seen = [];
+  for (const band of bands) if (!seen.includes(band)) seen.push(band);
+
+  for (let i = 0; i < seen.length; i++) {
+    const band = seen[i];
+    // Land the band's own middle on the viewport middle, which is what the
+    // director measures against — so the capture sits where the narrative
+    // says it does rather than wherever scrollIntoView happened to stop.
+    await page.evaluate((id) => {
+      const parts = Array.from(document.querySelectorAll(`[data-band="${id}"]`));
+      const top = Math.min(...parts.map((el) => el.getBoundingClientRect().top + window.scrollY));
+      const bottom = Math.max(...parts.map((el) => el.getBoundingClientRect().bottom + window.scrollY));
+      window.scrollTo(0, (top + bottom) / 2 - window.innerHeight / 2);
+    }, band);
+    await page.waitForTimeout(900);
+
+    const reported = await page.evaluate(() => document.documentElement.dataset.narrativeBand ?? '');
+    await shot(`${String(10 + i)}-band-${band}`);
+    if (reported !== band) console.log(`    band attribute reads "${reported}"`);
   }
 }
 

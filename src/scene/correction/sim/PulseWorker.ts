@@ -67,6 +67,12 @@ export type WorkerOutbound =
 export type WorkerInbound =
   | { type: 'init' }
   | { type: 'inject'; node: number; energy: number }
+  /**
+   * Narrative depth. It changes what the system does, so it travels the same
+   * channel as an injection and belongs to the recorded trace — seed plus this
+   * message stream still replays to an identical checksum.
+   */
+  | { type: 'gain'; value: number }
   | { type: 'recycle'; buffer: ArrayBuffer }
   | { type: 'setRunning'; running: boolean };
 
@@ -209,6 +215,10 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
 
       case 'inject':
         system?.inject(message.node, message.energy);
+        break;
+
+      case 'gain':
+        system?.setGain(message.value);
         break;
 
       case 'recycle':

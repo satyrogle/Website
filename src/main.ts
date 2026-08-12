@@ -193,6 +193,19 @@ async function boot(): Promise<void> {
   );
 
   wireScrollAnchors();
+  wireInjectControls();
+}
+
+// ---------------------------------------------------------------------
+//  The one action, for people not using a pointer
+// ---------------------------------------------------------------------
+
+function wireInjectControls(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-inject]').forEach((button) => {
+    button.addEventListener('click', () => {
+      scene?.pressCentre();
+    });
+  });
 }
 
 // ---------------------------------------------------------------------
