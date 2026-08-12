@@ -182,6 +182,92 @@ export class CorrectionSystem {
   }
 
   /**
+   * The node nearest a point in space.
+   *
+   * A position rather than an index, because an index only means something for
+   * one seed and the scripted event has to land in the same place on every
+   * machine.
+   */
+  nearestNode(x: number, y: number, z: number): number {
+    const { positions } = this.synthesised.graph;
+    let best = 0;
+    let bestDistance = Infinity;
+    for (let i = 0; i < positions.length / 3; i++) {
+      const dx = positions[i * 3] - x;
+      const dy = positions[i * 3 + 1] - y;
+      const dz = positions[i * 3 + 2] - z;
+      const distance = dx * dx + dy * dy + dz * dz;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * One correction event, stepped to completion, reported as the three moments
+   * that make it legible without motion.
+   *
+   * The stages are found by watching the system rather than by naming ticks:
+   * the tick before enforcement first engages, one inside the stiffness ramp,
+   * and one after the operator has let go and stayed off. So the stills are the
+   * event, not an illustration of it — and because this lives here rather than
+   * in the Worker, the mechanism gate can assert that they are.
+   *
+   * The contract with the caller is that its own copy of the state is correct
+   * at every `onFrame`, provided it refreshes that copy in `onTick`. That is
+   * what makes the first stage honest: engagement can only be observed after
+   * the step that caused it, so by the time this loop can see it, one tick of
+   * enforcement is already in the world. Reporting the deviation before the
+   * refresh hands back the tick before that — the frame the visitor is told
+   * nothing is acting on, in which nothing is.
+   */
+  scriptedEvent(
+    node: number,
+    energy: number,
+    onFrame: (stage: 'deviation' | 'strain' | 'settled', tick: number) => void,
+    onTick?: () => void,
+    /** Ticks of quiet that end the event. */
+    quietTicks = 240,
+    /** Hard bound, so a configuration that never engages still terminates. */
+    limit = 4000
+  ): void {
+    this.inject(node, energy);
+
+    let engagedAt = -1;
+    let quiet = 0;
+    let strained = false;
+
+    for (let t = 0; t < limit; t++) {
+      const held = this.operator.engagedCount();
+
+      if (engagedAt === -1 && held > 0) {
+        engagedAt = t;
+        onFrame('deviation', this.tick - 1);
+      }
+
+      onTick?.();
+
+      // Inside the ramp: the pull is on and has not won yet.
+      if (engagedAt !== -1 && !strained && t >= engagedAt + 30) {
+        strained = true;
+        onFrame('strain', this.tick);
+      }
+
+      if (engagedAt !== -1 && strained) {
+        quiet = held === 0 ? quiet + 1 : 0;
+        if (quiet >= quietTicks) break;
+      }
+
+      this.step();
+    }
+
+    onTick?.();
+    onFrame('settled', this.tick);
+  }
+
+  /**
    * Largest |u − u*| anywhere. Reported so the ambient harmonic can be checked
    * against ε rather than assumed to sit under it.
    */

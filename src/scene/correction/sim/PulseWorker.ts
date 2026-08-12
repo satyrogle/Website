@@ -165,52 +165,40 @@ function publish(s: CorrectionSystem): void {
 }
 
 /**
- * The strike point for the scripted event.
+ * Where the scripted event lands.
  *
- * A fixed position in the veil rather than a node index: the index would only
- * mean anything for one seed, and the same seed has to produce the same
- * three stills on every machine and every visit.
+ * A position rather than a node index: the index would only mean anything for
+ * one seed, and the same seed has to produce the same three stills on every
+ * machine and every visit.
  */
-const TRIPTYCH_POINT = [1.4, 0, -0.6];
-
-function nearestNode(s: CorrectionSystem): number {
-  const { positions } = s.synthesised.graph;
-  let best = 0;
-  let bestDistance = Infinity;
-  for (let i = 0; i < positions.length / 3; i++) {
-    const dx = positions[i * 3] - TRIPTYCH_POINT[0];
-    const dy = positions[i * 3 + 1] - TRIPTYCH_POINT[1];
-    const dz = positions[i * 3 + 2] - TRIPTYCH_POINT[2];
-    const distance = dx * dx + dy * dy + dz * dz;
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = i;
-    }
-  }
-  return best;
-}
+const TRIPTYCH_POINT: [number, number, number] = [1.4, 0, -0.6];
 
 /**
- * One correction event, stepped to completion, reported as three stills.
+ * One correction event, reported as three stills.
  *
- * Run synchronously: it is a couple of thousand fixed steps inside a Worker,
- * and nothing else may advance the state while it is happening or the stills
- * would not belong to the same event.
+ * The event itself — including how the three moments are found — lives in
+ * `CorrectionSystem.scriptedEvent`, where the mechanism gate can assert that
+ * they are the moments they claim to be. This function is transport: it packs
+ * whatever state that loop points at and posts it.
+ *
+ * Run synchronously. It is a couple of thousand fixed steps inside a Worker,
+ * and nothing else may advance the state while it happens or the stills would
+ * not belong to the same event.
  */
 function runTriptych(s: CorrectionSystem): void {
   running = false;
 
   const floats = textureSize * textureSize * 4;
-  const scratch = new Float32Array(floats);
+  const current = new Float32Array(floats);
 
-  const send = (stage: FrameMessage['stage'], source: Float32Array): void => {
+  const send = (stage: FrameMessage['stage'], source: Float32Array, tick: number): void => {
     const buffer = new ArrayBuffer(floats * 4);
     new Float32Array(buffer).set(source);
     const message: FrameMessage = {
       type: 'frame',
       stage,
       buffer,
-      tick: s.tick,
+      tick,
       adjustments: s.operator.adjustments,
       engaged: s.operator.engagedCount(),
       peakDeviation: s.peakDeviation(),
@@ -218,42 +206,14 @@ function runTriptych(s: CorrectionSystem): void {
     ctx.postMessage(message, [buffer]);
   };
 
-  s.inject(nearestNode(s), 2.2);
+  const [x, y, z] = TRIPTYCH_POINT;
 
-  let engagedAt = -1;
-  let quiet = 0;
-  let sentStrain = false;
-
-  // Bounded so a configuration that never engages still terminates and still
-  // reports something rather than hanging the Worker.
-  for (let t = 0; t < 4000; t++) {
-    const held = s.operator.engagedCount();
-
-    if (engagedAt === -1 && held > 0) {
-      // The tick before this one: the deviation is at its most visible and
-      // nothing is holding it yet. That frame is the whole first stage.
-      engagedAt = t;
-      send('deviation', scratch);
-    }
-
-    packInto(scratch, s);
-
-    if (engagedAt !== -1 && !sentStrain && t >= engagedAt + 30) {
-      // Inside the stiffness ramp: the pull is on and has not won yet.
-      sentStrain = true;
-      send('strain', scratch);
-    }
-
-    if (engagedAt !== -1 && sentStrain) {
-      quiet = held === 0 ? quiet + 1 : 0;
-      if (quiet >= 240) break;
-    }
-
-    s.step();
-  }
-
-  packInto(scratch, s);
-  send('settled', scratch);
+  s.scriptedEvent(
+    s.nearestNode(x, y, z),
+    2.2,
+    (stage, tick) => send(stage, current, tick),
+    () => packInto(current, s)
+  );
 
   // The live canvas shows this state from here on: struck, corrected, and
   // carrying the mark. Nothing further advances it.

@@ -553,6 +553,118 @@ check('and the system still engages at both ends', shallow.adjustments > 0 && de
   check('the calm is never enforced, even at maximum gain', s.operator.adjustments === 0, `${s.operator.adjustments}`);
 }
 
+// The field being monotone proves its shape. This proves it does something:
+// the same strike, at the same gain, at the two ends of the veil.
+{
+  const at = (x) => {
+    const s = new CorrectionSystem(SYSTEM);
+    s.warmUp();
+    for (let t = 0; t < 300; t++) s.step();
+    const node = s.nearestNode(x, 0, 0);
+    const before = s.operator.adjustments;
+    s.inject(node, ENERGY);
+
+    let alive = 0;
+    const settleAt = SYSTEM.correction.thetaOff + EPSILON;
+    for (let t = 0; t < 1800; t++) {
+      s.step();
+      if (s.peakDeviation() > settleAt) alive = t;
+    }
+    return { alive, adjustments: s.operator.adjustments - before, gain: s.operator.gainField[node] };
+  };
+
+  const fringe = at(7.5);
+  const deep = at(-7.5);
+  console.log(
+    `  struck at the fringe (field ${f(fringe.gain, 2)}): visible ${ms(fringe.alive)}, ` +
+      `${fringe.adjustments} adjustments`
+  );
+  console.log(
+    `  struck in the deep   (field ${f(deep.gain, 2)}): visible ${ms(deep.alive)}, ` +
+      `${deep.adjustments} adjustments`
+  );
+  check(
+    'the same strike dies sooner in the deep than at the fringe',
+    deep.alive < fringe.alive,
+    `${ms(deep.alive)} < ${ms(fringe.alive)}`
+  );
+}
+
+// ------------------------------------------------------ the scripted event
+
+console.log('\nTHE SCRIPTED EVENT');
+
+// The three stills the reduced-motion path shows. They are the only part of
+// the site a visitor on that path ever sees of the mechanism, so the claim
+// that they are the moments they say they are belongs in the gate rather than
+// in a Worker nothing asserts against.
+function triptych() {
+  const s = new CorrectionSystem(SYSTEM);
+  s.warmUp();
+  for (let t = 0; t < 300; t++) s.step();
+
+  const stages = [];
+
+  /**
+   * The caller's copy of the state, refreshed exactly where the contract says
+   * to refresh it. This is what the Worker packs into a texture; here it is
+   * three numbers, which is enough to assert that each frame is the moment it
+   * claims to be. Sampling the live system inside onFrame instead would read
+   * the state one tick past the deviation frame — which is the whole reason
+   * the contract exists.
+   */
+  let mirror = { engaged: 0, deviation: 0, adjustments: 0 };
+  const refresh = () => {
+    mirror = {
+      engaged: s.operator.engagedCount(),
+      deviation: s.peakDeviation(),
+      adjustments: s.operator.adjustments,
+    };
+  };
+
+  s.scriptedEvent(
+    s.nearestNode(1.4, 0, -0.6),
+    ENERGY,
+    (stage, tick) => stages.push({ stage, tick, ...mirror }),
+    refresh
+  );
+  return { stages, system: s };
+}
+
+const first = triptych();
+for (const stage of first.stages) {
+  console.log(
+    `  ${stage.stage.padEnd(9)} tick ${stage.tick}  held ${String(stage.engaged).padStart(3)}  ` +
+      `|u-u*| ${f(stage.deviation)}  adjustments ${stage.adjustments}`
+  );
+}
+
+const [deviation, strain, settled] = first.stages;
+check('three stages, in order', first.stages.map((s) => s.stage).join() === 'deviation,strain,settled');
+check(
+  'the deviation frame is before the system has hold of anything',
+  deviation.engaged === 0,
+  `${deviation.engaged} held`
+);
+check('the strain frame has the system holding the world', strain.engaged > 0, `${strain.engaged} held`);
+check(
+  'the strain frame sits between the other two',
+  strain.deviation < deviation.deviation && strain.deviation > settled.deviation,
+  `${f(deviation.deviation)} -> ${f(strain.deviation)} -> ${f(settled.deviation)}`
+);
+check('the settled frame has been released', settled.engaged === 0, `${settled.engaged} held`);
+check(
+  'and it carries the trace of what happened',
+  settled.adjustments > 0 && first.system.operator.scar.some((v) => v > 1e-4),
+  `${settled.adjustments} adjustments`
+);
+
+const second = triptych();
+check(
+  'the same event replays to the same three moments',
+  JSON.stringify(first.stages) === JSON.stringify(second.stages)
+);
+
 // ------------------------------------------------------------------- replay
 
 console.log('\nREPLAY');
