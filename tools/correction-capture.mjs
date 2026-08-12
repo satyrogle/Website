@@ -112,6 +112,95 @@ async function frameStats() {
   })));
 }
 
+/**
+ * How far the structure actually moves on screen, in pixels.
+ *
+ * Two earlier versions of this measured mean luminance change between frames,
+ * and both lied. Hairline geometry changes its antialiasing under sub-pixel
+ * jitter, so a still image scored as moving; and when the movement became real
+ * but smooth, consecutive samples differed less than the shimmer had, so it
+ * scored as still. Luminance delta is not displacement.
+ *
+ * This tracks the veil's spine: per column, the luminance-weighted mean row.
+ * Peak-to-peak movement of that spine over the sampling window is how far the
+ * structure travelled, and it is immune to both failure modes above.
+ */
+async function motion(samples = 20, intervalMs = 420) {
+  const result = await page.evaluate(
+    ([count, gap]) =>
+      new Promise((resolve) => {
+        const canvas = document.getElementById('lattice-canvas');
+        const width = 480;
+        const copy = document.createElement('canvas');
+        copy.width = width;
+        copy.height = Math.round((width * canvas.height) / canvas.width);
+        const ctx = copy.getContext('2d', { willReadFrequently: true });
+
+        // Spine of the structure: for each column, the luminance-weighted mean
+        // row. NaN for columns with nothing in them.
+        const spine = () =>
+          new Promise((done) =>
+            requestAnimationFrame(() => {
+              ctx.drawImage(canvas, 0, 0, copy.width, copy.height);
+              const { data } = ctx.getImageData(0, 0, copy.width, copy.height);
+              const out = new Float64Array(copy.width);
+              for (let x = 0; x < copy.width; x++) {
+                let weight = 0;
+                let sum = 0;
+                for (let y = 0; y < copy.height; y++) {
+                  const i = (y * copy.width + x) * 4;
+                  const l = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
+                  if (l <= 0.015) continue;
+                  weight += l;
+                  sum += l * y;
+                }
+                out[x] = weight > 0.35 ? sum / weight : NaN;
+              }
+              done(out);
+            })
+          );
+
+        (async () => {
+          const first = await spine();
+          const low = Float64Array.from(first);
+          const high = Float64Array.from(first);
+          let tracked = 0;
+
+          for (let s = 1; s < count; s++) {
+            await new Promise((r) => setTimeout(r, gap));
+            const current = await spine();
+            for (let x = 0; x < current.length; x++) {
+              if (Number.isNaN(current[x]) || Number.isNaN(low[x])) { low[x] = NaN; continue; }
+              if (current[x] < low[x]) low[x] = current[x];
+              if (current[x] > high[x]) high[x] = current[x];
+            }
+          }
+
+          const travel = [];
+          for (let x = 0; x < low.length; x++) {
+            if (Number.isNaN(low[x])) continue;
+            travel.push(high[x] - low[x]);
+            tracked++;
+          }
+          travel.sort((a, b) => a - b);
+          const q = (p) => (travel.length ? travel[Math.floor(travel.length * p)] : 0);
+          resolve({ columns: tracked, p10: q(0.1), median: q(0.5), p90: q(0.9), max: q(0.99) });
+        })();
+      }),
+    [samples, intervalMs]
+  );
+
+  // The spine is measured on a 480px-wide downsample of a WIDTH-wide canvas.
+  const toFullRes = WIDTH / 480;
+  return {
+    columns: result.columns,
+    p10: result.p10 * toFullRes,
+    median: result.median * toFullRes,
+    p90: result.p90 * toFullRes,
+    max: result.max * toFullRes,
+  };
+}
+
 async function shot(name) {
   const buffer = await page.screenshot({ type: 'png' });
   await writeFile(path.join(OUT, `${name}.png`), buffer);
@@ -128,6 +217,16 @@ async function shot(name) {
 console.log('\nOPENING FRAME');
 await page.waitForTimeout(1600);
 await shot('01-opening');
+
+if (flag('motion')) {
+  console.log('\nDOES THE CALM MOVE');
+  const m = await motion();
+  console.log(
+    `  structure travel over 8s, screen px:  p10 ${m.p10.toFixed(1)}  median ${m.median.toFixed(1)}  ` +
+      `p90 ${m.p90.toFixed(1)}  max ${m.max.toFixed(1)}   (${m.columns} columns tracked)`
+  );
+  console.log(`  ${m.median >= 3 ? 'BREATHING' : 'READS AS STILL'}`);
+}
 
 if (flag('event')) {
   console.log('\nONE ENFORCEMENT EVENT');

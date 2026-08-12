@@ -55,6 +55,10 @@ const TICKS = arg('ticks', 1200);
  */
 const SYSTEM = {
   ...DEFAULT_SYSTEM,
+  ambient: {
+    ...DEFAULT_SYSTEM.ambient,
+    amplitude: arg('ambient', DEFAULT_SYSTEM.ambient.amplitude),
+  },
   correction: {
     ...DEFAULT_SYSTEM.correction,
     thetaOn: arg('thetaOn', DEFAULT_SYSTEM.correction.thetaOn),
@@ -201,10 +205,63 @@ const THETA_ON = SYSTEM.correction.thetaOn;
 console.log(`  peak |u - u*| over 7.5s of calm: ${f(calmPeak)}   epsilon ${EPSILON}   theta_on ${THETA_ON}`);
 console.log(`  wave peak |u| ${f(system.simulation.peak())}`);
 
-check('ambient harmonic stays inside the tolerance band', calmPeak < EPSILON, `${f(calmPeak)} < ${EPSILON}`);
+// The threshold that guarantees zero violet is the engagement threshold, not
+// the tolerance band. ε is what the operator pulls a node back to; θ_on beyond
+// it is what the operator can see at all. An ambient sitting between the two is
+// exactly the sub-threshold drift the direction is built on — error the file
+// tolerates because it never notices it.
+const ENGAGE_AT = EPSILON + THETA_ON;
+check(
+  'ambient harmonic never reaches the engagement threshold',
+  calmPeak < ENGAGE_AT * 0.7,
+  `${f(calmPeak)} < ${f(ENGAGE_AT * 0.7)} (engages at ${f(ENGAGE_AT, 2)})`
+);
 check('calm produces zero enforcement', system.operator.adjustments === 0, `adjustments ${system.operator.adjustments}`);
 check('calm produces zero violet', system.operator.engagedCount() === 0);
+// Steady state. The harmonic is continuously forced, so "it was fine for seven
+// seconds" is not the claim that matters — the claim is that it plateaus and
+// never creeps into the system's view during a long visit.
+let lateCalmPeak = 0;
+for (let t = 0; t < 7200; t++) {
+  system.step();
+  if (t > 3600) lateCalmPeak = Math.max(lateCalmPeak, system.peakDeviation());
+}
+console.log(`  peak |u - u*| over the second half of a 60s visit: ${f(lateCalmPeak)}`);
+check('the harmonic plateaus rather than creeping', lateCalmPeak < ENGAGE_AT * 0.7, `${f(lateCalmPeak)}`);
+check('and still never engages after a minute', system.operator.adjustments === 0, `${system.operator.adjustments}`);
+
+// How far each node actually travels, in the units a visitor sees.
+//
+// "Peak |u - u*|" is one number for the single most-displaced node at its
+// extreme, and it is not what makes a structure look alive: what matters is
+// whether a typical filament moves far enough to be seen at all. Reported in
+// screen pixels against the shipped camera, because sub-pixel motion on a
+// one-pixel line is not motion, it is shimmer.
+const DISPLACEMENT_SCALE = 2.8;   // CorrectionModel
+const PIXELS_PER_UNIT = 900 / (2 * 22.5 * Math.tan((30 / 2) * Math.PI / 180));
+
+const low = new Float32Array(graph.nodeCount).fill(Infinity);
+const high = new Float32Array(graph.nodeCount).fill(-Infinity);
+for (let t = 0; t < 1200; t++) {
+  system.step();
+  const u = system.simulation.u;
+  for (let i = 0; i < u.length; i++) {
+    if (u[i] < low[i]) low[i] = u[i];
+    if (u[i] > high[i]) high[i] = u[i];
+  }
+}
+const travel = Array.from({ length: graph.nodeCount }, (_, i) => high[i] - low[i]).sort((x, y) => x - y);
+const at = (q) => travel[Math.floor(travel.length * q)] * DISPLACEMENT_SCALE * PIXELS_PER_UNIT;
+console.log(
+  `  travel over 10s of calm, px on screen:  p10 ${f(at(0.1), 1)}  median ${f(at(0.5), 1)}  ` +
+    `p90 ${f(at(0.9), 1)}  max ${f(at(0.999), 1)}`
+);
+
 check('the harmonic is not dead', calmPeak > EPSILON * 0.15, `${f(calmPeak)} > ${f(EPSILON * 0.15)}`);
+// Below about three pixels of travel a one-pixel line only changes its
+// antialiasing, which reads as faint noise rather than as a structure breathing.
+check('a typical filament visibly moves', at(0.5) >= 3, `median ${f(at(0.5), 1)}px`);
+check('the calm moves everywhere, not in a few spots', at(0.1) >= 1.5, `p10 ${f(at(0.1), 1)}px`);
 
 // ------------------------------------------------------ one correction event
 
@@ -236,6 +293,8 @@ let lastEngageTick = -1;
 let maxEngaged = 0;
 let engagedTicks = 0;
 let engagedSum = 0;
+/** Nodes held, per tick, for the whole observation window. */
+const engagedSeries = [];
 const trace = [];
 
 // Reach: nodes whose deviation ever became visible (past ε), and how far the
@@ -270,6 +329,7 @@ for (let t = 0; t < TICKS; t++) {
     engagedTicks++;
     engagedSum += engaged;
   }
+  engagedSeries.push(engaged);
   if (flag('trace') && t % 24 === 0) {
     trace.push(
       `    t+${String(system.tick - injectTick).padStart(4)}  dev ${f(deviation, 3)}  ` +
@@ -346,13 +406,28 @@ check('enforcement released', system.operator.engagedCount() === 0, `${system.op
 // Duty cycle. The span between the first and last engagement means nothing on
 // its own: enforcement that flickers on for four ticks at a time inside a
 // three-second window is not something a person can watch, it is a sparkle.
+//
+// Measured over the body of the event, not out to the last straggler. A single
+// node engaging alone two seconds after the correction has finished stretches
+// the span and drags the ratio down while changing nothing about what the
+// visitor sees, so the window closes once concurrency falls below a tenth of
+// its peak and stays there.
 const span = lastEngageTick - firstEngageTick + 1;
-const duty = engagedTicks / Math.max(span, 1);
+const floorHeld = Math.max(2, maxEngaged * 0.1);
+let bodyEnd = 0;
+for (let i = 0; i < engagedSeries.length; i++) if (engagedSeries[i] >= floorHeld) bodyEnd = i;
+let bodyStart = engagedSeries.findIndex((n) => n > 0);
+let bodyTicks = 0;
+for (let i = bodyStart; i <= bodyEnd; i++) if (engagedSeries[i] > 0) bodyTicks++;
+const bodySpan = Math.max(bodyEnd - bodyStart + 1, 1);
+const duty = bodyTicks / bodySpan;
 const held = a_heldStats(system.operator.log);
 console.log(
-  `  continuity: violet present on ${engagedTicks}/${span} ticks of the event (${f(duty * 100, 0)}%), ` +
-    `mean ${f(engagedSum / Math.max(engagedTicks, 1), 1)} nodes held`
+  `  continuity: violet present on ${bodyTicks}/${bodySpan} ticks of the event body ` +
+    `(${f(duty * 100, 0)}%, ${ms(bodySpan)}), mean ${f(engagedSum / Math.max(engagedTicks, 1), 1)} nodes held, ` +
+    `peak ${maxEngaged}`
 );
+console.log(`  full span including stragglers: ${ms(span)}`);
 console.log(`  per-node hold: min ${held.min} median ${held.median} max ${held.max} ticks (${ms(held.median)} typical)`);
 
 check('enforcement is continuous enough to watch (>=80% duty)', duty >= 0.8, `${f(duty * 100, 0)}%`);

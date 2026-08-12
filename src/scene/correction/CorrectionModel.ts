@@ -148,10 +148,9 @@ export class CorrectionModel {
         uConsequence: { value: new THREE.Color('#a45fd6') },
         // Calibrated against measured state, not by eye:
         //
-        //   ambient drift  0.020  ->  0.16   present, plainly at rest
-        //   tolerance eps  0.040  ->  0.24   still nothing worth seeing
+        //   ambient drift  0.040  ->  0.24   present, plainly at rest
         //   engagement     0.100  ->  0.40   the system starts to react here
-        //   struck peak    0.450  ->  0.94   the deviation
+        //   struck peak    0.420  ->  0.91   the deviation
         //
         // Six times the calm at the crest is what makes a press an event.
         uGlowScale: { value: 2.0 },
