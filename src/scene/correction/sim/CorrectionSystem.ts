@@ -65,36 +65,38 @@ export class CorrectionSystem {
     this.recordSum = new Float64Array(graph.nodeCount);
 
     this.operator.setGainField(
-      CorrectionSystem.gainField(this.synthesised.stability, config.correction)
+      CorrectionSystem.gainField(this.synthesised.depth, config.correction)
     );
   }
 
   /**
    * How hard the file is enforced, per node.
    *
-   * Read from the escape field rather than from a gradient somebody authored.
-   * State that stays bounded under the escape map is settled and is left
-   * comparatively alone; state that runs away at once is where the system
-   * watches hardest. So the places violet appears are the places the
-   * mathematics says were least able to hold themselves together — the colour
-   * grammar is tied to a real property of a real field instead of to a ramp.
-   *
-   * Deliberately not radial and deliberately not monotone along any axis. A
-   * field that is a function of distance from a centre draws a soft ellipse
-   * across the structure, and a frame that resolves into concentric anything
-   * is how every retired direction died.
+   * A single monotone gradient along the structure's own sweep: loosest at the
+   * end the camera opens on, total at the end it travels into. Deliberately
+   * not a radial or distance-from-centre field — that would draw a soft
+   * ellipse across the structure, and a frame that resolves into concentric
+   * anything is how every retired direction died.
    *
    * Nothing about the structure changes as the visitor travels; only how
    * quickly and how hard deviation is put back. That is the whole turn: the
    * calm ahead is not calmer, it is more governed.
    */
-  private static gainField(stability: Float32Array, p: CorrectionParameters): Float32Array {
-    const field = new Float32Array(stability.length);
-    for (let i = 0; i < stability.length; i++) {
-      const unstable = 1 - Math.min(Math.max(stability[i], 0), 1);
-      const shaped = unstable * unstable * (3 - 2 * unstable);
+  private static gainField(depth: Float32Array, p: CorrectionParameters): Float32Array {
+    const field = new Float32Array(depth.length);
+    const onset = Math.min(Math.max(p.spatialGainOnset, 0), 0.99);
+
+    for (let i = 0; i < depth.length; i++) {
+      // Depth is the structure's own coordinate: 0 where the camera opens, 1
+      // at the far end it travels into. The climb starts past the opening
+      // view, so the event the visitor is first shown is enforced at the
+      // tuning that was judged, and the gradient is something they travel into
+      // rather than something applied to the frame they arrived on.
+      const t = Math.min(Math.max((depth[i] - onset) / (1 - onset), 0), 1);
+      const shaped = t * t * (3 - 2 * t);
       field[i] = p.spatialGainLow + (p.spatialGainHigh - p.spatialGainLow) * shaped;
     }
+
     return field;
   }
 

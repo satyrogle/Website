@@ -495,27 +495,13 @@ console.log('\nENFORCEMENT GAIN');
   const { depth } = s.synthesised;
   const { positions } = s.synthesised.graph;
 
-  // Gain is read from the escape field, not from a ramp along an axis, so
-  // monotonicity is not the property to test — following the field is. A
-  // perfect anti-correlation with stability means every node is enforced
-  // exactly as hard as the mathematics says it is unable to hold itself.
-  const stability = s.synthesised.stability;
-  let meanF = 0;
-  let meanS = 0;
-  for (let i = 0; i < field.length; i++) { meanF += field[i]; meanS += stability[i]; }
-  meanF /= field.length;
-  meanS /= field.length;
-  let cov = 0;
-  let varF = 0;
-  let varS = 0;
-  for (let i = 0; i < field.length; i++) {
-    const df = field[i] - meanF;
-    const ds = stability[i] - meanS;
-    cov += df * ds;
-    varF += df * df;
-    varS += ds * ds;
+  const order = Array.from({ length: field.length }, (_, i) => i).sort(
+    (i, j) => depth[i] - depth[j]
+  );
+  let monotone = true;
+  for (let k = 1; k < order.length; k++) {
+    if (field[order[k]] < field[order[k - 1]] - 1e-6) { monotone = false; break; }
   }
-  const correlation = cov / Math.max(Math.sqrt(varF * varS), 1e-9);
 
   let lo = Infinity;
   let hi = -Infinity;
@@ -583,12 +569,7 @@ console.log('\nENFORCEMENT GAIN');
     `  gain spread within a radius shell: ${f(withinBin * 100, 0)}% of its range, ` +
       `against ${f(control * 100, 0)}% for a radial field over the same nodes`
   );
-  console.log(`  gain against the escape field: correlation ${f(correlation, 3)}`);
-  check(
-    'gain follows the escape field rather than an authored ramp',
-    correlation < -0.9,
-    `correlation ${f(correlation, 3)} with stability`
-  );
+  check('gain rises monotonically along the sweep', monotone);
   check(
     'gain spans the configured range',
     Math.abs(lo - SYSTEM.correction.spatialGainLow) < 0.02 &&
@@ -660,14 +641,11 @@ check('and the system still engages at both ends', shallow.adjustments > 0 && de
   // the narrow tail, which measures geometry rather than gain.
   const at = (target) => {
     const s = new CorrectionSystem(SYSTEM);
-    // Selected by how hard the system holds the node, which is the thing under
-    // test. Picking by position compared two arbitrary places in a field whose
-    // gain no longer follows any axis.
-    const field = s.operator.gainField;
+    const { depth } = s.synthesised;
     let node = 0;
     let best = Infinity;
-    for (let i = 0; i < field.length; i++) {
-      const cost = Math.abs(field[i] - target);
+    for (let i = 0; i < depth.length; i++) {
+      const cost = Math.abs(depth[i] - target);
       if (cost < best) { best = cost; node = i; }
     }
 
@@ -685,18 +663,18 @@ check('and the system still engages at both ends', shallow.adjustments > 0 && de
     return { alive, adjustments: s.operator.adjustments - before, gain: s.operator.gainField[node] };
   };
 
-  const fringe = at(SYSTEM.correction.spatialGainLow);
-  const deep = at(SYSTEM.correction.spatialGainHigh);
+  const fringe = at(0.3);
+  const deep = at(0.95);
   console.log(
-    `  struck where the field is loosest (gain ${f(fringe.gain, 2)}): visible ${ms(fringe.alive)}, ` +
+    `  struck near the opening (field ${f(fringe.gain, 2)}): visible ${ms(fringe.alive)}, ` +
       `${fringe.adjustments} adjustments`
   );
   console.log(
-    `  struck where it is tightest  (gain ${f(deep.gain, 2)}): visible ${ms(deep.alive)}, ` +
+    `  struck in the deep   (field ${f(deep.gain, 2)}): visible ${ms(deep.alive)}, ` +
       `${deep.adjustments} adjustments`
   );
   check(
-    'the same strike dies sooner where the system holds harder',
+    'the same strike dies sooner in the deep than at the fringe',
     deep.alive < fringe.alive,
     `${ms(deep.alive)} < ${ms(fringe.alive)}`
   );

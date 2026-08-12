@@ -47,19 +47,11 @@ export const DEFAULT_WAVE: WaveParameters = {
   // approved state stopped being a state the world returns to. Raised until
   // the residual dies away and the surface comes back to the record, while the
   // strike itself still outlives the awareness latency by a wide margin.
-  waveDamping: 0.5,
+  waveDamping: 0.85,
 };
 
-/**
- * Hops the press profile reaches.
- *
- * Wide enough that a press lands on a *group* of neighbouring trajectories
- * rather than on one strand. The coupling edges are part of the hop count, so
- * the profile crosses between trajectories the way the constraint field does —
- * which is what makes an escape look like several neighbours leaving together
- * instead of one line lifting on its own.
- */
-const INJECTION_HOPS = 9;
+/** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
+const INJECTION_HOPS = 5;
 
 export class CausalPulseSimulation {
   readonly nodeCount: number;
