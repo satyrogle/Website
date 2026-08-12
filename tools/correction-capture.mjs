@@ -650,6 +650,30 @@ if (flag('paths')) {
     await still.close();
   }
 
+  // --- Reduced motion on a phone: both recompositions at once -------------
+  {
+    const both = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      reducedMotion: 'reduce',
+    });
+    const reader = await both.newPage();
+    await reader.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await reader.waitForTimeout(9000);
+    const shape = await reader.evaluate(() => {
+      const img = document.querySelector('[data-triptych-frame="strain"]');
+      if (!img) return null;
+      img.scrollIntoView({ block: 'center', behavior: 'instant' });
+      return { w: img.naturalWidth, h: img.naturalHeight };
+    });
+    await reader.waitForTimeout(500);
+    await writeFile(path.join(OUT, '43-reduced-mobile.png'), await reader.screenshot({ type: 'png' }));
+    console.log(`  reduced motion on a phone: stills are ${shape?.w}x${shape?.h}`);
+    await reader.close();
+    await both.close();
+  }
+
   // --- No WebGL: the machine is simply absent -----------------------------
   {
     const blind = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });

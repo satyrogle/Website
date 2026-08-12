@@ -554,6 +554,14 @@ export class SceneController {
 
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(width, height, false);
+
+    // The stills are landscape thumbnails whatever the viewport is, so they
+    // get the landscape pose. A phone would otherwise inherit the portrait
+    // roll and render three diagonal compositions inside three wide frames —
+    // the recomposition applied to the one place it does not belong. The
+    // closing resize() puts the viewport's own composition back.
+    this.camera.fov = CAMERA.fov;
+    this.camera.up.set(0, 1, 0);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.model.setExposure(1);

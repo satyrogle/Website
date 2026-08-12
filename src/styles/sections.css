@@ -278,6 +278,20 @@
   padding: clamp(1.25rem, 3vw, 2.5rem);
 }
 
+/* NOTICE and GRADIENT are scroll length for a descent that does not
+   happen here — nearly three and a half viewports of empty dark on the
+   way to the floor. They shrink to their content, which on this path is
+   the triptych and nothing.
+
+   FLOOR keeps its full viewport. The record is the one thing this path
+   is travelling towards, and a band shorter than the viewport is one the
+   scroll director can only ever report from in passing. */
+:root.reduced-motion .band--notice,
+:root.reduced-motion .band--gradient {
+  min-height: auto;
+  padding-block: var(--movement-pad);
+}
+
 /* --- The record ---------------------------------------------------
    Amber, because it is the file talking, and mono because it is the
    file's own voice rather than the studio's. Set as a statement, not
