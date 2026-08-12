@@ -120,6 +120,22 @@ const TAP_SLOP = 8;
  */
 const PRESS_BUDGET = 12;
 
+/**
+ * How long one press takes to come back.
+ *
+ * The budget exists so the structure cannot become a toy, and it did its job
+ * too well: spend twelve and the site stops responding to clicks entirely,
+ * which does not read as restraint, it reads as broken. A visitor who has been
+ * exploring for a minute is exactly the visitor who should still be able to
+ * strike it.
+ *
+ * So the budget is a rate now rather than a quota. It is still bounded at any
+ * instant — twelve is the most that can ever be spent at once, and rapid
+ * clicking still runs dry — but it refills while the visitor watches what they
+ * did, which is the pace the event happens at anyway.
+ */
+const PRESS_RECHARGE_MS = 5000;
+
 export class SceneController {
   readonly quality: QualityManager;
   readonly scene = new THREE.Scene();
@@ -148,6 +164,8 @@ export class SceneController {
   private machineOn = true;
   /** Bounded injection energy, in presses. */
   private pressesLeft = PRESS_BUDGET;
+  /** When the budget was last reconciled against the clock. */
+  private budgetAt = 0;
   /** True once anything has struck the structure, whoever started it. */
   private pressed = false;
   /** A touch in progress that has not yet disqualified itself as a tap. */
@@ -363,6 +381,8 @@ export class SceneController {
    */
   pressAt(clientX: number, clientY: number, tolerance?: number): number {
     if (!this.model || !this.client) return -1;
+
+    this.recharge();
     if (this.pressesLeft <= 0) return -1;
 
     // Only while there is something to press.
@@ -407,8 +427,22 @@ export class SceneController {
     return this.pressAt(window.innerWidth * 0.5, window.innerHeight * 0.5, Infinity);
   }
 
-  /** Presses remaining this visit. */
+  /** Returns spent presses at a fixed rate, up to the cap. */
+  private recharge(): void {
+    const now = performance.now();
+    if (this.budgetAt === 0) {
+      this.budgetAt = now;
+      return;
+    }
+    const earned = Math.floor((now - this.budgetAt) / PRESS_RECHARGE_MS);
+    if (earned <= 0) return;
+    this.budgetAt += earned * PRESS_RECHARGE_MS;
+    this.pressesLeft = Math.min(PRESS_BUDGET, this.pressesLeft + earned);
+  }
+
+  /** Presses available right now. */
   get budgetLeft(): number {
+    this.recharge();
     return this.pressesLeft;
   }
 

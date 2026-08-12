@@ -214,12 +214,18 @@ export class RecordController {
     this.cancelFalseAction();
     this.falseActionDone = true;
 
-    if (this.scene && this.scene.budgetLeft <= 0) {
-      document.querySelectorAll<HTMLButtonElement>('[data-inject]').forEach((button) => {
-        button.disabled = true;
-      });
-    }
+    // The invitation goes quiet while the budget is empty and comes back when
+    // it refills. Left permanently disabled it read as a broken control.
+    this.syncInvitation();
+    window.setTimeout(() => this.syncInvitation(), 5200);
   };
+
+  private syncInvitation(): void {
+    const spent = !this.scene || this.scene.budgetLeft <= 0;
+    document.querySelectorAll<HTMLButtonElement>('[data-inject]').forEach((button) => {
+      button.disabled = spent;
+    });
+  }
 
   private onVisibility = (): void => {
     if (document.hidden) this.commit();

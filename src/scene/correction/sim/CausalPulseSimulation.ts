@@ -1,3 +1,12 @@
+  // Slow enough to watch it travel.
+  //
+  // At 14 a strike crossed a ribbon in about two seconds, which sounds slow
+  // and is not: the wave reached most of the structure inside the first few
+  // frames, so every part of a ribbon started moving at once and the motion
+  // read as rigid — the whole strand hinging rather than a ripple running
+  // along it. A deviation that arrives everywhere simultaneously is a
+  // displacement, not a wave, and the difference is the entire reason the
+  // correction has something to chase.
 /**
  * The wave engine. Ported from the causal-pulse spike
  * (`claude/causal-pulse-spike-v1`,
@@ -35,7 +44,7 @@ export const DEFAULT_WAVE: WaveParameters = {
   // ~0.3-unit median edge, so a strike crosses the veil in about two seconds.
   // The spectral bound allows nearly 60; the margin is deliberate headroom for
   // a denser graph later.
-  waveSpeed: 14,
+  waveSpeed: 6,
   // The deviation has to survive long enough to be noticed, resisted and
   // forced back — if damping kills it first the system never has to act, and
   // there is nothing to watch. But it also has to stop.
@@ -47,7 +56,7 @@ export const DEFAULT_WAVE: WaveParameters = {
   // approved state stopped being a state the world returns to. Raised until
   // the residual dies away and the surface comes back to the record, while the
   // strike itself still outlives the awareness latency by a wide margin.
-  waveDamping: 0.85,
+  waveDamping: 1.1,
 };
 
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
