@@ -35,14 +35,7 @@ export interface AmbientParameters {
    * tolerance budget without buying any visible breathing.
    */
   frequencies: [number, number, number];
-  /**
-   * Spatial frequency of the coarsest mode, radians per world unit.
-   *
-   * The surface is read by its shading, and shading responds to slope, which is
-   * amplitude over wavelength. A long-wavelength heave moves the geometry a
-   * long way and changes the light not at all — which is how the first version
-   * of this managed to be both over budget on tolerance and invisible.
-   */
+  /** Spatial frequency of the coarsest mode, radians per world unit. */
   spatialFrequency: number;
 }
 
@@ -53,9 +46,9 @@ export const DEFAULT_AMBIENT: AmbientParameters = {
   // threshold ε + θ_on = 0.10, while a typical filament still travels several
   // pixels on screen. Both halves are asserted in
   // tools/correction-validate.mjs — never engages, and never static.
-  amplitude: 0.09,
+  amplitude: 0.07,
   frequencies: [0.29, 0.43, 0.71],
-  spatialFrequency: 1.35,
+  spatialFrequency: 0.26,
 };
 
 export class AmbientHarmonic {

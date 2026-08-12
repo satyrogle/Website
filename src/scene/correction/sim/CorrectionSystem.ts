@@ -1,5 +1,5 @@
 /**
- * CorrectionSystem — surface, wave, harmonic and operator as one steppable unit.
+ * CorrectionSystem — graph, wave, harmonic and operator as one steppable unit.
  *
  * This is the composition root for everything authoritative. It has no Worker
  * and no DOM dependency, so `tools/correction-validate.mjs` steps the exact
@@ -8,25 +8,20 @@
  *
  * Order inside a tick is fixed and load-bearing:
  *
- *   1. ambient forcing        the surface is nudged
- *   2. wave integration       the surface moves
- *   3. correction pass        the system reads the surface and acts on it
+ *   1. ambient forcing        the world is nudged
+ *   2. wave integration       the world moves
+ *   3. correction pass        the system reads the world and acts on it
  *
  * The operator runs last because it must see the state the renderer will show.
  */
 
-import {
-  synthesiseSurface,
-  DEFAULT_SURFACE,
-  type SurfaceSynthConfig,
-  type SynthesisedSurface,
-} from '../graph/SurfaceSynth';
+import { synthesiseGraph, DEFAULT_SYNTH, type GraphSynthConfig, type SynthesisedGraph } from '../graph/GraphSynth';
 import { CausalPulseSimulation, Checksum, DEFAULT_WAVE, type WaveParameters } from './CausalPulseSimulation';
 import { CorrectionOperator, DEFAULT_CORRECTION, type CorrectionParameters } from './CorrectionOperator';
 import { AmbientHarmonic, DEFAULT_AMBIENT, type AmbientParameters } from './AmbientHarmonic';
 
 export interface CorrectionSystemConfig {
-  surface: SurfaceSynthConfig;
+  synth: GraphSynthConfig;
   wave: WaveParameters;
   correction: CorrectionParameters;
   ambient: AmbientParameters;
@@ -37,7 +32,7 @@ export interface CorrectionSystemConfig {
 }
 
 export const DEFAULT_SYSTEM: CorrectionSystemConfig = {
-  surface: DEFAULT_SURFACE,
+  synth: DEFAULT_SYNTH,
   wave: DEFAULT_WAVE,
   correction: DEFAULT_CORRECTION,
   ambient: DEFAULT_AMBIENT,
@@ -47,29 +42,39 @@ export const DEFAULT_SYSTEM: CorrectionSystemConfig = {
 
 export class CorrectionSystem {
   readonly config: CorrectionSystemConfig;
-  readonly synthesised: SynthesisedSurface;
+  readonly synthesised: SynthesisedGraph;
   readonly simulation: CausalPulseSimulation;
   readonly operator: CorrectionOperator;
   readonly ambient: AmbientHarmonic;
 
-  /** ∂u/∂x and ∂u/∂z at each node. Display only — the light reads these. */
-  readonly gradientX: Float32Array;
-  readonly gradientZ: Float32Array;
+  /** Endpoint pairs for the rendered edges, i < j, CSR order. */
+  readonly edgeIndices: Uint32Array;
 
   private readonly recordSum: Float64Array;
   private recordSamples = 0;
 
   constructor(config: CorrectionSystemConfig = DEFAULT_SYSTEM) {
     this.config = config;
-    this.synthesised = synthesiseSurface(config.surface);
+    this.synthesised = synthesiseGraph(config.synth);
 
     const { graph, bounds } = this.synthesised;
     this.simulation = new CausalPulseSimulation(graph, bounds, config.wave);
     this.operator = new CorrectionOperator(graph.nodeCount, config.correction);
     this.ambient = new AmbientHarmonic(graph.positions, config.ambient);
     this.recordSum = new Float64Array(graph.nodeCount);
-    this.gradientX = new Float32Array(graph.nodeCount);
-    this.gradientZ = new Float32Array(graph.nodeCount);
+
+    const pairs = new Uint32Array((graph.entryCount / 2) * 2);
+    let at = 0;
+    for (let i = 0; i < graph.nodeCount; i++) {
+      for (let k = graph.offsets[i]; k < graph.offsets[i + 1]; k++) {
+        const j = graph.neighbours[k];
+        if (i < j) {
+          pairs[at++] = i;
+          pairs[at++] = j;
+        }
+      }
+    }
+    this.edgeIndices = pairs.subarray(0, at);
   }
 
   get tick(): number {
@@ -89,39 +94,14 @@ export class CorrectionSystem {
   }
 
   /**
-   * Surface gradient of the deviation, for the renderer's normal.
-   *
-   * A swelling that does not tilt its own normal is invisible under any light,
-   * and this surface is read entirely by its shading. Run once per published
-   * snapshot rather than once per tick — it is display state, so it is derived
-   * from the authoritative arrays and never feeds back into them.
-   */
-  computeGradients(): void {
-    const { offsets, neighbours } = this.synthesised.graph;
-    const { gradientX: cx, gradientZ: cz } = this.synthesised;
-    const { u } = this.simulation;
-    const { record } = this.operator;
-
-    for (let i = 0; i < u.length; i++) {
-      const centre = u[i] - record[i];
-      let gx = 0;
-      let gz = 0;
-      for (let k = offsets[i]; k < offsets[i + 1]; k++) {
-        const difference = u[neighbours[k]] - record[neighbours[k]] - centre;
-        gx += cx[k] * difference;
-        gz += cz[k] * difference;
-      }
-      this.gradientX[i] = gx;
-      this.gradientZ[i] = gz;
-    }
-  }
-
-  /**
-   * Steps the surface to a settled harmonic and then takes the record from it.
+   * Steps the world to a settled harmonic and then takes the record from it.
    *
    * The operator is inert throughout — there is nothing to enforce against
    * until the record exists — so warm-up is the one stretch of the run in which
-   * the surface is genuinely unsupervised.
+   * the world is genuinely unsupervised.
+   *
+   * `onProgress` is called between chunks so a caller can report real
+   * initialisation instead of a timer.
    */
   warmUp(onProgress?: (fraction: number) => void): void {
     const total = this.config.warmUpTicks;
@@ -145,13 +125,12 @@ export class CorrectionSystem {
     for (let i = 0; i < mean.length; i++) mean[i] = this.recordSum[i] * inverse;
 
     this.operator.captureRecord(mean);
-    this.computeGradients();
     onProgress?.(1);
   }
 
   /**
    * Largest |u − u*| anywhere. Reported so the ambient harmonic can be checked
-   * against the engagement threshold rather than assumed to sit under it.
+   * against ε rather than assumed to sit under it.
    */
   peakDeviation(): number {
     const { u } = this.simulation;
@@ -165,9 +144,9 @@ export class CorrectionSystem {
   }
 
   /**
-   * Run checksum over the surface and the enforcement together. Two runs from
-   * the same seed and the same injection trace agree here or the determinism
-   * claim is false.
+   * Run checksum over the world and the enforcement together. Two runs from the
+   * same seed and the same injection trace agree here or the determinism claim
+   * is false.
    */
   checksum(): number {
     const checksum = new Checksum();

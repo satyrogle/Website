@@ -37,7 +37,7 @@ registerHooks({
   },
 });
 
-const { synthesiseSurface, DEFAULT_SURFACE } = await import('../src/scene/correction/graph/SurfaceSynth.ts');
+const { synthesiseGraph, DEFAULT_SYNTH } = await import('../src/scene/correction/graph/GraphSynth.ts');
 const { CorrectionSystem, DEFAULT_SYSTEM } = await import('../src/scene/correction/sim/CorrectionSystem.ts');
 
 const arg = (name, fallback) => {
@@ -83,15 +83,15 @@ const f = (x, n = 4) => Number(x).toFixed(n);
 console.log('\nGRAPH');
 
 const t0 = performance.now();
-const { graph, bounds, stats, triangles } = synthesiseSurface(DEFAULT_SURFACE);
+const { graph, bounds, stats } = synthesiseGraph(DEFAULT_SYNTH);
 const synthMs = performance.now() - t0;
 
-console.log(`  nodes ${stats.nodes}   edges ${stats.edges}   triangles ${stats.triangles}   entries ${graph.entryCount}`);
+console.log(`  nodes ${stats.nodes}   edges ${stats.edges}   entries ${graph.entryCount}`);
 console.log(
   `  degree min ${stats.degreeMin} mean ${f(stats.degreeMean, 2)} max ${stats.degreeMax}   ` +
     `median edge ${f(stats.medianEdgeLength, 3)}`
 );
-console.log(`  synth ${f(synthMs, 1)}ms`);
+console.log(`  components ${stats.components} (bridges added ${stats.bridgesAdded})   synth ${f(synthMs, 1)}ms`);
 console.log(
   `  stability  maxWeightedDegree ${f(bounds.maxWeightedDegree, 3)}  ` +
     `waveDtMax ${f(bounds.waveDtMax, 4)}  c*dt ${f(DEFAULT_SYSTEM.wave.waveSpeed * DEFAULT_SYSTEM.wave.dt, 4)}`
@@ -135,48 +135,48 @@ check('CSR adjacency symmetric', (() => {
   return true;
 })());
 
-// Construction guards.
-//
-// The old radius-histogram shell test is gone: on a flat convex plate, distance
-// from the centroid measures the outline of the polygon and nothing else, so it
-// reported the plate's own corners as ring structure. The ring risk for a
-// surface is not in where the points are, it is in how a disturbance spreads —
-// a point strike on an isotropic medium makes circular ripples. That is tested
-// against the live deviation field after the strike, below, which is where it
-// can actually happen.
+// Rotational-symmetry guard. Every retired direction died as concentric rings,
+// so this measures whether node radius about the structure's own centroid
+// clusters into shells. A ring construction produces a spiky radius histogram;
+// an irregular scatter produces a smooth one.
 {
-  // Spacing must be irregular. A grid or a jittered grid has a sharply peaked
-  // nearest-neighbour distribution; Poisson-disk points do not.
-  const spacings = [];
+  let cx = 0, cy = 0, cz = 0;
   for (let i = 0; i < graph.nodeCount; i++) {
-    let nearest = Infinity;
-    for (let k = graph.offsets[i]; k < graph.offsets[i + 1]; k++) {
-      const j = graph.neighbours[k];
-      const d = Math.hypot(graph.positions[j * 3] - graph.positions[i * 3], graph.positions[j * 3 + 2] - graph.positions[i * 3 + 2]);
-      if (d < nearest) nearest = d;
-    }
-    spacings.push(nearest);
+    cx += graph.positions[i * 3];
+    cy += graph.positions[i * 3 + 1];
+    cz += graph.positions[i * 3 + 2];
   }
-  spacings.sort((a, b) => a - b);
-  const spread = spacings[Math.floor(spacings.length * 0.9)] / spacings[Math.floor(spacings.length * 0.1)];
-  console.log(`  nearest-neighbour spacing p10..p90 spread ${f(spread, 2)}x`);
-  check('spacing is irregular, not a grid', spread > 1.12, `${f(spread, 2)}x`);
+  cx /= graph.nodeCount; cy /= graph.nodeCount; cz /= graph.nodeCount;
 
-  // Every triangle must be a real triangle: a triangulation with slivers or
-  // zero-area faces shades as a field of black creases.
-  let worstAspect = 0;
-  for (let t = 0; t < triangles.length; t += 3) {
-    const [a, b, c] = [triangles[t], triangles[t + 1], triangles[t + 2]];
-    const ab = Math.hypot(graph.positions[b * 3] - graph.positions[a * 3], graph.positions[b * 3 + 2] - graph.positions[a * 3 + 2]);
-    const bc = Math.hypot(graph.positions[c * 3] - graph.positions[b * 3], graph.positions[c * 3 + 2] - graph.positions[b * 3 + 2]);
-    const ca = Math.hypot(graph.positions[a * 3] - graph.positions[c * 3], graph.positions[a * 3 + 2] - graph.positions[c * 3 + 2]);
-    const sp = (ab + bc + ca) / 2;
-    const area = Math.sqrt(Math.max(sp * (sp - ab) * (sp - bc) * (sp - ca), 0));
-    const aspect = area > 0 ? (ab * bc * ca) / (8 * (sp - ab) * (sp - bc) * (sp - ca)) : Infinity;
-    if (aspect > worstAspect) worstAspect = aspect;
+  const BINS = 48;
+  const radii = [];
+  let maxR = 0;
+  for (let i = 0; i < graph.nodeCount; i++) {
+    const r = Math.hypot(
+      graph.positions[i * 3] - cx,
+      graph.positions[i * 3 + 1] - cy,
+      graph.positions[i * 3 + 2] - cz
+    );
+    radii.push(r);
+    if (r > maxR) maxR = r;
   }
-  console.log(`  worst triangle aspect ratio ${f(worstAspect, 2)}`);
-  check('no sliver triangles', worstAspect < 12, `${f(worstAspect, 2)}`);
+  const hist = new Array(BINS).fill(0);
+  for (const r of radii) hist[Math.min(BINS - 1, Math.floor((r / maxR) * BINS))]++;
+  const mean = graph.nodeCount / BINS;
+  let peak = 0;
+  for (const h of hist) if (h > peak) peak = h;
+  // Concentric construction puts a whole ring in one bin: ratios of 5–20x.
+  check('radius histogram has no shell spikes', peak / mean < 3.2, `peak/mean ${f(peak / mean, 2)}`);
+
+  // And the veil must actually be anisotropic, not a ball.
+  let ex = 0, ey = 0, ez = 0;
+  for (let i = 0; i < graph.nodeCount; i++) {
+    ex = Math.max(ex, Math.abs(graph.positions[i * 3] - cx));
+    ey = Math.max(ey, Math.abs(graph.positions[i * 3 + 1] - cy));
+    ez = Math.max(ez, Math.abs(graph.positions[i * 3 + 2] - cz));
+  }
+  console.log(`  extent  x ${f(ex, 2)}  y ${f(ey, 2)}  z ${f(ez, 2)}`);
+  check('anisotropic: long axis at least 3x the thin axis', ex / ey >= 3, `x/y ${f(ex / ey, 2)}`);
 }
 
 // -------------------------------------------------------------- the calm
@@ -230,52 +230,38 @@ console.log(`  peak |u - u*| over the second half of a 60s visit: ${f(lateCalmPe
 check('the harmonic plateaus rather than creeping', lateCalmPeak < ENGAGE_AT * 0.7, `${f(lateCalmPeak)}`);
 check('and still never engages after a minute', system.operator.adjustments === 0, `${system.operator.adjustments}`);
 
-// What the light actually reads.
+// How far each node actually travels, in the units a visitor sees.
 //
-// Pixel travel was the right metric for a line structure and is the wrong one
-// here: this surface is seen by its shading, and shading responds to *slope*,
-// not to height. With the key light raking at 0.075 radians above the plate, a
-// slope change of a hundredth of a radian swings N·L by more than a tenth. A
-// swelling far too shallow to see as a shape is unmissable, and a broad gentle
-// heave with no slope in it is invisible however far it moves.
-const DISPLACEMENT_SCALE = 0.9;   // CorrectionModel
-const LIGHT_ELEVATION = 0.075;    // CorrectionModel LIGHT.y
+// "Peak |u - u*|" is one number for the single most-displaced node at its
+// extreme, and it is not what makes a structure look alive: what matters is
+// whether a typical filament moves far enough to be seen at all. Reported in
+// screen pixels against the shipped camera, because sub-pixel motion on a
+// one-pixel line is not motion, it is shimmer.
+const DISPLACEMENT_SCALE = 2.8;   // CorrectionModel
+const PIXELS_PER_UNIT = 900 / (2 * 22.5 * Math.tan((30 / 2) * Math.PI / 180));
 
-const lowX = new Float32Array(graph.nodeCount).fill(Infinity);
-const highX = new Float32Array(graph.nodeCount).fill(-Infinity);
-const lowZ = new Float32Array(graph.nodeCount).fill(Infinity);
-const highZ = new Float32Array(graph.nodeCount).fill(-Infinity);
+const low = new Float32Array(graph.nodeCount).fill(Infinity);
+const high = new Float32Array(graph.nodeCount).fill(-Infinity);
 for (let t = 0; t < 1200; t++) {
   system.step();
-  if (t % 6) continue;
-  system.computeGradients();
-  for (let i = 0; i < graph.nodeCount; i++) {
-    const gx = system.gradientX[i];
-    const gz = system.gradientZ[i];
-    if (gx < lowX[i]) lowX[i] = gx;
-    if (gx > highX[i]) highX[i] = gx;
-    if (gz < lowZ[i]) lowZ[i] = gz;
-    if (gz > highZ[i]) highZ[i] = gz;
+  const u = system.simulation.u;
+  for (let i = 0; i < u.length; i++) {
+    if (u[i] < low[i]) low[i] = u[i];
+    if (u[i] > high[i]) high[i] = u[i];
   }
 }
-const swing = Array.from({ length: graph.nodeCount }, (_, i) =>
-  Math.hypot(highX[i] - lowX[i], highZ[i] - lowZ[i]) * DISPLACEMENT_SCALE
-).sort((a, b) => a - b);
-const q = (p) => swing[Math.floor(swing.length * p)];
+const travel = Array.from({ length: graph.nodeCount }, (_, i) => high[i] - low[i]).sort((x, y) => x - y);
+const at = (q) => travel[Math.floor(travel.length * q)] * DISPLACEMENT_SCALE * PIXELS_PER_UNIT;
 console.log(
-  `  slope swing over 10s of calm, as a fraction of the light's elevation:  ` +
-    `p10 ${f(q(0.1) / LIGHT_ELEVATION, 2)}  median ${f(q(0.5) / LIGHT_ELEVATION, 2)}  p90 ${f(q(0.9) / LIGHT_ELEVATION, 2)}`
+  `  travel over 10s of calm, px on screen:  p10 ${f(at(0.1), 1)}  median ${f(at(0.5), 1)}  ` +
+    `p90 ${f(at(0.9), 1)}  max ${f(at(0.999), 1)}`
 );
 
 check('the harmonic is not dead', calmPeak > EPSILON * 0.15, `${f(calmPeak)} > ${f(EPSILON * 0.15)}`);
 // Below about three pixels of travel a one-pixel line only changes its
 // antialiasing, which reads as faint noise rather than as a structure breathing.
-// Calibrated against the browser rather than picked: at a median slope swing of
-// 0.30 of the light's elevation, tools/correction-capture.mjs --motion measures
-// each covered pixel changing by a median of 28% of its own brightness, which
-// is plainly alive. The bars sit just under what has been seen to work.
-check('the calm changes the shading', q(0.5) >= LIGHT_ELEVATION * 0.28, `median ${f(q(0.5) / LIGHT_ELEVATION, 2)}x`);
-check('it changes it everywhere, not in a few spots', q(0.1) >= LIGHT_ELEVATION * 0.12, `p10 ${f(q(0.1) / LIGHT_ELEVATION, 2)}x`);
+check('a typical filament visibly moves', at(0.5) >= 3, `median ${f(at(0.5), 1)}px`);
+check('the calm moves everywhere, not in a few spots', at(0.1) >= 1.5, `p10 ${f(at(0.1), 1)}px`);
 
 // ------------------------------------------------------ one correction event
 
@@ -317,36 +303,6 @@ const trace = [];
 const touched = new Uint8Array(graph.nodeCount);
 let reachDistance = 0;
 
-const strikeX = graph.positions[target * 3];
-const strikeZ = graph.positions[target * 3 + 2];
-let worstRingCv = Infinity;
-let worstRingTick = 0;
-
-/** Angular variation of |u - u*| within annuli around the strike. */
-function ringVariation() {
-  const u = system.simulation.u;
-  const record = system.operator.record;
-  const width = 0.9;
-  const cvs = [];
-  for (let r = 1; r <= 10; r++) {
-    const inner = r * width;
-    const outer = inner + width;
-    let n = 0, sum = 0, sumSq = 0;
-    for (let i = 0; i < graph.nodeCount; i++) {
-      const d = Math.hypot(graph.positions[i * 3] - strikeX, graph.positions[i * 3 + 2] - strikeZ);
-      if (d < inner || d >= outer) continue;
-      const v = Math.abs(u[i] - record[i]);
-      n++; sum += v; sumSq += v * v;
-    }
-    if (n < 24) continue;
-    const mean = sum / n;
-    if (mean <= 1e-5) continue;
-    cvs.push(Math.sqrt(Math.max(sumSq / n - mean * mean, 0)) / mean);
-  }
-  cvs.sort((a, b) => a - b);
-  return cvs.length ? cvs[cvs.length >> 1] : Infinity;
-}
-
 for (let t = 0; t < TICKS; t++) {
   system.step();
   const deviation = system.peakDeviation();
@@ -374,13 +330,6 @@ for (let t = 0; t < TICKS; t++) {
     engagedSum += engaged;
   }
   engagedSeries.push(engaged);
-
-  // Only while the strike still dominates the ambient; after that the field is
-  // the calm again and its angular statistics say nothing about the event.
-  if (t % 8 === 0 && deviation > EPSILON * 2.5) {
-    const cv = ringVariation();
-    if (cv < worstRingCv) { worstRingCv = cv; worstRingTick = t; }
-  }
   if (flag('trace') && t % 24 === 0) {
     trace.push(
       `    t+${String(system.tick - injectTick).padStart(4)}  dev ${f(deviation, 3)}  ` +
@@ -424,16 +373,6 @@ console.log(
     `furthest ${f(reachDistance, 2)} units from the strike`
 );
 check('the deviation travels rather than blooming in place', reachDistance > 2.0, `${f(reachDistance, 2)} units`);
-
-// The concentric-ring guard, sampled while the front is actually travelling.
-//
-// The first version of this measured ten seconds after the strike, by which
-// time the deviation has spread everywhere and decayed into the ambient — it
-// was reporting the calm, not the event. Rings, if they exist, exist in the
-// first second.
-console.log(`  angular variation of the deviation within annuli, worst moment: ${f(worstRingCv, 3)} (at t+${worstRingTick})`);
-check('the deviation never resolves into rings', worstRingCv > 0.30, `CV ${f(worstRingCv, 3)}`);
-
 check('the ripple involves a readable share of the structure', touchedCount >= 120, `${touchedCount} nodes`);
 
 check('the deviation is visible before it is noticed', peakDeviation > THETA_ON + EPSILON, `${f(peakDeviation)}`);
@@ -448,68 +387,21 @@ check(
   firstEngageTick !== -1 && (lastEngageTick - firstEngageTick) * dt >= 0.25 && (lastEngageTick - firstEngageTick) * dt < 8,
   firstEngageTick === -1 ? 'never engaged' : ms(lastEngageTick - firstEngageTick)
 );
-// What is left behind, and whether it is ever noticed.
-//
-// A strike does not decay back to the record, and that is not a bug. The wave
-// operator restores a node toward its neighbours, not toward u*, so once
-// enforcement has pushed a region inside the band there is nothing left that
-// pulls it any closer. What remains is a permanent offset from the record,
-// below θ_on, which the system cannot see and therefore never corrects.
-//
-// That is the proposition, stated in the dossier as the sparse sensor: the file
-// tolerates invisible error while violently correcting visible deviation. The
-// claim worth testing is not that the residue decays — it is that it saturates
-// at the edge of what the system can see and never accumulates past it, however
-// many times the visitor presses.
-function peakOver(ticks) {
-  let peak = 0;
-  for (let t = 0; t < ticks; t++) {
-    system.step();
-    const d = system.peakDeviation();
-    if (d > peak) peak = d;
-  }
-  return peak;
-}
+// The world is returned below what the system will act on, not to the record.
+// Everything under θ_off is invisible to the operator by construction — this is
+// the sparse-sensor consequence the direction is built on, so asserting a
+// return to zero would be asserting against the model.
+const settledAt10s = system.peakDeviation();
+for (let t = 0; t < 1200; t++) system.step();
+const settledAt20s = system.peakDeviation();
+console.log(`  settle: |u-u*| ${f(settledAt10s)} at +10s  →  ${f(settledAt20s)} at +20s   (ambient floor ~${f(calmPeak)})`);
 
-const ENGAGE_THRESHOLD = SYSTEM.correction.thetaOn + EPSILON;
-const settledAfterOne = peakOver(1800);
-console.log(`  residue after one strike: ${f(settledAfterOne)}   (the calm alone peaks at ${f(calmPeak)})`);
-
-const beforeRepeats = system.operator.adjustments;
-for (let strike = 0; strike < 8; strike++) {
-  const node = (target * 7 + strike * 461) % graph.nodeCount;
-  system.inject(node, ENERGY);
-  peakOver(900);
-}
-const settledAfterNine = peakOver(2400);
-const quietStart = system.operator.adjustments;
-peakOver(3600);
-const unprompted = system.operator.adjustments - quietStart;
-
-console.log(
-  `  residue after nine strikes: ${f(settledAfterNine)}   engagement threshold ${f(ENGAGE_THRESHOLD, 2)}   ` +
-    `(${system.operator.adjustments - beforeRepeats} adjustments across the eight)`
-);
-
-// Saturation, tested as sub-linearity rather than as a ceiling. The residue
-// settles *at* the threshold, not below it — that is the predicted equilibrium,
-// since anything above θ_on is corrected and anything below is invisible — so a
-// strict ceiling fails by a thousandth while the mechanism is working perfectly.
-// What distinguishes saturation from accumulation is the slope: nine strikes
-// leave 0.049 of excess where one leaves 0.031, against 0.28 if it stacked.
-const excessOne = settledAfterOne - calmPeak;
-const excessNine = settledAfterNine - calmPeak;
-console.log(`  excess over the calm: ${f(excessOne)} after one, ${f(excessNine)} after nine (${f(excessNine / excessOne, 2)}x for 9x the input)`);
 check(
-  'the residue saturates instead of accumulating',
-  excessNine < excessOne * 3 && settledAfterNine <= ENGAGE_THRESHOLD * 1.05,
-  `${f(excessNine / excessOne, 2)}x for nine strikes, capped at ${f(settledAfterNine)}`
+  'the world is returned below the release threshold',
+  settledAt10s < SYSTEM.correction.thetaOff + EPSILON,
+  `${f(settledAt10s)} < ${f(SYSTEM.correction.thetaOff + EPSILON)}`
 );
-check(
-  'and the system never notices its own residue',
-  unprompted === 0,
-  `${unprompted} unprompted adjustments across 30s of quiet`
-);
+check('and keeps settling toward the ambient floor', settledAt20s < settledAt10s, `${f(settledAt20s)}`);
 check('enforcement released', system.operator.engagedCount() === 0, `${system.operator.engagedCount()} held`);
 // Duty cycle. The span between the first and last engagement means nothing on
 // its own: enforcement that flickers on for four ticks at a time inside a
@@ -596,7 +488,7 @@ check(
 // A different seed must not accidentally produce the same run.
 const other = new CorrectionSystem({
   ...SYSTEM,
-  surface: { ...DEFAULT_SURFACE, seed: DEFAULT_SURFACE.seed ^ 0x1234 },
+  synth: { ...DEFAULT_SYNTH, seed: DEFAULT_SYNTH.seed ^ 0x1234 },
 });
 other.warmUp();
 for (let t = 0; t < 900; t++) other.step();
