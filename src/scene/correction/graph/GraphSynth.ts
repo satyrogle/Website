@@ -75,6 +75,8 @@ export interface GraphSynthConfig {
    */
   rollSpread: number;
   rollDrift: number;
+  /** Fraction of a ribbon, at each end, given over to absorbing the wave. */
+  absorbSpan: number;
   /** Neighbouring ribbons each one is coupled to. Never drawn. */
   coupling: number;
   /** Strength of a coupling edge relative to a ribbon's own stiffness. */
@@ -100,6 +102,8 @@ export const DEFAULT_SYNTH: GraphSynthConfig = {
   halfWidth: 0.2,
   rollSpread: 1.5,
   rollDrift: 0.9,
+
+  absorbSpan: 0.08,
   coupling: 2,
   couplingWeight: 0.22,
 };
@@ -123,6 +127,17 @@ export interface SynthesisedGraph {
   };
   /** Position along the flow, 0..1, for the enforcement gain gradient. */
   depth: Float32Array;
+  /**
+   * Absorption per node: 0 through the body of a ribbon, rising to 1 at its
+   * ends.
+   *
+   * A ribbon is a finite chain with free ends, so a wave that reaches one
+   * reflects and comes back — and a strand carrying a pulse in both directions
+   * at once stops looking like a wave and starts looking like a tape being
+   * shaken. This is the sponge that swallows the front instead, so a deviation
+   * leaves and keeps leaving.
+   */
+  absorption: Float32Array;
   stats: {
     nodes: number;
     edges: number;
@@ -228,6 +243,7 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
   const binormals = new Float32Array(nodeCount * 3);
   const widths = new Float32Array(nodeCount);
   const depth = new Float32Array(nodeCount);
+  const absorption = new Float32Array(nodeCount);
 
   // ---------------------------------------------------------- integrate them
 
@@ -281,6 +297,11 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
       // an end cap, and an end cap is a piece of an object.
       const along = i / Math.max(count - 1, 1);
       widths[node] = config.halfWidth * Math.min(ease(along / 0.14), ease((1 - along) / 0.14));
+
+      // The sponge. Silent through the body, total at the tips, and eased so
+      // the wave meets no step it could reflect off in its own right.
+      const edge = Math.min(along, 1 - along) / config.absorbSpan;
+      absorption[node] = 1 - ease(edge);
 
       depth[node] = Math.min(Math.max((p[0] - config.origin) / (2 * -config.origin), 0), 1);
 
@@ -418,6 +439,7 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     bounds,
     layout: { count: ribbons, starts, lengths, widths, binormals },
     depth,
+    absorption,
     stats: {
       nodes: nodeCount,
       edges: edgeA.length,

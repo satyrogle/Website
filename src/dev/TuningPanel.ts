@@ -62,7 +62,7 @@ const KNOBS: Knob[] = [
 
   // How much of the structure one press moves, and how hard.
   { label: 'press energy', group: 'press', key: 'energy', min: 0.1, max: 14, step: 0.1, value: PRESS_ENERGY, source: 'PRESS_ENERGY' },
-  { label: 'press spread (hops)', group: 'press', key: 'hops', min: 1, max: 20, step: 1, value: INJECTION.hops, source: 'INJECTION.hops' },
+  { label: 'press radius', group: 'press', key: 'hops', min: 0.3, max: 6, step: 0.1, value: INJECTION.radius, source: 'INJECTION.radius' },
 
   // What the system notices, how long it waits, and how hard it pulls back.
   { label: 'sees violation above', group: 'correction', key: 'thetaOn', min: 0.01, max: 0.3, step: 0.005, value: DEFAULT_CORRECTION.thetaOn, source: 'DEFAULT_CORRECTION' },

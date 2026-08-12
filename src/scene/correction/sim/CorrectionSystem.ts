@@ -59,7 +59,12 @@ export class CorrectionSystem {
     this.synthesised = synthesiseGraph(config.synth);
 
     const { graph, bounds } = this.synthesised;
-    this.simulation = new CausalPulseSimulation(graph, bounds, config.wave);
+    this.simulation = new CausalPulseSimulation(
+      graph,
+      bounds,
+      config.wave,
+      this.synthesised.absorption
+    );
     this.operator = new CorrectionOperator(graph.nodeCount, config.correction);
     this.ambient = new AmbientHarmonic(graph.positions, config.ambient);
     this.recordSum = new Float64Array(graph.nodeCount);

@@ -109,7 +109,7 @@ const smoothstep = (t: number): number => {
  * amplitude at any one place falls; at the old energy the front travelled
  * properly and was too faint to see doing it.
  */
-export const PRESS_ENERGY = 3.2;
+export const PRESS_ENERGY = 5;
 
 /** Longest a touch can rest and still be a tap rather than a hold. */
 const TAP_MS = 350;

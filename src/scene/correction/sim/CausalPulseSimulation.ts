@@ -70,7 +70,21 @@ export const DEFAULT_WAVE: WaveParameters = {
 };
 
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
-export const INJECTION = { hops: 6 };
+export const INJECTION = {
+  /**
+   * Radius of the press, in world units.
+   *
+   * Spatial, not hops. Measured across graph hops the profile jumped between
+   * ribbons wherever a coupling edge happened to sit, so the initial bump was
+   * ragged before it had travelled anywhere — the wave was lumpy from the
+   * moment it was made. A smooth falloff over distance gives a clean pulse
+   * whatever the topology under it.
+   */
+  radius: 2.6,
+};
+
+/** How hard the ends of a ribbon swallow a wave that reaches them. */
+const ABSORB_STRENGTH = 6;
 
 export class CausalPulseSimulation {
   readonly nodeCount: number;
@@ -81,16 +95,28 @@ export class CausalPulseSimulation {
   /** Wave velocity. */
   readonly velocity: Float32Array;
 
+  /**
+   * Extra damping per node, from the synthesiser: nothing through the body of
+   * a ribbon, total at its ends. Without it a wave reaching a free end
+   * reflects and travels back through itself, and a strand carrying a pulse in
+   * both directions reads as a tape being shaken rather than as a wave. With
+   * it the front leaves and keeps leaving.
+   */
+  private readonly absorption: Float32Array;
+
   private readonly graph: CausalGraph;
   private readonly lapU: Float32Array;
-  /** Scratch for the injection flood fill. Reused so a press allocates nothing. */
-  private readonly injectHop: Int32Array;
-  private readonly injectFrontier: Uint32Array;
   private tickCount = 0;
   private injections = 0;
 
-  constructor(graph: CausalGraph, bounds: StabilityBounds, parameters: WaveParameters = DEFAULT_WAVE) {
+  constructor(
+    graph: CausalGraph,
+    bounds: StabilityBounds,
+    parameters: WaveParameters = DEFAULT_WAVE,
+    absorption?: Float32Array
+  ) {
     this.graph = graph;
+    this.absorption = absorption ?? new Float32Array(graph.nodeCount);
     this.parameters = parameters;
     this.nodeCount = graph.nodeCount;
 
@@ -106,8 +132,6 @@ export class CausalPulseSimulation {
     this.u = new Float32Array(graph.nodeCount);
     this.velocity = new Float32Array(graph.nodeCount);
     this.lapU = new Float32Array(graph.nodeCount);
-    this.injectHop = new Int32Array(graph.nodeCount);
-    this.injectFrontier = new Uint32Array(graph.nodeCount);
   }
 
   get tick(): number {
@@ -131,38 +155,22 @@ export class CausalPulseSimulation {
    */
   inject(nodeId: number, energy = 1): void {
     if (nodeId < 0 || nodeId >= this.nodeCount) throw new RangeError(`node ${nodeId} out of range`);
-    const { offsets, neighbours } = this.graph;
 
-    const radius = INJECTION.hops;
-    const hop = this.injectHop;
-    hop.fill(-1);
-    hop[nodeId] = 0;
+    const { positions } = this.graph;
+    const radius = INJECTION.radius;
+    const at = nodeId * 3;
 
-    // Breadth-first, so the frontier is complete before the next ring starts.
-    const frontier = this.injectFrontier;
-    frontier[0] = nodeId;
-    let count = 1;
-    let read = 0;
-
-    while (read < count) {
-      const i = frontier[read++];
-      const next = hop[i] + 1;
-      if (next > radius) continue;
-      for (let k = offsets[i]; k < offsets[i + 1]; k++) {
-        const j = neighbours[k];
-        if (hop[j] !== -1) continue;
-        hop[j] = next;
-        frontier[count++] = j;
-      }
-    }
-
-    // Fixed amplitude profile rather than fixed total energy. The visitor's
-    // press has to mean one thing everywhere: spreading a fixed energy budget
-    // over however many nodes happen to be nearby would make the same action
-    // produce a weaker deviation in a dense pocket than at the fringe.
-    for (let f = 0; f < count; f++) {
-      const i = frontier[f];
-      this.velocity[i] += 0.5 * (1 + Math.cos((Math.PI * hop[i]) / (radius + 1))) * energy;
+    // A raised cosine over distance. Smooth to its own edge, so the pulse has
+    // no corner in it anywhere — a bump with a discontinuous slope carries
+    // high spatial frequencies, and those disperse into the lumpy, ragged
+    // motion this is meant to avoid.
+    for (let i = 0; i < this.nodeCount; i++) {
+      const dx = positions[i * 3] - positions[at];
+      const dy = positions[i * 3 + 1] - positions[at + 1];
+      const dz = positions[i * 3 + 2] - positions[at + 2];
+      const d = Math.hypot(dx, dy, dz);
+      if (d >= radius) continue;
+      this.velocity[i] += 0.5 * (1 + Math.cos((Math.PI * d) / radius)) * energy;
     }
 
     this.injections++;
@@ -190,7 +198,8 @@ export class CausalPulseSimulation {
 
     for (let i = 0; i < n; i++) {
       // Symplectic Euler: velocity first, then position from the new velocity.
-      velocity[i] += (c2 * lapU[i] - waveDamping * velocity[i]) * dt;
+      const damping = waveDamping + this.absorption[i] * ABSORB_STRENGTH;
+      velocity[i] += (c2 * lapU[i] - damping * velocity[i]) * dt;
       u[i] += velocity[i] * dt;
     }
 

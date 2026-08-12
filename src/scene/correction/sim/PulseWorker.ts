@@ -331,7 +331,7 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
         if (!system) break;
         if (message.wave) Object.assign(system.simulation.parameters, message.wave);
         if (message.correction) Object.assign(system.operator.parameters, message.correction);
-        if (message.hops !== undefined) INJECTION.hops = message.hops;
+        if (message.hops !== undefined) INJECTION.radius = message.hops;
         break;
       }
 

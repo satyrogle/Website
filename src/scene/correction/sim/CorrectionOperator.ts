@@ -135,7 +135,7 @@ export const DEFAULT_CORRECTION: CorrectionParameters = {
   epsilon: 0.04,
   thetaOn: 0.14,
   thetaOff: 0.06,
-  holdTicks: 26,
+  holdTicks: 34,
   iterations: 6,
   stiffnessFrom: 0.0028,
   stiffnessTo: 0.15,
