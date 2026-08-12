@@ -148,13 +148,8 @@ export class FieldModel {
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
   private readonly forward = new THREE.Vector3();
-  private readonly scratch = new THREE.Vector3();
 
   constructor(options: FieldModelOptions = {}) {
-    const fragments = DEBRIS.map(
-      (f) => new THREE.Vector4(f.position.x, f.position.y, f.position.z, f.shell)
-    );
-    const rotations = DEBRIS.map((f) => f.rotation.clone());
 
     this.uniforms = {
       uResolution: { value: new THREE.Vector2(1, 1) },
@@ -163,51 +158,19 @@ export class FieldModel {
       uCamUp: { value: new THREE.Vector3(0, 1, 0) },
       uCamForward: { value: new THREE.Vector3(0, 0, -1) },
       uTanFov: { value: Math.tan((38 * Math.PI) / 360) },
-      uTime: { value: 0 },
       uBreath: { value: 0 },
       uSteps: { value: options.steps ?? 128 },
 
       uRecord: { value: new THREE.Color('#e7dcba') },
-      uWorld: { value: new THREE.Color('#4dd0ff') },
-      uConsequence: { value: new THREE.Color('#a45fd6') },
 
       uStarPos: { value: STAR_POSITION.clone() },
       uStarRadius: { value: STAR.radius },
       uStarGlow: { value: STAR.glow },
       uStarNoise: { value: STAR.noise },
       uEjecta: { value: STAR.ejecta },
-      uStarBody: { value: STAR.body },
-      uStarFrac: { value: STAR.frac },
-      uStarBreak: { value: STAR.break },
       // The rupture faces down the funnel — the direction the debris went, and
       // therefore the direction it was thrown.
-      uRupture: { value: AXIS.clone() },
-      uTrail: { value: TRAIL },
       uFlare: { value: 0 },
-      uAxis: { value: AXIS.clone() },
-      uConeR0: { value: CONE.r0 },
-      uConeSlope: { value: CONE.slope },
-      uConeLen: { value: CONE.length },
-      uDebrisCell: { value: DEBRIS_FIELD.cell },
-      uDebrisDensity: { value: DEBRIS_FIELD.density },
-
-      uFrag: { value: fragments },
-      uFragRot: { value: rotations },
-
-      uPanelFreq: { value: PLATING.freq },
-      uRelief: { value: PLATING.relief },
-      uGroove: { value: PLATING.groove },
-      uHeat: { value: PLATING.heat },
-      uLava: { value: LAVA },
-
-      uHover: { value: new THREE.Vector2(0, 0) },
-      uHoverStrength: { value: 0 },
-      uHoverRadius: { value: HOVER_RADIUS },
-      uHoverGain: { value: HOVER_GAIN },
-      uHoverFringe: { value: HOVER_FRINGE },
-
-      uGlow: { value: GLOW },
-      uDensity: { value: DENSITY },
       uExposure: { value: 1 },
     };
 
@@ -247,19 +210,30 @@ export class FieldModel {
     this.uniforms.uTanFov.value = Math.tan((camera.fov * Math.PI) / 360);
   }
 
+  /**
+   * Guarded, because this pass has shed most of its uniforms: the geometry it
+   * used to carry is authored meshes now. A setter that assumes a uniform
+   * still exists throws on the first frame and takes the whole scene with it,
+   * which is exactly what happened.
+   */
+  private set(key: string, value: number): void {
+    const uniform = this.uniforms[key];
+    if (uniform) uniform.value = value;
+  }
+
   setSize(width: number, height: number): void {
     (this.uniforms.uResolution.value as THREE.Vector2).set(width, height);
   }
 
   /** Step budget, from the quality tier. */
   setSteps(steps: number): void {
-    this.uniforms.uSteps.value = Math.max(24, Math.min(256, Math.round(steps)));
+    this.set('uSteps', Math.max(24, Math.min(256, Math.round(steps))));
   }
 
   /** Slow drift only. The debris is coasting, not animating. */
   setTime(seconds: number): void {
-    this.uniforms.uTime.value = seconds;
-    this.uniforms.uBreath.value = Math.sin(seconds * 0.11) * 0.6 + Math.sin(seconds * 0.07) * 0.4;
+    this.set('uTime', seconds);
+    this.set('uBreath', Math.sin(seconds * 0.11) * 0.6 + Math.sin(seconds * 0.07) * 0.4);
   }
 
   /**
@@ -272,28 +246,29 @@ export class FieldModel {
    * readout of where the visitor is, not a fuse that was lit.
    */
   setFlare(value: number): void {
-    const flare = Math.max(0, Math.min(1, value));
-    this.uniforms.uFlare.value = flare;
-    // The crust keeps coming apart as the event drives on, so the finale is
-    // the body opening further rather than a lamp being turned up.
-    this.uniforms.uStarBreak.value = STAR.break + FLARE_BREAK * flare;
+    this.set('uFlare', Math.max(0, Math.min(1, value)));
 
-    const fragments = this.uniforms.uFrag.value as THREE.Vector4[];
-    for (let i = 0; i < DEBRIS.length; i++) {
-      this.scratch.copy(DEBRIS[i].position).addScaledVector(DEBRIS[i].drift, flare);
-      fragments[i].set(this.scratch.x, this.scratch.y, this.scratch.z, DEBRIS[i].shell);
-    }
+
   }
 
   /** Where the pointer is, and how far the field has come up to meet it. */
+  /**
+   * Kept as a no-op while attention is re-pointed.
+   *
+   * Hovering used to warm the seams of an SDF surface; those surfaces are
+   * authored meshes now, so the response belongs on the fragment material and
+   * has not been rebuilt there yet. Silently doing nothing is honest; throwing
+   * is not.
+   */
   setHover(x: number, y: number, strength: number): void {
-    (this.uniforms.uHover.value as THREE.Vector2).set(x, y);
-    this.uniforms.uHoverStrength.value = Math.max(0, Math.min(1, strength));
+    void x;
+    void y;
+    void strength;
   }
 
   /** Cold-open reveal, and the machine-off cut. */
   setExposure(value: number): void {
-    this.uniforms.uExposure.value = value;
+    this.set('uExposure', value);
   }
 
   /** Development only: the field's numbers, live. */

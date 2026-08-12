@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 import { QualityManager } from './QualityManager';
-import { DEBRIS, FUNNEL, FieldModel } from './correction/FieldModel';
+import { FUNNEL, FieldModel, STAR_POSITION } from './correction/FieldModel';
+import { PlanetModel } from './correction/PlanetModel';
 import { PulseClient } from './correction/sim/PulseClient';
 
 /**
@@ -59,53 +60,77 @@ const asTriple = (v: THREE.Vector3): readonly [number, number, number] => [v.x, 
  * axis. The wide view at the floor is from far off to the side: the funnel is
  * seen as a trail, never as concentric depth.
  */
-const buildRail = (): Waypoint[] => {
+/**
+ * The rail, derived from the wreckage itself.
+ *
+ * The stops are the largest thrown fragments, in the order the blast threw
+ * them, so scroll travels *down the corridor* — from the pieces that got
+ * furthest, back toward the body that failed. Each stop stands off its own
+ * fragment by that fragment's own size, which is what keeps a continent-scale
+ * slab and a smaller chunk both framed as monumental rather than one of them
+ * filling the screen and the other vanishing.
+ *
+ * Waypoints are computed after the geometry loads, because a stop that is not
+ * derived from a real piece is a stop that can point at nothing.
+ */
+const buildRail = (planet: PlanetModel): Waypoint[] => {
   const { axis, lift, side } = FUNNEL;
   const waypoints: Waypoint[] = [];
+  const stops = [...planet.stops].reverse();
 
-  const first = DEBRIS[0];
-  const firstOut = first.position.clone().projectOnPlane(axis).normalize();
-  waypoints.push({
-    eye: asTriple(
-      first.position
-        .clone()
-        .addScaledVector(axis, 5.2)
-        .addScaledVector(firstOut, 3.4)
-        .addScaledVector(lift, 1.2)
-    ),
-    aim: asTriple(first.position.clone().multiplyScalar(0.78)),
-  });
+  const stand = (piece: (typeof stops)[number], reach: number): THREE.Vector3 => {
+    // Outward from the corridor and back up it, so the eye is beside the
+    // fragment with the source beyond it — never looking down the axis, which
+    // is the pose that stacks a debris trail into concentric depth.
+    const out = piece.home.clone().projectOnPlane(axis);
+    if (out.lengthSq() < 1e-4) out.copy(side);
+    out.normalize();
+    // Stand-off is in multiples of the piece's own radius, and it has to be
+    // generous: at 2.3 the camera sat inside the fragment it was framing.
+    // A slab wants to be seen whole, with void around it.
+    return piece.home
+      .clone()
+      .addScaledVector(out, piece.extent * reach)
+      .addScaledVector(axis, piece.extent * reach * 1.15)
+      .addScaledVector(lift, piece.extent * reach * 0.4);
+  };
 
-  for (const fragment of DEBRIS) {
-    const out = fragment.position.clone().projectOnPlane(axis).normalize();
+  if (stops.length) {
+    // Approach: the furthest-thrown piece, met from further out still, with
+    // the whole corridor and the distant source behind it. The visitor does
+    // not yet know what they are looking at.
     waypoints.push({
-      eye: asTriple(
-        fragment.position
-          .clone()
-          .addScaledVector(out, fragment.shell * 2.3)
-          .addScaledVector(axis, fragment.shell * 3.0)
-          .addScaledVector(lift, fragment.shell * 0.7)
-      ),
-      // Pulled slightly starward of the fragment, so the piece sits off-centre
-      // in frame with the throat of the funnel beyond it.
-      aim: asTriple(fragment.position.clone().multiplyScalar(0.84)),
+      eye: asTriple(stand(stops[0], 11.0)),
+      aim: asTriple(stops[0].home.clone().multiplyScalar(0.82)),
     });
   }
 
+  for (const piece of stops) {
+    waypoints.push({
+      eye: asTriple(stand(piece, 8.0)),
+      // Aimed past the fragment toward the source, so every stop also points
+      // at where all of this came from.
+      aim: asTriple(piece.home.clone().multiplyScalar(0.7)),
+    });
+  }
+
+  // The reveal. Far enough out, and square to the corridor, that the body,
+  // the slabs and the trail resolve into one event.
   waypoints.push({
     eye: asTriple(
       new THREE.Vector3()
-        .addScaledVector(side, 17.5)
-        .addScaledVector(lift, 6.0)
-        .addScaledVector(axis, 8.5)
+        .addScaledVector(side, 34)
+        .addScaledVector(lift, 12)
+        .addScaledVector(axis, 14)
     ),
-    aim: asTriple(new THREE.Vector3().addScaledVector(axis, 3.4)),
+    aim: asTriple(new THREE.Vector3().addScaledVector(axis, 9)),
   });
 
   return waypoints;
 };
 
-const RAIL = { waypoints: buildRail() };
+/** Filled once the geometry has loaded. */
+const RAIL: { waypoints: Waypoint[] } = { waypoints: [] };
 
 /**
  * The machine's visible life ends at narrative 0.82 — the editorial band owns
@@ -211,6 +236,7 @@ export class SceneController {
   readonly camera: THREE.PerspectiveCamera;
 
   model: FieldModel | null = null;
+  planet: PlanetModel | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private client: PulseClient | null = null;
@@ -338,7 +364,18 @@ export class SceneController {
     }
 
     this.model = new FieldModel();
+    // Behind everything: the source is light, and the wreckage stands in
+    // front of it.
+    this.model.group.renderOrder = -1;
     this.scene.add(this.model.group);
+
+    // The authored world. Real geometry, so this is genuine initialisation
+    // work and the loader is reporting it rather than counting down.
+    this.planet = new PlanetModel({ axis: FUNNEL.axis, starPosition: STAR_POSITION });
+    await this.planet.load();
+    this.scene.add(this.planet.group);
+    RAIL.waypoints = buildRail(this.planet);
+
     this.resize();
 
     // The first snapshot is drained so telemetry starts from the settled world
@@ -751,6 +788,8 @@ export class SceneController {
     this.model?.setCamera(this.camera);
     this.model?.setFlare(this.flareAt(this.progress));
     this.model?.setExposure(1);
+    this.planet?.setFlare(this.flareAt(this.progress));
+    this.planet?.setExposure(1);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -795,6 +834,7 @@ export class SceneController {
   /** A point on the rail, in world space, at rail parameter `t`. */
   private railPose(t: number, eye: THREE.Vector3, aim: THREE.Vector3): void {
     const points = RAIL.waypoints;
+    if (points.length < 2) return;
     const spans = points.length - 1;
     const scaled = Math.min(Math.max(t, 0), 1) * spans;
     const index = Math.min(Math.floor(scaled), spans - 1);
@@ -877,6 +917,9 @@ export class SceneController {
     this.model?.setCamera(this.camera);
     this.model?.setTime(now / 1000);
     this.model?.setFlare(this.flareAt(this.progress));
+    this.planet?.setTime(now / 1000);
+    this.planet?.setFlare(this.flareAt(this.progress));
+    this.planet?.setExposure(this.exposure);
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -895,6 +938,11 @@ export class SceneController {
       this.scene.remove(this.model.group);
       this.model.dispose();
       this.model = null;
+    }
+    if (this.planet) {
+      this.scene.remove(this.planet.group);
+      this.planet.dispose();
+      this.planet = null;
     }
     this.client?.dispose();
     this.client = null;

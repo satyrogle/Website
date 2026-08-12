@@ -1,115 +1,147 @@
-# THE HERO — the suspended aftermath of an exploded star
+# THE HERO — a ruptured planet and its debris
 
-**LOCKED by Jacob, 2026-08-12 (v3).** This supersedes both earlier versions in
-this file. Read it before touching the hero. Nothing rendered so far is final;
-everything to date is placeholder quality against this brief.
+**LOCKED by Jacob, 2026-08-12 (v4).** Supersedes every earlier version. Read
+before touching the hero. Nothing rendered so far is final.
 
-## The one-sentence lock
+## Success condition
 
-The hero is a dead or dying star that has already ruptured; enormous debris
-fragments drift outward through a black void, the scroll path carries us from
-fragment to fragment along the blast funnel, and the final beat pulls wide to
-reveal the whole shattered system and the continuing flare.
+A cold viewer must be able to say: *"I'm travelling through giant fragments
+from one exploding planet, and by the end I understand the whole shattered
+world and the direction of the blast."*
 
-## The core misread to kill
+If they say "cool floating sci-fi chunks", "space rocks", "procedural
+debris", or "glowing orb with pieces around it", the build has failed.
 
-The star was being treated like an object and the debris like interesting
-floating assets. The star is an **event** — the cause of everything else on
-screen — and every fragment is a piece of the **same catastrophic moment**.
+## The arc
 
-Reference: Loki season 1, episode 4–5 — the planet breaking up (Lamentis).
-Terrain-scale pieces torn loose, debris streaming along the pull, catastrophe
-suspended overhead. If exact stills land in `docs/reference/loki/`, match
-them; until then this brief is the reference.
+Local mystery → global revelation.
 
-## Kill these reads
+- **Early:** what are these huge broken structures in the void?
+- **Mid:** these fragments all belonged to the same body.
+- **Final:** I have been travelling through the aftermath of a
+  planetary-scale explosion.
 
-- clean white orb
-- neat space sculpture
-- isolated chunks / floating game props
-- glowing plated assets
-- ring-adjacent anything
-- tidy spherical fragments
+## The body stays recognisable
 
-## Push these reads
+At the wide reveal the viewer must perceive that this *was one spherical
+planet*. Keep roughly **55–70% of the silhouette inferable**, with enormous
+missing sections and multiple continent-scale slabs torn away. Large crust
+plates still sit approximately in their original spherical positions while
+other slabs have been thrown far down the blast direction.
 
-- rupture; blast source; incandescent fracture
-- shared origin; suspended aftermath
-- catastrophic stillness; slow outward continuation
-- void-scale procession
+Not neatly broken in half: partially cracked, partially blown open, giant
+crustal wedges displaced, plates peeling back, interior escaping.
 
-## The star
+## Fragment hierarchy — critical
 
-Bright unstable core, overexposed where hottest. Rough luminous envelope,
-dirtier and softer at the edges. Uneven flare. Particulate / gaseous ejecta
-around it. Irregular — never a perfect circle edge, never a tidy halo. An
-explosion that has not finished, not a lamp in space.
+Everything currently has similar importance. It must not.
 
-## The fragments
+```
+A  ONE recognisable ruptured planetary body
+B  2–4 continent-scale crustal slabs, still visually related to it
+C  10–20 major secondary chunks, obvious common origin
+D  dozens of medium ejecta along the blast direction
+E  sparse fine debris / particulate — never noisy
+```
 
-All from one destroyed body: dark burned crust, consistent material language
-(the approved plating), glowing fracture edges, incandescent exposed
-interiors. Varied without breaking kinship — some huge and near, some small
-and distant, some hollow, some plate-like, some trailing ejecta. Never: one
-reads rock, another sci-fi armour, another abstract geometry.
+## Material language
 
-## The debris field
+Every fragment must feel torn from the same world.
 
-Debris **everywhere**, not five props in a void. The five great fragments are
-the scroll stops; around and between them the blast field carries countless
-smaller shards, densest inside the funnel, thinning at its edges. The wide
-reveal only works if the field is populated enough for the blast structure to
-be legible.
+- **Exterior crust:** very dark, dry, dead, cracked, heavy, almost black
+  with extremely restrained warm response.
+- **NO GRID.** A repeating lattice across every surface is the single most
+  damaging fault in the current build — it makes every piece read as a
+  manufactured procedural object. If a semi-constructed read is wanted, do
+  it through buried panel logic, strata, interrupted systems, partial
+  engineered ribs *inside fracture zones* — never a grid on every surface.
+- **Thickness:** major slabs must expose cross-sections. Kilometres of
+  crust ripped apart, not cards, shells or shards.
+- **Fracture light only:** glow belongs to fresh broken surfaces and
+  exposed heat, never to every silhouette equally.
 
-## The geometry
+```
+dark crust
+  → glowing fracture seam
+  → white-hot core edge
+  → amber-hot inner material
+  → cooler falloff deeper into the fragment
+```
 
-A broad conical blast funnel. Star near one end; fragments distributed
-outward; nearest pieces larger in frame; the rail snakes through them; the
-late pull-wide reveals the overall structure. Not a tunnel, not a ring, not
-random scatter. The viewer experiences local fragments first and understands
-the catastrophic geometry only at the end.
+## The core
 
-## The scroll
+The light source is the planet's own interior energy escaping through a
+failing shell. Partially occluded by shell fragments; escaping through
+cracks, fissures and blown-open gaps; shaped light, never uniform flood.
+Unstable, overpressured, too bright to fully look at. Never a bare white
+ball, clean lamp, symmetric disc or ring.
 
-Fragment 1 → 2 → 3 → 4 → 5 → wide reveal + flare. Later: 1 = thesis,
-2 = Desk42, 3 = Brawler, 4 = technology, 5 = studio/contact, reveal = the
-event / record / consequence.
+## Blast funnel
 
-## The final beat
+Fragments share an intelligible explosive origin and a readable direction —
+not a tunnel, not a straight line, not random scatter. Offset depth, angle
+and scale heavily. The viewer should eventually grasp where the source is
+and which way the debris went.
 
-Camera pulls wide enough to show star and debris field as one system. The
-funnel becomes legible. The star flares harder; fragments shift outward along
-their established trajectories; the system feels like it is still expanding.
-Record text appears over the event. This is the "oh shit" moment, not another
-section stop.
+## Scroll dramaturgy
 
-## The void
+Open close to one enormous fragment — close enough to feel scale and
+material, not so close it turns abstract. Travel fragment to fragment, each
+a section stop, each revealing more of the catastrophe. Mid-journey the
+common origin becomes apparent. Near the end pull wide to reveal the body,
+the slabs and the corridor; then the core flares harder and fragments push
+outward, so the catastrophe feels alive and continuing.
 
-Mostly black. No starfield wallpaper, no nebula gradients, no cosmic
-backdrop, no particle spam. Emptiness earns the scale.
+Each stop needs clean negative space for editorial content, a readable
+silhouette, and enough uniqueness to be memorable.
+
+## Palette
+
+Black void; charcoal blackened crust; white-hot to amber-gold rupture light;
+near-white text with muted amber accents. No blues, no nebula gradients, no
+cyberpunk palettes, no candy lava. Premium and brutal, not pretty.
 
 ## Motion
 
-Ambient: tiny drift, slight roll, restrained. Scroll: travel between stops,
-reorientation, progressive reveal. Flare: intensifies star output, brightens
-fracture edges, pushes debris slightly outward — a continuation of the
-explosion, never a UI flash or bloom spam.
+Slow heavy fragment drift, subtle rotational drift, tiny ejecta motion,
+restrained thermal shimmer near hot seams. Massive objects: nothing wobbles.
+Scroll is cinematic, processional, weighty, inevitable. The final flare is a
+continuation of rupture, not a screen flash.
 
-## THE CORRECTION inside this direction
+## Pipeline — authored geometry is approved
 
-Prioritise the star/debris journey first. The correction logic returns later
-as the interpretive layer — the route and record imposed over the aftermath
-(counters, YOUR RECORD, adjustments). If a hero-level correction event is
-wanted eventually: a fragment system begins to diverge, an invisible control
-reasserts alignment, counters track it. Not before the visual direction
-lands.
+**Jacob, 2026-08-12, explicitly:** authored meshes do not violate the live-3D
+requirement. Building fractured planetary geometry in Blender, exporting
+glTF, and staging it in Three.js keeps everything real-time and explorable —
+fly through it, rotate it, shade it, drift it, explode it further. That is
+not pre-rendering, and the earlier objection to it was wrong.
 
-## Approved, still
+Division of labour:
 
-The plating texture and the ray-accumulated glow (including hover). The
-funnel concept and the rail-derived-from-debris mechanism.
+- **Blender (authored):** the ruptured body, continent slabs, major
+  fragments, layered break surfaces, damaged topology, LOD variants.
+- **Code (procedural):** debris placement, funnel distribution, drift,
+  rotation, scroll rail, explosion continuation, molten shader, ejecta.
 
-## Guardrails that still bind
+Do not reject authored geometry on ideological grounds. Procedural-only
+primitives have now produced ribbons → cutting board, lamellae → hanging
+anatomy, implicit field → skin disease, fragments → gridded boxes. A dying
+planet is a form problem, and we know what it should look like.
 
-No rings and no concentric reads from any pose. No new dependencies. Locked
-stack. Typography clean and secondary to the event.
+This supersedes the `HERO GLB` vocabulary ban, which belonged to the retired
+entity work and to pre-rendered assets, not to authored live geometry.
+
+## Execution order — do not optimise the wrong layer first
+
+1. Main body and major fragments read as **one ruptured planet**.
+2. Material language: real crust, hot interior fracture.
+3. Debris hierarchy and blast direction legible.
+4. Scroll path legible fragment to fragment.
+5. Final wide reveal monumental and conclusive.
+6. Only then light, particles, secondary motion.
+
+## Never
+
+Abstract entities. A white-disc core. Cube/box fragments. Grid on every
+surface. Debris as random clutter. A busy void. Equal glow on everything.
+A small or quick final reveal. A space background with UI on top.
