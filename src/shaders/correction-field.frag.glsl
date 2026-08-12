@@ -54,8 +54,13 @@ uniform float uWarp;
 
 uniform vec3 uCore;
 uniform float uCoreRadius;
-uniform float uFissureScale;
-uniform float uFissureDepth;
+uniform float uPanelFreq;
+uniform float uRelief;
+uniform float uGroove;
+uniform float uTrench;
+uniform float uRadius;
+uniform vec3 uDish;
+uniform float uDishRadius;
 uniform float uHeat;
 
 /** Pointer in NDC, and how far the field has come up to meet it. */
@@ -108,123 +113,96 @@ float core(vec3 p) {
   return d * uCoreRadius;
 }
 
-/**
- * The crazing on a cooled crust.
- *
- * Returns roughly 0 across the faces and rises toward 1 along the fissures.
- * The coordinate is warped before the sines are taken, so the zero set is an
- * irregular network instead of the axis-aligned lattice three multiplied sines
- * would otherwise give — a grid here would be a visible primitive by another
- * name, and that rule has outlived five carriers.
- */
-float fissure(vec3 p) {
-  vec3 w = p * uFissureScale;
-  w += 0.75 * vec3(
-    sin(w.y * 1.31 + 0.7),
-    sin(w.z * 1.07 - 1.3),
-    sin(w.x * 1.73 + 2.1)
-  );
-  float veins = abs(sin(w.x) * sin(w.y) * sin(w.z));
-  return pow(1.0 - clamp(veins * 3.4, 0.0, 1.0), 3.0);
+float hash31(vec3 c) {
+  return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
 }
 
 /**
- * The field.
+ * The seams between plates.
  *
- * A large irregular mass with architecture carved out of it, at four scales,
- * each rotated on an axis the previous one does not share.
+ * Returns roughly 0 across a plate face and rises to 1 in the groove between
+ * plates. The emission term reads it, so light collects in the seams of the
+ * armour rather than on its faces — which is the same accumulation the glow
+ * already used, pointed at a machine instead of at geology.
+ */
+float fissure(vec3 p) {
+  vec3 g = abs(fract(p * uPanelFreq) - 0.5);
+  float seam = min(min(g.x, g.y), g.z);
+  float fine = min(min(
+    abs(fract(p.x * uPanelFreq * 3.1) - 0.5),
+    abs(fract(p.y * uPanelFreq * 3.1) - 0.5)),
+    abs(fract(p.z * uPanelFreq * 3.1) - 0.5));
+  return max(
+    1.0 - smoothstep(0.0, 0.055, seam),
+    (1.0 - smoothstep(0.0, 0.03, fine)) * 0.45
+  );
+}
+
+/**
+ * The field: an armoured sphere.
  *
- * The first version of this folded space nine times with a small contraction
- * and produced detail at exactly one scale — a uniform crust over a blobby
- * silhouette. Founder verdict: "this looks like a skin disease." He was right,
- * and it was the same fault as the choir wearing different material: texture
- * with no hierarchy. Uniform detail is noise whatever generates it.
+ * The previous body was an irregular warped mass and it was unreadable —
+ * founder verdict, and correct: a shape you cannot name is not automatically a
+ * shape that means something. "No visible primitives" was a rule about
+ * *material*, about being able to see the sticks and plates a thing was
+ * assembled from. It was never a licence to make the silhouette illegible.
+ * A coherent body covered in detail you cannot resolve is the target; an
+ * amorphous blob is just the same failure wearing mathematics.
  *
- * So the structure now has three reads, the way the composition always needed:
+ * So: a sphere, plated. Rectilinear armour panels at two scales, each plate
+ * sitting at its own slight height, with grooves cut along every seam. One
+ * enormous concave dish taken out of it, off-centre. Broad trenches cutting
+ * across the plating, offset and broken rather than running as one clean
+ * equator — a single continuous equatorial band is a ring, and that rule has
+ * outlived five carriers.
  *
- *   MACRO   an irregular silhouette from blended volumes and a domain warp,
- *           with a large absence subtracted from it
- *   MESO    openings, corridors and shafts cut clean through the mass by the
- *           first carve, at a scale you could walk through
- *   MICRO   the same cut repeated three times smaller each pass, so edges
- *           keep resolving into finer edges as the camera closes
- *
- * The carve is a cross-section subtraction — the operation that turns a solid
- * into architecture rather than into crust. It leaves flat faces, straight
- * edges and deep square shafts, which is where "impossible machine" and
- * "sacred architecture" come from; the rotations between passes are what stop
- * it from reading as a grid, and the warp is what stops the outer boundary
- * from reading as the primitive it started as.
+ * The relief is applied to the radius rather than folded into space, so the
+ * body stays legible at every distance: a machine the size of a moon, whose
+ * surface keeps resolving into more machine as you approach.
  */
 float field(vec3 p) {
-  // Large-scale warp first, so everything after it is applied to space that is
-  // already bent. Non-radial by construction: each component is driven by a
-  // different pair of the others, so there is no centre to organise around.
   vec3 q = p;
-  q += uWarp * vec3(
-    sin(q.y * 0.31 + 1.7) * cos(q.z * 0.24 - 0.9),
-    sin(q.z * 0.27 + 0.4) * cos(q.x * 0.21 + 2.1),
-    sin(q.x * 0.23 + 2.9) * cos(q.y * 0.19 - 1.4)
+
+  // A little warp, only enough that the horizon is not a perfect circle.
+  // Any more and the body stops being one thing again.
+  q += uWarp * 0.14 * vec3(
+    sin(q.y * 0.51 + 1.7),
+    sin(q.z * 0.43 + 0.4),
+    sin(q.x * 0.37 + 2.9)
   );
 
-  // The mass. One body, not a heap.
-  //
-  // Two blended volumes with bites taken out of them read as rubble — the
-  // outline had no intent behind it. A dead star is one thing that collapsed,
-  // so this is a single slightly flattened spheroid, made irregular by the
-  // warp rather than by being built out of parts, with one large break taken
-  // out of it. Coherent, and still not nameable: the warp is strong enough
-  // that no direction shows you an ellipse.
-  float d = (length(q / vec3(3.25, 2.45, 2.85)) - 1.0) * 2.45;
+  float r = length(q);
 
-  // The break. One deliberate loss, not a scatter of dents.
-  float broken = (length((q - vec3(-3.4, 2.5, 2.1)) / vec3(2.9, 2.5, 2.7)) - 1.0) * 2.5;
-  d = max(d, -broken);
+  // Armour plating: two scales of blocky relief, each plate at its own height.
+  float coarse = hash31(floor(q * uPanelFreq));
+  float fine = hash31(floor(q * uPanelFreq * 3.1) + 17.3);
+  float relief = (coarse * 0.62 + fine * 0.38 - 0.5) * uRelief;
 
-  // Breathing lives in the carve's offset, so the architecture reorganises
-  // very slightly rather than the whole form drifting. This is the only thing
-  // moving in the approved state and it is meant to be barely detectable.
-  float breath = uFoldOffset * 0.1 + uBreath * 0.012;
+  // Grooves along every seam, cut into the plating.
+  float seams = fissure(q) * uGroove;
 
-  vec3 axisA = normalize(vec3(0.41, 0.83, -0.37));
-  vec3 axisB = normalize(vec3(-0.72, 0.28, 0.63));
+  float surface = uRadius + relief - seams;
 
-  vec3 c = q;
-  float s = uScale;
+  // Trenches. Three broad cuts on unrelated axes, each offset from the centre
+  // and each broken by the plating it crosses — the Death Star's equator read
+  // as a machined channel, not as a drawn circle.
+  vec3 t = q;
+  float trench = 1e9;
+  trench = min(trench, abs(dot(t, normalize(vec3(0.08, 1.0, 0.05))) - 0.35) - 0.16);
+  trench = min(trench, abs(dot(t, normalize(vec3(0.94, 0.22, -0.26))) + 1.55) - 0.10);
+  trench = min(trench, abs(dot(t, normalize(vec3(-0.31, 0.42, 0.85))) - 2.05) - 0.07);
+  surface -= (1.0 - smoothstep(0.0, 0.09, max(trench, 0.0))) * uTrench;
 
-  for (int i = 0; i < ITERATIONS; i++) {
-    float fi = float(i);
+  float d = r - surface;
 
-    // Rotated before every carve, on two axes that advance independently. A
-    // carve repeated on fixed axes is a grid, and a grid is a visible
-    // primitive by another name.
-    c = turn(c, axisA, 0.5 + fi * 0.37);
-    c = turn(c, axisB, -0.31 + fi * 0.213);
-    c += breath;
+  // The dish. One enormous concavity, off the centre of the face, and the
+  // absence the whole composition is organised around.
+  float dish = length(q - uDish) - uDishRadius;
+  d = max(d, -dish);
 
-    vec3 cell = mod(c * s, 2.0) - 1.0;
-    s *= 3.0;
-
-    vec3 r = abs(1.0 - 3.0 * abs(cell));
-    float shaft = (min(min(max(r.x, r.y), max(r.y, r.z)), max(r.z, r.x)) - 1.0) / s;
-
-    // Subtraction, not union. This is the whole difference between carving a
-    // solid and encrusting one.
-    d = max(d, shaft);
-  }
-
-  // The dead star's crazing.
-  //
-  // A crust that cooled and split. The pattern is a warped interference of
-  // three sine families, so its zero set is a network of irregular fissures
-  // rather than a lattice of planes — and the fissures cut *into* the mass,
-  // which is why light gathers in them rather than sitting on them. What is
-  // left glowing is residual heat in the cracks of something that has gone
-  // out, which is the same statement the amber has always made: the light you
-  // can see is a record of a state, not the state itself.
-  d -= fissure(q) * uFissureDepth;
-
-  return d;
+  // Give the estimator some slack: the relief is not Lipschitz-1, so the march
+  // takes shorter steps rather than overshooting through a plate edge.
+  return d * 0.55;
 }
 
 /** The field with the absence removed from it. */

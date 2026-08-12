@@ -48,14 +48,29 @@ export const ROUND = 0.14;
 export const WARP = 2.2;
 
 /** Where the absence sits, and how large it is. Off-centre by mandate. */
-export const CORE = { x: 1.55, y: 0.85, z: -0.7 };
-export const CORE_RADIUS = 2.6;
+export const CORE = { x: 1.62, y: 1.05, z: 2.15 };
+export const CORE_RADIUS = 0.9;
 
 /**
  * The dead star's crazing: how fine the fissure network is, how deep the
  * cracks cut, and how much residual heat sits in them.
  */
-export const FISSURE = { scale: 1.45, depth: 0.16, heat: 1.6 };
+export const PLATING = {
+  /** Armour plate size. Higher is finer greebling. */
+  freq: 1.9,
+  /** How far plates sit above and below each other. */
+  relief: 0.075,
+  /** How deep the seams are cut between plates. */
+  groove: 0.05,
+  /** How deep the trenches cut across the plating. */
+  trench: 0.22,
+  /** Light held in the seams. */
+  heat: 1.6,
+};
+
+/** The body, and the dish taken out of it. */
+export const RADIUS = 3.05;
+export const DISH = { x: 1.62, y: 1.05, z: 2.15, radius: 1.62 };
 
 /**
  * How the field answers a pointer held over it: how far attention reaches,
@@ -113,9 +128,14 @@ export class FieldModel {
 
       uCore: { value: new THREE.Vector3(CORE.x, CORE.y, CORE.z) },
       uCoreRadius: { value: CORE_RADIUS },
-      uFissureScale: { value: FISSURE.scale },
-      uFissureDepth: { value: FISSURE.depth },
-      uHeat: { value: FISSURE.heat },
+      uPanelFreq: { value: PLATING.freq },
+      uRelief: { value: PLATING.relief },
+      uGroove: { value: PLATING.groove },
+      uTrench: { value: PLATING.trench },
+      uRadius: { value: RADIUS },
+      uDish: { value: new THREE.Vector3(DISH.x, DISH.y, DISH.z) },
+      uDishRadius: { value: DISH.radius },
+      uHeat: { value: PLATING.heat },
       uHover: { value: new THREE.Vector2(0, 0) },
       uHoverStrength: { value: 0 },
       uHoverRadius: { value: HOVER_RADIUS },
