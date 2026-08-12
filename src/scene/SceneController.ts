@@ -286,10 +286,11 @@ export class SceneController {
     if (document.hidden) {
       this.stop();
       this.client?.setRunning(false);
-    } else if (!this.disposed && this.machineOn) {
+    } else if (!this.disposed && this.machineOn && !this.reducedMotion) {
       // Only resume what the narrative says should be running: returning to
       // the tab while the visitor is reading the editorial must not restart
-      // the machine behind it.
+      // the machine behind it, and the reduced-motion world does not run at
+      // all after boot.
       this.client?.setRunning(true);
       this.start();
     }
@@ -361,6 +362,18 @@ export class SceneController {
   pressAt(clientX: number, clientY: number, tolerance?: number): number {
     if (!this.model || !this.client) return -1;
     if (this.pressesLeft <= 0) return -1;
+
+    // Only while there is something to press.
+    //
+    // Past the floor the machine is off and the editorial's own ground is
+    // covering the canvas — but a raycast does not know that, so a click on
+    // body copy was reaching through it, spending budget on a deviation
+    // nobody could see and parking it in a paused Worker to erupt whenever
+    // the visitor scrolled back up. Under reduced motion the same press went
+    // into a world that is never re-rendered. In both cases the action has no
+    // consequence the visitor can observe, and an action without an
+    // observable consequence is the one thing this interaction cannot be.
+    if (!this.machineOn || this.reducedMotion) return -1;
 
     this.pointerNdc.set(
       (clientX / window.innerWidth) * 2 - 1,
@@ -466,8 +479,14 @@ export class SceneController {
     this.machineOn = running;
 
     if (running) {
+      // Reduced motion is deliberately not resumed. Its world was stepped
+      // once, at boot, to produce the triptych and the state behind it; there
+      // is no render loop consuming snapshots, so resuming the Worker would
+      // advance the simulation where nobody can see it and leave the held
+      // frame describing a past that no longer matches the counters.
+      if (this.reducedMotion) return;
       this.client?.setRunning(true);
-      if (!this.reducedMotion) this.start();
+      this.start();
     } else {
       this.stop();
       this.client?.setRunning(false);

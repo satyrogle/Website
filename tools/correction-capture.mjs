@@ -347,6 +347,18 @@ if (flag('editorial')) {
       `(${machine.tick === stillOff.tick ? 'OFF' : 'STILL RUNNING'})`
   );
 
+  // A press while the machine is off must not reach through the ground and
+  // spend budget on a deviation nobody can see.
+  const offPath = await page.evaluate(() => {
+    const before = window.__correction?.budget ?? -1;
+    window.__correction?.press(700, 450);
+    return { before, after: window.__correction?.budget ?? -1 };
+  });
+  console.log(
+    `  press at the editorial: budget ${offPath.before} -> ${offPath.after} ` +
+      `(${offPath.before === offPath.after ? 'REFUSED' : 'REACHED THROUGH THE GROUND'})`
+  );
+
   // Back up the page. The machine restarts where it was left, not where it
   // started: the count and the damage do not rewind.
   await scrollToBand('floor');
