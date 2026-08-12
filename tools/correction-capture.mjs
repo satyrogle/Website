@@ -438,6 +438,28 @@ if (flag('record')) {
   await clean.close();
 }
 
+if (flag('og')) {
+  console.log('\nSOCIAL CARD');
+
+  // The card is the opening frame, shot at the size the meta tags declare and
+  // written straight into public/. It used to be a render of the retired
+  // object, which meant the first thing anyone saw of the site was the
+  // graveyard. Regenerating it from the running page is the only way it stays
+  // true to whatever the site actually is.
+  const card = await browser.newContext({
+    viewport: { width: 1200, height: 630 },
+    deviceScaleFactor: 2,
+  });
+  const framed = await card.newPage();
+  await framed.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await framed.waitForTimeout(7000);
+  const jpeg = await framed.screenshot({ type: 'jpeg', quality: 88 });
+  await writeFile(path.resolve('public/social/og-dark-lattice.jpg'), jpeg);
+  console.log(`  public/social/og-dark-lattice.jpg  ${(jpeg.length / 1024).toFixed(0)}kB at 2400x1260`);
+  await framed.close();
+  await card.close();
+}
+
 if (flag('paths')) {
   console.log('\nTHE OTHER PATHS');
 

@@ -10,11 +10,10 @@ import { PulseClient } from './correction/sim/PulseClient';
  * Owns the renderer, the single persistent scene and the frame loop, and
  * exposes the small surface the scroll director is allowed to touch.
  *
- * The live path is THE CORRECTION: a synthesised structure stepped in a Worker
- * and drawn from authoritative snapshots. `LatticeModel`, `ReactionField`,
- * `Lighting`, `CameraRig` and `PostPipeline` are the retired entity system —
- * they remain in the tree but are no longer wired, and step 8 of the build plan
- * retires them from the build.
+ * There is one path and it is THE CORRECTION: a synthesised structure stepped
+ * in a Worker and drawn from authoritative snapshots. The retired entity
+ * system that used to sit alongside it is gone from the tree entirely; git
+ * history is where it lives now.
  *
  * No caller can swap scenes, reseed the graph or rebuild the structure, which
  * is what keeps the site a single continuous world by construction.
