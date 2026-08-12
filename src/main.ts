@@ -88,7 +88,11 @@ function enterFallback(reason: string): void {
 
 async function boot(): Promise<void> {
   // 1 — DOM narrative and controls. Always runs, never blocks on 3D.
-  a11y.init((index) => scene?.focusLayer(index));
+  //
+  // The foundation tablist no longer echoes into the scene: layer focus
+  // belonged to the retired lattice. The tabs themselves are unaffected —
+  // they switch panels as before — so nothing on screen is dead.
+  a11y.init();
   reveals.init();
   setLoaderProgress(0.1);
 
@@ -124,19 +128,20 @@ async function boot(): Promise<void> {
   }
   setLoaderProgress(0.55);
 
-  // 4 — Grow the reaction field. This is the bulk of the real
-  //     initialisation work and the main thing the loader is measuring:
-  //     Gray–Scott needs thousands of iterations before it looks like
-  //     anything, and the hero has to land developed rather than
-  //     visibly filling in over the first fifteen seconds.
+  // 4 — Synthesise the structure, run it unsupervised, and take the
+  //     record from the result. This is the bulk of the real
+  //     initialisation work and the main thing the loader is measuring.
+  //     It is also the one stretch of the run in which nothing is
+  //     enforcing anything, which is why the record can be derived from
+  //     it rather than authored.
   try {
-    await scene.warmUpField(
-      repeatVisit ? 800 : 2400,
-      repeatVisit ? 600 : 1500,
-      (fraction) => setLoaderProgress(0.55 + fraction * 0.32)
-    );
+    await scene.warmUp((fraction) => setLoaderProgress(0.55 + fraction * 0.32));
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('[dark-lattice] warm-up skipped', error);
+    scene.dispose();
+    scene = null;
+    enterFallback(String(error));
+    reveals.revealHero();
+    return;
   }
 
   setLoaderProgress(0.88);
@@ -218,6 +223,19 @@ document.addEventListener('layoutchange', () => {
 
 if (import.meta.env.DEV) {
   verifyEvidenceIntegrity();
+
+  // Development handle. The counters the system derives are the only honest
+  // evidence that enforcement happened, and they live inside the Worker — this
+  // is how a capture harness or a console reads them. DEV only: it is not in
+  // the production bundle.
+  Object.defineProperty(window, '__correction', {
+    value: {
+      get telemetry() {
+        return scene?.telemetry ?? null;
+      },
+      press: (x: number, y: number) => scene?.pressAt(x, y) ?? -1,
+    },
+  });
 }
 
 if (document.readyState === 'loading') {

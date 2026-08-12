@@ -1,11 +1,8 @@
 import * as THREE from 'three';
 
-import { QualityManager, type QualitySettings } from './QualityManager';
-import { ReactionField, type PresetName } from './ReactionField';
-import { LatticeModel } from './LatticeModel';
-import { CameraRig } from './CameraRig';
-import { Lighting } from './Lighting';
-import { PostPipeline } from './PostPipeline';
+import { QualityManager } from './QualityManager';
+import { CorrectionModel } from './correction/CorrectionModel';
+import { PulseClient } from './correction/sim/PulseClient';
 
 /**
  * SceneController
@@ -13,20 +10,19 @@ import { PostPipeline } from './PostPipeline';
  * Owns the renderer, the single persistent scene and the frame loop, and
  * exposes the small surface the scroll director is allowed to touch.
  *
- * Everything the narrative can change is a parameter of one continuous
- * system — field rates, layer offsets, layer focus, camera progress. No
- * caller can swap scenes, reseed the field or rebuild the object, which
+ * The live path is THE CORRECTION: a synthesised structure stepped in a Worker
+ * and drawn from authoritative snapshots. `LatticeModel`, `ReactionField`,
+ * `Lighting`, `CameraRig` and `PostPipeline` are the retired entity system —
+ * they remain in the tree but are no longer wired, and step 8 of the build plan
+ * retires them from the build.
+ *
+ * No caller can swap scenes, reseed the graph or rebuild the structure, which
  * is what keeps the site a single continuous world by construction.
  */
 
 export interface SceneOptions {
   canvas: HTMLCanvasElement;
   reducedMotion: boolean;
-}
-
-function smoothstep01(x: number): number {
-  const t = Math.min(Math.max(x, 0), 1);
-  return t * t * (3 - 2 * t);
 }
 
 export function isWebGL2Available(): boolean {
@@ -38,42 +34,59 @@ export function isWebGL2Available(): boolean {
   }
 }
 
+/**
+ * The opening camera.
+ *
+ * Deliberately off every axis of the structure. A view down a clean central
+ * axis is how the retired tunnels read as concentric rings, and the rule
+ * outlived them: the veil is met obliquely and slightly from above, so it
+ * recedes across the frame as a band with the void above and below it.
+ */
+const CAMERA = {
+  fov: 30,
+  position: new THREE.Vector3(9.2, 6.2, 22.0),
+  target: new THREE.Vector3(-2.0, 1.1, 0.6),
+  /** How far scroll walks the camera along the veil. Step 4 authors the rest. */
+  travel: new THREE.Vector3(-6.5, -1.4, -4.2),
+};
+
+/** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
+const PRESS_ENERGY = 2.2;
+
 export class SceneController {
   readonly quality: QualityManager;
   readonly scene = new THREE.Scene();
-  readonly rig: CameraRig;
-  readonly lattice: LatticeModel;
-  readonly field: ReactionField;
-  readonly lighting: Lighting;
+  readonly camera: THREE.PerspectiveCamera;
+
+  model: CorrectionModel | null = null;
 
   private renderer: THREE.WebGLRenderer;
-  private post: PostPipeline;
-  private clock = new THREE.Clock();
+  private client: PulseClient | null = null;
   private frameHandle = 0;
   private running = false;
   private reducedMotion: boolean;
+  private disposed = false;
 
   private raycaster = new THREE.Raycaster();
-  private fieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-  private hitPoint = new THREE.Vector3();
   private pointerNdc = new THREE.Vector2();
-  private pointerActive = false;
-  private lastPointerMove = 0;
 
   private progress = 0;
-  private wake = 0;
-  private wakeTarget = 0;
+  private exposure = 0;
+  private exposureTarget = 0;
+  private lastFrameTime = 0;
 
-  /** Corridor tear-open, tracks narrative progress. */
-  private rip = 0;
-
-  /** Layer separation, 0 = assembled, 1 = fully exposed. */
-  private separation = 0;
-  private separationTarget = 0;
-  private focusTargets: [number, number, number] = [1, 1, 1];
+  /** Latest published counters. Read-only; the Worker owns the truth. */
+  telemetry = {
+    tick: 0,
+    adjustments: 0,
+    engaged: 0,
+    correctionEnergy: 0,
+    peakDeviation: 0,
+    injections: 0,
+    stepMs: 0,
+  };
 
   private resizeObserver: ResizeObserver | null = null;
-  private disposed = false;
 
   constructor(options: SceneOptions) {
     this.reducedMotion = options.reducedMotion;
@@ -81,50 +94,31 @@ export class SceneController {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: options.canvas,
-      antialias: false, // the composite pass and grain hide edge aliasing
+      // On by default now. The structure is drawn as hairlines with no post to
+      // hide edge aliasing behind, so multisampling is doing real work.
+      antialias: true,
       alpha: false,
       powerPreference: 'high-performance',
       stencil: false,
-      depth: true,
+      depth: false,
     });
-    this.renderer.setClearColor(new THREE.Color('#080b10'), 1);
+    this.renderer.setClearColor(new THREE.Color('#05070a'), 1);
     this.renderer.setPixelRatio(this.quality.pixelRatio());
+    // Tone mapping only, and none of it. Intensities are authored directly in
+    // the shaders against a near-black ground, so there is no highlight to roll
+    // off — and a filmic curve would desaturate exactly the hues that carry the
+    // colour grammar.
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const { clientWidth, clientHeight } = this.canvasSize();
     this.renderer.setSize(clientWidth, clientHeight, false);
 
-    const settings = this.quality.settings;
-    const mobile = window.innerWidth < 820;
+    this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
+    this.camera.position.copy(CAMERA.position);
+    this.camera.lookAt(CAMERA.target);
 
-    this.field = new ReactionField(this.renderer, settings.simResolution);
-    this.field.seed();
-
-    this.lattice = new LatticeModel(
-      { detail: settings.geometryDetail, veinCount: settings.veinCount },
-      settings.shedding && !this.reducedMotion
-    );
-    this.lattice.bindField(this.field.texture);
-    this.scene.add(this.lattice.group);
-
-    this.rig = new CameraRig(clientWidth / Math.max(clientHeight, 1), mobile);
-    this.lighting = new Lighting(this.lattice);
-
-    const dpr = this.renderer.getPixelRatio();
-    this.post = new PostPipeline(
-      this.renderer,
-      Math.floor(clientWidth * dpr),
-      Math.floor(clientHeight * dpr),
-      settings.tier === 'high' ? 4 : settings.tier === 'medium' ? 2 : 0
-    );
-    this.post.enabled = settings.bloom;
-
-    if (this.reducedMotion) {
-      // A composed still: no drift, no parallax, no travel.
-      this.rig.setMotionScale(0, 0);
-      this.rig.applyPoster();
-    }
-
-    this.quality.onChange((s) => this.applyQuality(s));
+    this.quality.onChange(() => this.resize());
     this.bindEvents();
   }
 
@@ -135,12 +129,44 @@ export class SceneController {
     };
   }
 
-  private applyQuality(settings: QualitySettings): void {
-    this.renderer.setPixelRatio(this.quality.pixelRatio());
-    this.post.enabled = settings.bloom;
-    this.field.resize(settings.simResolution);
-    this.lattice.bindField(this.field.texture);
-    this.resize();
+  // ------------------------------------------------------------------
+  //  Initialisation — the graph, the calm, and the record
+  // ------------------------------------------------------------------
+
+  /**
+   * Synthesises the structure, runs it unsupervised, and takes the record from
+   * the result. This is the site's real initialisation work, so the loader is
+   * reporting progress rather than counting down a timer.
+   */
+  async warmUp(onProgress?: (fraction: number) => void): Promise<void> {
+    const client = new PulseClient();
+    this.client = client;
+
+    client.onProgress = (message) => {
+      // Graph synthesis is a tenth of it; the warm-up ticks are the rest.
+      const fraction = message.stage === 'synth' ? 0 : 0.1 + message.fraction * 0.9;
+      onProgress?.(Math.min(fraction, 1));
+    };
+
+    client.start();
+    await client.ready;
+
+    if (!client.structure || !client.record) {
+      throw new Error('correction: worker reported ready without a structure');
+    }
+
+    this.model = new CorrectionModel({ structure: client.structure, record: client.record });
+    this.scene.add(this.model.group);
+
+    // The first snapshot is published with the record, so the opening frame is
+    // the settled world rather than an undisplaced one.
+    const first = client.take();
+    if (first) {
+      this.model.applySnapshot(first);
+      client.release(first);
+    }
+
+    onProgress?.(1);
   }
 
   // ------------------------------------------------------------------
@@ -151,13 +177,9 @@ export class SceneController {
     window.addEventListener('resize', this.onResize, { passive: true });
     document.addEventListener('visibilitychange', this.onVisibility);
 
-    if (!this.reducedMotion) {
-      // Pointer: desktop only. Touch is read passively and never
-      // preventDefault-ed, so it can never interfere with scrolling.
-      window.addEventListener('pointermove', this.onPointerMove, { passive: true });
-      window.addEventListener('pointerdown', this.onPointerDown, { passive: true });
-      window.addEventListener('pointerleave', this.onPointerLeave, { passive: true });
-    }
+    // Press, not hover. Touch is identical to mouse and is never
+    // preventDefault-ed, so it can never interfere with scrolling.
+    window.addEventListener('pointerdown', this.onPointerDown, { passive: true });
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -170,140 +192,71 @@ export class SceneController {
   };
 
   private onVisibility = (): void => {
-    // Acceptance 26: fully stop the loop when the document is hidden.
     if (document.hidden) {
       this.stop();
+      this.client?.setRunning(false);
     } else if (!this.disposed) {
+      this.client?.setRunning(true);
       this.start();
     }
   };
 
-  private onPointerMove = (event: PointerEvent): void => {
-    this.pointerActive = true;
-    this.lastPointerMove = performance.now();
-    const x = (event.clientX / window.innerWidth) * 2 - 1;
-    const y = -((event.clientY / window.innerHeight) * 2 - 1);
-    this.pointerNdc.set(x, y);
-    this.rig.setPointer(x, y);
-
-    if (event.pointerType === 'touch') return;
-    this.disturbAtPointer(0.32);
-  };
-
   private onPointerDown = (event: PointerEvent): void => {
-    if (event.pointerType === 'touch') return;
-    const x = (event.clientX / window.innerWidth) * 2 - 1;
-    const y = -((event.clientY / window.innerHeight) * 2 - 1);
-    this.pointerNdc.set(x, y);
-    this.disturbAtPointer(0.85, true);
-  };
+    // Presses on the editorial content are reading, not touching the structure.
+    const target = event.target as HTMLElement | null;
+    if (target && target.closest('a, button, details, summary, input, textarea, select')) return;
 
-  private onPointerLeave = (): void => {
-    this.pointerActive = false;
-    this.rig.setPointer(0, 0);
+    this.pressAt(event.clientX, event.clientY);
   };
 
   /**
-   * Projects the pointer onto the field plane so a disturbance lands
-   * exactly under the cursor on the object, not at an arbitrary screen
-   * coordinate.
+   * One press, one bounded impulse. The raycast resolves to a node so the
+   * deviation starts where the visitor touched — the causal link between the
+   * action and what happens next is the whole point of the interaction.
    */
-  private disturbAtPointer(strength: number, discrete = false): void {
-    this.raycaster.setFromCamera(this.pointerNdc, this.rig.camera);
-    if (!this.raycaster.ray.intersectPlane(this.fieldPlane, this.hitPoint)) return;
-    const [u, v] = LatticeModel.fieldUvFromWorld(this.hitPoint.x, this.hitPoint.y);
-    if (u < -0.1 || u > 1.1 || v < -0.1 || v > 1.1) return;
-    if (discrete) {
-      this.field.splat(u, v, 0.045, strength);
-    } else {
-      this.field.setPointer(u, v, strength);
-    }
+  pressAt(clientX: number, clientY: number): number {
+    if (!this.model || !this.client) return -1;
+
+    this.pointerNdc.set(
+      (clientX / window.innerWidth) * 2 - 1,
+      -((clientY / window.innerHeight) * 2 - 1)
+    );
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+
+    const node = this.model.nodeUnderRay(this.raycaster.ray);
+    if (node < 0) return -1;
+
+    this.client.inject(node, PRESS_ENERGY);
+    return node;
   }
 
   resize(): void {
     const { clientWidth, clientHeight } = this.canvasSize();
     this.renderer.setPixelRatio(this.quality.pixelRatio());
     this.renderer.setSize(clientWidth, clientHeight, false);
-    this.rig.resize(clientWidth / Math.max(clientHeight, 1));
-    this.rig.setPath(window.innerWidth < 820);
-
-    const dpr = this.renderer.getPixelRatio();
-    this.post.setSize(Math.floor(clientWidth * dpr), Math.floor(clientHeight * dpr));
+    this.camera.aspect = clientWidth / Math.max(clientHeight, 1);
+    this.camera.updateProjectionMatrix();
   }
 
   // ------------------------------------------------------------------
   //  Narrative surface — the only things the director may change
   // ------------------------------------------------------------------
 
-  /** Global scroll progress, 0..1. */
+  /**
+   * Global scroll progress, 0..1.
+   *
+   * For now this only walks the camera along the veil so the page is not dead
+   * under the scrollbar. Step 4 of the build plan owns the real bands — OPEN,
+   * ASK, NOTICE, GRADIENT, FLOOR — and the enforcement gain that rises with
+   * them.
+   */
   setProgress(p: number): void {
     this.progress = Math.min(Math.max(p, 0), 1);
-    this.rig.setProgress(this.progress);
   }
 
-  setFieldPreset(name: PresetName): void {
-    this.field.setPreset(name);
-  }
-
-  blendFieldPresets(a: PresetName, b: PresetName, t: number): void {
-    this.field.blendPresets(a, b, t);
-  }
-
-  /** 0 = layers assembled, 1 = fully separated. */
-  setLayerSeparation(amount: number): void {
-    this.separationTarget = Math.min(Math.max(amount, 0), 1);
-  }
-
-  /** index -1 focuses all layers equally. */
-  focusLayer(index: number): void {
-    this.focusTargets = index < 0 ? [1, 1, 1] : [0.28, 0.28, 0.28];
-    if (index >= 0 && index < 3) this.focusTargets[index] = 1;
-  }
-
-  /** Disturbance at normalised field coordinates, for scripted moments. */
-  splat(u: number, v: number, radius?: number, strength?: number): void {
-    this.field.splat(u, v, radius, strength);
-  }
-
-  /**
-   * Grows the reaction field to a developed state before the first frame
-   * is presented, yielding between chunks so the loader can report it.
-   *
-   * Time-boxed rather than a fixed step count. A discrete GPU reaches the
-   * target in a couple of hundred milliseconds; a software renderer would
-   * take tens of seconds for the same work, and the brief is explicit
-   * that the loader lasts no longer than necessary. Slow devices get a
-   * less developed field and a page that still loads promptly, which is
-   * the right trade — the simulation keeps growing once the loop starts.
-   */
-  async warmUpField(
-    targetSteps: number,
-    budgetMs: number,
-    onProgress?: (fraction: number) => void
-  ): Promise<void> {
-    const chunk = 60;
-    const started = performance.now();
-    let done = 0;
-
-    while (done < targetSteps) {
-      this.field.warmUp(Math.min(chunk, targetSteps - done));
-      done += chunk;
-
-      const elapsed = performance.now() - started;
-      onProgress?.(Math.min(Math.max(done / targetSteps, elapsed / budgetMs), 1));
-      if (elapsed > budgetMs) break;
-
-      // Hand the frame back so the loader bar actually paints.
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-
-    onProgress?.(1);
-    this.lattice.bindField(this.field.texture);
-  }
-
-  /** Drives the cold-open reveal out of near-darkness. */
+  /** Drives the cold-open reveal out of darkness. */
   setWake(target: number): void {
-    this.wakeTarget = Math.min(Math.max(target, 0), 1);
+    this.exposureTarget = Math.min(Math.max(target, 0), 1);
   }
 
   // ------------------------------------------------------------------
@@ -313,7 +266,7 @@ export class SceneController {
   start(): void {
     if (this.running || this.disposed) return;
     this.running = true;
-    this.clock.getDelta();
+    this.lastFrameTime = performance.now();
     this.frameHandle = requestAnimationFrame(this.tick);
   }
 
@@ -324,119 +277,64 @@ export class SceneController {
 
   /** Renders exactly one frame — used for the reduced-motion still. */
   renderStill(): void {
-    const time = this.clock.getElapsedTime();
-    this.wake = 1;
-    this.field.update(this.quality.settings.simStepsPerFrame, 1 / 60);
-    this.lattice.bindField(this.field.texture);
-    this.lattice.update(time);
-    this.lighting.setWake(1);
-    this.lighting.update(this.progress, time, 1 / 60);
-    this.rig.applyPoster();
-    this.post.setState(
-      this.lighting.post.exposure,
-      this.lighting.post.bloom,
-      this.lighting.post.vignette,
-      time
-    );
-    this.post.render(this.scene, this.rig.camera);
+    this.exposure = 1;
+    this.consume();
+    this.applyCamera();
+    this.model?.setExposure(1);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Takes the newest authoritative snapshot, if one has arrived. */
+  private consume(): void {
+    const client = this.client;
+    if (!client || !this.model) return;
+
+    const snapshot = client.take();
+    if (!snapshot) return;
+
+    this.model.applySnapshot(snapshot);
+    this.telemetry = {
+      tick: snapshot.tick,
+      adjustments: snapshot.adjustments,
+      engaged: snapshot.engaged,
+      correctionEnergy: snapshot.correctionEnergy,
+      peakDeviation: snapshot.peakDeviation,
+      injections: snapshot.injections,
+      stepMs: snapshot.stepMs,
+    };
+    client.release(snapshot);
+  }
+
+  private applyCamera(): void {
+    if (this.reducedMotion) {
+      this.camera.position.copy(CAMERA.position);
+      this.camera.lookAt(CAMERA.target);
+      return;
+    }
+
+    this.camera.position.copy(CAMERA.position).addScaledVector(CAMERA.travel, this.progress);
+    this.camera.lookAt(CAMERA.target);
   }
 
   private tick = (): void => {
     if (!this.running) return;
     this.frameHandle = requestAnimationFrame(this.tick);
 
-    const rawDelta = this.clock.getDelta();
-    // Clamp so a tab return or a long paint cannot fire a huge
-    // simulation step and blow the field out.
-    const dt = Math.min(rawDelta, 1 / 20);
-    const time = this.clock.getElapsedTime();
+    const now = performance.now();
+    const rawDelta = now - this.lastFrameTime;
+    this.lastFrameTime = now;
+    const dt = Math.min(rawDelta / 1000, 1 / 20);
 
-    this.quality.sample(rawDelta * 1000, performance.now());
+    this.quality.sample(rawDelta, now);
 
-    // Cold-open reveal.
-    this.wake += (this.wakeTarget - this.wake) * (1 - Math.pow(0.05, dt));
-    this.lighting.setWake(this.wake);
+    // Cold-open reveal. The only eased quantity in the whole system, and it
+    // touches exposure alone — never the state, never the geometry.
+    this.exposure += (this.exposureTarget - this.exposure) * (1 - Math.pow(0.05, dt));
+    this.model?.setExposure(this.exposure);
 
-    // Layer separation, eased so a scrub feels physical.
-    //
-    // The three layers are Z-slabs of the lattice, so they pull straight
-    // apart along Z. The camera is side-on at this point in the
-    // narrative, which turns the separation into readable depth rather
-    // than an object getting quietly wider.
-    this.separation += (this.separationTarget - this.separation) * (1 - Math.pow(0.004, dt));
-    const s = this.separation;
-    // Inside a corridor, pulling the thirds apart along Z stretches the
-    // tunnel — the camera is side-on at that point, so it reads as the
-    // structure separating into three layers.
-    this.lattice.layers[0].offset.set(0, 0, s * 2.2);
-    this.lattice.layers[1].offset.set(0, 0, 0);
-    this.lattice.layers[2].offset.set(0, 0, s * -2.2);
-    this.lattice.material.uniforms.uSeparation.value = s;
-
-    // The crown yields once, early, and stays open — the far crown
-    // never yields at all, so there is no reseal choreography to
-    // mistime. The finale is arrival, not reassembly.
-    const ripTarget = smoothstep01((this.progress - 0.1) / 0.17);
-    // Anticipation: the convergence light surges from the throat just
-    // before and during the yield, then settles to a low burn — energy
-    // released by the opening, not a lamp that was always on.
-    this.lattice.material.uniforms.uTear.value = smoothstep01(
-      (this.progress - 0.05) / 0.22
-    );
-    this.rip += (ripTarget - this.rip) * (1 - Math.pow(0.0009, dt));
-    this.lattice.material.uniforms.uRip.value = this.rip;
-
-    // The halo descends from crown to threshold as the yield completes,
-    // so the camera passes through the burning ring on its way in.
-    this.lattice.setGateway(this.rip);
-
-    // The pull. Gyre rings creep while dormant, spin up as the visitor
-    // approaches, and turn hardest while the crown is yielding.
-    this.lattice.material.uniforms.uGyre.value =
-      0.35 + smoothstep01((this.progress - 0.02) / 0.16) * 0.65 + this.rip * 0.7;
-
-    // Scroll drags the trip pattern through the tunnel. Driven from the
-    // rig's spring-smoothed progress so the stream never steps.
-    this.lattice.material.uniforms.uFlow.value = this.rig.smoothedProgress * 14.0;
-
-    // Arrival: the far door's engraved channels ignite as the camera
-    // closes on it, so the finale is an event rather than a shape.
-    const arrive = smoothstep01((this.progress - 0.85) / 0.13);
-    this.lattice.material.uniforms.uArrive.value = arrive;
-
-    // The halo shares the narrative state: a dial that rotates with
-    // scroll, surges at the tear, burns steady at the far threshold.
-    const ru = this.lattice.ringMaterial.uniforms;
-    ru.uFlow.value = this.rig.smoothedProgress;
-    ru.uRip.value = this.rip;
-    ru.uArrive.value = arrive;
-
-    const focusEase = 1 - Math.pow(0.006, dt);
-    for (let i = 0; i < 3; i++) {
-      const layer = this.lattice.layers[i];
-      layer.focus += (this.focusTargets[i] - layer.focus) * focusEase;
-    }
-
-    // Idle pointer decay: if the pointer has been still for a while,
-    // stop feeding the field so it can settle.
-    if (this.pointerActive && performance.now() - this.lastPointerMove > 900) {
-      this.pointerActive = false;
-    }
-
-    this.field.update(this.quality.settings.simStepsPerFrame, dt);
-    this.lattice.bindField(this.field.texture);
-    this.lattice.update(time);
-
-    this.rig.update(time, dt);
-    this.lighting.update(this.progress, time, dt);
-
-    this.post.setState(
-      this.lighting.post.exposure,
-      this.lighting.post.bloom,
-      this.lighting.post.vignette,
-      time
-    );
-    this.post.render(this.scene, this.rig.camera);
+    this.consume();
+    this.applyCamera();
+    this.renderer.render(this.scene, this.camera);
   };
 
   dispose(): void {
@@ -444,13 +342,15 @@ export class SceneController {
     this.stop();
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('visibilitychange', this.onVisibility);
-    window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerdown', this.onPointerDown);
-    window.removeEventListener('pointerleave', this.onPointerLeave);
     this.resizeObserver?.disconnect();
-    this.field.dispose();
-    this.lattice.dispose();
-    this.post.dispose();
+    if (this.model) {
+      this.scene.remove(this.model.group);
+      this.model.dispose();
+      this.model = null;
+    }
+    this.client?.dispose();
+    this.client = null;
     this.renderer.dispose();
   }
 }

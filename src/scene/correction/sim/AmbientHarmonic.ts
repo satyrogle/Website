@@ -31,7 +31,7 @@ export const DEFAULT_AMBIENT: AmbientParameters = {
   // Tuned so the resulting standing amplitude settles under ε = 0.04, which is
   // what keeps the opening frame at zero violet. Verified in
   // tools/correction-validate.mjs, which fails the run if it drifts over.
-  amplitude: 0.85,
+  amplitude: 0.42,
   frequencies: [0.071, 0.113, 0.187],
 };
 

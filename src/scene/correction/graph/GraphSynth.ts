@@ -29,8 +29,12 @@ export interface GraphSynthConfig {
   filamentSteps: number;
   /** Extra nodes accepted into the gaps between filaments. */
   interstitialTarget: number;
-  /** Neighbours per node before symmetrisation. */
-  neighbours: number;
+  /** Proximity links each node may form to a *different* filament. */
+  crossLinks: number;
+  /** Chance a candidate cross-link is taken. Below 1 so coupling is patchy. */
+  crossChance: number;
+  /** Cross-links are only considered inside this multiple of the spacing. */
+  crossReach: number;
   /** Half-extent of the veil: long in x, thin in y, deep in z. */
   extent: [number, number, number];
   /** Nominal distance between adjacent nodes along a filament. */
@@ -40,16 +44,24 @@ export interface GraphSynthConfig {
 }
 
 /**
- * ~3,100 nodes at k = 5. Sized so the whole graph steps comfortably inside one
- * Worker at 120 Hz on the low tier, and so the veil reads as filaments rather
- * than as a solid mass.
+ * ~3,000 nodes. Sized so the whole graph steps comfortably inside one Worker at
+ * 120 Hz on the low tier, and so the veil reads as filaments rather than as a
+ * solid mass.
+ *
+ * The topology is strands first. A pure k-nearest graph over a scatter this
+ * dense is a Delaunay mesh in all but name: every node acquires short links in
+ * every direction and the result renders as the plexus/constellation cliché the
+ * brief bans outright. Chains carry the structure; cross-links are sparse,
+ * probabilistic, and only ever between different filaments.
  */
 export const DEFAULT_SYNTH: GraphSynthConfig = {
   seed: 0x5eed_c0de,
-  filamentCount: 58,
-  filamentSteps: 45,
-  interstitialTarget: 520,
-  neighbours: 5,
+  filamentCount: 64,
+  filamentSteps: 44,
+  interstitialTarget: 220,
+  crossLinks: 1,
+  crossChance: 0.34,
+  crossReach: 2.1,
   extent: [9.0, 0.85, 4.6],
   spacing: 0.34,
   directionSpread: 0.42,
@@ -179,6 +191,11 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
   const xs: number[] = [];
   const ys: number[] = [];
   const zs: number[] = [];
+  /** Which walk laid this node down. -1 for interstitials. */
+  const filament: number[] = [];
+  /** Consecutive nodes along a walk. These are the structure. */
+  const chainA: number[] = [];
+  const chainB: number[] = [];
 
   // ---------------------------------------------------------------- filaments
 
@@ -223,9 +240,15 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     const steps = config.filamentSteps + Math.floor(random() * 13) - 6;
 
     for (let s = 0; s < steps; s++) {
+      const index = xs.length;
       xs.push(px);
       ys.push(py);
       zs.push(pz);
+      filament.push(f);
+      if (s > 0) {
+        chainA.push(index - 1);
+        chainB.push(index);
+      }
 
       curl(px * 0.8, py * 2.4, pz * 0.8, field);
       // Curvature accumulates: the walk bends continuously instead of jittering,
@@ -285,6 +308,7 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     xs.push(cx);
     ys.push(cy);
     zs.push(cz);
+    filament.push(-1);
     hash.insert(index, cx, cy, cz);
     accepted++;
   }
@@ -317,29 +341,52 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     edgeLength.push(d);
   };
 
-  // k nearest, then symmetrised by the set above. Degree therefore varies —
-  // a node that is nobody's neighbour keeps k edges, a node in a dense pocket
-  // collects more. Irregular degree is load-bearing: it is what makes the wave
-  // arrive at different times in different places.
-  const best: { index: number; d: number }[] = [];
-  for (let i = 0; i < nodeCount; i++) {
-    best.length = 0;
-    const candidates = hash.near(xs[i], ys[i], zs[i], scratch);
+  // The strands. Every walk is a chain, and the chain is what the structure
+  // actually is — the wave travels along filaments and only leaks sideways
+  // where something couples them.
+  for (let c = 0; c < chainA.length; c++) {
+    const i = chainA[c];
+    const j = chainB[c];
+    addEdge(i, j, Math.hypot(xs[j] - xs[i], ys[j] - ys[i], zs[j] - zs[i]));
+  }
 
+  // Cross-links. Only to a *different* filament, only within reach, only
+  // sometimes — and at most `crossLinks` from each node. Coupling has to be
+  // patchy: a link from every node to its nearest neighbour in every direction
+  // is a Delaunay mesh, and a Delaunay mesh drawn as lines is the plexus.
+  const crossReach = config.spacing * config.crossReach;
+  for (let i = 0; i < nodeCount; i++) {
+    const candidates = hash.near(xs[i], ys[i], zs[i], scratch);
+    let taken = 0;
+
+    // Candidates are scanned nearest-first so the accepted link is the closest
+    // one that passed, not the first one the hash happened to return.
+    const ranked: { index: number; d: number }[] = [];
     for (let c = 0; c < candidates.length; c++) {
       const j = candidates[c];
       if (j === i) continue;
+      // Same filament and adjacent is already a chain edge; same filament and
+      // distant would be a shortcut that folds the strand back on itself.
+      if (filament[i] !== -1 && filament[j] === filament[i]) continue;
       const d = Math.hypot(xs[j] - xs[i], ys[j] - ys[i], zs[j] - zs[i]);
-      if (best.length < config.neighbours) {
-        best.push({ index: j, d });
-        best.sort((p, q) => p.d - q.d || p.index - q.index);
-      } else if (d < best[best.length - 1].d) {
-        best[best.length - 1] = { index: j, d };
-        best.sort((p, q) => p.d - q.d || p.index - q.index);
-      }
+      if (d > crossReach) continue;
+      ranked.push({ index: j, d });
+    }
+    ranked.sort((p, q) => p.d - q.d || p.index - q.index);
+
+    for (let r = 0; r < ranked.length && taken < config.crossLinks; r++) {
+      // The draw happens per candidate, in a fixed order, so the stream is
+      // consumed identically on every run.
+      if (random() >= config.crossChance) continue;
+      addEdge(i, ranked[r].index, ranked[r].d);
+      taken++;
     }
 
-    for (let b = 0; b < best.length; b++) addEdge(i, best[b].index, best[b].d);
+    // An interstitial with no accepted link is a dead vertex. It gets its
+    // nearest neighbour unconditionally rather than being left dark.
+    if (taken === 0 && filament[i] === -1 && ranked.length) {
+      addEdge(i, ranked[0].index, ranked[0].d);
+    }
   }
 
   // ------------------------------------------------------- connect components

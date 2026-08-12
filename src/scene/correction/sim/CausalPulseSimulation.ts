@@ -42,9 +42,6 @@ export const DEFAULT_WAVE: WaveParameters = {
   waveDamping: 0.55,
 };
 
-/** Per-step decay of the display envelope: a ~0.5s time constant at 120Hz. */
-const ENVELOPE_DECAY = Math.exp(-(1 / 120) / 0.5);
-
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */
 const INJECTION_HOPS = 5;
 
@@ -56,15 +53,6 @@ export class CausalPulseSimulation {
   readonly u: Float32Array;
   /** Wave velocity. */
   readonly velocity: Float32Array;
-  /**
-   * Decaying envelope of |u|. NOT authoritative — it feeds display only, and
-   * nothing in the wave update or the correction pass reads it.
-   *
-   * The wave crosses zero many times while a region is active, so a mask built
-   * on instantaneous |u| collapses at every crossing and strobes. An envelope
-   * has no zero crossings.
-   */
-  readonly envelope: Float32Array;
 
   private readonly graph: CausalGraph;
   private readonly lapU: Float32Array;
@@ -90,7 +78,6 @@ export class CausalPulseSimulation {
 
     this.u = new Float32Array(graph.nodeCount);
     this.velocity = new Float32Array(graph.nodeCount);
-    this.envelope = new Float32Array(graph.nodeCount);
     this.lapU = new Float32Array(graph.nodeCount);
     this.injectHop = new Int32Array(graph.nodeCount);
     this.injectFrontier = new Uint32Array(graph.nodeCount);
@@ -178,10 +165,6 @@ export class CausalPulseSimulation {
       // Symplectic Euler: velocity first, then position from the new velocity.
       velocity[i] += (c2 * lapU[i] - waveDamping * velocity[i]) * dt;
       u[i] += velocity[i] * dt;
-
-      const abs = Math.abs(u[i]);
-      const decayed = this.envelope[i] * ENVELOPE_DECAY;
-      this.envelope[i] = abs > decayed ? abs : decayed;
     }
 
     this.tickCount++;

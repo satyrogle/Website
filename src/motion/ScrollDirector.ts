@@ -2,7 +2,6 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 import type { SceneController } from '../scene/SceneController';
-import type { PresetName } from '../scene/ReactionField';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -34,40 +33,29 @@ interface Band {
   id: string;
   from: number;
   to: number;
-  /** Field behaviour across this band. */
-  preset: PresetName;
-  /** Preset eased toward across the band, if the state is transitional. */
-  presetTo?: PresetName;
-  /** Layer separation target at the start and end of the band. */
-  separation: [number, number];
 }
 
 /**
- * Narrative bands. These correspond to the camera keyframe `at` values
- * in CameraRig and the lighting arc in Lighting — the three files are
- * authored against one timeline.
+ * Narrative bands — the mapping from document position to narrative
+ * progress, and nothing else.
+ *
+ * These are still the retired movements' ids because they are what the
+ * editorial DOM is marked up with. Step 4 of the build plan replaces them
+ * with THE CORRECTION's own bands (OPEN, ASK, NOTICE, GRADIENT, FLOOR,
+ * EDITORIAL) and hangs the rising enforcement gain off them. Until then
+ * this file does one job: turn scroll into a single 0..1 progress value
+ * and hand it across the seam.
  */
 const BANDS: Band[] = [
-  { id: 'hero', from: 0.0, to: 0.1, preset: 'base', separation: [0, 0] },
-  { id: 'premise', from: 0.1, to: 0.26, preset: 'base', presetTo: 'desk42', separation: [0, 0] },
-  { id: 'desk42', from: 0.26, to: 0.4, preset: 'desk42', separation: [0, 0] },
-  { id: 'brawler', from: 0.4, to: 0.5, preset: 'desk42', presetTo: 'brawler', separation: [0, 0] },
-  { id: 'roguelite', from: 0.5, to: 0.6, preset: 'brawler', presetTo: 'roguelite', separation: [0, 0] },
-  { id: 'foundation', from: 0.6, to: 0.71, preset: 'roguelite', separation: [0, 1] },
-  // The separation HOLDS until the camera is clear of every ring, and
-  // only closes during the resolution — by which point the last ring
-  // sits several units behind the lens and the move is unseen.
-  //
-  // It used to collapse across 0.71–0.82 (1 → 0.12). The third layer's
-  // rings sit at z −18.2/−19.9/−21.6 when separated, and the camera
-  // crosses exactly that span over exactly those frames — so as the
-  // visitor scrolled forward, the rings were simultaneously sliding
-  // ~2 units BACKWARD onto them. Geometry rushing the camera while
-  // the camera advances is motion the visitor did not cause, and it
-  // is what made the tunnel exit at ~80% feel wrong.
-  { id: 'accumulation', from: 0.71, to: 0.82, preset: 'roguelite', presetTo: 'resolved', separation: [1, 1] },
-  { id: 'evidence', from: 0.82, to: 0.93, preset: 'resolved', separation: [1, 1] },
-  { id: 'resolution', from: 0.93, to: 1.0, preset: 'resolved', separation: [1, 0] },
+  { id: 'hero', from: 0.0, to: 0.1 },
+  { id: 'premise', from: 0.1, to: 0.26 },
+  { id: 'desk42', from: 0.26, to: 0.4 },
+  { id: 'brawler', from: 0.4, to: 0.5 },
+  { id: 'roguelite', from: 0.5, to: 0.6 },
+  { id: 'foundation', from: 0.6, to: 0.71 },
+  { id: 'accumulation', from: 0.71, to: 0.82 },
+  { id: 'evidence', from: 0.82, to: 0.93 },
+  { id: 'resolution', from: 0.93, to: 1.0 },
 ];
 
 interface MeasuredSection {
@@ -143,16 +131,6 @@ export class ScrollDirector {
     return 1;
   }
 
-  private currentBand(narrative: number): { band: Band; local: number } {
-    for (const b of BANDS) {
-      if (narrative <= b.to || b === BANDS[BANDS.length - 1]) {
-        const local = Math.min(Math.max((narrative - b.from) / Math.max(b.to - b.from, 1e-5), 0), 1);
-        return { band: b, local };
-      }
-    }
-    return { band: BANDS[0], local: 0 };
-  }
-
   start(): void {
     if (this.running) return;
     this.running = true;
@@ -189,21 +167,6 @@ export class ScrollDirector {
     const narrative = this.toNarrative(scrollY);
     this.narrative = narrative;
     this.scene.setProgress(narrative);
-
-    const { band, local } = this.currentBand(narrative);
-
-    // Field behaviour. Transitional bands ease between two presets so
-    // the three game states read as one system changing rate.
-    if (band.presetTo) {
-      this.scene.blendFieldPresets(band.preset, band.presetTo, local);
-    } else {
-      this.scene.setFieldPreset(band.preset);
-    }
-
-    // Layer separation is scroll-linked, so pulling the foundation apart
-    // is causally tied to the visitor's own movement.
-    const [s0, s1] = band.separation;
-    this.scene.setLayerSeparation(s0 + (s1 - s0) * local);
 
     this.updateReadout();
   };

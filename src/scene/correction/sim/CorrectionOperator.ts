@@ -101,6 +101,9 @@ export interface CorrectionEvent {
 /** ~0.15 s time constant at 120 Hz. Keeps contact from strobing per tick. */
 const CONTACT_DECAY = Math.exp(-(1 / 120) / 0.15);
 
+/** ~0.5 s time constant at 120 Hz, for the display envelope. */
+const GLOW_DECAY = Math.exp(-(1 / 120) / 0.5);
+
 export class CorrectionOperator {
   readonly parameters: CorrectionParameters;
 
@@ -114,6 +117,18 @@ export class CorrectionOperator {
   readonly scar: Float32Array;
   /** Smoothed |δ| applied this tick — V = D × C, for the renderer. */
   readonly contact: Float32Array;
+  /**
+   * Decaying envelope of |u − u*|. Display only: nothing in the enforcement
+   * path reads it, and it is not in the checksum.
+   *
+   * It is an envelope rather than the instantaneous disagreement because the
+   * wave crosses the record many times while a region is active, and a mask
+   * built on the instantaneous value collapses at every crossing and strobes.
+   * It measures disagreement rather than displacement because that is what the
+   * light law is about: the structure is visible where the world and the record
+   * differ, not merely where the world has moved.
+   */
+  readonly glow: Float32Array;
 
   /** OFF→ON transitions. This is the N the floor panel will report. */
   adjustments = 0;
@@ -135,6 +150,7 @@ export class CorrectionOperator {
     this.bruise = new Float32Array(nodeCount);
     this.scar = new Float32Array(nodeCount);
     this.contact = new Float32Array(nodeCount);
+    this.glow = new Float32Array(nodeCount);
     this.hold = new Uint16Array(nodeCount);
     this.engagedTicks = new Uint16Array(nodeCount);
     this.openedAt = new Int32Array(nodeCount).fill(-1);
@@ -174,15 +190,20 @@ export class CorrectionOperator {
    */
   apply(u: Float32Array, velocity: Float32Array, tick: number): void {
     const p = this.parameters;
-    const { record, engaged, bruise, scar, contact, hold, engagedTicks, openedAt, openedRemoved } = this;
+    const { record, engaged, bruise, scar, contact, glow, hold, engagedTicks, openedAt, openedRemoved } = this;
     const n = record.length;
 
     if (!this.armed) {
-      // Before the record exists there is nothing to enforce against. The
-      // bruise still decays so a pre-record state cannot leak forward.
+      // Before the record exists there is nothing to enforce against, and no
+      // record to measure disagreement from — so the envelope tracks the raw
+      // displacement for the duration of warm-up. The bruise still decays, so
+      // a pre-record state cannot leak forward.
       for (let i = 0; i < n; i++) {
         bruise[i] *= p.bruiseDecay;
         contact[i] *= CONTACT_DECAY;
+        const abs = Math.abs(u[i]);
+        const decayed = glow[i] * GLOW_DECAY;
+        glow[i] = abs > decayed ? abs : decayed;
       }
       return;
     }
@@ -261,8 +282,14 @@ export class CorrectionOperator {
         scar[i] = grown > p.scarCeiling ? p.scarCeiling : grown;
       }
 
-      const decayed = contact[i] * CONTACT_DECAY;
-      contact[i] = removed > decayed ? removed : decayed;
+      const decayedContact = contact[i] * CONTACT_DECAY;
+      contact[i] = removed > decayedContact ? removed : decayedContact;
+
+      // Recomputed after the pass, so the envelope reflects the state the
+      // renderer is about to be handed rather than the one before enforcement.
+      const disagreement = Math.abs(u[i] - target);
+      const decayedGlow = glow[i] * GLOW_DECAY;
+      glow[i] = disagreement > decayedGlow ? disagreement : decayedGlow;
     }
   }
 
