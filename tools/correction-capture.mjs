@@ -204,6 +204,11 @@ async function motion(samples = 20, intervalMs = 420) {
 }
 
 async function shot(name) {
+  // An occluded window is a throttled one: rAF stops, so the canvas reads
+  // black and the camera never reaches the pose the scroll position implies.
+  // That has already produced one run of frames that looked like a
+  // regression and was a window behind another window.
+  await page.bringToFront().catch(() => {});
   const buffer = await page.screenshot({ type: 'png' });
   await writeFile(path.join(OUT, `${name}.png`), buffer);
   const stats = await frameStats();
@@ -374,6 +379,7 @@ if (flag('record')) {
   console.log('\nTHE RECORD');
 
   // 1 — Do nothing at all. The system is supposed to supply the action.
+  await page.bringToFront().catch(() => {});
   const before = await telemetry();
   await page.waitForTimeout(9500);
   const after = await telemetry();
@@ -381,8 +387,12 @@ if (flag('record')) {
     `  idle 9.5s:  injections ${before.injections} -> ${after.injections}   ` +
       `adjustments ${before.adjustments} -> ${after.adjustments}`
   );
+  // The delta, not the total. Run after --event the structure has already
+  // been struck, which is the one condition that cancels the false first
+  // action — reading the absolute count reported that as a pass.
+  const acted = after.injections > before.injections;
   console.log(
-    `  ${after.injections === 1 ? 'THE SYSTEM ACTED FOR THE VISITOR' : 'NO FALSE FIRST ACTION'}`
+    `  ${acted ? 'THE SYSTEM ACTED FOR THE VISITOR' : 'no false first action — already struck this visit'}`
   );
 
   // 2 — The floor, typeset from the counters.
