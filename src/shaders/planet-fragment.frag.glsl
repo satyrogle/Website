@@ -84,9 +84,12 @@ void main() {
   // Slow variation across the break so molten faces are not flat panels of
   // colour. Two octaves, both broad: at the first frequencies this produced
   // zebra stripes across every face and the wreckage read as printed fabric.
-  float veins = 0.7 + 0.3 * sin(vLocal.x * 5.3 + vLocal.y * 3.7)
-                          * sin(vLocal.z * 4.3 - vLocal.x * 2.9);
-  veins *= 0.85 + 0.15 * sin(vLocal.y * 11.0 + vLocal.z * 8.0);
+  // Frequencies sized for continent slabs, not chips: at the old values a
+  // stop-range face carried visible interference bands - printed fabric again,
+  // one scale up.
+  float veins = 0.78 + 0.22 * sin(vLocal.x * 1.7 + vLocal.y * 1.2)
+                           * sin(vLocal.z * 1.4 - vLocal.x * 0.9);
+  veins *= 0.92 + 0.08 * sin(vLocal.y * 4.0 + vLocal.z * 3.1);
 
   // Interiors cool as they travel. The body still burns; a chip thrown thirty
   // units down the corridor has had the longest to die, so the journey reads

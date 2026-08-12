@@ -49,8 +49,8 @@ export const STAR = {
    * (world radius ~3.1), so from outside it is visible only through the wound
    * and the gaps between plates - shaped light, never a disc.
    */
-  radius: 1.5,
-  glow: 3.2,
+  radius: 2.6,
+  glow: 1.5,
   noise: 0.4,
   ejecta: 1.5,
   /** The ruptured crust around it. */

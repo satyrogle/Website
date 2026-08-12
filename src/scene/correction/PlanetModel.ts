@@ -5,96 +5,77 @@ import planetVert from '../../shaders/planet-fragment.vert.glsl?raw';
 import planetFrag from '../../shaders/planet-fragment.frag.glsl?raw';
 
 /**
- * PlanetModel — the ruptured world, as real geometry.
+ * PlanetModel — the ruptured world, staged from its own manifest.
  *
- * Thirty-eight authored fragments from `tools/blender/build-planet.py`: one
- * displaced sphere cut into Voronoi cells, so every piece has genuine crustal
- * relief, genuine thickness, and break faces that expose a cross-section when
- * it turns. Each vertex carries a crust mark — 1 on the original planetary
- * surface, 0 on a face made by the break — and the shader lights only the
- * breaks.
+ * The geometry and the layout are authored together in
+ * `tools/blender/build-planet.py` (v2, after Jacob's reference script): one
+ * wounded shell of a planet, five curved crust slabs that visibly came off it,
+ * sixteen solid chunks down the corridor, and crack tubes across the surviving
+ * crust. Node transforms carry the staging; `planet-manifest.json` carries
+ * what the runtime needs to know — the stops, their extents, the corridor
+ * axis. This file places nothing by formula: it loads a scene that was
+ * composed, and drives it.
  *
- * Why authored rather than generated: procedural primitives produced ribbons
- * that read as a cutting board, lamellae that read as anatomy, an implicit
- * field that read as skin disease, and fragments that read as gridded boxes.
- * Founder ruling, 2026-08-12: a dying planet is a form problem, we know what
- * the form is, so author it and let the code do placement, drift, the rail,
- * the shader and the flare. Meshes in glTF are still live geometry — flown
- * through, rotated, shaded, thrown further apart — which is the distinction
- * my earlier objection failed to make.
+ * Everything is authored along +X. The whole group is rotated onto the site's
+ * diagonal funnel axis here, so no world axis ever aligns with the blast and
+ * the manifest stays readable.
  *
- * The hierarchy the brief demands is produced here rather than in Blender,
- * because it is a placement decision: the largest pieces stay near where they
- * began so the planetary silhouette survives, and everything else is thrown
- * down the blast corridor by size — the smaller it is, the further it got.
+ * The light architecture is the reference script's: an incandescent core
+ * mesh sits INSIDE the hollow body, so the source is occluded by crust and
+ * pours out of the wounds — shaped light. The volumetric halo pass behind the
+ * meshes carries the aureole around the silhouette; this core carries the
+ * interior. Between them, the glow Jacob approved twice is back without the
+ * whiteout he rejected once.
  */
 
 export interface PlanetModelOptions {
-  /** Where the fragments were thrown. Unit vector. */
+  /** Where the fragments were thrown. Unit vector, world space. */
   axis: THREE.Vector3;
   /** The source, in world space. */
   starPosition: THREE.Vector3;
 }
 
-/**
- * How much of the body stays recognisable.
- *
- * The brief asks for 55–70% of the planetary silhouette to remain inferable.
- * These are the ranks that hold their original position, opened outward just
- * enough to let the interior light out between them.
- */
-export const CORE_PIECES = 14;
-
-/** How far the held pieces drift off their rest positions. */
-export const CORE_SPREAD = 0.42;
-
-/** The blast corridor: how far the thrown pieces travel, by rank. */
-export const THROW = { near: 3.4, far: 26.0, spread: 5.2 };
-
-/**
- * Where the five journey stops sit along the corridor, far end first by rank
- * order reversed at the rail. Authored, because the rank formula bunched all
- * five at the near end and the scroll had nowhere to travel.
- */
-export const STOP_TS = [0.13, 0.3, 0.48, 0.66, 0.85] as const;
-
-/** The instanced ejecta field: how many of each small geometry, and reach. */
-export const EJECTA = { perGeometry: 30, geometries: 10, reach: 30.0 };
-
-/** Material response. */
-/**
- * Material response.
- *
- * Bracketed by two failures. With the crust mark topping out at half, the
- * whole world glowed amber — every surface reading as half a fracture. With
- * it corrected but the crust unlit, the pieces vanished into the void and only
- * one break face survived. The crust needs just enough response to hold a
- * silhouette against black; the heat belongs to the breaks.
- */
-// Rim tamed hard: at 3.2 the parchment backlight painted every star-facing
-// surface pale and drowned the molten interiors — the one light that must win.
-export const MATERIAL = { heat: 1.0, crustLight: 2.6, rim: 1.3 };
-
-/** The planet's own radius once staged. Everything else scales off it. */
-export const WORLD_SCALE = 3.1;
-
-export interface Piece {
-  mesh: THREE.Mesh;
-  /** Rest position on the intact planet, scaled to world. */
-  rest: THREE.Vector3;
-  /** Where it sits now, after being thrown. */
-  home: THREE.Vector3;
-  /** Direction and rate it continues to travel when the flare drives on. */
-  drift: THREE.Vector3;
-  /** Seeded slow tumble. */
-  spin: THREE.Vector3;
-  /** Rough radius, for the camera to stand off by. */
+interface ManifestEntry {
+  name: string;
+  position: [number, number, number];
   extent: number;
-  /** 0 for the largest fragment, rising with rank. */
-  rank: number;
 }
 
-/** mulberry32 — the placement must be identical on every machine and visit. */
+interface Manifest {
+  bodyRadius: number;
+  coreRadius: number;
+  stops: ManifestEntry[];
+  mediums: ManifestEntry[];
+}
+
+export interface Piece {
+  mesh: THREE.Object3D;
+  /** Rest position in the authored (local) frame. */
+  home: THREE.Vector3;
+  /** Continuation direction, local frame, applied by the flare. */
+  drift: THREE.Vector3;
+  spin: THREE.Vector3;
+  extent: number;
+  kind: 'body' | 'slab' | 'chunk' | 'crack';
+}
+
+/** A stop the rail can visit, in world space. */
+export interface Stop {
+  name: string;
+  home: THREE.Vector3;
+  extent: number;
+}
+
+/** Material response. On sliders; these are the shipped defaults. */
+export const MATERIAL = { heat: 1.0, crustLight: 2.6, rim: 1.3 };
+
+/** The core's emission, and how much the flare drives it. */
+export const CORE_GLOW = { base: 2.1, flare: 3.6 };
+
+/** The instanced ejecta field along the corridor. */
+export const EJECTA = { perGeometry: 34, geometries: 6, reach: 27.0 };
+
+/** mulberry32 — staging jitter must be identical on every machine and visit. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -106,18 +87,27 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** Blender world (Z-up) to glTF/Three world (Y-up), as the exporter maps it. */
+const yUp = (p: [number, number, number]): THREE.Vector3 =>
+  new THREE.Vector3(p[0], p[2], -p[1]);
+
 export class PlanetModel {
   readonly group = new THREE.Group();
-  readonly pieces: Piece[] = [];
 
-  private readonly material: THREE.ShaderMaterial;
-  private readonly uniforms: Record<string, THREE.IUniform>;
-  private readonly axis: THREE.Vector3;
-  private readonly scratch = new THREE.Vector3();
+  private readonly inner = new THREE.Group();
   private readonly ejecta = new THREE.Group();
+  private readonly material: THREE.ShaderMaterial;
+  private readonly coreMaterial: THREE.ShaderMaterial;
+  private readonly uniforms: Record<string, THREE.IUniform>;
+  private readonly coreUniforms: Record<string, THREE.IUniform>;
+  private readonly pieces: Piece[] = [];
+  private readonly scratch = new THREE.Vector3();
+  private stopsWorld: Stop[] = [];
 
   constructor(options: PlanetModelOptions) {
-    this.axis = options.axis.clone().normalize();
+    // The authored +X corridor onto the site's diagonal.
+    this.group.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), options.axis.clone().normalize());
+    this.group.add(this.inner);
 
     this.uniforms = {
       uStarPos: { value: options.starPosition.clone() },
@@ -137,161 +127,125 @@ export class PlanetModel {
       vertexColors: true,
       side: THREE.FrontSide,
     });
+
+    // The interior, as its own material: a body of light the crust occludes.
+    // Facing-dependent so the centre burns hotter than the limb — an
+    // overpressured volume, not a painted ball.
+    this.coreUniforms = {
+      uFlare: { value: 0 },
+      uExposure: { value: 1 },
+      uCoreBase: { value: CORE_GLOW.base },
+      uCoreFlare: { value: CORE_GLOW.flare },
+    };
+    this.coreMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      uniforms: this.coreUniforms,
+      vertexShader: /* glsl */ `
+        out vec3 vNormal;
+        out vec3 vView;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vNormal = normalize(mat3(modelMatrix) * normal);
+          vView = normalize(cameraPosition - world.xyz);
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        precision highp float;
+        uniform float uFlare;
+        uniform float uExposure;
+        uniform float uCoreBase;
+        uniform float uCoreFlare;
+        in vec3 vNormal;
+        in vec3 vView;
+        out vec4 fragColour;
+        void main() {
+          float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
+          float energy = (uCoreBase + uFlare * uCoreFlare) * (0.35 + 0.65 * pow(facing, 1.6));
+          vec3 colour = mix(vec3(1.0, 0.52, 0.16), vec3(1.0, 0.96, 0.9), clamp(energy * 0.5, 0.0, 0.85));
+          fragColour = vec4(colour * energy * uExposure, 1.0);
+        }
+      `,
+      side: THREE.FrontSide,
+    });
   }
 
-  /**
-   * Loads the authored fragments and stages them.
-   *
-   * Resolves once the world exists, so the loader can report real work rather
-   * than counting down a timer.
-   */
-  async load(url = `${import.meta.env.BASE_URL}models/planet.glb`): Promise<void> {
-    const loader = new GLTFLoader();
-    const gltf = await loader.loadAsync(url);
+  async load(base = `${import.meta.env.BASE_URL}models/`): Promise<void> {
+    const [gltf, manifest] = await Promise.all([
+      new GLTFLoader().loadAsync(`${base}planet.glb`),
+      fetch(`${base}planet-manifest.json`).then((r) => r.json() as Promise<Manifest>),
+    ]);
 
-    const source: Array<{ geometry: THREE.BufferGeometry; rest: THREE.Vector3 }> = [];
+    const random = mulberry32(0x517a9e3b);
+    const chunkGeometries: THREE.BufferGeometry[] = [];
+
     gltf.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        source.push({ geometry: object.geometry, rest: object.position.clone() });
-      }
-    });
+      if (!(object instanceof THREE.Mesh)) return;
 
-    // Blender emits them in build order; rank them by size, because every
-    // decision below — held or thrown, how far, which are camera stops — is a
-    // decision about scale.
-    source.sort((a, b) => {
-      a.geometry.computeBoundingSphere();
-      b.geometry.computeBoundingSphere();
-      return (b.geometry.boundingSphere?.radius ?? 0) - (a.geometry.boundingSphere?.radius ?? 0);
-    });
+      const name = object.name;
+      const kind: Piece['kind'] = name.startsWith('slab')
+        ? 'slab'
+        : name.startsWith('chunk')
+          ? 'chunk'
+          : name.startsWith('crack')
+            ? 'crack'
+            : 'body';
 
-    const random = mulberry32(0x9e3779b9);
+      const mesh = new THREE.Mesh(object.geometry, this.material);
+      mesh.position.copy(object.position);
+      mesh.quaternion.copy(object.quaternion);
+      mesh.scale.copy(object.scale);
+      this.inner.add(mesh);
 
-    source.forEach((entry, rank) => {
-      const { geometry, rest } = entry;
-      geometry.computeBoundingSphere();
-      const extent = (geometry.boundingSphere?.radius ?? 0.2) * WORLD_SCALE;
+      if (kind === 'chunk') chunkGeometries.push(object.geometry);
 
-      const restWorld = rest.clone().multiplyScalar(WORLD_SCALE);
-      const outward = restWorld.clone().normalize();
-      const home = restWorld.clone();
-
-      const blastFacing = outward.dot(this.axis);
-      const stopIndex = rank - CORE_PIECES;
-      let peel = 0;
-
-      if (rank < CORE_PIECES) {
-        // The body that survives. Opened along its own radius only — the
-        // silhouette has to stay readable as a sphere that came apart, and a
-        // piece pushed sideways stops describing where it used to be.
-        home.addScaledVector(outward, CORE_SPREAD * (0.25 + random()) * (rank / CORE_PIECES));
-
-        // Plates on the blast side peel back and stand off further: the shell
-        // failed *here*, and this is both the wound the light escapes through
-        // and the reason everything downstream went the way it went.
-        if (blastFacing > 0.2) {
-          peel = blastFacing * (0.55 + random() * 0.4);
-          home.addScaledVector(outward, peel * 1.6);
-          home.addScaledVector(this.axis, peel * 1.1);
-        }
-      } else if (stopIndex < STOP_TS.length) {
-        // The five stops are placed by hand along the corridor, largest
-        // nearest the body. Placed by the rank formula they bunched at the
-        // near end and the journey had nowhere to go.
-        const eased = STOP_TS[stopIndex];
-        home.addScaledVector(this.axis, THROW.near + (THROW.far - THROW.near) * eased);
-        home.addScaledVector(outward, THROW.spread * (0.5 + eased) * 0.8);
-        home.x += (random() - 0.5) * THROW.spread * eased * 0.8;
-        home.y += (random() - 0.5) * THROW.spread * eased * 0.5;
-        home.z += (random() - 0.5) * THROW.spread * eased * 0.8;
-      } else {
-        // Thrown. Smaller pieces got further, which is both true and what
-        // makes the corridor read as one ballistic event rather than a
-        // scatter: size falls off with distance down the axis.
-        const t = (rank - CORE_PIECES) / Math.max(source.length - CORE_PIECES - 1, 1);
-        const eased = t * t * 0.75 + t * 0.25;
-        home.addScaledVector(this.axis, THROW.near + (THROW.far - THROW.near) * eased);
-        home.addScaledVector(outward, THROW.spread * eased * (0.4 + random() * 0.9));
-        // Lateral wander, so the corridor is a broad funnel and not a line.
-        home.x += (random() - 0.5) * THROW.spread * eased;
-        home.y += (random() - 0.5) * THROW.spread * eased * 0.7;
-        home.z += (random() - 0.5) * THROW.spread * eased;
-      }
-
-      const mesh = new THREE.Mesh(geometry, this.material);
-      mesh.scale.setScalar(WORLD_SCALE);
-      mesh.position.copy(home);
-
-      if (rank < CORE_PIECES) {
-        // Core plates keep their bearings. This was the single worst fault of
-        // the first staging: every piece got a full random tumble, so the
-        // "reassembled" body was fourteen arbitrarily rotated shards at the
-        // origin — geometrically a sphere's worth of mass, visually salad.
-        // A plate still describing its original orientation is what lets the
-        // silhouette read as a planet that came apart.
-        mesh.rotation.set(
-          (random() - 0.5) * 0.12,
-          (random() - 0.5) * 0.12,
-          (random() - 0.5) * 0.12
-        );
-        if (peel > 0) {
-          // Peeled plates hinge outward about their own tangent.
-          const hinge = new THREE.Vector3().crossVectors(outward, this.axis);
-          if (hinge.lengthSq() > 1e-4) {
-            mesh.rotateOnWorldAxis(hinge.normalize(), peel * 0.55);
-          }
-        }
-      } else {
-        mesh.rotation.set(random() * 6.28, random() * 6.28, random() * 6.28);
-      }
-
-      mesh.frustumCulled = true;
-
-      this.group.add(mesh);
+      const home = object.position.clone();
+      const still = kind === 'body' || kind === 'crack';
       this.pieces.push({
         mesh,
-        rest: restWorld,
         home,
-        // Continuation: away from the source along the line it already
-        // travelled, faster for what is already furthest out.
-        drift: home.clone().normalize().multiplyScalar(0.4 + home.length() * 0.055),
-        spin: new THREE.Vector3(
-          (random() - 0.5) * 0.012,
-          (random() - 0.5) * 0.012,
-          (random() - 0.5) * 0.012
-        ).multiplyScalar(rank < CORE_PIECES ? 0.1 : 1),
-        extent,
-        rank,
+        // Continuation, in the authored frame: on down the corridor and out of
+        // it, faster for what is already furthest. The body and its cracks
+        // hold — the event leaves them behind.
+        drift: still
+          ? new THREE.Vector3()
+          : home.clone().normalize().multiplyScalar(0.5 + home.length() * 0.06),
+        spin: still
+          ? new THREE.Vector3()
+          : new THREE.Vector3(
+              (random() - 0.5) * 0.01,
+              (random() - 0.5) * 0.01,
+              (random() - 0.5) * 0.01
+            ),
+        extent: 1,
+        kind,
       });
     });
 
-    this.buildEjecta(
-      source.slice(Math.max(source.length - EJECTA.geometries, 0)).map((e) => e.geometry),
-      random
+    // The interior. Slightly under the manifest's core radius so it never
+    // z-fights the inner lining of the shell.
+    const core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(manifest.coreRadius * 0.96, 3),
+      this.coreMaterial
     );
+    this.inner.add(core);
+
+    // The stops, transformed into world space for the rail.
+    this.stopsWorld = manifest.stops.map((stop) => ({
+      name: stop.name,
+      home: yUp(stop.position).applyQuaternion(this.group.quaternion),
+      extent: stop.extent,
+    }));
+
+    this.buildEjecta(chunkGeometries, random);
   }
 
-  /** The stops a scroll journey can visit: the biggest thrown pieces, in order. */
-  get stops(): Piece[] {
-    return this.pieces.filter((p) => p.rank >= CORE_PIECES).slice(0, 5);
-  }
-
-  /**
-   * The tier the brief calls medium ejecta: hundreds of small shards along the
-   * corridor, instanced from the smallest authored fragments so even the dust
-   * is torn from the same body. Density thins with distance and the funnel
-   * widens with it — one ballistic event, read at every scale.
-   */
-  private buildEjecta(
-    geometries: THREE.BufferGeometry[],
-    random: () => number
-  ): void {
-    const side = new THREE.Vector3().crossVectors(this.axis, new THREE.Vector3(0, 1, 0)).normalize();
-    const lift = new THREE.Vector3().crossVectors(side, this.axis).normalize();
+  /** Small shards along the corridor, instanced from the authored chunks. */
+  private buildEjecta(geometries: THREE.BufferGeometry[], random: () => number): void {
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
-    const rotation = new THREE.Euler();
     const quaternion = new THREE.Quaternion();
+    const euler = new THREE.Euler();
     const scale = new THREE.Vector3();
 
     for (const geometry of geometries.slice(0, EJECTA.geometries)) {
@@ -299,23 +253,16 @@ export class PlanetModel {
       mesh.frustumCulled = false;
 
       for (let i = 0; i < EJECTA.perGeometry; i++) {
-        // Crowded near the wound, thinning down the corridor.
-        const t = Math.pow(random(), 1.6);
-        const along = 2.2 + EJECTA.reach * t;
-        const funnel = (1.1 + 6.5 * t) * (0.25 + random() * 0.75);
+        const t = Math.pow(random(), 1.5);
+        const along = 4.5 + EJECTA.reach * t;
+        const funnel = (0.9 + 5.5 * t) * (0.25 + random() * 0.75);
         const swing = random() * Math.PI * 2;
 
-        position
-          .copy(this.axis)
-          .multiplyScalar(along)
-          .addScaledVector(side, Math.cos(swing) * funnel)
-          .addScaledVector(lift, Math.sin(swing) * funnel);
-
-        rotation.set(random() * 6.28, random() * 6.28, random() * 6.28);
-        quaternion.setFromEuler(rotation);
-        const s = WORLD_SCALE * (0.06 + random() * 0.2);
+        position.set(along, Math.sin(swing) * funnel, Math.cos(swing) * funnel);
+        euler.set(random() * 6.28, random() * 6.28, random() * 6.28);
+        quaternion.setFromEuler(euler);
+        const s = 0.1 + random() * 0.24;
         scale.set(s, s, s);
-
         matrix.compose(position, quaternion, scale);
         mesh.setMatrixAt(i, matrix);
       }
@@ -324,29 +271,32 @@ export class PlanetModel {
       this.ejecta.add(mesh);
     }
 
-    this.group.add(this.ejecta);
+    this.inner.add(this.ejecta);
+  }
+
+  /** The rail's destinations, world space, in authored (near→far) order. */
+  get stops(): Stop[] {
+    return this.stopsWorld;
   }
 
   /**
-   * The finale. Every piece continues along the line it was already
-   * travelling, so the explosion reads as ongoing rather than as a new event.
+   * The finale: everything already moving keeps moving along its own line,
+   * the interior's output climbs, and the body holds — a continuation of the
+   * event, driven by scroll and therefore exactly reversible.
    */
   setFlare(value: number): void {
     const flare = Math.max(0, Math.min(1, value));
     this.uniforms.uFlare.value = flare;
+    this.coreUniforms.uFlare.value = flare;
     for (const piece of this.pieces) {
+      if (piece.kind === 'body' || piece.kind === 'crack') continue;
       this.scratch.copy(piece.home).addScaledVector(piece.drift, flare);
       piece.mesh.position.copy(this.scratch);
     }
-    // The small stuff rides the same continuation, as one field.
-    this.ejecta.position.copy(this.axis).multiplyScalar(flare * 2.6);
+    this.ejecta.position.set(flare * 2.2, 0, 0);
   }
 
-  /**
-   * Ambient tumble. Massive objects: the rate is set so a fragment turns a few
-   * degrees over the time anyone looks at it, which is the difference between
-   * suspended wreckage and a frozen render.
-   */
+  /** Heavy, slow. A slab turns a few degrees in the time anyone watches. */
   setTime(seconds: number): void {
     for (const piece of this.pieces) {
       piece.mesh.rotation.x += piece.spin.x * 0.016;
@@ -358,19 +308,21 @@ export class PlanetModel {
 
   setExposure(value: number): void {
     this.uniforms.uExposure.value = value;
+    this.coreUniforms.uExposure.value = value;
   }
 
   tune(patch: Record<string, number>): void {
     for (const [key, value] of Object.entries(patch)) {
-      const uniform = this.uniforms[key];
-      if (uniform) uniform.value = value;
+      if (this.uniforms[key]) this.uniforms[key].value = value;
+      if (this.coreUniforms[key]) this.coreUniforms[key].value = value;
     }
   }
 
   dispose(): void {
     this.material.dispose();
-    for (const piece of this.pieces) piece.mesh.geometry.dispose();
-    this.ejecta.traverse((object) => {
+    this.coreMaterial.dispose();
+    this.inner.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.geometry.dispose();
       if (object instanceof THREE.InstancedMesh) object.dispose();
     });
   }

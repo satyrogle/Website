@@ -85,9 +85,10 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     const out = piece.home.clone().projectOnPlane(axis);
     if (out.lengthSq() < 1e-4) out.copy(side);
     out.normalize();
-    // Stand-off is in multiples of the piece's own radius, and it has to be
-    // generous: at 2.3 the camera sat inside the fragment it was framing.
-    // A slab wants to be seen whole, with void around it.
+    // Stand-off is in multiples of the piece's own radius. The authored slabs
+    // are continent-scale — extents of two to five units — so a small multiple
+    // is already a long way back; the old 8x was tuned for chips and framed
+    // nothing but void.
     return piece.home
       .clone()
       .addScaledVector(out, piece.extent * reach)
@@ -100,14 +101,14 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     // the whole corridor and the distant source behind it. The visitor does
     // not yet know what they are looking at.
     waypoints.push({
-      eye: asTriple(stand(stops[0], 11.0)),
+      eye: asTriple(stand(stops[0], 3.4)),
       aim: asTriple(stops[0].home.clone().multiplyScalar(0.82)),
     });
   }
 
   for (const piece of stops) {
     waypoints.push({
-      eye: asTriple(stand(piece, 8.0)),
+      eye: asTriple(stand(piece, 2.2)),
       // Aimed past the fragment toward the source, so every stop also points
       // at where all of this came from.
       aim: asTriple(piece.home.clone().multiplyScalar(0.7)),
