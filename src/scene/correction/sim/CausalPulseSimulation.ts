@@ -39,12 +39,22 @@ export interface WaveParameters {
 
 export const DEFAULT_WAVE: WaveParameters = {
   dt: 1 / 120,
-  // Fast enough that the deviation visibly travels through the structure
-  // instead of blooming in place. Roughly 14 graph hops per second against a
-  // ~0.3-unit median edge, so a strike crosses the veil in about two seconds.
-  // The spectral bound allows nearly 60; the margin is deliberate headroom for
-  // a denser graph later.
-  waveSpeed: 7,
+  /**
+   * Fast enough to watch it leave.
+   *
+   * The number that matters is not this one, it is this one times the edge
+   * length: propagation runs at waveSpeed × 0.235 units a second. At 7 that is
+   * 1.65 u/s, so in the half second after a press the front moved about a unit
+   * and a half — the strike read as a bump appearing and shaking in place
+   * until it faded, which is exactly "it just hits you, it doesn't wave". At
+   * 30 the front covers ten units in the first second and crosses a whole
+   * strand: a deviation running away from the hand that caused it.
+   *
+   * Measured, not guessed. Disarming the correction entirely changed the
+   * front's reach by less than half a unit, so the operator was never what was
+   * eating it — the wave was simply too slow to look like one.
+   */
+  waveSpeed: 30,
   // The deviation has to survive long enough to be noticed, resisted and
   // forced back — if damping kills it first the system never has to act, and
   // there is nothing to watch. But it also has to stop.
@@ -56,7 +66,7 @@ export const DEFAULT_WAVE: WaveParameters = {
   // approved state stopped being a state the world returns to. Raised until
   // the residual dies away and the surface comes back to the record, while the
   // strike itself still outlives the awareness latency by a wide margin.
-  waveDamping: 0.85,
+  waveDamping: 0.55,
 };
 
 /** Hops the press profile reaches. Roughly a 1.5-unit contact patch. */

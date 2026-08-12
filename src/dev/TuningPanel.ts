@@ -52,13 +52,16 @@ interface Knob {
  * the current state is worse than no tuning tool.
  */
 const KNOBS: Knob[] = [
-  // How the deviation travels. This pair decides whether a press reads as a
-  // wave or as a rigid displacement.
-  { label: 'wave speed', group: 'wave', key: 'waveSpeed', min: 1, max: 20, step: 0.25, value: DEFAULT_WAVE.waveSpeed, source: 'DEFAULT_WAVE' },
+  // How the deviation travels. Wave speed decides whether a press reads as a
+  // wave or as a rigid displacement, and its useful range is far wider than
+  // the first version of this panel allowed — capped at 20 it could not reach
+  // a value where the front visibly leaves, which made the one slider that
+  // mattered most useless.
+  { label: 'wave speed', group: 'wave', key: 'waveSpeed', min: 1, max: 120, step: 1, value: DEFAULT_WAVE.waveSpeed, source: 'DEFAULT_WAVE' },
   { label: 'damping', group: 'wave', key: 'waveDamping', min: 0.05, max: 3, step: 0.05, value: DEFAULT_WAVE.waveDamping, source: 'DEFAULT_WAVE' },
 
   // How much of the structure one press moves, and how hard.
-  { label: 'press energy', group: 'press', key: 'energy', min: 0.1, max: 8, step: 0.1, value: PRESS_ENERGY, source: 'PRESS_ENERGY' },
+  { label: 'press energy', group: 'press', key: 'energy', min: 0.1, max: 14, step: 0.1, value: PRESS_ENERGY, source: 'PRESS_ENERGY' },
   { label: 'press spread (hops)', group: 'press', key: 'hops', min: 1, max: 20, step: 1, value: INJECTION.hops, source: 'INJECTION.hops' },
 
   // What the system notices, how long it waits, and how hard it pulls back.

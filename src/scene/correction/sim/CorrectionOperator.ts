@@ -54,6 +54,14 @@ export interface CorrectionParameters {
    * The sensor's time constant in seconds — how long a reading persists in the
    * system's own monitor. Sets how long enforcement keeps hold of a node after
    * the deviation has actually gone.
+   *
+   * Lengthened when the wave was sped up, and for a reason worth keeping: a
+   * fast front passes through a node in a few ticks, so at a short memory the
+   * sensor lost the reading before the hold clock finished and enforcement
+   * flickered on and off behind the wave — violet on 64% of the event's ticks,
+   * which reads as a sparkle rather than as the system taking hold. A monitor
+   * that forgets faster than its subject moves is not a sparse sensor, it is a
+   * broken one.
    */
   senseSeconds: number;
   /** Most completed events retained for inspection. */
@@ -135,7 +143,7 @@ export const DEFAULT_CORRECTION: CorrectionParameters = {
   bruiseDecay: 0.9985,
   scarGain: 0.014,
   scarCeiling: 0.32,
-  senseSeconds: 0.55,
+  senseSeconds: 1.2,
   eventLogLimit: 256,
   spatialGainLow: 1.0,
   spatialGainHigh: 1.55,

@@ -101,8 +101,15 @@ const smoothstep = (t: number): number => {
   return x * x * (3 - 2 * x);
 };
 
-/** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
-export const PRESS_ENERGY = 0.7;
+/**
+ * Energy of one press. Bounded — the visitor gets an action, not a sandbox.
+ *
+ * Raised with the wave speed rather than independently of it. A faster wave
+ * spreads the same impulse across more of the structure sooner, so the
+ * amplitude at any one place falls; at the old energy the front travelled
+ * properly and was too faint to see doing it.
+ */
+export const PRESS_ENERGY = 3.2;
 
 /** Longest a touch can rest and still be a tap rather than a hold. */
 const TAP_MS = 350;
