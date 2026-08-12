@@ -57,7 +57,7 @@ const DISPLACEMENT_SCALE = 2.8;
  * the world deviates, cyan comes out of it and amber is what the deviation is
  * measured against.
  */
-const GHOST_INTENSITY = 0.45;
+const GHOST_INTENSITY = 0.33;
 
 /**
  * Overall brightness of the frame.
@@ -209,7 +209,17 @@ export class CorrectionModel {
       vertexShader: ghostVert,
       fragmentShader: ghostFrag,
       uniforms: {
-        uRecord: { value: new THREE.Color('#c9a24a') },
+        // Bone, not gold.
+        //
+        // The record is the approved state and the brief allows it to be
+        // neutral. At full amber saturation, a warm colour laid over a field
+        // of parallel grooves is wood grain, and the structure read as a
+        // chopping board. Pulled most of the way to a cold off-white it reads
+        // as something machined instead, and it leaves cyan and violet as the
+        // only saturated colour in the frame — which is what the grammar
+        // wanted all along: agreement is colourless, and colour means
+        // something has gone wrong.
+        uRecord: { value: new THREE.Color('#d9d5c8') },
         uIntensity: { value: GHOST_INTENSITY },
       },
       transparent: true,

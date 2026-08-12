@@ -484,18 +484,22 @@ check(
 
 console.log('\nENFORCEMENT GAIN');
 
-// The spatial field. It must be a single monotone gradient along the veil's
-// long axis: anything centred would draw a soft ellipse across the structure,
-// and a frame that resolves into concentric anything fails outright.
+// The spatial field. Two things have to be true of it: it rises monotonically
+// along the structure's own sweep, and it is not radial. The second is the one
+// that matters — a field that is a function of distance from the centre draws
+// a soft ellipse across the structure, and a frame that resolves into
+// concentric anything is how every retired direction died.
 {
-  const field = system.operator.gainField;
-  const order = Array.from({ length: graph.nodeCount }, (_, i) => i).sort(
-    (i, j) => graph.positions[j * 3] - graph.positions[i * 3]
-  );
+  const s = new CorrectionSystem(SYSTEM);
+  const field = s.operator.gainField;
+  const { depth } = s.synthesised;
+  const { positions } = s.synthesised.graph;
 
+  const order = Array.from({ length: field.length }, (_, i) => i).sort(
+    (i, j) => depth[i] - depth[j]
+  );
   let monotone = true;
   for (let k = 1; k < order.length; k++) {
-    // Sorted from +x to -x, gain must never fall.
     if (field[order[k]] < field[order[k - 1]] - 1e-6) { monotone = false; break; }
   }
 
@@ -505,13 +509,77 @@ console.log('\nENFORCEMENT GAIN');
     if (field[i] < lo) lo = field[i];
     if (field[i] > hi) hi = field[i];
   }
-  console.log(`  spatial gain  fringe ${f(lo, 3)}  deep ${f(hi, 3)}`);
-  check('gain is monotone along the long axis, not radial', monotone);
+
+  // Nodes at the same distance from the centroid, binned. A radial field gives
+  // every node in a bin the same gain; a gradient along the sweep puts both
+  // ends of the structure in the same bins with opposite gains, so the spread
+  // inside a bin stays wide.
+  let cx = 0, cy = 0, cz = 0;
+  const count = positions.length / 3;
+  for (let i = 0; i < count; i++) {
+    cx += positions[i * 3]; cy += positions[i * 3 + 1]; cz += positions[i * 3 + 2];
+  }
+  cx /= count; cy /= count; cz /= count;
+
+  const BINS = 24;
+  let maxR = 0;
+  const radius = new Float64Array(count);
+  for (let i = 0; i < count; i++) {
+    radius[i] = Math.hypot(
+      positions[i * 3] - cx, positions[i * 3 + 1] - cy, positions[i * 3 + 2] - cz
+    );
+    if (radius[i] > maxR) maxR = radius[i];
+  }
+  const withinShell = (values) => {
+    let low = Infinity;
+    let high = -Infinity;
+    for (let i = 0; i < count; i++) {
+      if (values[i] < low) low = values[i];
+      if (values[i] > high) high = values[i];
+    }
+    const binLow = new Float64Array(BINS).fill(Infinity);
+    const binHigh = new Float64Array(BINS).fill(-Infinity);
+    for (let i = 0; i < count; i++) {
+      const b = Math.min(BINS - 1, Math.floor((radius[i] / maxR) * BINS));
+      if (values[i] < binLow[b]) binLow[b] = values[i];
+      if (values[i] > binHigh[b]) binHigh[b] = values[i];
+    }
+    let spread = 0;
+    let bins = 0;
+    for (let b = 0; b < BINS; b++) {
+      if (binHigh[b] < binLow[b]) continue;
+      spread += binHigh[b] - binLow[b];
+      bins++;
+    }
+    return spread / Math.max(bins, 1) / Math.max(high - low, 1e-6);
+  };
+
+  // The control: the field this guard exists to reject, built over the same
+  // positions. Comparing against it beats comparing against a number somebody
+  // picked, because the number would only ever be calibrated to one geometry
+  // and this structure has already changed shape twice.
+  const radial = new Float64Array(count);
+  for (let i = 0; i < count; i++) radial[i] = radius[i];
+
+  const withinBin = withinShell(field);
+  const control = withinShell(radial);
+
+  console.log(`  spatial gain  opening ${f(lo, 3)}  deep ${f(hi, 3)}`);
+  console.log(
+    `  gain spread within a radius shell: ${f(withinBin * 100, 0)}% of its range, ` +
+      `against ${f(control * 100, 0)}% for a radial field over the same nodes`
+  );
+  check('gain rises monotonically along the sweep', monotone);
   check(
     'gain spans the configured range',
     Math.abs(lo - SYSTEM.correction.spatialGainLow) < 0.02 &&
       Math.abs(hi - SYSTEM.correction.spatialGainHigh) < 0.02,
     `${f(lo, 2)}..${f(hi, 2)}`
+  );
+  check(
+    'the field is not radial',
+    withinBin > control * 4,
+    `${f(withinBin * 100, 0)}% spread against ${f(control * 100, 0)}% for a radial control`
   );
 }
 
@@ -567,11 +635,22 @@ check('and the system still engages at both ends', shallow.adjustments > 0 && de
 // The field being monotone proves its shape. This proves it does something:
 // the same strike, at the same gain, at the two ends of the veil.
 {
-  const at = (x) => {
+  // Selected by the structure's own depth coordinate, at mid-width, so the two
+  // strikes differ in how hard they are governed and in nothing else. Picking
+  // them by world position compared a point in the open body against one in
+  // the narrow tail, which measures geometry rather than gain.
+  const at = (target) => {
     const s = new CorrectionSystem(SYSTEM);
+    const { depth } = s.synthesised;
+    let node = 0;
+    let best = Infinity;
+    for (let i = 0; i < depth.length; i++) {
+      const cost = Math.abs(depth[i] - target);
+      if (cost < best) { best = cost; node = i; }
+    }
+
     s.warmUp();
     for (let t = 0; t < 300; t++) s.step();
-    const node = s.nearestNode(x, 0, 0);
     const before = s.operator.adjustments;
     s.inject(node, ENERGY);
 
@@ -584,10 +663,10 @@ check('and the system still engages at both ends', shallow.adjustments > 0 && de
     return { alive, adjustments: s.operator.adjustments - before, gain: s.operator.gainField[node] };
   };
 
-  const fringe = at(7.5);
-  const deep = at(-7.5);
+  const fringe = at(0.3);
+  const deep = at(0.95);
   console.log(
-    `  struck at the fringe (field ${f(fringe.gain, 2)}): visible ${ms(fringe.alive)}, ` +
+    `  struck near the opening (field ${f(fringe.gain, 2)}): visible ${ms(fringe.alive)}, ` +
       `${fringe.adjustments} adjustments`
   );
   console.log(

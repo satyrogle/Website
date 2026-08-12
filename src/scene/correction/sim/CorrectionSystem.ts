@@ -72,45 +72,35 @@ export class CorrectionSystem {
     // far fewer, because an even mesh reads as a chart rather than as a
     // surface under control.
     this.edgeIndices = this.synthesised.renderEdges;
-    this.operator.setGainField(CorrectionSystem.gainField(graph.positions, config.correction));
+    this.operator.setGainField(
+      CorrectionSystem.gainField(this.synthesised.depth, config.correction)
+    );
   }
 
   /**
    * How hard the file is enforced, per node.
    *
-   * A single monotone gradient along the veil's long axis: loosest at one end,
-   * total at the other. Deliberately not a radial or distance-from-centre
-   * field — that would draw a soft ellipse across the structure, and a frame
-   * that resolves into concentric anything is how every retired direction died.
+   * A single monotone gradient along the structure's own sweep: loosest at the
+   * end the camera opens on, total at the end it travels into. Deliberately
+   * not a radial or distance-from-centre field — that would draw a soft
+   * ellipse across the structure, and a frame that resolves into concentric
+   * anything is how every retired direction died.
    *
-   * The camera travels along this axis, so the visitor moves from the loose
-   * fringe into the deep calm. Nothing about the structure changes as they go;
-   * only how quickly and how hard deviation is put back. That is the whole
-   * turn: the calm ahead is not calmer, it is more governed.
+   * Nothing about the structure changes as the visitor travels; only how
+   * quickly and how hard deviation is put back. That is the whole turn: the
+   * calm ahead is not calmer, it is more governed.
    */
-  private static gainField(positions: Float32Array, p: CorrectionParameters): Float32Array {
-    const n = positions.length / 3;
-    const field = new Float32Array(n);
-
-    let min = Infinity;
-    let max = -Infinity;
-    for (let i = 0; i < n; i++) {
-      const x = positions[i * 3];
-      if (x < min) min = x;
-      if (x > max) max = x;
-    }
-    const span = Math.max(max - min, 1e-6);
-
+  private static gainField(depth: Float32Array, p: CorrectionParameters): Float32Array {
+    const field = new Float32Array(depth.length);
     const onset = Math.min(Math.max(p.spatialGainOnset, 0), 0.99);
 
-    for (let i = 0; i < n; i++) {
-      // Depth runs from the +x end (0, the fringe the camera opens on) to the
-      // -x end (1, the deep the camera walks into). The climb starts past the
-      // opening view, so the event the visitor is first shown is enforced at
-      // the tuning that was judged, and the gradient is something they travel
-      // into rather than something applied to the frame they arrived on.
-      const depth = (max - positions[i * 3]) / span;
-      const t = Math.min(Math.max((depth - onset) / (1 - onset), 0), 1);
+    for (let i = 0; i < depth.length; i++) {
+      // Depth is the structure's own coordinate: 0 where the camera opens, 1
+      // at the far end it travels into. The climb starts past the opening
+      // view, so the event the visitor is first shown is enforced at the
+      // tuning that was judged, and the gradient is something they travel into
+      // rather than something applied to the frame they arrived on.
+      const t = Math.min(Math.max((depth[i] - onset) / (1 - onset), 0), 1);
       const shaped = t * t * (3 - 2 * t);
       field[i] = p.spatialGainLow + (p.spatialGainHigh - p.spatialGainLow) * shaped;
     }

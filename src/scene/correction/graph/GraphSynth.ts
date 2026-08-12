@@ -73,6 +73,18 @@ export interface GraphSynthConfig {
   sweep: number;
   /** Draw one rib every N samples along the flow. */
   ribEvery: number;
+  /**
+   * Separation between the two shells, in world units.
+   *
+   * A single sheet is a skin, and a skin seen obliquely from above is a board
+   * — flat, with a pattern on it. Two coupled shells with struts between them
+   * give the structure an inside: you see the near face, the far face through
+   * it, and the section at the edge. That is the difference between a surface
+   * and a body, and a governed system has to be a body.
+   */
+  thickness: number;
+  /** Draw one strut between the shells every N samples along the flow. */
+  strutEvery: number;
   /** Slides the whole band along x so the composition sits inside the frame. */
   shift: number;
   /** Fraction of the sweep spent widening at each end. */
@@ -91,17 +103,19 @@ export interface GraphSynthConfig {
  */
 export const DEFAULT_SYNTH: GraphSynthConfig = {
   seed: 0x5eed_c0de,
-  along: 100,
-  across: 40,
+  along: 84,
+  across: 23,
   reach: 9.0,
   halfWidth: 3.3,
   tipWidth: 0.5,
-  arch: 1.05,
-  roll: -0.62,
-  twist: 0.42,
-  rise: 0.92,
-  sweep: 1.95,
-  ribEvery: 12,
+  arch: 0.86,
+  roll: -0.26,
+  twist: 0.55,
+  rise: 1.25,
+  sweep: 2.2,
+  ribEvery: 11,
+  thickness: 0.62,
+  strutEvery: 11,
   shift: -3.4,
   plateau: 0.34,
 };
@@ -119,6 +133,16 @@ export interface SynthesisedGraph {
    * combed, which is what a governed thing looks like.
    */
   renderEdges: Uint32Array;
+  /**
+   * How far along the sweep each node sits, 0 at the near end and 1 at the far
+   * one.
+   *
+   * The structure's own coordinate, not a world axis. Enforcement gain is a
+   * gradient along this: keyed to x it drifted out of alignment the moment the
+   * band was given curvature, because the deep end of the sweep and the far
+   * end of the x axis stopped being the same place.
+   */
+  depth: Float32Array;
   stats: {
     nodes: number;
     edges: number;
@@ -163,9 +187,11 @@ function centre(u: number, c: GraphSynthConfig): Vec {
   const t = u * 2 - 1;
   return [
     t * c.reach + c.shift,
-    // One shallow crest, off centre, so the profile is asymmetric.
-    Math.sin((u * 0.86 + 0.09) * Math.PI) * c.rise - c.rise * 0.42,
-    Math.sin((u * 0.78 + 0.16) * Math.PI) * c.sweep - c.sweep * 0.55,
+    // Enough curvature that the body turns through space, and not so much
+    // that it starts to swoop. Overdone it reads as a wing; flat it reads as
+    // a plate. This is the narrow band between the two.
+    Math.sin((u * 0.95 + 0.07) * Math.PI) * c.rise - c.rise * 0.46,
+    Math.sin((u * 0.85 + 0.18) * Math.PI) * c.sweep - c.sweep * 0.58,
   ];
 }
 
@@ -238,36 +264,25 @@ function surface(u: number, v: number, c: GraphSynthConfig): Vec {
 
 export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): SynthesisedGraph {
   const { along, across } = config;
-  const nodeCount = along * across;
+  const shellSize = along * across;
+  // Two shells: an outer and an inner, the same surface offset along its own
+  // normal. The structure is a body with a section, not a sheet with a
+  // pattern on it.
+  const nodeCount = shellSize * 2;
 
   const positions = new Float32Array(nodeCount * 3);
   const directions = new Float32Array(nodeCount * 3);
+  const depth = new Float32Array(nodeCount);
 
-  const index = (i: number, j: number): number => i * across + j;
+  const index = (i: number, j: number, shell = 0): number => shell * shellSize + i * across + j;
 
   // ------------------------------------------------------------- the surface
 
-  for (let i = 0; i < along; i++) {
-    const u = i / (along - 1);
-    for (let j = 0; j < across; j++) {
-      const v = (j / (across - 1)) * 2 - 1;
-      const p = surface(u, v, config);
-      const at = index(i, j) * 3;
-      positions[at] = p[0];
-      positions[at + 1] = p[1];
-      positions[at + 2] = p[2];
-    }
-  }
-
-  // --------------------------------------------------------------- normals
-  //
-  // Taken from the surface itself by finite difference rather than authored,
-  // so displacement is always exactly out of the sheet. This is the whole
-  // reason a deviation reads as a deviation: it leaves the permitted surface
-  // along the one direction the surface does not contain.
-
+  // Normals first: the shells are offset along them, so they have to exist
+  // before the positions do.
   const step = 1 / (along - 1) / 2;
   const gap = 1 / (across - 1) / 2;
+
   for (let i = 0; i < along; i++) {
     const u = i / (along - 1);
     for (let j = 0; j < across; j++) {
@@ -281,10 +296,22 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
         surface(u, Math.max(v - gap, -1), config)
       );
       const n = norm(cross(du, dv));
-      const at = index(i, j) * 3;
-      directions[at] = n[0];
-      directions[at + 1] = n[1];
-      directions[at + 2] = n[2];
+      const p = surface(u, v, config);
+      const half = config.thickness * 0.5;
+
+      for (let shell = 0; shell < 2; shell++) {
+        const offset = shell === 0 ? half : -half;
+        depth[index(i, j, shell)] = u;
+        const at = index(i, j, shell) * 3;
+        positions[at] = p[0] + n[0] * offset;
+        positions[at + 1] = p[1] + n[1] * offset;
+        positions[at + 2] = p[2] + n[2] * offset;
+        // Both shells displace along the same normal, so a deviation lifts the
+        // whole body rather than peeling one face off the other.
+        directions[at] = n[0];
+        directions[at + 1] = n[1];
+        directions[at + 2] = n[2];
+      }
     }
   }
 
@@ -309,17 +336,29 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     drawn.push(draw);
   };
 
+  for (let shell = 0; shell < 2; shell++) {
+    for (let i = 0; i < along; i++) {
+      for (let j = 0; j < across; j++) {
+        // Along the flow. Every one of these is drawn: they are the coherence.
+        if (i + 1 < along) addEdge(index(i, j, shell), index(i + 1, j, shell), true);
+        // Across the band. Load-bearing for the simulation, mostly not drawn —
+        // an even mesh reads as a chart, and the ribs are what make the
+        // surface look held rather than woven.
+        if (j + 1 < across) {
+          const rib = i % config.ribEvery === 0 || i === along - 1;
+          addEdge(index(i, j, shell), index(i, j + 1, shell), rib);
+        }
+      }
+    }
+  }
+
+  // Struts. Every pair is coupled so the body moves as one; only a sparse
+  // grid of them is drawn, and those are what the eye reads as thickness.
   for (let i = 0; i < along; i++) {
     for (let j = 0; j < across; j++) {
-      // Along the flow. Every one of these is drawn: they are the coherence.
-      if (i + 1 < along) addEdge(index(i, j), index(i + 1, j), true);
-      // Across the band. Load-bearing for the simulation, mostly not drawn —
-      // an even mesh reads as a chart, and the ribs are what make the surface
-      // look held rather than woven.
-      if (j + 1 < across) {
-        const rib = i % config.ribEvery === 0 || i === along - 1;
-        addEdge(index(i, j), index(i, j + 1), rib);
-      }
+      const show =
+        (i % config.strutEvery === 0 || i === along - 1) && (j === 0 || j === across - 1);
+      addEdge(index(i, j, 0), index(i, j, 1), show);
     }
   }
 
@@ -412,6 +451,7 @@ export function synthesiseGraph(config: GraphSynthConfig = DEFAULT_SYNTH): Synth
     graph,
     bounds,
     renderEdges,
+    depth,
     stats: {
       nodes: nodeCount,
       edges: edgeA.length,
