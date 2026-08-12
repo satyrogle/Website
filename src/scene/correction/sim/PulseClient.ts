@@ -15,14 +15,14 @@ import type {
   WorkerOutbound,
 } from './PulseWorker';
 
-/** The synthesised structure, as the renderer needs it. */
+/** The synthesised surface, as the renderer needs it. */
 export interface StructureHandoff {
   nodeCount: number;
-  edgeCount: number;
+  triangleCount: number;
   textureSize: number;
   positions: Float32Array;
   directions: Float32Array;
-  edges: Uint32Array;
+  triangles: Uint32Array;
   stats: Record<string, number>;
 }
 
@@ -68,11 +68,11 @@ export class PulseClient {
         case 'ready':
           this.structure = {
             nodeCount: message.nodeCount,
-            edgeCount: message.edgeCount,
+            triangleCount: message.triangleCount,
             textureSize: message.textureSize,
             positions: new Float32Array(message.positions),
             directions: new Float32Array(message.directions),
-            edges: new Uint32Array(message.edges),
+            triangles: new Uint32Array(message.triangles),
             stats: message.stats,
           };
           break;

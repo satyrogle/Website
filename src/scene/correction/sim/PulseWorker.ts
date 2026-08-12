@@ -7,14 +7,21 @@
  * and publishes a snapshot. Nothing on the main thread feeds back into it, so
  * what the renderer draws can never influence what the system does.
  *
- * Snapshots are packed as RGBA per node so they upload straight into a texture
- * without a repack on the main thread, and the buffers cycle between the two
- * threads by transfer rather than being reallocated sixty times a second.
+ * Snapshots are packed as two RGBA blocks per node so they upload straight into
+ * textures without a repack on the main thread, and the buffers cycle between
+ * the two threads by transfer rather than being reallocated sixty times a
+ * second.
  *
- *   R  u        displacement along the node's own direction
- *   G  glow     envelope of |u − u*| — the light law
- *   B  bruise   decaying trace plus permanent scar
- *   A  contact  smoothed |δ| this tick — V = D × C
+ *   state   R u        displacement along the node's own normal
+ *           G glow     envelope of |u − u*| — the light law
+ *           B bruise   decaying trace plus permanent scar
+ *           A contact  smoothed |δ| this tick — V = D × C
+ *
+ *   slope   R ∂u/∂x    surface gradient of the deviation
+ *           G ∂u/∂z
+ *
+ * The slope block exists because the surface is read by its shading: a swelling
+ * whose normal does not tilt is invisible under any light, however tall it is.
  */
 
 import { CorrectionSystem, DEFAULT_SYSTEM } from './CorrectionSystem';
@@ -22,14 +29,14 @@ import { CorrectionSystem, DEFAULT_SYSTEM } from './CorrectionSystem';
 export interface ReadyMessage {
   type: 'ready';
   nodeCount: number;
-  edgeCount: number;
+  triangleCount: number;
   textureSize: number;
   /** p₀ per node, xyz. */
   positions: ArrayBuffer;
-  /** n̂ per node, xyz. */
+  /** n̂ per node, xyz — the rest surface normal. */
   directions: ArrayBuffer;
-  /** Endpoint pairs, i < j. */
-  edges: ArrayBuffer;
+  /** Triangle vertex indices, three per face. */
+  triangles: ArrayBuffer;
   stats: Record<string, number>;
 }
 
@@ -95,11 +102,14 @@ let stepMsAverage = 0;
 const pool: ArrayBuffer[] = [];
 
 function packSnapshot(s: CorrectionSystem): ArrayBuffer {
-  const floats = textureSize * textureSize * 4;
-  const buffer = pool.pop() ?? new ArrayBuffer(floats * 4);
+  const block = textureSize * textureSize * 4;
+  const buffer = pool.pop() ?? new ArrayBuffer(block * 2 * 4);
   const view = new Float32Array(buffer);
   const { u } = s.simulation;
   const { glow, bruise, scar, contact } = s.operator;
+
+  s.computeGradients();
+  const { gradientX, gradientZ } = s;
 
   for (let i = 0; i < u.length; i++) {
     const at = i * 4;
@@ -107,6 +117,10 @@ function packSnapshot(s: CorrectionSystem): ArrayBuffer {
     view[at + 1] = glow[i];
     view[at + 2] = bruise[i] + scar[i];
     view[at + 3] = contact[i];
+
+    const slope = block + at;
+    view[slope] = gradientX[i];
+    view[slope + 1] = gradientZ[i];
   }
 
   return buffer;
@@ -170,26 +184,26 @@ ctx.onmessage = (event: MessageEvent<WorkerInbound>): void => {
         ctx.postMessage({ type: 'progress', fraction: 0, stage: 'synth' });
 
         system = new CorrectionSystem(DEFAULT_SYSTEM);
-        const { graph, stats } = system.synthesised;
+        const { graph, stats, triangles: faces } = system.synthesised;
         textureSize = Math.ceil(Math.sqrt(graph.nodeCount));
 
         // Copies, because the originals stay in the Worker and these are
         // transferred out.
         const positions = graph.positions.slice().buffer;
         const directions = graph.directions.slice().buffer;
-        const edges = system.edgeIndices.slice().buffer;
+        const triangles = faces.slice().buffer;
 
         const ready: ReadyMessage = {
           type: 'ready',
           nodeCount: graph.nodeCount,
-          edgeCount: system.edgeIndices.length / 2,
+          triangleCount: faces.length / 3,
           textureSize,
           positions,
           directions,
-          edges,
+          triangles,
           stats: { ...stats },
         };
-        ctx.postMessage(ready, [positions, directions, edges]);
+        ctx.postMessage(ready, [positions, directions, triangles]);
 
         // The world runs unsupervised, then the record is taken from it. This
         // is the bulk of real initialisation, so the loader reports it.

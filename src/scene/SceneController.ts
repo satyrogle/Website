@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { QualityManager } from './QualityManager';
 import { CorrectionModel } from './correction/CorrectionModel';
 import { PulseClient } from './correction/sim/PulseClient';
+import { DEFAULT_CORRECTION } from './correction/sim/CorrectionOperator';
 
 /**
  * SceneController
@@ -10,7 +11,7 @@ import { PulseClient } from './correction/sim/PulseClient';
  * Owns the renderer, the single persistent scene and the frame loop, and
  * exposes the small surface the scroll director is allowed to touch.
  *
- * The live path is THE CORRECTION: a synthesised structure stepped in a Worker
+ * The live path is THE CORRECTION: a synthesised surface stepped in a Worker
  * and drawn from authoritative snapshots. `LatticeModel`, `ReactionField`,
  * `Lighting`, `CameraRig` and `PostPipeline` are the retired entity system —
  * they remain in the tree but are no longer wired, and step 8 of the build plan
@@ -37,17 +38,18 @@ export function isWebGL2Available(): boolean {
 /**
  * The opening camera.
  *
- * Deliberately off every axis of the structure. A view down a clean central
- * axis is how the retired tunnels read as concentric rings, and the rule
- * outlived them: the veil is met obliquely and slightly from above, so it
- * recedes across the frame as a band with the void above and below it.
+ * Deliberately off every axis of the plate, and well above it — about
+ * twenty-three degrees. The camera angle and the light angle are separated on
+ * purpose: the light rakes at four degrees because that is what reveals a
+ * defect, but a camera down at four degrees would turn the plate's far edge
+ * into a horizon, and retired terrain was a horizon.
  */
 const CAMERA = {
   fov: 30,
-  position: new THREE.Vector3(9.2, 6.2, 22.0),
-  target: new THREE.Vector3(-2.0, 1.1, 0.6),
-  /** How far scroll walks the camera along the veil. Step 4 authors the rest. */
-  travel: new THREE.Vector3(-6.5, -1.4, -4.2),
+  position: new THREE.Vector3(19.0, 17.5, 34.5),
+  target: new THREE.Vector3(-1.5, 0, -0.5),
+  /** How far scroll walks the camera across the plate. Step 4 authors the rest. */
+  travel: new THREE.Vector3(-11.0, -5.5, -8.0),
 };
 
 /** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
@@ -100,7 +102,11 @@ export class SceneController {
       alpha: false,
       powerPreference: 'high-performance',
       stencil: false,
-      depth: false,
+      // The world and the record are opaque surfaces that occlude each other,
+      // and that occlusion is what carries the grammar: while the world is
+      // inside the tolerance band it hides the record completely, so agreement
+      // draws nothing. Depth is doing semantic work here, not just sorting.
+      depth: true,
     });
     this.renderer.setClearColor(new THREE.Color('#05070a'), 1);
     this.renderer.setPixelRatio(this.quality.pixelRatio());
@@ -155,7 +161,11 @@ export class SceneController {
       throw new Error('correction: worker reported ready without a structure');
     }
 
-    this.model = new CorrectionModel({ structure: client.structure, record: client.record });
+    this.model = new CorrectionModel({
+      structure: client.structure,
+      record: client.record,
+      epsilon: DEFAULT_CORRECTION.epsilon,
+    });
     this.scene.add(this.model.group);
 
     // The first snapshot is published with the record, so the opening frame is
@@ -280,6 +290,7 @@ export class SceneController {
     this.exposure = 1;
     this.consume();
     this.applyCamera();
+    this.syncEye();
     this.model?.setExposure(1);
     this.renderer.render(this.scene, this.camera);
   }
@@ -316,6 +327,10 @@ export class SceneController {
     this.camera.lookAt(CAMERA.target);
   }
 
+  private syncEye(): void {
+    this.model?.setEye(this.camera.position);
+  }
+
   private tick = (): void => {
     if (!this.running) return;
     this.frameHandle = requestAnimationFrame(this.tick);
@@ -334,6 +349,7 @@ export class SceneController {
 
     this.consume();
     this.applyCamera();
+    this.syncEye();
     this.renderer.render(this.scene, this.camera);
   };
 

@@ -113,92 +113,68 @@ async function frameStats() {
 }
 
 /**
- * How far the structure actually moves on screen, in pixels.
+ * How much the surface's shading changes over time.
  *
- * Two earlier versions of this measured mean luminance change between frames,
- * and both lied. Hairline geometry changes its antialiasing under sub-pixel
- * jitter, so a still image scored as moving; and when the movement became real
- * but smooth, consecutive samples differed less than the shimmer had, so it
- * scored as still. Luminance delta is not displacement.
- *
- * This tracks the veil's spine: per column, the luminance-weighted mean row.
- * Peak-to-peak movement of that spine over the sampling window is how far the
- * structure travelled, and it is immune to both failure modes above.
+ * The metric has now been right twice and wrong twice, and which one is correct
+ * depends entirely on what is being drawn. For hairlines, luminance change was
+ * useless — a still image jittering sub-pixel changes its antialiasing and
+ * scores as movement — so that build tracked the geometry's position instead.
+ * This build draws a solid shaded surface, where the opposite holds: the plate
+ * barely moves in screen space by design, and *shading* is the whole signal. A
+ * position tracker would report this frame as dead while the light visibly
+ * swings across it.
  */
-async function motion(samples = 20, intervalMs = 420) {
-  const result = await page.evaluate(
+async function motion(samples = 16, intervalMs = 400) {
+  return page.evaluate(
     ([count, gap]) =>
       new Promise((resolve) => {
         const canvas = document.getElementById('lattice-canvas');
-        const width = 480;
         const copy = document.createElement('canvas');
-        copy.width = width;
-        copy.height = Math.round((width * canvas.height) / canvas.width);
+        copy.width = 480;
+        copy.height = Math.round((480 * canvas.height) / canvas.width);
         const ctx = copy.getContext('2d', { willReadFrequently: true });
 
-        // Spine of the structure: for each column, the luminance-weighted mean
-        // row. NaN for columns with nothing in them.
-        const spine = () =>
+        const read = () =>
           new Promise((done) =>
             requestAnimationFrame(() => {
               ctx.drawImage(canvas, 0, 0, copy.width, copy.height);
               const { data } = ctx.getImageData(0, 0, copy.width, copy.height);
-              const out = new Float64Array(copy.width);
-              for (let x = 0; x < copy.width; x++) {
-                let weight = 0;
-                let sum = 0;
-                for (let y = 0; y < copy.height; y++) {
-                  const i = (y * copy.width + x) * 4;
-                  const l = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
-                  if (l <= 0.015) continue;
-                  weight += l;
-                  sum += l * y;
-                }
-                out[x] = weight > 0.35 ? sum / weight : NaN;
+              const luma = new Float32Array(data.length / 4);
+              for (let i = 0; i < data.length; i += 4) {
+                luma[i / 4] = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
               }
-              done(out);
+              done(luma);
             })
           );
 
         (async () => {
-          const first = await spine();
-          const low = Float64Array.from(first);
-          const high = Float64Array.from(first);
-          let tracked = 0;
+          const first = await read();
+          const low = Float32Array.from(first);
+          const high = Float32Array.from(first);
 
           for (let s = 1; s < count; s++) {
             await new Promise((r) => setTimeout(r, gap));
-            const current = await spine();
-            for (let x = 0; x < current.length; x++) {
-              if (Number.isNaN(current[x]) || Number.isNaN(low[x])) { low[x] = NaN; continue; }
-              if (current[x] < low[x]) low[x] = current[x];
-              if (current[x] > high[x]) high[x] = current[x];
+            const current = await read();
+            for (let i = 0; i < current.length; i++) {
+              if (current[i] < low[i]) low[i] = current[i];
+              if (current[i] > high[i]) high[i] = current[i];
             }
           }
 
-          const travel = [];
-          for (let x = 0; x < low.length; x++) {
-            if (Number.isNaN(low[x])) continue;
-            travel.push(high[x] - low[x]);
-            tracked++;
+          // Only pixels the plate actually covers. Void does not change and
+          // would otherwise drown the statistic.
+          const swings = [];
+          for (let i = 0; i < low.length; i++) {
+            if (high[i] < 0.03) continue;
+            swings.push((high[i] - low[i]) / Math.max(high[i], 1e-3));
           }
-          travel.sort((a, b) => a - b);
-          const q = (p) => (travel.length ? travel[Math.floor(travel.length * p)] : 0);
-          resolve({ columns: tracked, p10: q(0.1), median: q(0.5), p90: q(0.9), max: q(0.99) });
+          swings.sort((a, b) => a - b);
+          const q = (p) => (swings.length ? swings[Math.floor(swings.length * p)] : 0);
+          resolve({ covered: swings.length, p10: q(0.1), median: q(0.5), p90: q(0.9) });
         })();
       }),
     [samples, intervalMs]
   );
-
-  // The spine is measured on a 480px-wide downsample of a WIDTH-wide canvas.
-  const toFullRes = WIDTH / 480;
-  return {
-    columns: result.columns,
-    p10: result.p10 * toFullRes,
-    median: result.median * toFullRes,
-    p90: result.p90 * toFullRes,
-    max: result.max * toFullRes,
-  };
 }
 
 async function shot(name) {
@@ -222,10 +198,11 @@ if (flag('motion')) {
   console.log('\nDOES THE CALM MOVE');
   const m = await motion();
   console.log(
-    `  structure travel over 8s, screen px:  p10 ${m.p10.toFixed(1)}  median ${m.median.toFixed(1)}  ` +
-      `p90 ${m.p90.toFixed(1)}  max ${m.max.toFixed(1)}   (${m.columns} columns tracked)`
+    `  shading swing over 6s, as a fraction of each pixel's own brightness:  ` +
+      `p10 ${(m.p10 * 100).toFixed(0)}%  median ${(m.median * 100).toFixed(0)}%  p90 ${(m.p90 * 100).toFixed(0)}%` +
+      `   (${m.covered} covered pixels)`
   );
-  console.log(`  ${m.median >= 3 ? 'BREATHING' : 'READS AS STILL'}`);
+  console.log(`  ${m.median >= 0.12 ? 'BREATHING' : 'READS AS STILL'}`);
 }
 
 if (flag('event')) {
