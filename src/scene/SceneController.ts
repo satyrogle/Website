@@ -578,7 +578,12 @@ export class SceneController {
         hops: patch.hops,
       });
     }
-    if (patch.render) this.model?.tune(patch.render);
+    if (patch.render) {
+      // One patch fans out to both layers; each takes only the uniforms it
+      // actually owns, so a knob cannot silently write into the void.
+      this.model?.tune(patch.render);
+      this.planet?.tune(patch.render);
+    }
     if (patch.energy !== undefined) this.pressEnergy = patch.energy;
   }
 

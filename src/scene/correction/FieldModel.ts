@@ -44,11 +44,15 @@ export const PLATING = {
  * is the clean-orb read the direction explicitly kills.
  */
 export const STAR = {
-  /** Radius of the luminous core, which sits *inside* the crust. */
-  radius: 0.9,
-  glow: 1.7,
-  noise: 0.35,
-  ejecta: 1.4,
+  /**
+   * Radius of the luminous core. It sits well inside the assembled shell
+   * (world radius ~3.1), so from outside it is visible only through the wound
+   * and the gaps between plates - shaped light, never a disc.
+   */
+  radius: 1.5,
+  glow: 3.2,
+  noise: 0.4,
+  ejecta: 1.5,
   /** The ruptured crust around it. */
   body: 2.45,
   /** Plate size on the crust. */

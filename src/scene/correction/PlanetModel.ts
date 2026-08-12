@@ -51,6 +51,16 @@ export const CORE_SPREAD = 0.42;
 /** The blast corridor: how far the thrown pieces travel, by rank. */
 export const THROW = { near: 3.4, far: 26.0, spread: 5.2 };
 
+/**
+ * Where the five journey stops sit along the corridor, far end first by rank
+ * order reversed at the rail. Authored, because the rank formula bunched all
+ * five at the near end and the scroll had nowhere to travel.
+ */
+export const STOP_TS = [0.13, 0.3, 0.48, 0.66, 0.85] as const;
+
+/** The instanced ejecta field: how many of each small geometry, and reach. */
+export const EJECTA = { perGeometry: 30, geometries: 10, reach: 30.0 };
+
 /** Material response. */
 /**
  * Material response.
@@ -61,7 +71,9 @@ export const THROW = { near: 3.4, far: 26.0, spread: 5.2 };
  * one break face survived. The crust needs just enough response to hold a
  * silhouette against black; the heat belongs to the breaks.
  */
-export const MATERIAL = { heat: 1.05, crustLight: 3.4, rim: 3.2 };
+// Rim tamed hard: at 3.2 the parchment backlight painted every star-facing
+// surface pale and drowned the molten interiors — the one light that must win.
+export const MATERIAL = { heat: 1.0, crustLight: 2.6, rim: 1.3 };
 
 /** The planet's own radius once staged. Everything else scales off it. */
 export const WORLD_SCALE = 3.1;
@@ -102,6 +114,7 @@ export class PlanetModel {
   private readonly uniforms: Record<string, THREE.IUniform>;
   private readonly axis: THREE.Vector3;
   private readonly scratch = new THREE.Vector3();
+  private readonly ejecta = new THREE.Group();
 
   constructor(options: PlanetModelOptions) {
     this.axis = options.axis.clone().normalize();
@@ -163,11 +176,34 @@ export class PlanetModel {
       const outward = restWorld.clone().normalize();
       const home = restWorld.clone();
 
+      const blastFacing = outward.dot(this.axis);
+      const stopIndex = rank - CORE_PIECES;
+      let peel = 0;
+
       if (rank < CORE_PIECES) {
         // The body that survives. Opened along its own radius only — the
         // silhouette has to stay readable as a sphere that came apart, and a
         // piece pushed sideways stops describing where it used to be.
         home.addScaledVector(outward, CORE_SPREAD * (0.25 + random()) * (rank / CORE_PIECES));
+
+        // Plates on the blast side peel back and stand off further: the shell
+        // failed *here*, and this is both the wound the light escapes through
+        // and the reason everything downstream went the way it went.
+        if (blastFacing > 0.2) {
+          peel = blastFacing * (0.55 + random() * 0.4);
+          home.addScaledVector(outward, peel * 1.6);
+          home.addScaledVector(this.axis, peel * 1.1);
+        }
+      } else if (stopIndex < STOP_TS.length) {
+        // The five stops are placed by hand along the corridor, largest
+        // nearest the body. Placed by the rank formula they bunched at the
+        // near end and the journey had nowhere to go.
+        const eased = STOP_TS[stopIndex];
+        home.addScaledVector(this.axis, THROW.near + (THROW.far - THROW.near) * eased);
+        home.addScaledVector(outward, THROW.spread * (0.5 + eased) * 0.8);
+        home.x += (random() - 0.5) * THROW.spread * eased * 0.8;
+        home.y += (random() - 0.5) * THROW.spread * eased * 0.5;
+        home.z += (random() - 0.5) * THROW.spread * eased * 0.8;
       } else {
         // Thrown. Smaller pieces got further, which is both true and what
         // makes the corridor read as one ballistic event rather than a
@@ -185,7 +221,30 @@ export class PlanetModel {
       const mesh = new THREE.Mesh(geometry, this.material);
       mesh.scale.setScalar(WORLD_SCALE);
       mesh.position.copy(home);
-      mesh.rotation.set(random() * 6.28, random() * 6.28, random() * 6.28);
+
+      if (rank < CORE_PIECES) {
+        // Core plates keep their bearings. This was the single worst fault of
+        // the first staging: every piece got a full random tumble, so the
+        // "reassembled" body was fourteen arbitrarily rotated shards at the
+        // origin — geometrically a sphere's worth of mass, visually salad.
+        // A plate still describing its original orientation is what lets the
+        // silhouette read as a planet that came apart.
+        mesh.rotation.set(
+          (random() - 0.5) * 0.12,
+          (random() - 0.5) * 0.12,
+          (random() - 0.5) * 0.12
+        );
+        if (peel > 0) {
+          // Peeled plates hinge outward about their own tangent.
+          const hinge = new THREE.Vector3().crossVectors(outward, this.axis);
+          if (hinge.lengthSq() > 1e-4) {
+            mesh.rotateOnWorldAxis(hinge.normalize(), peel * 0.55);
+          }
+        }
+      } else {
+        mesh.rotation.set(random() * 6.28, random() * 6.28, random() * 6.28);
+      }
+
       mesh.frustumCulled = true;
 
       this.group.add(mesh);
@@ -200,16 +259,72 @@ export class PlanetModel {
           (random() - 0.5) * 0.012,
           (random() - 0.5) * 0.012,
           (random() - 0.5) * 0.012
-        ),
+        ).multiplyScalar(rank < CORE_PIECES ? 0.1 : 1),
         extent,
         rank,
       });
     });
+
+    this.buildEjecta(
+      source.slice(Math.max(source.length - EJECTA.geometries, 0)).map((e) => e.geometry),
+      random
+    );
   }
 
   /** The stops a scroll journey can visit: the biggest thrown pieces, in order. */
   get stops(): Piece[] {
     return this.pieces.filter((p) => p.rank >= CORE_PIECES).slice(0, 5);
+  }
+
+  /**
+   * The tier the brief calls medium ejecta: hundreds of small shards along the
+   * corridor, instanced from the smallest authored fragments so even the dust
+   * is torn from the same body. Density thins with distance and the funnel
+   * widens with it — one ballistic event, read at every scale.
+   */
+  private buildEjecta(
+    geometries: THREE.BufferGeometry[],
+    random: () => number
+  ): void {
+    const side = new THREE.Vector3().crossVectors(this.axis, new THREE.Vector3(0, 1, 0)).normalize();
+    const lift = new THREE.Vector3().crossVectors(side, this.axis).normalize();
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Euler();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    for (const geometry of geometries.slice(0, EJECTA.geometries)) {
+      const mesh = new THREE.InstancedMesh(geometry, this.material, EJECTA.perGeometry);
+      mesh.frustumCulled = false;
+
+      for (let i = 0; i < EJECTA.perGeometry; i++) {
+        // Crowded near the wound, thinning down the corridor.
+        const t = Math.pow(random(), 1.6);
+        const along = 2.2 + EJECTA.reach * t;
+        const funnel = (1.1 + 6.5 * t) * (0.25 + random() * 0.75);
+        const swing = random() * Math.PI * 2;
+
+        position
+          .copy(this.axis)
+          .multiplyScalar(along)
+          .addScaledVector(side, Math.cos(swing) * funnel)
+          .addScaledVector(lift, Math.sin(swing) * funnel);
+
+        rotation.set(random() * 6.28, random() * 6.28, random() * 6.28);
+        quaternion.setFromEuler(rotation);
+        const s = WORLD_SCALE * (0.06 + random() * 0.2);
+        scale.set(s, s, s);
+
+        matrix.compose(position, quaternion, scale);
+        mesh.setMatrixAt(i, matrix);
+      }
+
+      mesh.instanceMatrix.needsUpdate = true;
+      this.ejecta.add(mesh);
+    }
+
+    this.group.add(this.ejecta);
   }
 
   /**
@@ -223,6 +338,8 @@ export class PlanetModel {
       this.scratch.copy(piece.home).addScaledVector(piece.drift, flare);
       piece.mesh.position.copy(this.scratch);
     }
+    // The small stuff rides the same continuation, as one field.
+    this.ejecta.position.copy(this.axis).multiplyScalar(flare * 2.6);
   }
 
   /**
@@ -253,5 +370,8 @@ export class PlanetModel {
   dispose(): void {
     this.material.dispose();
     for (const piece of this.pieces) piece.mesh.geometry.dispose();
+    this.ejecta.traverse((object) => {
+      if (object instanceof THREE.InstancedMesh) object.dispose();
+    });
   }
 }

@@ -26,9 +26,18 @@ void main() {
   vCrust = color.r;
   vLocal = position;
 
-  vec4 world = modelMatrix * vec4(position, 1.0);
+  // The ejecta tier is instanced; the hero fragments are not. Same material,
+  // both paths, or the small debris would need a second shader to drift out
+  // of sync with.
+  #ifdef USE_INSTANCING
+    vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+  #else
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vNormal = normalize(mat3(modelMatrix) * normal);
+  #endif
+
   vWorld = world.xyz;
-  vNormal = normalize(mat3(modelMatrix) * normal);
   vView = normalize(cameraPosition - world.xyz);
 
   gl_Position = projectionMatrix * viewMatrix * world;

@@ -144,7 +144,22 @@ def seed_points(rand):
 
 
 def carve(source, points):
-    """One convex Voronoi cell per seed, cut out of the planet by bisection."""
+    """
+    One solid Voronoi cell per seed.
+
+    The cut is capped after *every* bisect, not filled once at the end. The
+    first version filled once, and the difference is the difference between a
+    planet and a paper lantern: bisecting a sphere leaves only its surface
+    shell, so cells with no shell in them collapsed to slivers, the survivors
+    were curved petals, every vertex sat at surface radius — which marked the
+    whole world as crust and silently killed the molten system — and nothing
+    had the thickness the brief demands. Capping per cut closes each piece
+    into a real polyhedron with real cross-sections.
+
+    Faces made by the caps carry material_index 1; original surface faces keep
+    0. That identity is what `mark_crust` reads — a face either existed before
+    the planet failed or it did not.
+    """
     made = []
 
     for index, seed in enumerate(points):
@@ -155,29 +170,37 @@ def carve(source, points):
         # never touches this cell, and every extra bisect costs geometry.
         others = sorted(points, key=lambda q: (q - seed).length_squared)[1:15]
 
+        alive = True
         for other in others:
             normal = other - seed
             if normal.length < 1e-6:
                 continue
             normal.normalize()
             midpoint = (seed + other) * 0.5
-            bmesh.ops.bisect_plane(
+
+            result = bmesh.ops.bisect_plane(
                 bm,
                 geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
                 plane_co=midpoint,
                 plane_no=normal,
                 clear_outer=True,
             )
-            if not bm.faces:
+
+            if not bm.faces and not bm.verts:
+                alive = False
                 break
 
-        if len(bm.faces) < 4:
+            # Cap the fresh cut immediately, and stamp the cap as a break.
+            cut_edges = [g for g in result['geom_cut'] if isinstance(g, bmesh.types.BMEdge)]
+            if cut_edges:
+                fill = bmesh.ops.edgenet_fill(bm, edges=cut_edges)
+                for face in fill.get('faces', []):
+                    face.material_index = 1
+
+        if not alive or len(bm.faces) < 4:
             bm.free()
             continue
 
-        # The bisections leave the cut open; cap it, and those caps are exactly
-        # the fresh break surfaces.
-        bmesh.ops.holes_fill(bm, edges=bm.edges[:])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
         mesh = bpy.data.meshes.new(f'fragment_{index:02d}')
@@ -197,26 +220,21 @@ def carve(source, points):
 
 def mark_crust(obj):
     """
-    1 where a vertex is on the original planetary surface, 0 where it is a
-    fresh break. The shader reads this and lights only the breaks.
+    1 on faces that existed before the planet failed, 0 on faces the break
+    made. Face identity, not vertex radius: the radius test marked the whole
+    world as crust, because on a fractured shell every vertex sits at surface
+    radius whatever face it belongs to.
+
+    Corner domain, so the boundary between crust and break is the actual
+    geometric edge between the two faces, split on export.
     """
     mesh = obj.data
-    attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='POINT')
+    attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
 
-    for i, vert in enumerate(mesh.vertices):
-        position = Vector(vert.co)
-        length = position.length
-        if length < 1e-6:
-            value = 0.0
-        else:
-            surface = relief_at(position / length)
-            # The band must *reach* 1 at the original surface. Centred on it
-            # instead, every exterior vertex marked 0.5, so the shader read
-            # half a fracture everywhere and the whole world glowed amber —
-            # exactly the "everything glows equally" fault this attribute was
-            # added to remove.
-            value = min(max((length - surface * 0.97) / (surface * 0.03), 0.0), 1.0)
-        attribute.data[i].color = (value, value, value, 1.0)
+    for poly in mesh.polygons:
+        value = 0.0 if poly.material_index == 1 else 1.0
+        for loop_index in poly.loop_indices:
+            attribute.data[loop_index].color = (value, value, value, 1.0)
 
 
 def centre_and_rank(fragments):
