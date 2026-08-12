@@ -47,6 +47,22 @@ uniform float uStarRadius;
 uniform float uStarGlow;
 /** The finale. 0 for the whole descent, ramping to 1 at the very floor. */
 uniform float uFlare;
+/** How irregular the star's luminous envelope is. Zero is a lamp; never zero. */
+uniform float uStarNoise;
+/** Radial ejecta filaments thrown off the core. */
+uniform float uEjecta;
+/** Trailing ejecta behind each great fragment, back toward the source. */
+uniform float uTrail;
+
+// The blast funnel, for the small-debris field: the star sits at one end and
+// the cone opens along the axis. Debris exists only inside it.
+uniform vec3 uAxis;
+uniform float uConeR0;
+uniform float uConeSlope;
+uniform float uConeLen;
+/** Small-debris repetition cell and how full the field is. */
+uniform float uDebrisCell;
+uniform float uDebrisDensity;
 
 // The debris. Position + shell radius, and a rotation as axis + angle.
 const int FRAGS = 5;
@@ -87,6 +103,18 @@ vec3 turn(vec3 p, vec3 axis, float angle) {
 }
 
 /**
+ * Cheap layered irregularity. Products of unaligned sines - smooth, seamless,
+ * and free of the axis-locked lattice a single sine family gives. Used for the
+ * star's uneven envelope, its ejecta filaments, and the large-scale roughness
+ * that keeps a fragment from reading as a tidy sphere section.
+ */
+float terrain(vec3 d) {
+  return 0.6 * sin(d.x * 3.1 + 1.7) * sin(d.y * 2.3 - 0.6)
+       + 0.4 * sin(d.y * 5.7 + 2.1) * sin(d.z * 4.3 + 0.9)
+       + 0.25 * sin(d.z * 8.9 - 1.2) * sin(d.x * 7.1 + 3.3);
+}
+
+/**
  * The seams between armour plates. Roughly 0 across a plate face, rising to 1
  * in the groove — the emission reads it, so light collects in the seams.
  */
@@ -119,27 +147,88 @@ float gCut = 0.0;
  * and the plating samples the rotated coordinates, so no two fragments show
  * the same face.
  */
-float chunk(vec3 q, float shell) {
+float chunk(vec3 q, float shell, float idx) {
   float relief = (hash31(floor(q * uPanelFreq)) * 0.62 +
                   hash31(floor(q * uPanelFreq * 3.1) + 17.3) * 0.38 - 0.5) * uRelief;
   float seams = fissure(q) * uGroove;
 
-  float sphere = length(q) - (shell + relief - seams);
+  // Large-scale roughness on the outer face, keyed by the fragment's own
+  // index. A clean sphere section is a tidy game prop; a torn radius is a
+  // piece of something. This is what was missing when the founder called the
+  // fragments "tidy spherical fragments" - and he was right.
+  vec3 dir = q / max(length(q), 1e-4);
+  float rough = terrain(dir * (2.2 + idx * 0.37) + idx * 1.7) * shell * 0.14;
 
-  // Two cuts, off the centre and at an odd angle to each other: a broken
-  // piece, not a machined hemisphere.
-  float cutA = dot(q, normalize(vec3(0.78, 0.31, -0.55))) - shell * 0.34;
-  float cutB = dot(q, normalize(vec3(-0.25, 0.91, 0.33))) - shell * 0.52;
+  float sphere = length(q) - (shell + rough + relief - seams);
+
+  // Two cuts per fragment, their angles walked by the index so no two pieces
+  // broke the same way - kinship in material, variety in the break.
+  vec3 nA = turn(normalize(vec3(0.78, 0.31, -0.55)), normalize(vec3(0.3, -0.8, 0.52)), idx * 1.7);
+  vec3 nB = turn(normalize(vec3(-0.25, 0.91, 0.33)), normalize(vec3(-0.6, 0.2, 0.77)), idx * 2.3);
+  float cutA = dot(q, nA) - shell * (0.34 - 0.06 * sin(idx * 2.1));
+  float cutB = dot(q, nB) - shell * (0.52 + 0.08 * sin(idx * 1.3));
 
   float d = max(sphere, max(cutA, cutB));
-
-  // Remember what the surface here is made of, for the light. The cut glow
-  // hugs the two break planes and stays inside the shell.
   float nearCut = min(abs(cutA), abs(cutB));
+
+  // Two of the five are hollowed: broken shells whose interiors are exposed
+  // and incandescent. "Some more hollow" - the brief, verbatim.
+  if (idx == 1.0 || idx == 3.0) {
+    float hollow = length(q - nA * shell * 0.35) - shell * 0.74;
+    d = max(d, -hollow);
+    nearCut = min(nearCut, abs(hollow) * 0.6);
+  }
+
+  // Remember what the surface here is made of, for the light. The break glow
+  // hugs the fresh faces and stays inside the shell.
   gSeam = fissure(q);
   gCut = exp(-nearCut * 3.2) * (1.0 - smoothstep(shell * 0.55, shell, length(q)));
 
   return d;
+}
+
+/**
+ * The small debris - everywhere, as the founder specified, not five props in
+ * a void. Jittered domain repetition gated to the blast cone: one shard
+ * evaluated per cell, presence decided by hash, density thinning toward the
+ * cone's edge. Thousands of pieces for the price of one.
+ *
+ * During the flare the whole field is sampled through a contraction toward
+ * the star, which renders as uniform expansion away from it - the explosion
+ * still going, everywhere at once, for one uniform.
+ */
+float debris(vec3 p) {
+  vec3 rel = (p - uStarPos) / (1.0 + uFlare * 0.05);
+  float along = dot(rel, uAxis);
+  if (along < 1.4 || along > uConeLen) return 1e9;
+
+  float radial = length(rel - uAxis * along);
+  float coneR = max(uConeR0 + uConeSlope * along, 0.3);
+  if (radial > coneR * 1.5) return 1e9;
+
+  vec3 cellP = (rel + uStarPos) / uDebrisCell;
+  vec3 base = floor(cellP);
+  float presence = uDebrisDensity * (1.0 - smoothstep(coneR, coneR * 1.5, radial));
+  if (hash31(base) > presence) return 1e9;
+
+  vec3 jitter = vec3(hash31(base + 11.1), hash31(base + 27.7), hash31(base + 43.3));
+  vec3 centre = (base + 0.15 + jitter * 0.7) * uDebrisCell;
+  float size = uDebrisCell * (0.08 + 0.2 * hash31(base + 5.5));
+
+  vec3 q = (rel + uStarPos) - centre;
+  vec3 axis = normalize(vec3(hash31(base + 7.1), hash31(base + 8.3), hash31(base + 9.7)) * 2.0 - 1.0);
+  q = turn(q, axis, hash31(base + 13.9) * 6.28);
+
+  // A small burned shard: an elongated box with softened edges, so even the
+  // dust shares the body's angular, made language rather than being pebbles.
+  vec3 b = abs(q) - size * vec3(1.0, 0.55, 0.35);
+  float d = length(max(b, 0.0)) + min(max(b.x, max(b.y, b.z)), 0.0) - size * 0.08;
+
+  // Never report further than the cell wall, or the march strides into a
+  // neighbouring cell and clips whatever lives there.
+  vec3 f = abs(fract(cellP) - 0.5);
+  float wall = (0.5 - max(f.x, max(f.y, f.z))) * uDebrisCell;
+  return min(d, wall + size);
 }
 
 /**
@@ -164,16 +253,25 @@ float map(vec3 p) {
 
     // Cheap bound first. Most rays spend most steps nowhere near most
     // fragments, and the plating hashes are the expensive part.
-    float bound = length(w) - shell * 1.45;
+    float bound = length(w) - shell * 1.6;
     if (bound > best + 0.4) continue;
 
     vec3 q = turn(w, normalize(uFragRot[i].xyz), uFragRot[i].w);
-    float d = chunk(q, shell);
+    float d = chunk(q, shell, float(i));
     if (d < best) {
       best = d;
       bestSeam = gSeam;
       bestCut = gCut;
     }
+  }
+
+  // The field of small debris. Dark: it carries no seam or break light of its
+  // own, so it reads as burned mass silhouetted against the star.
+  float dd = debris(p);
+  if (dd < best) {
+    best = dd;
+    bestSeam = 0.0;
+    bestCut = 0.0;
   }
 
   gSeam = bestSeam;
@@ -189,7 +287,13 @@ void main() {
     uCamRight * (ndc.x * aspect * uTanFov) + uCamUp * (ndc.y * uTanFov) + uCamForward
   );
 
-  float travelled = 0.0;
+  // The march starts at a per-pixel dithered offset. With a uniform start the
+  // step bound near the star quantises accumulation into shells, which render
+  // as faint concentric banding around the core - a ring read manufactured by
+  // sampling, not geometry, and just as forbidden. Dither trades it for noise
+  // the eye files as grain in the ejecta.
+  float travelled =
+    fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 0.14;
 
   // Light accumulated along the ray — the approved glow, unchanged in kind.
   float lit = 0.0;    // proximity to any surface
@@ -204,26 +308,61 @@ void main() {
     vec3 p = uCamPos + direction * travelled;
     float d = map(p);
 
+    // Step length decided up front, because open-space emission must be
+    // weighted by it. Accumulating per sample quantises the star's envelope
+    // into the march's own shells - faint concentric arcs around the core,
+    // a ring read manufactured by sampling. Weighting by distance travelled
+    // is the actual integral, and shells cannot exist in an integral.
+    float dStarEarly = length(p - uStarPos);
+    float stepLen = min(d, max(dStarEarly - uStarRadius * 0.6, 0.1));
+    float w = clamp(stepLen, 0.004, 0.8) * 10.0;
+
     float near = exp(-abs(d) * uDensity);
     lit += near;
     deep += near * clamp(1.0 - abs(d) * 3.0, 0.0, 1.0);
     heat += near * gSeam;
     lava += near * gCut;
 
-    // The star, as light along the path. Falloff is scaled to its radius so
-    // the core saturates and the halo carries two or three radii beyond it,
-    // bleeding around the debris silhouettes.
-    float dStar = length(p - uStarPos);
-    star += exp(-max(dStar - uStarRadius, 0.0) * (1.4 / uStarRadius));
+    // The star, as an event rather than a lamp.
+    //
+    // Three terms, all directional. The envelope's radius is modulated by
+    // direction so the luminous edge is uneven and slowly reorganising; a
+    // dirty outer envelope carries turbulence far past the core; and radial
+    // filaments - noise sampled on the *direction* vector, so it is constant
+    // along any sight-line from the core - read as ejecta thrown outward.
+    // Nothing about it is a circle.
+    vec3 sp = p - uStarPos;
+    float dStar = length(sp);
+    vec3 sdir = sp / max(dStar, 1e-4);
+
+    float lumpy = 1.0 + uStarNoise * terrain(sdir * 2.0 + uBreath * 0.15);
+    float hot = exp(-max(dStar - uStarRadius * lumpy, 0.0) * (1.6 / uStarRadius));
+    float turb = 0.55 + 0.45 * terrain(sdir * 5.0 - uBreath * 0.1);
+    float dirty = exp(-max(dStar - uStarRadius, 0.0) * (0.5 / uStarRadius)) * turb;
+    float fil = max(terrain(sdir * 7.3 + 3.7), 0.0);
+    float ejecta = fil * fil * exp(-max(dStar - uStarRadius * 1.2, 0.0) * (0.55 / uStarRadius)) * uEjecta;
+    star += (hot + dirty * 0.45 + ejecta) * w;
+
+    // Trailing ejecta behind each great fragment, back along its line to the
+    // source - the fragments are still shedding, which is what ties them to
+    // the event instead of floating beside it.
+    for (int f = 0; f < FRAGS; f++) {
+      vec3 a = uFrag[f].xyz;
+      float shellF = uFrag[f].w;
+      vec3 back = uStarPos - a;
+      float L = length(back);
+      vec3 tdir = back / max(L, 1e-4);
+      float along = clamp(dot(p - a, tdir), 0.0, shellF * 3.0);
+      vec3 nearest = a + tdir * along;
+      float dl = length(p - nearest);
+      if (dl < shellF * 1.5) {
+        lava += exp(-dl * (3.4 / shellF)) * exp(-along / (shellF * 3.0) * 2.4) * uTrail
+              * (0.4 + 0.6 * hash31(vec3(float(f) + 3.7))) * w;
+      }
+    }
 
     if (d < 0.0006 * travelled) break;
 
-    // Steps are also bounded by the distance to the star. The fragments no
-    // longer contribute a surface there, so the estimator reports empty space
-    // and would stride straight through the core in two samples — a star that
-    // flickered with every camera move. The bound densifies sampling exactly
-    // where the light is.
-    float stepLen = min(d, max(dStar - uStarRadius * 0.6, 0.1));
     travelled += max(stepLen * 0.6, 0.004);
     if (travelled > FAR) break;
   }
@@ -231,8 +370,8 @@ void main() {
   float steps = float(uSteps);
   lit = lit / steps * uGlow * 0.35;
   deep = deep / steps * uGlow;
-  heat = heat / steps * uGlow * uHeat;
-  lava = lava / steps * uGlow * uLava;
+  heat = heat / steps * uGlow * uHeat * (1.0 + uFlare * 0.8);
+  lava = lava / steps * uGlow * uLava * (1.0 + uFlare * 0.8);
 
   // The flare is the finale: the star's output climbs an order of magnitude
   // over the last stretch of scroll, and its colour runs from amber toward
@@ -245,7 +384,10 @@ void main() {
   colour += uRecord * lit * 0.1;
   colour += mix(uRecord, vec3(1.0, 0.86, 0.62), 0.5) * heat;
   colour += mix(uRecord, vec3(1.0, 0.66, 0.3), 0.8) * lava;
-  colour += mix(uRecord, vec3(1.0, 0.94, 0.86), clamp(star * 0.5 + uFlare * 0.4, 0.0, 0.9)) * star;
+  // Overexposed where hottest: past a threshold the core clips to white, and
+  // it is allowed to - a star you can comfortably look at is a lamp.
+  colour += mix(uRecord, vec3(1.0, 0.95, 0.88), clamp(star * 0.7 + uFlare * 0.4, 0.0, 0.92)) * star;
+  colour += vec3(1.0) * max(star - 1.1, 0.0) * 0.85;
 
   // Attention warms the seams and the breaks, and only those. Cyan is a
   // hairline at the edge of attention — the world surfacing at the boundary

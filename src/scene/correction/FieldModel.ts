@@ -38,8 +38,24 @@ export const PLATING = {
   heat: 1.6,
 };
 
-/** The dying star, at the throat of the funnel. */
-export const STAR = { radius: 0.85, glow: 3.4 };
+/**
+ * The dying star, at the throat of the funnel. Not a lamp: `noise` breaks the
+ * luminous edge, `ejecta` throws radial filaments off the core. Zero on either
+ * is the clean-orb read the direction explicitly kills.
+ */
+export const STAR = { radius: 0.85, glow: 1.7, noise: 0.35, ejecta: 1.4 };
+
+/** Trailing ejecta behind each great fragment, back toward the source. */
+export const TRAIL = 0.9;
+
+/**
+ * The small-debris field filling the blast cone. `cell` is the repetition
+ * size in world units; `density` is how full the cone is. The cone itself is
+ * fitted to the great fragments' funnel so the dust and the stops describe
+ * the same event.
+ */
+export const DEBRIS_FIELD = { cell: 1.35, density: 0.4 };
+export const CONE = { r0: -0.11, slope: 0.375, length: 14.0 };
 
 /** Heat escaping from the broken faces of the fragments. */
 export const LAVA = 2.2;
@@ -143,7 +159,16 @@ export class FieldModel {
       uStarPos: { value: STAR_POSITION.clone() },
       uStarRadius: { value: STAR.radius },
       uStarGlow: { value: STAR.glow },
+      uStarNoise: { value: STAR.noise },
+      uEjecta: { value: STAR.ejecta },
+      uTrail: { value: TRAIL },
       uFlare: { value: 0 },
+      uAxis: { value: AXIS.clone() },
+      uConeR0: { value: CONE.r0 },
+      uConeSlope: { value: CONE.slope },
+      uConeLen: { value: CONE.length },
+      uDebrisCell: { value: DEBRIS_FIELD.cell },
+      uDebrisDensity: { value: DEBRIS_FIELD.density },
 
       uFrag: { value: fragments },
       uFragRot: { value: rotations },

@@ -1,5 +1,6 @@
 import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
 import {
+  DEBRIS_FIELD,
   DENSITY,
   GLOW,
   HOVER_FRINGE,
@@ -8,6 +9,7 @@ import {
   LAVA,
   PLATING,
   STAR,
+  TRAIL,
 } from '../scene/correction/FieldModel';
 import { DEFAULT_DYNAMICS, INJECTION } from '../scene/correction/sim/DeviationField';
 import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
@@ -81,6 +83,11 @@ const KNOBS: Knob[] = [
   // overwrites every frame is a knob that lies.
   { label: 'star size', group: 'render', key: 'uStarRadius', min: 0.2, max: 2.5, step: 0.05, value: STAR.radius, source: 'STAR.radius' },
   { label: 'star glow', group: 'render', key: 'uStarGlow', min: 0.2, max: 12, step: 0.1, value: STAR.glow, source: 'STAR.glow' },
+  { label: 'star irregularity', group: 'render', key: 'uStarNoise', min: 0, max: 1, step: 0.01, value: STAR.noise, source: 'STAR.noise' },
+  { label: 'star ejecta', group: 'render', key: 'uEjecta', min: 0, max: 5, step: 0.05, value: STAR.ejecta, source: 'STAR.ejecta' },
+  { label: 'fragment trails', group: 'render', key: 'uTrail', min: 0, max: 4, step: 0.05, value: TRAIL, source: 'TRAIL' },
+  { label: 'debris density', group: 'render', key: 'uDebrisDensity', min: 0, max: 1, step: 0.01, value: DEBRIS_FIELD.density, source: 'DEBRIS_FIELD.density' },
+  { label: 'debris cell', group: 'render', key: 'uDebrisCell', min: 0.5, max: 3, step: 0.05, value: DEBRIS_FIELD.cell, source: 'DEBRIS_FIELD.cell' },
   { label: 'break heat (lava)', group: 'render', key: 'uLava', min: 0, max: 8, step: 0.1, value: LAVA, source: 'LAVA' },
   { label: 'plate size', group: 'render', key: 'uPanelFreq', min: 0.4, max: 6, step: 0.05, value: PLATING.freq, source: 'PLATING.freq' },
   { label: 'plate relief', group: 'render', key: 'uRelief', min: 0, max: 0.3, step: 0.005, value: PLATING.relief, source: 'PLATING.relief' },
