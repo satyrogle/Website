@@ -169,6 +169,11 @@ export class SceneController {
   /** A touch in progress that has not yet disqualified itself as a tap. */
   private tap: { id: number; x: number; y: number; at: number } | null = null;
 
+  /** Pointer in NDC, and whether it is over the hero rather than over copy. */
+  private hover = new THREE.Vector2(0, 0);
+  private hovering = false;
+  private hoverStrength = 0;
+
   private progress = 0;
   private exposure = 0;
   private exposureTarget = 0;
@@ -286,6 +291,7 @@ export class SceneController {
     window.addEventListener('pointermove', this.onPointerMove, { passive: true });
     window.addEventListener('pointerup', this.onPointerUp, { passive: true });
     window.addEventListener('pointercancel', this.onPointerCancel, { passive: true });
+    document.addEventListener('pointerleave', this.onPointerLeave, { passive: true });
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -337,6 +343,15 @@ export class SceneController {
   };
 
   private onPointerMove = (event: PointerEvent): void => {
+    // Attention, tracked in NDC. A pointer resting over the hero is the
+    // visitor looking at it, and the field answers that before it answers
+    // anything else.
+    this.hover.set(
+      (event.clientX / window.innerWidth) * 2 - 1,
+      -((event.clientY / window.innerHeight) * 2 - 1)
+    );
+    this.hovering = !this.isReading(event.target);
+
     const tap = this.tap;
     if (!tap || event.pointerId !== tap.id) return;
     if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > TAP_SLOP) this.tap = null;
@@ -357,6 +372,10 @@ export class SceneController {
   /** The browser took the gesture for itself — a scroll, or a system edge swipe. */
   private onPointerCancel = (event: PointerEvent): void => {
     if (this.tap?.id === event.pointerId) this.tap = null;
+  };
+
+  private onPointerLeave = (): void => {
+    this.hovering = false;
   };
 
   /**
@@ -757,6 +776,14 @@ export class SceneController {
     this.exposure += (this.exposureTarget - this.exposure) * (1 - Math.pow(0.05, dt));
     this.model?.setExposure(this.exposure);
 
+    // Eased both ways, and slower on the way out than in: the field meeting
+    // your attention should feel like a response, and losing it should feel
+    // like it is still holding the place you were looking.
+    const target = this.hovering && this.machineOn ? 1 : 0;
+    const rate = target > this.hoverStrength ? 0.02 : 0.35;
+    this.hoverStrength += (target - this.hoverStrength) * (1 - Math.pow(rate, dt));
+    this.model?.setHover(this.hover.x, this.hover.y, this.hoverStrength);
+
     this.consume();
     this.applyCamera();
     this.model?.setCamera(this.camera);
@@ -773,6 +800,7 @@ export class SceneController {
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
     window.removeEventListener('pointercancel', this.onPointerCancel);
+    document.removeEventListener('pointerleave', this.onPointerLeave);
     this.resizeObserver?.disconnect();
     if (this.model) {
       this.scene.remove(this.model.group);

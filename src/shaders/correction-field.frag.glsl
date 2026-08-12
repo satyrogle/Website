@@ -54,6 +54,15 @@ uniform float uWarp;
 
 uniform vec3 uCore;
 uniform float uCoreRadius;
+uniform float uFissureScale;
+uniform float uFissureDepth;
+uniform float uHeat;
+
+/** Pointer in NDC, and how far the field has come up to meet it. */
+uniform vec2 uHover;
+uniform float uHoverStrength;
+uniform float uHoverRadius;
+
 uniform float uAureole;
 uniform float uGlow;
 uniform float uDensity;
@@ -98,6 +107,26 @@ float core(vec3 p) {
 }
 
 /**
+ * The crazing on a cooled crust.
+ *
+ * Returns roughly 0 across the faces and rises toward 1 along the fissures.
+ * The coordinate is warped before the sines are taken, so the zero set is an
+ * irregular network instead of the axis-aligned lattice three multiplied sines
+ * would otherwise give — a grid here would be a visible primitive by another
+ * name, and that rule has outlived five carriers.
+ */
+float fissure(vec3 p) {
+  vec3 w = p * uFissureScale;
+  w += 0.75 * vec3(
+    sin(w.y * 1.31 + 0.7),
+    sin(w.z * 1.07 - 1.3),
+    sin(w.x * 1.73 + 2.1)
+  );
+  float veins = abs(sin(w.x) * sin(w.y) * sin(w.z));
+  return pow(1.0 - clamp(veins * 3.4, 0.0, 1.0), 3.0);
+}
+
+/**
  * The field.
  *
  * A large irregular mass with architecture carved out of it, at four scales,
@@ -136,25 +165,19 @@ float field(vec3 p) {
     sin(q.x * 0.23 + 2.9) * cos(q.y * 0.19 - 1.4)
   );
 
-  // The mass. Two blended volumes at unrelated proportions — enough to give an
-  // outline that is clearly *something* and clearly not a sphere, a box or
-  // anything else nameable.
-  float a = (length(q / vec3(3.1, 2.05, 2.5)) - 1.0) * 2.05;
-  float b = (length((q - vec3(2.4, 0.7, -1.5)) / vec3(1.9, 1.7, 2.3)) - 1.0) * 1.7;
-  float k = 0.85;
-  float d = -log(exp(-a / k) + exp(-b / k)) * k;
-
-  // Bites taken out of the outline.
+  // The mass. One body, not a heap.
   //
-  // Two blended volumes still close into an ovoid, and a lit ovoid is a
-  // recognisable primitive however intricate its interior — the first carve
-  // rendered as a glowing egg full of machinery. These open the boundary so
-  // the mass has concavities and cut sides, and so no single silhouette can be
-  // read off it from any one direction.
-  float biteA = (length((q - vec3(-3.5, 2.3, 1.7)) / vec3(2.7, 2.3, 2.5)) - 1.0) * 2.3;
-  float biteB = (length((q - vec3(1.3, -3.0, 2.3)) / vec3(2.3, 2.0, 2.7)) - 1.0) * 2.0;
-  d = max(d, -biteA);
-  d = max(d, -biteB);
+  // Two blended volumes with bites taken out of them read as rubble — the
+  // outline had no intent behind it. A dead star is one thing that collapsed,
+  // so this is a single slightly flattened spheroid, made irregular by the
+  // warp rather than by being built out of parts, with one large break taken
+  // out of it. Coherent, and still not nameable: the warp is strong enough
+  // that no direction shows you an ellipse.
+  float d = (length(q / vec3(3.25, 2.45, 2.85)) - 1.0) * 2.45;
+
+  // The break. One deliberate loss, not a scatter of dents.
+  float broken = (length((q - vec3(-3.4, 2.5, 2.1)) / vec3(2.9, 2.5, 2.7)) - 1.0) * 2.5;
+  d = max(d, -broken);
 
   // Breathing lives in the carve's offset, so the architecture reorganises
   // very slightly rather than the whole form drifting. This is the only thing
@@ -188,6 +211,17 @@ float field(vec3 p) {
     d = max(d, shaft);
   }
 
+  // The dead star's crazing.
+  //
+  // A crust that cooled and split. The pattern is a warped interference of
+  // three sine families, so its zero set is a network of irregular fissures
+  // rather than a lattice of planes — and the fissures cut *into* the mass,
+  // which is why light gathers in them rather than sitting on them. What is
+  // left glowing is residual heat in the cracks of something that has gone
+  // out, which is the same statement the amber has always made: the light you
+  // can see is a record of a state, not the state itself.
+  d -= fissure(q) * uFissureDepth;
+
   return d;
 }
 
@@ -215,6 +249,7 @@ void main() {
   float lit = 0.0;
   float halo = 0.0;
   float deep = 0.0;
+  float heat = 0.0;
 
   for (int i = 0; i < 256; i++) {
     if (i >= uSteps) break;
@@ -231,6 +266,9 @@ void main() {
     // a wall. This is the depth that reads as interior rather than as shell.
     deep += near * clamp(1.0 - abs(d) * 3.0, 0.0, 1.0);
 
+    // Residual heat, gathered in the fissures only.
+    heat += near * fissure(p);
+
     // The aureole. Density gathered around the absence, falling off with
     // distance from its boundary — a volumetric brightening the arrangement
     // produces, not a ring anything was drawn along.
@@ -246,6 +284,7 @@ void main() {
   lit = lit / steps * uGlow;
   deep = deep / steps * uGlow;
   halo = halo / steps * uGlow;
+  heat = heat / steps * uGlow * uHeat;
 
   // Amber carries the approved field. It desaturates as it brightens, so a
   // peak reads as hot rather than as gold — the difference between a form drawn
@@ -262,12 +301,31 @@ void main() {
   vec3 colour = mix(uRecord, vec3(1.0, 0.97, 0.92), clamp(deep * 0.9, 0.0, 0.7)) * deep;
   colour += uRecord * lit * 0.1;
   colour += uRecord * halo * 0.6;
+  colour += mix(uRecord, vec3(1.0, 0.86, 0.62), 0.5) * heat;
 
-  // Cyan and violet are wired and currently carry nothing: the deviation field
-  // is not attached yet, and a colour grammar that lit up before the mechanism
-  // existed would be decoration claiming to be state.
-  colour += uWorld * 0.0;
-  colour += uConsequence * 0.0;
+  // Attention.
+  //
+  // The field comes up to meet a pointer held over it. Gated by the structure
+  // rather than added on top of it, so what brightens is whatever architecture
+  // is actually there — a glow that ignored the field would be a torch shining
+  // on a picture, and this has to read as the thing responding.
+  //
+  // Amber deepens at the centre of attention and the world's own cyan surfaces
+  // at its edge, which is the observation model the site already runs on:
+  // looking at something is the first step of it being recorded. Violet stays
+  // out. It is the consequence colour and it is not spent on a hover.
+  float attention = uHoverStrength *
+    (1.0 - smoothstep(0.0, uHoverRadius, distance(ndc * vec2(aspect, 1.0), uHover * vec2(aspect, 1.0))));
+  float structure = deep + heat * 0.7;
+  colour += uRecord * structure * attention * 4.2;
+
+  // Cyan sits at the *edge* of attention, not its centre. Squared, it piled up
+  // exactly where the amber was already brightest and cancelled itself into a
+  // faintly warmer blob; peaked at the halfway point it draws a cool fringe
+  // around whatever is being looked at — the world surfacing at the boundary
+  // of observation rather than a blue light being shone on it.
+  float fringe = attention * (1.0 - attention) * 4.0;
+  colour += uWorld * structure * fringe * 2.6;
 
   fragColour = vec4(colour * uExposure, 1.0);
 }

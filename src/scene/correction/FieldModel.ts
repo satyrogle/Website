@@ -51,6 +51,15 @@ export const WARP = 2.2;
 export const CORE = { x: 1.55, y: 0.85, z: -0.7 };
 export const CORE_RADIUS = 2.6;
 
+/**
+ * The dead star's crazing: how fine the fissure network is, how deep the
+ * cracks cut, and how much residual heat sits in them.
+ */
+export const FISSURE = { scale: 1.45, depth: 0.16, heat: 1.6 };
+
+/** How far attention reaches across the frame, in NDC. */
+export const HOVER_RADIUS = 0.62;
+
 /** How tightly the aureole gathers against the absence's boundary. */
 export const AUREOLE = 1.15;
 
@@ -92,6 +101,12 @@ export class FieldModel {
 
       uCore: { value: new THREE.Vector3(CORE.x, CORE.y, CORE.z) },
       uCoreRadius: { value: CORE_RADIUS },
+      uFissureScale: { value: FISSURE.scale },
+      uFissureDepth: { value: FISSURE.depth },
+      uHeat: { value: FISSURE.heat },
+      uHover: { value: new THREE.Vector2(0, 0) },
+      uHoverStrength: { value: 0 },
+      uHoverRadius: { value: HOVER_RADIUS },
       uAureole: { value: AUREOLE },
       uGlow: { value: GLOW },
       uDensity: { value: DENSITY },
@@ -159,6 +174,18 @@ export class FieldModel {
   setTime(seconds: number): void {
     this.uniforms.uTime.value = seconds;
     this.uniforms.uBreath.value = Math.sin(seconds * 0.11) * 0.6 + Math.sin(seconds * 0.07) * 0.4;
+  }
+
+  /**
+   * Where the pointer is, and how far the field has come up to meet it.
+   *
+   * Eased by the caller rather than here: the strength is a property of the
+   * visit, not of the material, and the render loop is the only thing that
+   * knows how much time has passed.
+   */
+  setHover(x: number, y: number, strength: number): void {
+    (this.uniforms.uHover.value as THREE.Vector2).set(x, y);
+    this.uniforms.uHoverStrength.value = Math.max(0, Math.min(1, strength));
   }
 
   /** Cold-open reveal, and the machine-off cut. */

@@ -4,6 +4,7 @@ import {
   BOX,
   CORE_RADIUS,
   DENSITY,
+  FISSURE,
   FOLD_OFFSET,
   GLOW,
   ROUND,
@@ -86,6 +87,9 @@ const KNOBS: Knob[] = [
   { label: 'domain warp', group: 'render', key: 'uWarp', min: 0, max: 2.5, step: 0.01, value: WARP, source: 'WARP' },
   { label: 'absence size', group: 'render', key: 'uCoreRadius', min: 0.4, max: 6, step: 0.05, value: CORE_RADIUS, source: 'CORE_RADIUS' },
   { label: 'aureole tightness', group: 'render', key: 'uAureole', min: 0.15, max: 4, step: 0.05, value: AUREOLE, source: 'AUREOLE' },
+  { label: 'fissure scale', group: 'render', key: 'uFissureScale', min: 0.2, max: 5, step: 0.05, value: FISSURE.scale, source: 'FISSURE.scale' },
+  { label: 'fissure depth', group: 'render', key: 'uFissureDepth', min: 0, max: 0.6, step: 0.01, value: FISSURE.depth, source: 'FISSURE.depth' },
+  { label: 'crack heat', group: 'render', key: 'uHeat', min: 0, max: 6, step: 0.05, value: FISSURE.heat, source: 'FISSURE.heat' },
   { label: 'emission', group: 'render', key: 'uGlow', min: 0.2, max: 24, step: 0.1, value: GLOW, source: 'GLOW' },
   { label: 'boundary sharpness', group: 'render', key: 'uDensity', min: 0.5, max: 24, step: 0.1, value: DENSITY, source: 'DENSITY' },
 ];
