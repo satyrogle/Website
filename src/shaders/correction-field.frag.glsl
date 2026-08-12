@@ -62,6 +62,11 @@ uniform float uRadius;
 uniform vec3 uDish;
 uniform float uDishRadius;
 uniform float uHeat;
+uniform float uFractureFreq;
+uniform float uBreak;
+uniform float uMoltenRadius;
+uniform float uLavaDensity;
+uniform float uLava;
 
 /** Pointer in NDC, and how far the field has come up to meet it. */
 uniform vec2 uHover;
@@ -181,7 +186,17 @@ float field(vec3 p) {
   // Grooves along every seam, cut into the plating.
   float seams = fissure(q) * uGroove;
 
-  float surface = uRadius + relief - seams;
+  // The fracture.
+  //
+  // The crust is broken into large plates, each shifted out along its own
+  // radius by its own amount, so the gaps between them are real crevasses
+  // rather than drawn lines. This is the event the whole hero is about: a made
+  // thing the size of a world, coming apart along the seams it was built on.
+  vec3 plate = floor(q * uFractureFreq);
+  float drift = hash31(plate + 4.1);
+  float split = uBreak * (0.25 + drift);
+
+  float surface = uRadius + split + relief - seams;
 
   // Trenches. Three broad cuts on unrelated axes, each offset from the centre
   // and each broken by the plating it crosses — the Death Star's equator read
@@ -230,6 +245,7 @@ void main() {
   float halo = 0.0;
   float deep = 0.0;
   float heat = 0.0;
+  float lava = 0.0;
 
   for (int i = 0; i < 256; i++) {
     if (i >= uSteps) break;
@@ -246,8 +262,23 @@ void main() {
     // a wall. This is the depth that reads as interior rather than as shell.
     deep += near * clamp(1.0 - abs(d) * 3.0, 0.0, 1.0);
 
-    // Residual heat, gathered in the fissures only.
+    // Residual heat, gathered in the seams only.
     heat += near * fissure(p);
+
+    // Lava.
+    //
+    // The molten interior is a second surface below the crust. A ray that
+    // meets armour stops at it and never sees this; a ray that goes down a
+    // crevasse reaches it and comes back carrying light. So the fractures glow
+    // from underneath because they are actually open, not because anything was
+    // painted into them.
+    // Gated to rays that have actually got below the crust. Ungated it
+    // accumulated against every surface in the frame, so the molten interior
+    // bled through solid armour and the planet rendered as a glowing ball with
+    // a shell drawn on it. Light only comes out of a fracture if the fracture
+    // is open.
+    float below = 1.0 - smoothstep(uRadius - 0.35, uRadius + 0.05, length(p));
+    lava += near * below * exp(-abs(length(p) - uMoltenRadius) * uLavaDensity);
 
     // The aureole. Density gathered around the absence, falling off with
     // distance from its boundary — a volumetric brightening the arrangement
@@ -265,6 +296,7 @@ void main() {
   deep = deep / steps * uGlow;
   halo = halo / steps * uGlow;
   heat = heat / steps * uGlow * uHeat;
+  lava = lava / steps * uGlow * uLava;
 
   // Amber carries the approved field. It desaturates as it brightens, so a
   // peak reads as hot rather than as gold — the difference between a form drawn
@@ -282,6 +314,12 @@ void main() {
   colour += uRecord * lit * 0.1;
   colour += uRecord * halo * 0.6;
   colour += mix(uRecord, vec3(1.0, 0.86, 0.62), 0.5) * heat;
+
+  // Hotter than the record's own light, and never a different hue family.
+  // What is coming out of the cracks is amber because the light in a fracture
+  // is a record of a state, not the state — the same thing the colour has
+  // always meant here.
+  colour += mix(uRecord, vec3(1.0, 0.72, 0.34), 0.75) * lava;
 
   // Attention.
   //

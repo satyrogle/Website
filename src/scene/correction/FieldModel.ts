@@ -68,6 +68,12 @@ export const PLATING = {
   heat: 1.6,
 };
 
+/**
+ * The fracture: how large the broken plates are, how far they have drifted
+ * apart, and the molten interior they have opened onto.
+ */
+export const FRACTURE = { freq: 0.42, open: 0.34, molten: 2.05, density: 3.2, lava: 0.8 };
+
 /** The body, and the dish taken out of it. */
 export const RADIUS = 3.05;
 export const DISH = { x: 1.62, y: 1.05, z: 2.15, radius: 1.62 };
@@ -91,7 +97,7 @@ export const HOVER_FRINGE = 0.7;
 export const AUREOLE = 1.15;
 
 /** Overall emission, and how sharply light concentrates at a boundary. */
-export const GLOW = 2.4;
+export const GLOW = 1.9;
 export const DENSITY = 9.0;
 
 export class FieldModel {
@@ -136,6 +142,11 @@ export class FieldModel {
       uDish: { value: new THREE.Vector3(DISH.x, DISH.y, DISH.z) },
       uDishRadius: { value: DISH.radius },
       uHeat: { value: PLATING.heat },
+      uFractureFreq: { value: FRACTURE.freq },
+      uBreak: { value: FRACTURE.open },
+      uMoltenRadius: { value: FRACTURE.molten },
+      uLavaDensity: { value: FRACTURE.density },
+      uLava: { value: FRACTURE.lava },
       uHover: { value: new THREE.Vector2(0, 0) },
       uHoverStrength: { value: 0 },
       uHoverRadius: { value: HOVER_RADIUS },

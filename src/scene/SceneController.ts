@@ -50,10 +50,30 @@ const CAMERA = { fov: 38 };
  * tell it if the boundaries are outside the picture.
  */
 const RAIL = {
-  eyeFrom: [5.6, 2.05, 8.1] as const,
-  eyeTo: [3.4, 1.15, 5.0] as const,
-  aimFrom: [0.35, 0.15, -0.2] as const,
-  aimTo: [0.1, -0.05, -0.55] as const,
+  /**
+   * The descent, as places on the body rather than as a camera move.
+   *
+   * Jacob, 2026-08-12: every scroll beat has to land on a part of the planet
+   * you are actually looking at. So this is a list of *locations* — an
+   * approach, three broken regions visited in turn along the surface, and a
+   * long pull back at the floor to see the whole dying body with its fragments
+   * at once. The camera does not drift past the object; it goes somewhere.
+   *
+   * Waypoints rather than a straight line, because a two-point rail can only
+   * express "closer" and the descent has to express "elsewhere".
+   */
+  waypoints: [
+    // 0 — approach. The whole body, off-centre, dish toward the upper right.
+    { eye: [5.6, 2.05, 8.1], aim: [0.35, 0.15, -0.2] },
+    // 1 — the first break, low on the near face.
+    { eye: [3.1, -0.9, 5.3], aim: [1.1, -1.4, 1.6] },
+    // 2 — travelling across the surface, along a crevasse.
+    { eye: [-1.4, 1.6, 5.4], aim: [-0.6, 0.4, 1.9] },
+    // 3 — the dish, close enough that its rim fills one side.
+    { eye: [2.4, 2.9, 4.6], aim: [1.62, 1.05, 2.15] },
+    // 4 — the floor. Far enough back that the fragments read as one event.
+    { eye: [10.4, 4.1, 15.2], aim: [0.2, 0.1, 0.1] },
+  ] as const,
 };
 
 /**
@@ -708,19 +728,21 @@ export class SceneController {
 
   /** A point on the rail, in world space, at rail parameter `t`. */
   private railPose(t: number, eye: THREE.Vector3, aim: THREE.Vector3): void {
-    const lerp = (from: readonly number[], to: readonly number[], index: number): number =>
-      from[index] + (to[index] - from[index]) * t;
+    const points = RAIL.waypoints;
+    const spans = points.length - 1;
+    const scaled = Math.min(Math.max(t, 0), 1) * spans;
+    const index = Math.min(Math.floor(scaled), spans - 1);
+    const from = points[index];
+    const to = points[index + 1];
 
-    eye.set(
-      lerp(RAIL.eyeFrom, RAIL.eyeTo, 0),
-      lerp(RAIL.eyeFrom, RAIL.eyeTo, 1),
-      lerp(RAIL.eyeFrom, RAIL.eyeTo, 2)
-    );
-    aim.set(
-      lerp(RAIL.aimFrom, RAIL.aimTo, 0),
-      lerp(RAIL.aimFrom, RAIL.aimTo, 1),
-      lerp(RAIL.aimFrom, RAIL.aimTo, 2)
-    );
+    // Eased within each leg rather than across the whole rail, so arriving
+    // somewhere settles instead of sliding straight into the next move.
+    const local = smoothstep(scaled - index);
+    const mix = (a: readonly number[], b: readonly number[], i: number): number =>
+      a[i] + (b[i] - a[i]) * local;
+
+    eye.set(mix(from.eye, to.eye, 0), mix(from.eye, to.eye, 1), mix(from.eye, to.eye, 2));
+    aim.set(mix(from.aim, to.aim, 0), mix(from.aim, to.aim, 1), mix(from.aim, to.aim, 2));
   }
 
   /**
@@ -742,7 +764,7 @@ export class SceneController {
     // backwards exactly as it ran forwards, with no easing state to unwind.
     // Reduced motion holds it at the head of the rail, which is the same pose
     // by construction rather than a second set of numbers to keep in step.
-    const t = this.reducedMotion ? 0 : smoothstep(this.progress);
+    const t = this.reducedMotion ? 0 : this.progress;
 
     this.railPose(t, this.railOffset, this.railTarget);
 
