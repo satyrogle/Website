@@ -174,8 +174,11 @@ After upload, check in order:
 The full automated pass can be run against the live URL:
 
 ```bash
-node tools/capture.mjs https://darklattice.co.uk captures-live
+node tools/correction-capture.mjs --url https://darklattice.co.uk --scroll --paths --out captures-live
 ```
+
+It launches installed Chrome headed, so the frames come off a real GPU
+rather than a software rasteriser.
 
 ---
 

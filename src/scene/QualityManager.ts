@@ -5,6 +5,18 @@
  * keeps watching frame time and steps down if the budget is missed.
  * It never steps back up: oscillating between tiers is far more visible
  * than simply running one notch below peak.
+ *
+ * A tier currently sets exactly one thing: the ceiling on device pixel ratio.
+ * That is not an oversight, it is what THE CORRECTION costs. The simulation is
+ * fixed-step in a Worker and cannot be thinned without changing what the
+ * system does, and the structure is drawn as untextured lines with no post —
+ * so the only thing left that scales with the machine is how many pixels those
+ * lines are rasterised into.
+ *
+ * The presets used to carry six more fields: bloom, geometry detail, vein
+ * count, shedding, and two for a reaction-diffusion pass. Every one belonged
+ * to the retired entity and none had a reader once it was removed. They are
+ * gone rather than left as configuration nothing consults.
  */
 
 export type QualityTier = 'high' | 'medium' | 'low';
@@ -13,48 +25,12 @@ export interface QualitySettings {
   tier: QualityTier;
   /** Ceiling on device pixel ratio. */
   maxPixelRatio: number;
-  /** Square resolution of the reaction-diffusion state texture. */
-  simResolution: number;
-  /** Gray-Scott iterations per rendered frame. */
-  simStepsPerFrame: number;
-  /** Enable the bright-pass + composite bloom chain. */
-  bloom: boolean;
-  /** Radial subdivision of the ring and plate bevels. */
-  geometryDetail: number;
-  /** Number of vein filaments radiating from the core. */
-  veinCount: number;
-  /** Enable the shed particle system. */
-  shedding: boolean;
 }
 
 const PRESETS: Record<QualityTier, Omit<QualitySettings, 'tier'>> = {
-  high: {
-    maxPixelRatio: 2,
-    simResolution: 512,
-    simStepsPerFrame: 8,
-    bloom: true,
-    geometryDetail: 1,
-    veinCount: 132,
-    shedding: true,
-  },
-  medium: {
-    maxPixelRatio: 1.5,
-    simResolution: 320,
-    simStepsPerFrame: 6,
-    bloom: true,
-    geometryDetail: 0.7,
-    veinCount: 84,
-    shedding: true,
-  },
-  low: {
-    maxPixelRatio: 1.25,
-    simResolution: 192,
-    simStepsPerFrame: 4,
-    bloom: false,
-    geometryDetail: 0.45,
-    veinCount: 44,
-    shedding: false,
-  },
+  high: { maxPixelRatio: 2 },
+  medium: { maxPixelRatio: 1.5 },
+  low: { maxPixelRatio: 1.25 },
 };
 
 const ORDER: QualityTier[] = ['high', 'medium', 'low'];

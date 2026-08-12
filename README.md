@@ -1,12 +1,12 @@
-# Dark Lattice — premium cinematic WebGL studio website
+# Dark Lattice — studio website
 
-A single continuous 3D world that the DOM narrative travels through. One
-persistent lattice object, one Gray–Scott reaction–diffusion field, and a
-scroll-directed camera that carries the studio's argument from cold open
-to evidence boundary.
+A single continuous 3D world the DOM narrative travels through. The world is
+a synthesised structure under a deterministic simulation: it is permitted to
+deviate, and a system enforces its return to a recorded, approved state. The
+calm the site opens on is late-understood as maintained rather than natural.
 
-Static output. `dist/` uploads to ordinary hosting, including GoDaddy
-cPanel. See [DEPLOYMENT.md](DEPLOYMENT.md).
+Static output. `dist/` uploads to ordinary hosting, including GoDaddy cPanel.
+See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
@@ -39,6 +39,7 @@ npm run preview
 |---|---|
 | Build | Vite 6, TypeScript (strict) |
 | 3D | Three.js, hand-written GLSL ES 3.00 |
+| Simulation | Plain TypeScript, fixed-step, in a Web Worker |
 | Motion | GSAP + ScrollTrigger. Native scrolling — no smooth-scroll layer |
 | Styling | Plain CSS with custom properties |
 
@@ -52,386 +53,361 @@ without earning its place.
 
 ```
 public/
-  fallback/hero-poster.svg     composed still — GENERATED, see tools/poster.mjs
-  social/og-dark-lattice.jpg   generated from the live hero, not drawn separately
+  social/og-dark-lattice.jpg   shot from the running hero, see below
   favicon.svg
 src/
   main.ts                      boot sequence and loader hand-off
   styles/                      tokens, global, typography, sections
   scene/
-    SceneController.ts         renderer, frame loop, the narrative surface
-    LatticeModel.ts            procedural brand object
-    ReactionField.ts           Gray–Scott simulation, ping-ponged
-    CameraRig.ts               keyframed path + idle drift + parallax
-    Lighting.ts                the lighting arc across the seven movements
-    PostPipeline.ts            bright pass + composite
+    SceneController.ts         renderer, frame loop, camera rail, the
+                               narrative surface the director may touch
     QualityManager.ts          device tiering and runtime demotion
-  shaders/                     reaction, seed, lattice, ring, bloom, composite
+    correction/
+      CorrectionModel.ts       the world and the record, as two line sets
+      graph/GraphSynth.ts      the structure, synthesised from a seed
+      sim/CausalPulseSimulation.ts   damped graph wave over CSR adjacency
+      sim/CorrectionOperator.ts      the system acting on the world
+      sim/AmbientHarmonic.ts         the calm, and the drift below threshold
+      sim/CorrectionSystem.ts        graph + wave + operator as one unit
+      sim/PulseWorker.ts             the authority; owns all state
+      sim/PulseClient.ts             main-thread handle, snapshot transport
+  shaders/                     correction-edge, correction-ghost
   motion/
-    ScrollDirector.ts          document scroll → narrative timeline
+    ScrollDirector.ts          document scroll → narrative bands
     TextReveals.ts             masked headline choreography
     MotionPreferences.ts       reduced-motion source of truth
   content/
+    RecordController.ts        the floor panel, the false first action,
+                               and the record that survives the visit
     evidence.ts                every factual claim, with sources
     verify.ts                  dev-only integrity check against the DOM
   accessibility/
     AccessibilityController.ts layer tablist, magnetic controls, print
-tools/                         QA harness and capture scripts
+tools/
+  correction-validate.mjs      the mechanism gate — 43 checks, no renderer
+  correction-capture.mjs       stills and probes from real Chrome, real GPU
 index.html                     the entire narrative, static
 404.html
 ```
 
 ---
 
-## The object — ENTITY v7: THE CROWNED CONVERGENCE
+## The world, and the system that corrects it
 
-Generated in code, not loaded from a `.glb`. There is no Blender stage in
-this project and no mesh asset to maintain.
+There is no mesh asset. `GraphSynth` builds the structure in memory from a
+seed: wandering filaments plus accepted scatter, proximity cross-links, and
+a per-node displacement direction. The same seed gives the same structure on
+every machine and every visit, which is what lets the determinism claim reach
+the geometry rather than starting at the first simulation tick.
 
-Rebuilt (Aug 2026) to the founder's reference sheet — "Entity Hybrid //
-04 Hollow Convergence + 10 Silent Crown". The v5 kite-door monolith is
-dead and must not return: its tall almond silhouette with a central
-vertical seam read as anatomy, and its two swinging leaves swept the
-lens as a pale wall — the "white door" that survived every dimming pass
-because it was geometry, not lighting. Scroll mapping, camera rail and
-tunnel structure are untouched (locked).
+Three construction rules are load-bearing, all of them inherited from how
+earlier directions failed:
 
-**The outer crown: rugged, COHERENT armour.** Seven major plates on a
-near-regular heptagon, seven half-scale infill shards seated in the
-gaps behind them — the sheet's big/small fidelity hierarchy. Placement
-variance is deliberately SMALL: uniform steep lean, near-zero roll,
-tight radius band, so the plates read as one suit of armour wrapping
-the throat. Random thetas/rolls/scales were tried twice and read as
-debris both times ("slabs are shit, they are asymmetrical"); a back
-shell read as "rotating glass" and is banned. Material identity
-follows the hierarchy (sheet 03): majors are MAT_PRIMARY (dense
-iridescent veins, high response); infills and gyres are MAT_STRUCTURE
-(darker base, muted veins, low response). Spike vertices always point
-OUTWARD; inner vertices are fixed short so no plate can cross the
-mouth and hide the recessed core. The dormant corridor is INVISIBLE
-(tunnel skin gated to zero by `psy`) — nothing may hang behind the
-sealed crown as a lit backdrop.
+- **No grid.** Spacing is irregular everywhere; no row or column exists.
+- **No radial or cylindrical parameterisation.** Nothing converts an index
+  into an angle. There is no centre, no axis, and no capture frame that can
+  resolve into concentric anything.
+- **Anisotropic by construction.** Long in x, deep in z, thin in y — a veil
+  met obliquely, not a cloud with no orientation.
 
-**The throat.** Three nested faceted gyre rings turning against each
-other (`uGyre`: they creep while dormant, spin up as the visitor
-approaches), stepping down to a pupil ring of eleven small shards and
-the KERNEL — a burning cyan icosahedron on an uneven heartbeat, deep
-in the socket. From the hero rail the entity is a dark crowned mass
-with a cold eye looking back.
+The state on top of it is a damped graph wave: `u` and velocity as typed
+arrays, fixed `dt = 1/120`, symplectic Euler, seeded and checksummed. It runs
+in a Worker and is the authority. What the renderer draws can never feed back
+into it.
 
-**The TEAR.** At the premise the crown is torn open (`uRip`, 10–27% of
-the narrative): each plate waits its seeded beat then SNAPS over a
-short window — hinge, radial throw, and a tangential SHEAR, so the
-plates wrench sideways as the seams give. Infills rip slightly later
-and faster than their majors: the small pieces give last. It must read
-as tearing into the being, never as a mechanism blooming. The gyre
-apertures widen for the rail, the pupil parts late, and the kernel
-collapses toward nothing as the camera closes: the light WITHDRAWS
-down the corridor, and the finale is meeting it again. No piece ever
-presents a face to the lens at close range — the white door is
-structurally impossible, not dimmed.
+### The correction pass
 
-**The tunnel is the ORGANIC INSIDE of the entity** (sheet camera
-journey: enter presence → confront — "completely organic, feels like
-inside of something alive"). Eleven rings, but the architecture is
-dissolved twice over: a slow travelling vertex undulation displaces
-the ring surfaces along their normals (peristalsis — sampled on the
-unit circle so the angular wrap cannot crack a seam), and the crack
-domain is warped by two drifting fbm fields before ridging, so no
-straight line survives — flowing branched veins, iridescent
-ferrofluid, hue sliding with view angle. No spoke mandala, no crisp
-aperture rims (structural edge lines re-drew the octagons). The
-streaming coordinate is CONICAL (`z − r·0.55`) and drifts deeper on
-its own clock — the inevitable pull, stated continuously; scroll
-accelerates it. The six-fold DMT fold runs the WHOLE corridor,
-crescendoing toward the deep end. The far core faintly lights every
-face that looks toward it. The ENTIRE tunnel skin is gated by `psy`:
-dormant zero (nothing behind the sealed crown), materializing as the
-crown tears. Rings dissolve on a longer near-fade than the crown
-pieces. The reaction field modulates brightness — and paints the
-magenta reaction — never gates.
+After every integration step, `CorrectionOperator` compares the world against
+the approved record `u*` and forces disagreement back inside tolerance:
 
-**The far crown.** The same build, mirrored and sealed forever, at the
-far end of the tunnel, its kernel visible down the corridor from
-mid-trip — the destination burns ahead for the whole documentary
-stretch. The finale is arrival: the corridor is bracketed by the crown
-that yielded and a crown that never does. At `uArrive` its seams and
-kernel ignite toward gold — the arrival ignition.
+```
+D = |u − u*|      disagreement, measured in full
+C = engaged       contact — sparse, thresholded, hysteretic
+V = D × C         consequence: enforcement, and the retained bruise
+```
 
-**The convergence light** is cyan and physically anchored: it radiates
-from the throat point of each gate, so it can only appear on faces
-that look into the socket, and it falls off with real distance. There
-is no configuration of camera and geometry that can produce a white
-wall. The infall particles are sampled from the crown's own vertices
-and spiral endlessly into the throat — the pull, made visible.
+Two consequences fall out of the model rather than being decorated on:
 
-### The rail
+- **The sensor is sparse.** Drift under `θ_on` is never seen, so it is never
+  corrected. The file tolerates invisible error while violently correcting
+  visible deviation. The ambient harmonic that makes the opening frame
+  breathe is deliberately tuned to live in that gap — permanently invisible
+  to the system that is otherwise total.
+- **The calm is a result.** A region at rest is a region the operator has
+  already finished with.
 
-From crown to finale the camera moves only forward along the corridor
-axis — x and y never leave zero. This is the founder-chosen fix for
-"scroll going everywhere": scroll maps to depth one-to-one. The
-foundation movement's three-layer separation happens *ahead* of the
-camera (ring thirds part along Z, gaps opening between clusters) instead
-of being viewed from a side orbit.
+Nothing in the enforcement path is tweened. Every displacement a visitor sees
+during a correction is a δ this operator computed and applied to the
+authoritative state.
 
-### The palette: LIGHT LANGUAGE (v5, from the sheet)
+### Colour grammar — never redefined
 
-The reference sheet's section 08, implemented literally: PRIMARY
-cyan/teal (the standing colour of every filament crack), SECONDARY
-magenta — **the reaction colour**, appearing only where the system is
-answering something (field response, the yield surge, deep-vision
-crossings) — ACCENT amber, owned exclusively by the halo and the far
-crown's arrival ignition, and a near-black environment. Hue always
-means state, never decoration. The constants live in one block at the
-top of `lattice.frag.glsl` (`PAL_*` + the `signal()` ramp) so the
-whole grade swaps in minutes. Prior palettes, all dead: v4
-teal/violet/gold jewel-obsidian, pure monochrome ("palette is bad"),
-indigo/magenta washes ("looks AI").
+```
+CYAN    the world        live deviation, the wave
+AMBER   the record       approved rest state, the ghost, the floor panel
+VIOLET  the consequence  V = D × C — enforcement contact and retained bruise
+```
 
-**The yield carries anticipation** instead of a lamp: the throat's
-convergence light holds a visible low burn at rest, surges as the
-crown gives way (`uTear` — and the rim, veins and luminance floor
-surge with it, so the event reads on the outer faces too), then
-settles to a sustained glow. Cyan, never white.
+Violet is scarce. Agreement renders zero violet.
 
-**The DMT bloom** (founder request): a six-fold kaleidoscopic Kali
-fold blooms across the DEEP half of the tunnel only (z < −8), in jewel
-hues, while the registered spokes ease back — front of tunnel is the
-instrument, the back is the vision.
+### Enforcement gain
 
-### The Blender pipeline (superseded)
+Gain scales three things at once — how soon the system notices, how soon the
+ramp completes, how hard it pulls — and it comes from two places:
 
-`tools/blender/entity_v6.py` blocked out THE STRATIFIED GATE for a
-mesh-based v6. The founder's reference sheet redirected the entity to
-the procedural crowned convergence before the blockout was approved;
-the script and `public/models/entity-v6.glb` remain as tooling but are
-NOT wired into the site and are not the current direction.
+- **Spatially**, a single monotone gradient along the veil's long axis,
+  starting past the opening view so the event the visitor is first shown is
+  enforced at the tuning that was judged. Never radial: a soft ellipse drawn
+  across the structure is the failure mode every retired direction died of.
+- **Narratively**, rising with scroll depth and falling again on the way back
+  up.
 
-**The halo is the threshold, not an ornament — and it is QUIET.** One
-hair-thin CONTINUOUS band (torus r 2.0, tube 0.016 — barely over half
-the crown's width, close over the apex, per the sheet), dimmed at rest
-BELOW the bloom threshold so it carries zero glare: a clean gold line,
-nothing more. MAT_HALO is "minimal reaction" — it is allowed to burn
-at exactly two events, the gateway crossing and the arrival
-(`mix(0.55, 1, max(uGateway, uArrive))`). A wide bright ring read as
-"shining, big, has glare" and died. All motion on it is light (two
-counter-travelling charges), never structure. During the tear it tilts
-down, descends the axis and widens (`setGateway`, riding the first
-half of `uRip`), ending face-on at the rail so the camera passes
-THROUGH it into the corridor. The far crown keeps its halo overhead
-the whole journey and it ignites at the arrival.
+Thresholds are deliberately *not* scaled by gain. What the system can see is a
+property of its sensor, so the calm is never enforced at any depth.
 
-**The back half stays alive.** The evidence movement's DOM is
-semi-opaque (`rgba(14,19,27,0.84)`) rather than solid, and the arc
-keeps `psy`/emissive up through it — documentation reads cleanly with
-the entity still turning behind it, per founder note.
-
-### Rules that survived seven failed forms
-
-- **A wireframe cannot loom** (the node-and-strut grid was a chandelier).
-- **Patterns live in the surface, not in front of it** (filaments read
-  as tendrils).
-- **No stripes** (axis + lip rails read as "3 lines").
-- **No gloss** (mirror-finish ooze read as glare/residue).
-- **Never gate the trip by chemistry** (it kept disappearing); modulate
-  with it instead.
-- **The entity must be self-luminous** (near-black stone corridors went
-  invisible from 30% on).
-- **The camera never reverses, and off the rail is off the table.**
-- **Near geometry fades** (`smoothstep(0.45, 2.2, depth)`).
-- **`FIELD_EXTENT` covers the object's XY footprint.**
-- **Orient, then translate.** The far gate was once rotated *after*
-  translation, which spun it around the world origin to +33 — behind
-  the hero camera. The tunnel had no ending, and nobody could see why.
-- **No vertical seam, no almond silhouette.** A tall marquise outline
-  split by a central vertical seam reads as anatomy from every
-  distance. The mouth is an irregular ring with a RECESSED core.
-- **Asymmetry must be composed, not random.** The sheet's "asymmetric
-  harmony": top-heavy scale, spikes always outward, inner edges
-  clearance-capped. (The v5-era "strict bilateral symmetry" rule was
-  the fix for a lighting artifact, and died with the doors.)
-- **Steep lean beats big faces.** Slabs presenting their faces to the
-  rail read as petals; menace is edges, bevels and foreshortening.
-- **The pull never stops.** Gyres creep at idle, filaments stream
-  deeper at idle, infall particles fall at idle, the far core glows at
-  idle. Scroll strengthens the pull; it never causes it.
-- **Capture tooling needs wall-clock headroom.** Under SwiftShader the
-  camera/rip springs converge in sim-time while the wall clock
-  stretches with the frame rate — a short settle screenshots the
-  camera mid-flight and the storyboard lies. `tools/shot.mjs` settles
-  6 s (override with `SETTLE=`).
-
-## The field
-
-A Gray–Scott reaction–diffusion simulation in a ping-ponged pair of
-half-float targets, stepped 4–8 times per frame depending on tier.
-
-**It is seeded exactly once.** Nothing in the scroll choreography may
-clear or reseed it — the field a visitor disturbs in the hero is the same
-field still carrying those marks in the footer. That is enforced in
-`ReactionField`, not left to convention, because persistence is the
-site's whole thesis.
-
-The three game states are the *same* system under different feed/kill
-rates, eased between rather than cut:
-
-| State | Regime | Reads as |
-|---|---|---|
-| Desk42 | spots | discrete cells that retain prior disturbances |
-| Brawler | worms | aggressive propagation, contamination |
-| Roguelite | between the two | the prior states combined |
-
-Every preset sits in a *pattern-forming* region of the parameter space.
-Values with a low kill rate relative to feed drive the field solid, which
-lights the whole object and destroys the near-black material read.
-
-The field is projected through the object in **object-space XY**, so
-every node and strut samples one shared field. Channels line up across
-physically separate pieces, which is what makes the foundation layers
-look like they have common ancestry when they pull apart.
-
-The field's feed rate is biased by a soft image of the lattice
-(`latticeBias` in `reaction.frag.glsl`), so channels prefer to run along
-struts rather than through empty space. **Its constants are derived from
-the geometry** — envelope extents, cell spacing, ring radius — and are
-duplicated in the shader. If `LatticeModel` and those shaders drift
-apart, the chemistry concentrates in the voids and the object grows
-bright clumps where there is no structure. Both files carry a comment
-saying so.
-
-### Warm-up
-
-Gray–Scott needs thousands of iterations before it looks like anything.
-`SceneController.warmUpField()` runs the simulation forward during load
-so the hero lands developed instead of visibly filling in over the first
-fifteen seconds — the brief's "first three seconds" requirement is
-decided there, not in the shader.
-
-It is **time-boxed, not a fixed step count**. A discrete GPU reaches the
-target in a couple of hundred milliseconds; a software renderer would
-take tens of seconds for the same work. Slow devices get a less developed
-field and a page that still loads promptly, and the simulation keeps
-growing once the loop starts. This is also the work the loader bar is
-actually measuring.
+Gain changes what the system does, so it travels the same channel as an
+injection — quantised, deduplicated, posted to the Worker — and the recorded
+trace still replays to an identical checksum.
 
 ---
 
 ## Motion architecture
 
-Document scroll does not drive the camera directly. Each movement owns a
-fixed band of narrative progress:
+Document scroll does not drive the camera directly. Each band owns a fixed
+slice of narrative progress whatever its measured height:
 
 ```
-hero 0.00–0.10   premise 0.10–0.26   desk42 0.26–0.40   brawler 0.40–0.50
-roguelite 0.50–0.60   foundation 0.60–0.71   accumulation 0.71–0.82
-evidence 0.82–0.93   resolution 0.93–1.00
+open 0.00–0.12   ask 0.12–0.28   notice 0.28–0.46
+gradient 0.46–0.68   floor 0.68–0.82   editorial 0.82–1.00
 ```
 
-### No smooth scroll, and a spring on the camera
+The camera is one rail: the look-point slides along the veil and the offset
+closes as it goes — travel plus approach, never a cut and never an orbit. It
+is eased against *progress*, not against time, so reverse scroll runs it
+backwards exactly as it ran forwards with no easing state to unwind.
 
-There is deliberately no Lenis layer. An earlier build ran it at 0.85s
-and it was the single thing that made the site feel wrong: the page
-lagged behind the wheel, so the camera — driven by scroll position —
-lagged too, and the causal link between input and movement broke.
-Native scrolling keeps that link honest.
+Nothing else reverses. Bruises, scars and the adjustment count are one-way;
+scrolling back shows scars, not a rewind.
 
-On top of native scroll, camera progress follows the scroll through a
-**critically damped spring** (`CameraRig.update`). First-order smoothing
-keeps position continuous but lets velocity jump — every section
-boundary kicked the camera, which read as bad scrolling. The
-second-order spring keeps velocity continuous too: speed changes arrive
-as gradients, never steps, while settling in a fraction of a second.
-Idle drift and pointer parallax are kept small enough that they never
-compete with travel.
+Past the floor the machine stops: the render loop ends and the Worker is
+paused. The cut is done by the layout — every editorial section carries the
+ground colour itself, so coming out of the floor raises an opaque surface
+over the canvas. A fade timed against the scroll would be a transition, and
+the beat needs a stop.
 
-`CameraRig`, `Lighting` and `ScrollDirector` are all authored against
-this one timeline. A section can be 700px or 2400px tall on a given
-viewport and the choreography still lands exactly as staged. Driving the
-camera from raw document progress would re-time the whole sequence every
-time copy or viewport height changed.
+### No smooth scroll
 
-All measurement is cached and refreshed on resize; the scroll handler
-performs no layout reads.
+There is deliberately no Lenis layer. An earlier build ran it at 0.85s and it
+was the single thing that made the site feel wrong: the page lagged behind the
+wheel, so the camera — driven by scroll position — lagged too, and the causal
+link between input and movement broke. Native scrolling keeps that link
+honest.
+
+All measurement is cached and refreshed on resize; the scroll handler performs
+no layout reads.
 
 ### Reveals hand off to CSS
 
-Every text reveal adds `.is-revealed` and clears its inline tween
-properties on completion. `ScrollTrigger.refresh()` reverts `fromTo`
-tweens to their start values while re-measuring, and refresh fires on
-load, on resize, and whenever the evidence disclosure changes the page
-height. Without the hand-off, opening the evidence table throws
-already-read headlines back off-screen.
+Every text reveal adds `.is-revealed` and clears its inline tween properties
+on completion. `ScrollTrigger.refresh()` reverts `fromTo` tweens to their
+start values while re-measuring, and refresh fires on load, on resize, and
+whenever the evidence disclosure changes the page height. Without the
+hand-off, opening the evidence table throws already-read headlines back
+off-screen.
 
 ### One mask, one line
 
-`.reveal-line > span` is `white-space: nowrap`. If text inside a mask
-wraps, the extra lines are clipped by the `overflow: hidden` that makes
-the reveal work, and the headline silently loses words. Line breaks are
-authored in the markup. **Do not add `max-width` in `ch` to a display
-heading** — that is what forces the wrap.
+`.reveal-line > span` is `white-space: nowrap`. If text inside a mask wraps,
+the extra lines are clipped by the `overflow: hidden` that makes the reveal
+work, and the headline silently loses words. Line breaks are authored in the
+markup. **Do not add `max-width` in `ch` to a display heading** — that is what
+forces the wrap.
+
+---
+
+## Interaction
+
+One action: a press injects one bounded impulse at the node under the ray.
+
+- **Mouse** presses on the way down.
+- **Touch and pen** arm a tap and resolve it on release — under 350ms, under
+  8px of travel. `pointerdown` fires before the browser has decided whether a
+  gesture is a tap or a scroll, so pressing on contact charged every flick
+  down the page as an action.
+- **Keyboard** gets the same action through the ASK band's own word, which is
+  a real button. It fires from the centre of the frame with no distance
+  tolerance, so it always lands.
+
+A press is refused when the machine is off or the world is a still: an action
+whose consequence cannot be observed is the one thing this interaction must
+not be.
+
+**Bounded budget.** Twelve presses a visit — enough to strike, watch the whole
+event, and try it elsewhere to compare; not enough for the structure to become
+a toy. The invitation goes quiet when spent.
+
+**The false first action.** Eight seconds of doing nothing and the system
+supplies the action itself, corrects it, and counts it. Nothing downstream
+distinguishes it from a real press, because the record has no column for whose
+fault it was. It is disabled under reduced motion, where there is no event to
+watch.
+
+---
+
+## The record
+
+The floor is typeset from the Worker's counters and nothing else:
+
+```
+YOUR RECORD
+ADJUSTMENTS APPLIED: N.
+RESIDUAL DEVIATION: 0.
+```
+
+The zero is the interesting one. Residual deviation is measured against what
+the system can *see*, and below its own release threshold it can see nothing —
+so a settled world still deviating by 0.05 is reported as 0. Honest arithmetic
+and a false statement in the same line. Both halves are asserted in the
+mechanism gate, because the line is only worth anything if the zero is
+computed rather than written.
+
+`darkLattice.record` in localStorage carries visits, adjustments and whether
+the simulation was entered, written as a total so committing twice cannot
+inflate it. A second visit reads it back.
+
+Adjustments the *system* made to itself — the scripted event that renders the
+reduced-motion triptych — are subtracted before anything reaches the record.
+A visitor who touched nothing owes nothing.
 
 ---
 
 ## Accessibility and fallbacks
 
-Four paths, all tested in the harness:
+Four paths, all measured in `correction-capture --paths`:
 
-- **Normal.** Full choreography.
-- **`prefers-reduced-motion: reduce`.** No smooth-scroll layer, no camera
-  drift, no spatial travel, no translate-based text choreography. The 3D
-  system holds a deliberately composed still. Everything is immediately
-  readable.
-- **WebGL unavailable.** The canvas is removed, the vector poster is
-  shown, the full DOM narrative is retained, controls that only affect
-  the 3D object are removed rather than left dead. No error page.
-- **JavaScript disabled.** All three foundation explanations are visible
-  in sequence, the evidence table is a plain `<table>` inside a native
-  `<details>`, and an inline script in the document hides the loader
-  before any bundle loads — so the worst case is a fully readable static
-  site, never a page stuck behind a spinner.
+- **Normal.** Full descent.
+- **`prefers-reduced-motion: reduce`.** No camera travel and no text
+  choreography. One real correction event is rendered at boot as three
+  stills — the tick before enforcement engages, one inside the ramp, one
+  after it has let go — with the world left where the event left it, so the
+  held frame is the bruise state. Each still carries alt text. A
+  before-and-after pair would be an unexplained change; the middle frame is
+  the explanation. The invitation is hidden there: a still cannot answer a
+  press.
+- **WebGL unavailable.** The canvas and the machine's bands are removed, the
+  entry control is re-aimed at the editorial, the full DOM narrative is
+  retained, and the visit is recorded honestly as not entered. No error page.
+- **JavaScript disabled.** All three foundation explanations are visible in
+  sequence, the evidence table is a plain `<table>` inside a native
+  `<details>`, the machine's bands are hidden, and an inline script hides the
+  loader before any bundle loads — so the worst case is a fully readable
+  static site, never a page stuck behind a spinner.
 
 The pre-animation state lives behind a `.motion-ready` class that
 `TextReveals` adds only once it is certain it will run. Nothing is hidden
 optimistically.
 
-Also: skip link, visible focus on every stop, a real ARIA tablist with
-roving tabindex and arrow-key operation for the layer selector, native
-disclosure semantics, and no focus trapped in the canvas. The canvas is
-`pointer-events: none` and every pointer listener is passive, so touch
-can never block scrolling.
+Also: skip link, visible focus on every stop, a real ARIA tablist with roving
+tabindex and arrow-key operation for the layer selector, native disclosure
+semantics, and no focus trapped in the canvas. The canvas is
+`pointer-events: none` and every pointer listener is passive, so touch can
+never block scrolling.
 
 Printing opens the evidence disclosure via `beforeprint` and a `print`
-media-query listener. A closed `<details>` does not render its contents
-at all, so no print stylesheet can bring the table back on its own.
+media-query listener. A closed `<details>` does not render its contents at
+all, so no print stylesheet can bring the table back on its own.
+
+### Mobile is a recomposition
+
+The veil is eighteen units long and under two thick, and a tall viewport's
+horizontal field is narrow: held level it crops to a fragment, and backing off
+far enough to fit it makes it a thread. So the frame turns instead of the
+object — the camera rolls and the structure runs the diagonal, which is the
+longest run a portrait frame has. It covers about 21% of the frame there
+against 10% on desktop: filled, not shrunk.
 
 ---
 
 ## Performance
 
 `QualityManager` picks a tier at boot from pointer type, viewport,
-`hardwareConcurrency` and `deviceMemory`, then watches frame time and
-steps **down** if the median exceeds ~22ms across a second of frames. It
-never steps back up: oscillating between tiers is more visible than
-running one notch below peak.
+`hardwareConcurrency` and `deviceMemory`, then watches frame time and steps
+**down** if the median exceeds ~22ms across a second of frames. It never steps
+back up: oscillating between tiers is more visible than running one notch
+below peak.
 
-| | high | medium | low |
-|---|---|---|---|
-| Max DPR | 2 | 1.5 | 1.25 |
-| Sim resolution | 512² | 320² | 192² |
-| Sim steps/frame | 8 | 6 | 4 |
-| Bloom | yes | yes | no |
-| MSAA samples | 4 | 2 | 0 |
-| Worley crack passes | 2 | 2 | 2 |
+A tier sets one thing — the ceiling on device pixel ratio (2 / 1.5 / 1.25).
+That is what this world costs. The simulation is fixed-step and cannot be
+thinned without changing what the system does, and the structure is untextured
+lines with no post, so the only thing that scales with the machine is how many
+pixels those lines are rasterised into.
 
-The renderer has `antialias: false` because it never presents directly —
-MSAA is on the offscreen target instead. Without it the thousands of thin
-struts crawl, which is the most obvious "cheap WebGL" tell. The lattice
-is built from closed solids, so it renders `FrontSide` — back faces are
-never visible even with the camera inside the structure.
+Measured on an RTX 3060 at 1440×900: tier high, median frame 4.2ms, p95 4.4ms,
+Worker 0.094ms per fixed step — about 11ms of work per second of simulated
+time.
 
-The frame loop stops entirely when the document is hidden.
+`antialias: true` on the renderer, because the structure is hairlines over
+near-black with no post to hide edge aliasing behind. The frame loop stops
+entirely when the document is hidden.
 
-Bundle, gzipped: ~118kB Three, ~33kB motion, ~39kB app, ~5kB CSS.
+Bundle, gzipped: ~117kB Three, ~28kB motion, ~29kB app, ~5kB CSS.
+`dist/` is under 900kB.
+
+---
+
+## Determinism
+
+The claim is that seed plus input trace replays to an identical checksum, and
+it covers the enforcement, not only the world: the checksum extends over the
+bruise, the scar, the sensor reading, the engaged mask, the adjustment count
+and the narrative gain.
+
+Everything that changes what the system does goes through the Worker as a
+message and is therefore part of that trace — injections and gain alike. There
+is no `Math.random()` in the simulation or in the narrative logic. Every
+number the site displays is computed.
+
+GPU output is visual state, not a cross-device deterministic authority.
+
+```bash
+node tools/correction-validate.mjs
+```
+
+43 checks with no renderer involved, so a failure is a failure of the
+mechanism rather than of a shader: graph structure and stability bounds, the
+rotational-symmetry guard, the calm never engaging (including at maximum
+gain), the six stages of one correction event with timings a person can watch,
+the derived-zero residual, gain behaviour, replay equality, and pacing.
+
+Flags for sweeping a parameter without editing source:
+`--ambient --thetaOn --thetaOff --hold --stiffnessTo --ramp --sense --energy
+--ticks --trace`.
+
+---
+
+## Capture
+
+Frames are judged from real Chrome on the real GPU. Software rasterisation has
+already hidden a shader bug here that rendered the object black on the actual
+card, so it is not visual truth.
+
+```bash
+node tools/correction-capture.mjs --scroll --event --record --editorial --paths
+```
+
+| flag | what it does |
+|---|---|
+| *(none)* | the opening frame, with luminance and colour statistics |
+| `--event` | one full enforcement event, six beats |
+| `--motion` | whether the calm actually moves, in screen pixels |
+| `--scroll` | one frame per narrative band |
+| `--record` | the false first action, the floor panel, the budget, a second visit, the skip path |
+| `--editorial` | the machine-off cut, and whether the copy is genuinely revealed |
+| `--paths` | mobile, touch tap vs flick, reduced motion, no-WebGL, keyboard |
+| `--og` | regenerates `public/social/og-dark-lattice.jpg` from the running page |
+
+The social card is shot from the site rather than drawn separately, which is
+the only arrangement where it cannot drift from what the site actually is.
 
 ---
 
@@ -441,12 +417,12 @@ This site makes claims about a real company in a regulated context, so a
 factual regression matters more than a visual one.
 
 `src/content/evidence.ts` holds every factual claim with its source. The
-narrative ships as **static HTML** so it survives with JavaScript
-disabled, which creates one real risk: the copy in `index.html` drifting
-away from the checked record during editing.
+narrative ships as **static HTML** so it survives with JavaScript disabled,
+which creates one real risk: the copy in `index.html` drifting away from the
+checked record during editing.
 
-`src/content/verify.ts` closes that gap. In dev it compares the rendered
-DOM against the source data and reports divergence in the console:
+`src/content/verify.ts` closes that gap. In dev it compares the rendered DOM
+against the source data and reports divergence in the console:
 
 - all eleven carry-over rows present, in order, with matching ranges;
 - each evidence bar's geometry encoding the same numbers it sits beside;
@@ -464,81 +440,29 @@ Sources: `Dark-Lattice-Cross-Engine-Reuse.md`,
 
 ### Deliberately absent
 
-No founder names, no contact email, no contact form, no team section, no
-release dates, no sales figures, no final price, no partner or client
-logos, no awards, no press quotes, no performance benchmarks, and no
-image presented as gameplay. None of those is currently supported by
-inspected evidence — several are marked `REPORTED` or `RED` in the case
-state register — so none of them appears.
+No founder names, no contact form, no team section, no release dates, no sales
+figures, no final price, no partner or client logos, no awards, no press
+quotes, no performance benchmarks, and no image presented as gameplay. None of
+those is currently supported by inspected evidence — several are marked
+`REPORTED` or `RED` in the case state register — so none appears.
 
-The wording "one proprietary engine" and "Dark Lattice Engine" is
-excluded by design, and the verifier fails the build-time check if either
-appears unqualified.
+The wording "one proprietary engine" and "Dark Lattice Engine" is excluded by
+design, and the verifier fails the check if either appears unqualified.
 
----
-
-## QA harness
-
-With a server running:
-
-```bash
-node tools/capture.mjs http://localhost:4173 captures
-```
-
-27 checks across the viewports and paths the brief requires: 1440×900,
-1920×1080, 1366×768, 390×844, 360×800, plus reduced motion, WebGL
-failure, JavaScript disabled, keyboard-only, and touch. Writes
-`qa-report.json` and exits non-zero on failure.
-
-Two notes on how it measures, because both caught false results:
-
-- Horizontal overflow is checked as *"can the user scroll sideways"*
-  against `window.innerWidth`, plus *"does any in-flow element exceed
-  `clientWidth`"*. Fixed elements size to the layout viewport, and under
-  Chromium's mobile emulation `innerWidth` can exceed
-  `documentElement.clientWidth` by a scrollbar width — comparing them
-  reports an overflow the user would never see.
-- Text assertions are case-insensitive. Chrome applies `text-transform`
-  to `innerText`, and every section heading here is uppercased in CSS.
-
-Other scripts:
-
-```bash
-node tools/sequence.mjs http://localhost:4173 captures/sequence 1440 900
-```
-
-One frame per movement, for reading the sequence as a storyboard.
-
-```bash
-node tools/poster.mjs
-```
-
-Regenerates `public/fallback/hero-poster.svg` from the same envelope,
-spacing and ring constants as `LatticeModel`. **Re-run it after changing
-the lattice geometry**, or the fallback silently becomes a picture of an
-object the site no longer has. ~6KB gzipped, and it can never be mistaken
-for gameplay.
-
-```bash
-node tools/record.mjs http://localhost:4173 delivery
-```
-
-```bash
-node tools/deliver.mjs http://localhost:4173 delivery
-```
+**One open item.** This list previously included "no contact email". The
+studio section now carries `contact@darklattice.co.uk`, because reachable
+contact is a requirement of the editorial band and a company site without a
+route to it fails a different test. The address is a conventional role address
+on the company's own domain and is the one piece of text on the site not
+derived from something already in the repository. It is marked with a comment
+in `index.html`. Confirm or replace it.
 
 ---
 
 ## Known limitations
 
-- **`preview-scroll` is WebM, not MP4.** `ffmpeg` was not on PATH on the
-  build machine. `tools/record.mjs` converts automatically when it is
-  available; re-run it to produce the MP4.
-- **Captures were rendered through SwiftShader** (software GL) in
-  headless Chromium, so they are accurate for composition, layout and
-  colour but not a guide to frame rate. Frame-rate QA needs a real GPU.
-  The capture scripts also wait longer than a real visitor would, because
-  the software renderer hits the warm-up time budget and the field needs
-  the extra seconds to develop.
-- **Fonts load from Google Fonts.** Self-host if the deployment needs to
-  be fully origin-independent; see DEPLOYMENT.md.
+- **Fonts load from Google Fonts.** Self-host if the deployment needs to be
+  fully origin-independent; see DEPLOYMENT.md.
+- **The hero object is not final.** The structure currently on screen is a
+  standing placeholder. The mechanism, the narrative and every path around it
+  are built and measured; what the visitor is looking at is still open.
