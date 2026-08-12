@@ -104,6 +104,11 @@ const smoothstep = (t: number): number => {
 /** Energy of one press. Bounded — the visitor gets an action, not a sandbox. */
 const PRESS_ENERGY = 2.2;
 
+/** Longest a touch can rest and still be a tap rather than a hold. */
+const TAP_MS = 350;
+/** Movement that turns a tap into travel, in CSS pixels. */
+const TAP_SLOP = 8;
+
 /**
  * How many presses a visit is worth.
  *
@@ -145,6 +150,8 @@ export class SceneController {
   private pressesLeft = PRESS_BUDGET;
   /** True once anything has struck the structure, whoever started it. */
   private pressed = false;
+  /** A touch in progress that has not yet disqualified itself as a tap. */
+  private tap: { id: number; x: number; y: number; at: number } | null = null;
 
   private progress = 0;
   private exposure = 0;
@@ -257,9 +264,13 @@ export class SceneController {
     window.addEventListener('resize', this.onResize, { passive: true });
     document.addEventListener('visibilitychange', this.onVisibility);
 
-    // Press, not hover. Touch is identical to mouse and is never
-    // preventDefault-ed, so it can never interfere with scrolling.
+    // Press, not hover, and never preventDefault-ed, so it can never
+    // interfere with scrolling. A mouse presses on the way down; a finger
+    // has to finish the gesture first — see `onPointerDown`.
     window.addEventListener('pointerdown', this.onPointerDown, { passive: true });
+    window.addEventListener('pointermove', this.onPointerMove, { passive: true });
+    window.addEventListener('pointerup', this.onPointerUp, { passive: true });
+    window.addEventListener('pointercancel', this.onPointerCancel, { passive: true });
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -284,13 +295,63 @@ export class SceneController {
     }
   };
 
+  /**
+   * A mouse means it on the way down. A finger does not.
+   *
+   * `pointerdown` fires the instant a finger touches the glass, before the
+   * browser has decided whether the gesture is a tap or a scroll — and the
+   * machine's bands are mostly empty space, so on a phone every flick down
+   * the descent was landing as a press. That spent the visit's whole budget
+   * on scrolling and, worse, marked the structure as struck, which is the one
+   * condition that cancels the false first action. The visitor was being
+   * charged for deciding to look.
+   *
+   * So touch and pen arm a tap and resolve it on release: short enough, and
+   * still in the same place. Anything else is travel, and travel is free.
+   */
   private onPointerDown = (event: PointerEvent): void => {
-    // Presses on the editorial content are reading, not touching the structure.
-    const target = event.target as HTMLElement | null;
-    if (target && target.closest('a, button, details, summary, input, textarea, select')) return;
+    if (this.isReading(event.target)) return;
+
+    if (event.pointerType === 'mouse') {
+      this.pressAt(event.clientX, event.clientY);
+      return;
+    }
+
+    this.tap = { id: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now() };
+  };
+
+  private onPointerMove = (event: PointerEvent): void => {
+    const tap = this.tap;
+    if (!tap || event.pointerId !== tap.id) return;
+    if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > TAP_SLOP) this.tap = null;
+  };
+
+  private onPointerUp = (event: PointerEvent): void => {
+    const tap = this.tap;
+    if (!tap || event.pointerId !== tap.id) return;
+    this.tap = null;
+
+    if (performance.now() - tap.at > TAP_MS) return;
+    if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > TAP_SLOP) return;
+    if (this.isReading(event.target)) return;
 
     this.pressAt(event.clientX, event.clientY);
   };
+
+  /** The browser took the gesture for itself — a scroll, or a system edge swipe. */
+  private onPointerCancel = (event: PointerEvent): void => {
+    if (this.tap?.id === event.pointerId) this.tap = null;
+  };
+
+  /**
+   * Surfaces that are being read rather than touched. The record panel is on
+   * the list because it is the one piece of the machine's own text a visitor
+   * is meant to stop and read, and reading it should not strike anything.
+   */
+  private isReading(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    return !!el?.closest?.('a, button, details, summary, input, textarea, select, [data-record]');
+  }
 
   /**
    * One press, one bounded impulse. The raycast resolves to a node so the
@@ -542,6 +603,9 @@ export class SceneController {
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('pointerdown', this.onPointerDown);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerCancel);
     this.resizeObserver?.disconnect();
     if (this.model) {
       this.scene.remove(this.model.group);

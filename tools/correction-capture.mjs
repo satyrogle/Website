@@ -511,6 +511,79 @@ if (flag('paths')) {
     await mobile.close();
   }
 
+  // --- Touch: a flick is travel, a tap is an action -----------------------
+  {
+    const phone = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const thumb = await phone.newPage();
+    await thumb.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await thumb.waitForFunction(() => window.__correction?.telemetry?.tick > 0, { timeout: 40000 });
+
+    /**
+     * Budget is the honest reading here. It is spent on the main thread the
+     * instant a press is accepted, whereas `injections` has to come back from
+     * the Worker on the next published snapshot — reading that in the same
+     * turn as the gesture reports the state from before it.
+     */
+    const state = async () => {
+      await thumb.waitForTimeout(600);
+      return thumb.evaluate(() => ({
+        budget: window.__correction?.budget ?? -1,
+        injections: window.__correction?.telemetry?.injections ?? -1,
+      }));
+    };
+
+    const gesture = (steps) =>
+      thumb.evaluate((path) => {
+        const fire = (type, y) =>
+          window.dispatchEvent(
+            new PointerEvent(type, {
+              pointerId: 7,
+              pointerType: 'touch',
+              clientX: 195,
+              clientY: y,
+              bubbles: true,
+            })
+          );
+        for (const [type, y] of path) fire(type, y);
+      }, steps);
+
+    const start = await state();
+
+    // A flick: contact, travel, release. This is what scrolling the descent
+    // with a thumb looks like to the page.
+    await gesture([
+      ['pointerdown', 700],
+      ['pointermove', 560],
+      ['pointermove', 380],
+      ['pointerup', 300],
+    ]);
+    const afterFlick = await state();
+
+    // A tap: contact and release in the same place.
+    await gesture([
+      ['pointerdown', 500],
+      ['pointerup', 500],
+    ]);
+    const afterTap = await state();
+
+    const flickCost = start.budget - afterFlick.budget;
+    const tapCost = afterFlick.budget - afterTap.budget;
+    console.log(
+      `  touch: 400px flick costs ${flickCost} presses ` +
+        `(${flickCost === 0 ? 'TRAVEL IS FREE' : 'FLICK CHARGED AS A PRESS'})`
+    );
+    console.log(
+      `  touch: tap costs ${tapCost} press, injections ${afterFlick.injections} -> ${afterTap.injections} ` +
+        `(${tapCost === 1 ? 'THE ACTION STILL WORKS' : 'TAP DOES NOTHING'})`
+    );
+    await thumb.close();
+    await phone.close();
+  }
+
   // --- Reduced motion: the triptych, and a world that does not move -------
   {
     const still = await browser.newContext({
