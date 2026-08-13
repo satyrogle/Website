@@ -569,6 +569,30 @@ def main():
         export_normals=True,
         export_materials='NONE',
         export_yup=True,
+        # The ico sphere's UVs survived every rebuild and cost 756 kB of a
+        # 5.5 MB file. Nothing samples a texture here — the whole material
+        # is procedural off the mark attribute — so they were paying rent
+        # on an empty room.
+        export_texcoords=False,
+        # Draco. Geometry this dense is mostly connectivity, and connectivity
+        # is what Draco compresses best. The quantisation is chosen against
+        # what the data actually needs rather than left at defaults:
+        #
+        #   position 14 bits — the body spans ~11 units, so this resolves to
+        #     0.0007 of a unit against a vertex spacing of 0.085. Terrain
+        #     cannot move.
+        #   normal 10 bits — smooth shading over a near-black crust; the
+        #     wash response cannot resolve finer than this.
+        #   colour 12 bits — the load-bearing one. COLOR_0 is not a look
+        #     here, it is the mark: crust/temperature/altitude, and the
+        #     shader keys every lighting decision off it. The classes sit at
+        #     0, 0.24, 0.72, 0.82 and 1.0, which 4096 levels separate by a
+        #     margin of hundreds. Verified after export, not assumed.
+        export_draco_mesh_compression_enable=True,
+        export_draco_mesh_compression_level=10,
+        export_draco_position_quantization=14,
+        export_draco_normal_quantization=10,
+        export_draco_color_quantization=12,
     )
 
     with open(OUT_MANIFEST, 'w', encoding='utf-8') as handle:

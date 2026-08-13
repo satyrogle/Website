@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import planetVert from '../../shaders/planet-fragment.vert.glsl?raw';
@@ -275,10 +276,28 @@ export class PlanetModel {
   }
 
   async load(base = `${import.meta.env.BASE_URL}models/`): Promise<void> {
-    const [gltf, manifest] = await Promise.all([
-      new GLTFLoader().loadAsync(`${base}planet.glb`),
-      fetch(`${base}planet-manifest.json`).then((r) => r.json() as Promise<Manifest>),
-    ]);
+    // The world is Draco-compressed: the geometry is dense enough that
+    // connectivity dominated the file, and connectivity is what Draco
+    // compresses hardest. Decoding runs in the loader's own worker pool, so
+    // the main thread is never blocked while the loader UI is up — the
+    // decode is real initialisation work the loader is honestly reporting.
+    const draco = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
+    const loader = new GLTFLoader().setDRACOLoader(draco);
+
+    try {
+      const [gltf, manifest] = await Promise.all([
+        loader.loadAsync(`${base}planet.glb`),
+        fetch(`${base}planet-manifest.json`).then((r) => r.json() as Promise<Manifest>),
+      ]);
+      this.stage(gltf, manifest);
+    } finally {
+      // The decoder workers have done their one job. Held open they are
+      // three idle threads for the rest of the visit.
+      draco.dispose();
+    }
+  }
+
+  private stage(gltf: { scene: THREE.Object3D }, manifest: Manifest): void {
 
     const random = mulberry32(0x517a9e3b);
     const chunkGeometries: THREE.BufferGeometry[] = [];
