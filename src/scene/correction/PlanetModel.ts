@@ -217,7 +217,11 @@ export class PlanetModel {
           float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
 
           // Rafted, not tiled: the cell domain is bent by a slow flow first.
-          vec3 p = vLocal * 0.95
+          // Plate size is authored for the wound aperture: at 0.95 the hot
+          // province showed a dozen cells at once and read as honeycomb
+          // (Jacob). At 0.62 the aperture holds two to four monumental
+          // rafts — fracture, not pattern.
+          vec3 p = vLocal * 0.62
                  + 0.50 * vec3(sin(vLocal.y * 0.8 + vLocal.z * 0.5),
                                sin(vLocal.z * 0.9 - vLocal.x * 0.4),
                                sin(vLocal.x * 0.7 + vLocal.y * 0.6));
