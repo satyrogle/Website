@@ -67,16 +67,18 @@ CORE_RADIUS = 3.55
 #: crosses two of them, and smooth shading rounds the step back into a lump.
 SUBDIV = 7
 
-#: The five wounds/slabs: angular size, corridor displacement, laterals.
-#: Corridor staging (disp/a/b) is unchanged; the cutter DIRECTIONS are
-#: clustered for V2 — one dominant rupture zone, not five potholes. The body
-#: stays roughly 70% intact, per the directive.
+#: The five wounds/slabs: angular size, and how far each piece has flown
+#: ALONG ITS OWN WOUND NORMAL. Jacob, on the corridor this replaces: "how
+#: can debris flow in a line — I said funnel the view, not funnel the
+#: explosion." A piece leaves through its hole and keeps going on that
+#: radial line; the ladder of flight distances is what the scroll descends,
+#: not a shared axis the debris was never thrown down.
 SLABS = (
-    {"ang": 0.80, "disp": 3.0, "a": 0.35, "b": 0.65},
-    {"ang": 0.55, "disp": 6.6, "a": -1.55, "b": -1.10},
-    {"ang": 0.46, "disp": 10.4, "a": 2.45, "b": -2.20},
-    {"ang": 0.36, "disp": 14.0, "a": -3.05, "b": 2.35},
-    {"ang": 0.30, "disp": 18.0, "a": 4.15, "b": 1.45},
+    {"ang": 0.80, "flight": 2.6},
+    {"ang": 0.55, "flight": 5.5},
+    {"ang": 0.46, "flight": 9.0},
+    {"ang": 0.36, "flight": 13.5},
+    {"ang": 0.30, "flight": 18.0},
 )
 
 #: Where the cutters bite, as (u, v) offsets around the corridor axis. The
@@ -94,10 +96,11 @@ FISSURES = (
     {"dir": (0.90, -0.95), "reach": 0.48, "size": (2.6, 0.40, 0.50)},
 )
 
-#: Medium debris distances. Laterals are drawn wider than v2 so the corridor
-#: reads as a volume the camera threads, not a conveyor belt of chunks.
-MEDIUM_T = (5.8, 7.0, 8.5, 9.8, 11.2, 12.5, 13.7, 15.0,
-            16.4, 17.8, 19.2, 20.5, 22.0, 23.8, 25.2, 27.0)
+#: Medium debris: how many, and how far the furthest has got. Directions are
+#: drawn around the whole body — a breakup sheds everywhere — biased toward
+#: the rupture hemisphere where most of the mass left.
+MEDIUM_COUNT = 16
+MEDIUM_REACH = 21.5
 
 OUT_GLB = os.path.join('public', 'models', 'planet.glb')
 OUT_MANIFEST = os.path.join('public', 'models', 'planet-manifest.json')
@@ -174,6 +177,57 @@ def _make_craters(seed, count=11):
 
 _CRATERS = _make_craters(SEED + 81)
 
+#: The authored frame, fixed: everything is built around +X and rotated onto
+#: the site's diagonal at runtime. Module-level because the surface functions
+#: need the rupture centre, not just main().
+_AXIS = np.array([1.0, 0.0, 0.0])
+_U, _V = tangent_basis(_AXIS)
+
+
+def _make_plate_seeds(seed, count=16):
+    rng = np.random.default_rng(seed)
+    return [unit(rng.normal(size=3)) for _ in range(count)]
+
+
+_PLATE_SEEDS = _make_plate_seeds(SEED + 141)
+
+RUPTURE_DIR = unit(_AXIS + WOUND_OFFSETS[0][0] * _U + WOUND_OFFSETS[0][1] * _V)
+
+
+def fracture_field(d):
+    """
+    The global death, at a direction: (openness, proximity).
+
+    Jacob's coherence objection, verbatim: "how can one chunk of planet
+    break apart while the rest is still the same." It cannot. The whole
+    crust is divided into plates, and the boundaries between them are
+    failing everywhere — the rupture zone is simply FURTHEST ALONG. This
+    field finds the plate boundaries (F2−F1 cellular distance between the
+    two nearest of sixteen seeds: ~0 on a boundary, growing toward each
+    plate's interior) and grades everything by angular distance from the
+    rupture centre.
+
+      openness   1 inside a boundary crevasse, 0 on plate interior
+      proximity  1 at the rupture centre, 0 by the far side
+
+    Consumed twice, like every surface function here: `elevation` carves the
+    crevasses — canyon-deep near the rupture, hairline by the far side — and
+    `mark_crust` sets the near ones venting while the far ones stay dark.
+    """
+    best = 8.0
+    second = 8.0
+    for seed_dir in _PLATE_SEEDS:
+        dist = 1.0 - float(np.dot(d, seed_dir))
+        if dist < best:
+            second = best
+            best = dist
+        elif dist < second:
+            second = dist
+    openness = 1.0 - _smooth01((second - best) / 0.045)
+    facing = max(-1.0, min(1.0, float(np.dot(d, RUPTURE_DIR))))
+    proximity = _smooth01((1.35 - math.acos(facing)) / 1.35)
+    return openness, proximity
+
 #: Soft cap on total elevation, as a fraction of radius. Geology has to be
 #: unmistakable and the body still has to read as a sphere that came apart.
 #: Two renders taught the scale: at 0.105 the body was a smooth ball, and the
@@ -243,7 +297,11 @@ def elevation(direction):
 
     micro = 0.008 * fbm(d * 11.0, SEED + 37, octaves=3)
 
-    total = macro + plateau + meso + bowls + micro
+    # The failing plate boundaries, carved into the whole globe.
+    openness, proximity = fracture_field(d)
+    crevasse = -openness * (0.020 + 0.085 * proximity)
+
+    total = macro + plateau + meso + bowls + micro + crevasse
     return ELEV_CAP * math.tanh(total / ELEV_CAP)
 
 
@@ -297,9 +355,20 @@ def mark_crust(obj, tolerance=0.955):
             for loop_index in poly.loop_indices:
                 attribute.data[loop_index].color = (0.0, 1.0, 0.5, 1.0)
         elif centre.length > surface * tolerance and outward > 0.05:
-            for loop_index in poly.loop_indices:
-                vertex_index = mesh.loops[loop_index].vertex_index
-                attribute.data[loop_index].color = (1.0, 0.0, altitude_of(vertex_index), 1.0)
+            openness, proximity = fracture_field(np.array(direction[:]))
+            if openness > 0.5 and proximity > 0.18:
+                # A failing plate boundary near the rupture: the crevasse
+                # vents, hotter the closer the death has come. Beyond the
+                # proximity floor the same crevasses stay cold hairlines —
+                # one event at different stages, which is the coherence the
+                # single glowing zone lacked.
+                venting = 0.25 + 0.55 * proximity * openness
+                for loop_index in poly.loop_indices:
+                    attribute.data[loop_index].color = (0.0, venting, 0.5, 1.0)
+            else:
+                for loop_index in poly.loop_indices:
+                    vertex_index = mesh.loops[loop_index].vertex_index
+                    attribute.data[loop_index].color = (1.0, 0.0, altitude_of(vertex_index), 1.0)
         else:
             lining = (abs(centre.length - (surface - CRUST_THICKNESS)) < CRUST_THICKNESS * 0.35
                       and outward < -0.05)
@@ -480,7 +549,7 @@ def main():
             print(f'SLAB {i} CULLED — boolean returned a degenerate piece')
             bpy.data.objects.remove(piece, do_unlink=True)
             continue
-        slabs.append((piece, slab))
+        slabs.append((piece, slab, direction))
 
     # Secondary fissures, radiating outward from the rupture centre: long
     # ragged wedges half-sunk into the crust, DIFFERENCE only — canyons that
@@ -506,10 +575,18 @@ def main():
     shell.name = 'body'
     mark_crust(shell)
 
-    for piece, slab in slabs:
+    for piece, slab, direction in slabs:
         mark_crust(piece)
         centre = recentre(piece)
-        position = axis * slab['disp'] + u * slab['a'] + v * slab['b'] + centre
+        # The piece leaves through its own hole and keeps going: flight is
+        # along the wound normal from the piece's original seat, with a small
+        # tangential drift so no line is laser-straight. A viewer tracing any
+        # slab back along its motion arrives at its wound — the kinship read
+        # is the physics now, not a layout convention.
+        t1, t2 = tangent_basis(direction)
+        drift = (t1 * float(RNG.uniform(-0.9, 0.9))
+                 + t2 * float(RNG.uniform(-0.9, 0.9)))
+        position = centre + direction * slab['flight'] + drift
         piece.location = tuple(float(x) for x in position)
         spin = unit(RNG.normal(size=3))
         piece.rotation_mode = 'QUATERNION'
@@ -524,25 +601,21 @@ def main():
 
     # ---------------------------------------------------------------- mediums
     #
-    # Secondary debris stays procedural, as permitted — but it is carved from
-    # a displaced crust ball with the same radius language, and it obeys the
-    # same material rule: crust outside, heat only on the cut.
-    chunks = carve_chunks(len(MEDIUM_T))
-    for i, t in enumerate(MEDIUM_T):
-        if i >= len(chunks):
-            break
-        obj = chunks[i]
-        # A funnel with real cross-section: wide at the viewer's end of the
-        # corridor, narrowing toward the rupture, and fuller than v4 — the
-        # directive's failure read was "a trail of chunks", not a field.
-        cone = 0.9 + 0.26 * t
-        theta = float(RNG.uniform(0, math.tau))
-        radial = cone * float(RNG.uniform(0.25, 1.45))
-        position = (axis * t
-                    + u * (math.cos(theta) * radial)
-                    + v * (math.sin(theta) * radial + float(RNG.normal(0.1, 0.6))))
+    # Secondary debris stays procedural, as permitted — carved from a
+    # displaced crust ball with the same radius language, same material rule:
+    # crust outside, heat only on the cut. Thrown RADIALLY, all around the
+    # body: a breakup sheds everywhere, biased toward the rupture hemisphere
+    # where most of the mass left, smaller the further it has got.
+    chunks = carve_chunks(MEDIUM_COUNT)
+    for obj in chunks[:MEDIUM_COUNT]:
+        if RNG.random() < 0.62:
+            dirm = unit(RUPTURE_DIR * 1.2 + RNG.normal(size=3) * 0.75)
+        else:
+            dirm = unit(RNG.normal(size=3))
+        flight = 1.2 + (MEDIUM_REACH - 1.2) * float(RNG.random() ** 1.25)
+        position = dirm * (BODY_RADIUS + flight)
         obj.location = tuple(float(x) for x in position)
-        scale = float(RNG.uniform(0.5, 1.6)) * (1.1 - 0.012 * min(t, 25.0))
+        scale = float(RNG.uniform(0.5, 1.5)) * max(1.15 - 0.03 * flight, 0.38)
         obj.scale = (scale, scale, scale)
         spin = unit(RNG.normal(size=3))
         obj.rotation_mode = 'QUATERNION'
@@ -555,7 +628,7 @@ def main():
             'extent': float(extent),
         })
 
-    for obj in chunks[len(MEDIUM_T):]:
+    for obj in chunks[MEDIUM_COUNT:]:
         bpy.data.objects.remove(obj, do_unlink=True)
 
     crack_tubes()

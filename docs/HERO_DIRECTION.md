@@ -108,6 +108,16 @@ slabs that came out of them share the frame, so a viewer can mentally
 reassemble the original sphere. That relationship outranks any previous
 camera coordinates.
 
+**Radial restaging (Jacob, 2026-08-13): "I said funnel the view, not funnel
+the explosion."** The corridor was a misread and is dead. The breakup is
+omnidirectional: every slab flies on the line out of its own wound, mediums
+and micro debris shed all around the body (biased toward the rupture
+hemisphere), the flare is radial expansion. The FUNNEL is the scroll
+journey — the rail starts at the furthest-flown fragment and converges
+inward, stop by stop, onto the body. And a planet does not die on one side:
+the whole crust is webbed with failing plate boundaries, venting near the
+rupture, hairline-cold by the far side — one event at different stages.
+
 **V2 directive (Jacob, 2026-08-13), the deltas that bind:**
 - ONE dominant rupture zone, body 65–75% intact, secondary fissures
   radiating from it — not five separate potholes.

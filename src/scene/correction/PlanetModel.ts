@@ -106,6 +106,22 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * A unit direction for thrown matter, in the authored frame: drawn around
+ * the whole sphere, weighted toward the rupture hemisphere (+X) where most
+ * of the mass left. Sixty-some percent lands rupture-side; the far side
+ * still sheds — a body coming apart has no quiet half.
+ */
+function radialDirection(out: THREE.Vector3, random: () => number): THREE.Vector3 {
+  // Gaussian-ish components via sums of uniforms — enough isotropy here.
+  const g = () => random() + random() + random() - 1.5;
+  out.set(g(), g(), g());
+  if (out.lengthSq() < 1e-4) out.set(1, 0, 0);
+  out.normalize();
+  if (random() < 0.62) out.x = Math.abs(out.x) * 1.35 + 0.25;
+  return out.normalize();
+}
+
 /** Blender world (Z-up) to glTF/Three world (Y-up), as the exporter maps it. */
 const yUp = (p: [number, number, number]): THREE.Vector3 =>
   new THREE.Vector3(p[0], p[2], -p[1]);
@@ -390,12 +406,13 @@ export class PlanetModel {
       mesh.frustumCulled = false;
 
       for (let i = 0; i < EJECTA.perGeometry; i++) {
-        const t = Math.pow(random(), 1.5);
-        const along = 4.5 + EJECTA.reach * t;
-        const funnel = (1.2 + 6.5 * t) * (0.25 + random() * 0.75);
-        const swing = random() * Math.PI * 2;
+        // A radial shell around the whole body, not a cone: the explosion
+        // was never funnelled, only the view is. Biased toward the rupture
+        // (authored +X) where most of the mass left, but nowhere is empty.
+        radialDirection(position, random);
+        const flight = 1.2 + EJECTA.reach * Math.pow(random(), 1.45);
+        position.multiplyScalar(5.2 + flight);
 
-        position.set(along, Math.sin(swing) * funnel, Math.cos(swing) * funnel);
         euler.set(random() * 6.28, random() * 6.28, random() * 6.28);
         quaternion.setFromEuler(euler);
         // Two shard populations: mist-fine and hand-sized. One band read as
@@ -446,22 +463,17 @@ export class PlanetModel {
     }
     this.dustTexture = new THREE.CanvasTexture(sprite);
 
-    // Where the field bunches. Each streak is drawn out along the corridor
-    // by the same blast that made it, so the clumps are lanes rather than
-    // balls of dust.
-    const streaks: { x: number; y: number; z: number; spread: number }[] = [];
+    // Where the field bunches. Each streak is a RAY out of the body — the
+    // track of matter that left together — so the clumps read as the blast's
+    // own geometry, radiating, not as lanes down a corridor nobody dug.
+    const streaks: { dir: THREE.Vector3; spread: number }[] = [];
     for (let i = 0; i < DUST.streaks; i++) {
-      const t = Math.pow(random(), 1.15) * DUST.reach;
-      const cone = (0.9 + 0.26 * t) * 1.15;
-      const radial = cone * Math.sqrt(random());
-      const swing = random() * Math.PI * 2;
       streaks.push({
-        x: 1.5 + t,
-        y: Math.sin(swing) * radial,
-        z: Math.cos(swing) * radial,
+        dir: radialDirection(new THREE.Vector3(), random).clone(),
         spread: 0.45 + 0.95 * random(),
       });
     }
+    const scratchDir = new THREE.Vector3();
 
     // Sum of three uniforms: a cheap bell, so a streak has a dense spine
     // that thins outward instead of a hard edge.
@@ -475,32 +487,34 @@ export class PlanetModel {
         let x: number;
         let y: number;
         let z: number;
+        let flight: number;
 
         if (random() < DUST.clumped) {
           const streak = streaks[Math.floor(random() * streaks.length)];
-          x = streak.x + bell() * streak.spread * 2.8;
-          y = streak.y + bell() * streak.spread;
-          z = streak.z + bell() * streak.spread;
+          flight = Math.pow(random(), 1.15) * DUST.reach;
+          const r = 5.0 + flight;
+          x = streak.dir.x * r + bell() * streak.spread;
+          y = streak.dir.y * r + bell() * streak.spread;
+          z = streak.dir.z * r + bell() * streak.spread;
         } else {
-          // The rest fills the cone by area, so the lanes between streaks
-          // are thin rather than empty and the funnel keeps a soft edge.
-          const t = Math.pow(random(), 1.3) * DUST.reach;
-          const cone = (0.9 + 0.26 * t) * 1.15;
-          const radial = cone * Math.sqrt(random()) * (0.35 + 0.65 * random());
-          const swing = random() * Math.PI * 2;
-          x = 1.5 + t;
-          y = Math.sin(swing) * radial;
-          z = Math.cos(swing) * radial;
+          // The rest fills a whole shell around the body, so the space
+          // between rays is thin rather than empty and the field has no
+          // skin anywhere the camera looks.
+          radialDirection(scratchDir, random);
+          flight = Math.pow(random(), 1.3) * DUST.reach;
+          const r = 5.0 + flight;
+          x = scratchDir.x * r;
+          y = scratchDir.y * r;
+          z = scratchDir.z * r;
         }
 
         positions[i * 3] = x;
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = z;
 
-        // Warm near the rupture, grey and dim by the corridor's end — the
-        // same cooling journey the solid debris makes.
-        const along = Math.max(0, x - 1.5);
-        const heat = Math.max(0, 1 - along / DUST.reach) * (0.4 + 0.6 * random());
+        // Warm near the body it just left, grey and dim by the far shell —
+        // the same cooling journey the solid debris makes.
+        const heat = Math.max(0, 1 - flight / DUST.reach) * (0.4 + 0.6 * random());
         const shade = 0.20 + 0.5 * random();
         colours[i * 3] = shade * (0.75 + 0.55 * heat);
         colours[i * 3 + 1] = shade * (0.55 + 0.25 * heat);
@@ -551,7 +565,10 @@ export class PlanetModel {
       this.scratch.copy(piece.home).addScaledVector(piece.drift, flare);
       piece.mesh.position.copy(this.scratch);
     }
-    this.ejecta.position.set(flare * 2.2, 0, 0);
+    // The small debris expands radially from the body, because that is what
+    // it is doing — the old corridor push slid the whole field sideways as
+    // if the explosion had a direction it never had.
+    this.ejecta.scale.setScalar(1 + flare * 0.16);
   }
 
   /** Heavy, slow. A slab turns a few degrees in the time anyone watches. */

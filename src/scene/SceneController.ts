@@ -45,63 +45,54 @@ interface Waypoint {
 const asTriple = (v: THREE.Vector3): readonly [number, number, number] => [v.x, v.y, v.z];
 
 /**
- * The rail, derived from the debris itself.
- *
- * Jacob, 2026-08-12: "each floating debris will be our scrolling and we travel
- * like a funnel and we go see the exploding star." So the waypoints are not
- * authored beside the layout, they are computed from it — the approach, then
- * one stop at every fragment in order down the funnel, then the wide view of
- * the whole event. Move a fragment and its stop moves with it; the scroll can
- * never visit a place that is not really there.
- *
- * At each stop the eye stands outside the funnel, upstream of the fragment,
- * looking past it toward the star — so every leg travels starward and the
- * throat is always ahead, without the view ever lying along the funnel's own
- * axis. The wide view at the floor is from far off to the side: the funnel is
- * seen as a trail, never as concentric depth.
- */
-/**
  * The rail, derived from the wreckage itself.
  *
- * The stops are the largest thrown fragments, in the order the blast threw
- * them, so scroll travels *down the corridor* — from the pieces that got
- * furthest, back toward the body that failed. Each stop stands off its own
- * fragment by that fragment's own size, which is what keeps a continent-scale
- * slab and a smaller chunk both framed as monumental rather than one of them
- * filling the screen and the other vanishing.
+ * Jacob, restated after the corridor misread: "I said funnel the VIEW, not
+ * funnel the explosion." The debris was thrown radially — every piece on the
+ * line out of its own wound — so there is no corridor to travel. What
+ * converges is the journey: the scroll starts at the fragment that has flown
+ * furthest, and every stop is nearer the body than the last, each leg
+ * curving around the field as the slabs fan across the rupture hemisphere.
+ * The view narrows onto the source; that narrowing is the funnel.
  *
- * Waypoints are computed after the geometry loads, because a stop that is not
- * derived from a real piece is a stop that can point at nothing.
+ * Each stop stands off its own fragment by that fragment's own size, which
+ * is what keeps a continent-scale slab and a smaller one both framed as
+ * monumental rather than one filling the screen and the other vanishing.
+ * Waypoints are computed after the geometry loads, because a stop that is
+ * not derived from a real piece is a stop that can point at nothing.
  */
 const buildRail = (planet: PlanetModel): Waypoint[] => {
   const { axis, lift, side } = FUNNEL;
   const waypoints: Waypoint[] = [];
-  const stops = [...planet.stops].reverse();
+  // Furthest-flown first: the journey is inward.
+  const stops = [...planet.stops].sort((a, b) => b.home.length() - a.home.length());
 
   const stand = (piece: (typeof stops)[number], reach: number): THREE.Vector3 => {
-    // Outward from the corridor and back up it, so the eye is beside the
-    // fragment with the source beyond it — never looking down the axis, which
-    // is the pose that stacks a debris trail into concentric depth.
-    const out = piece.home.clone().projectOnPlane(axis);
-    if (out.lengthSq() < 1e-4) out.copy(side);
-    out.normalize();
-    // Stand-off is in multiples of the piece's own radius. The authored slabs
-    // are continent-scale — extents of two to five units — so a small multiple
-    // is already a long way back; the old 8x was tuned for chips and framed
-    // nothing but void. Lift is over half the lateral now: the eye stands
-    // high enough that a foreground slab occupies the lower third and the
-    // body stays legible beyond it — a composed shot, not a black wall.
+    // The eye stands behind and beside the fragment on its own flight line —
+    // further from the body than the piece, offset sideways and above — so
+    // every stop looks past its fragment at the wounded world beyond. The
+    // offsets keep the pose off the fragment's own radial, which is the one
+    // line that would stack its trail into concentric depth.
+    const radial = piece.home.clone().normalize();
+    const beside = new THREE.Vector3().crossVectors(radial, lift);
+    if (beside.lengthSq() < 1e-3) beside.crossVectors(radial, side);
+    beside.normalize();
+    const above = new THREE.Vector3().crossVectors(beside, radial).normalize();
+    // Stand-off is in multiples of the piece's own radius: the authored
+    // slabs are continent-scale, so a small multiple is already a long way
+    // back. The above-component keeps a foreground slab in the lower third
+    // with the body legible beyond it — a composed shot, not a black wall.
     return piece.home
       .clone()
-      .addScaledVector(out, piece.extent * reach)
-      .addScaledVector(axis, piece.extent * reach * 1.15)
-      .addScaledVector(lift, piece.extent * reach * 0.55);
+      .addScaledVector(radial, piece.extent * reach * 1.05)
+      .addScaledVector(beside, piece.extent * reach * 0.9)
+      .addScaledVector(above, piece.extent * reach * 0.55);
   };
 
   if (stops.length) {
     // Approach: the furthest-thrown piece, met from further out still, with
-    // the whole corridor and the distant source behind it. The visitor does
-    // not yet know what they are looking at.
+    // the wounded world distant beyond it. The visitor does not yet know
+    // what they are looking at.
     waypoints.push({
       eye: asTriple(stand(stops[0], 3.4)),
       aim: asTriple(stops[0].home.clone().multiplyScalar(0.72)),
@@ -118,14 +109,14 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     });
   }
 
-  // The reveal, stood on the blast side — the money shot, and it is composed,
-  // not surveyed. The camera's azimuth matches the rupture zone's, so the eye
-  // looks into the compound wound at a working obliquity; the distance is
-  // close enough that the body commands most of the frame's height instead
-  // of floating in it; and the aim is pulled off-side so the planet stands
-  // clear of the record's typography with the debris funnel sweeping past
-  // the eye toward it. Wounds, the slabs that left them, the corridor: one
-  // event, dominating the frame.
+  // The reveal, stood before the rupture — the money shot, and it is
+  // composed, not surveyed. The camera's azimuth matches the rupture zone's,
+  // so the eye looks into the compound wound at a working obliquity; the
+  // distance is close enough that the body commands most of the frame's
+  // height; and the aim is pulled off-side so the wound stands clear of the
+  // record's typography. Around it, the field: every slab on the line out of
+  // its own hole, debris in every direction, the whole crust webbed with
+  // failing plate boundaries — one death, dominating the frame.
   waypoints.push({
     eye: asTriple(
       new THREE.Vector3()
@@ -134,7 +125,7 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
         .addScaledVector(lift, 9.5)
     ),
     aim: asTriple(
-      new THREE.Vector3().addScaledVector(axis, 3.2).addScaledVector(side, -1.4)
+      new THREE.Vector3().addScaledVector(axis, 3.2).addScaledVector(side, -2.2)
     ),
   });
 
