@@ -94,14 +94,17 @@ void main() {
   // undersides, the near faces of close debris. This is the spill that ties
   // every lit edge to the same fire.
   float spill = max(dot(n, l), 0.0) * fall * fall;
-  colour += vec3(1.0, 0.42, 0.14) * spill * 0.38 * uCrustLight;
+  colour += vec3(1.0, 0.42, 0.14) * spill * 0.26 * uCrustLight;
 
   // The failing plate boundaries, baked per vertex so the glow follows the
   // fracture field and not the tessellation: ember hairlines far from the
   // rupture, open venting near it, parting further as the flare climbs.
   float vent = clamp(vMark.a, 0.0, 1.0) * crust;
   vec3 ventGlow = mix(vec3(0.42, 0.055, 0.008), vec3(1.0, 0.5, 0.1), vent);
-  colour += ventGlow * vent * vent * uHeat * (0.9 + uFlare * 0.9);
+  // A gentler exponent than the square: the baked floor exists so no region
+  // reads safe, and squaring it back to zero silenced the far side's ember
+  // hairlines entirely.
+  colour += ventGlow * pow(vent, 1.55) * uHeat * (1.05 + uFlare * 0.9);
 
   // Backlight. Only the limb, only against the source. Narrower than every
   // previous version: a broad warm fresnel across exterior faces was most of

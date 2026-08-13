@@ -79,6 +79,13 @@ export const CONE = { r0: -0.11, slope: 0.375, length: 14.0 };
 /** Heat escaping from the broken faces of the fragments. */
 export const LAVA = 2.2;
 
+/**
+ * The burning air: how much of the event's light lives in the dust around
+ * it. The reference frame's single biggest lesson — the space between the
+ * pieces carries the catastrophe, or the pieces are objects on black.
+ */
+export const HAZE = 0.55;
+
 /** The approved glow: overall emission, and boundary concentration. */
 export const GLOW = 1.9;
 export const DENSITY = 9.0;
@@ -172,6 +179,16 @@ export class FieldModel {
       uStarGlow: { value: STAR.glow },
       uStarNoise: { value: STAR.noise },
       uEjecta: { value: STAR.ejecta },
+      // The rupture's world bearing, for the haze fan — the same direction
+      // the wound cluster faces in the authored geometry.
+      uRuptureDir: {
+        value: new THREE.Vector3()
+          .addScaledVector(AXIS, 1.0)
+          .addScaledVector(SIDE, 0.3)
+          .addScaledVector(LIFT, 0.22)
+          .normalize(),
+      },
+      uHaze: { value: HAZE },
       // The rupture faces down the funnel — the direction the debris went, and
       // therefore the direction it was thrown.
       uFlare: { value: 0 },

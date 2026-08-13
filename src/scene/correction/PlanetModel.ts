@@ -57,7 +57,7 @@ export interface Piece {
   drift: THREE.Vector3;
   spin: THREE.Vector3;
   extent: number;
-  kind: 'body' | 'slab' | 'chunk' | 'crack';
+  kind: 'body' | 'slab' | 'chunk' | 'crack' | 'plate';
 }
 
 /** A stop the rail can visit, in world space. */
@@ -71,7 +71,7 @@ export interface Stop {
 export const MATERIAL = { heat: 1.1, crustLight: 1.0, rim: 0.9 };
 
 /** The core's emission, and how much the flare drives it. */
-export const CORE_GLOW = { base: 1.75, flare: 3.6 };
+export const CORE_GLOW = { base: 1.35, flare: 3.6 };
 
 /** The instanced ejecta field along the corridor. */
 export const EJECTA = { perGeometry: 56, geometries: 8, reach: 29.0 };
@@ -191,11 +191,13 @@ export class PlanetModel {
         out vec3 vNormal;
         out vec3 vView;
         out vec3 vLocal;
+        out float vCoreCam;
         void main() {
           vec4 world = modelMatrix * vec4(position, 1.0);
           vNormal = normalize(mat3(modelMatrix) * normal);
           vView = normalize(cameraPosition - world.xyz);
           vLocal = position;
+          vCoreCam = length(cameraPosition - world.xyz);
           gl_Position = projectionMatrix * viewMatrix * world;
         }
       `,
@@ -208,6 +210,7 @@ export class PlanetModel {
         in vec3 vNormal;
         in vec3 vView;
         in vec3 vLocal;
+        in float vCoreCam;
         out vec4 fragColour;
 
         vec3 hash3(vec3 p) {
@@ -282,7 +285,15 @@ export class PlanetModel {
           float pressure = uCoreBase + uFlare * uCoreFlare;
           float skin = 0.09 + 0.20 * region;
           float melt = (0.85 * hot + 0.38 * warm + 0.20 * fine) * province;
-          float energy = pressure * (skin + melt) * (0.45 + 0.55 * pow(facing, 1.4));
+          float structured = pressure * (skin + melt) * (0.45 + 0.55 * pow(facing, 1.4));
+
+          // Through a distant gap the interior must be radiance, not a
+          // patterned object — structureless and overwhelming, per the
+          // directive. The crusted plates only resolve as the camera
+          // arrives; from the wide shots the melt washes toward a single
+          // furnace glare.
+          float wash = clamp((vCoreCam - 12.0) / 14.0, 0.0, 1.0);
+          float energy = mix(structured, pressure * 0.85, wash * 0.75);
 
           fragColour = vec4(ramp(energy) * energy * uExposure, 1.0);
         }
@@ -338,11 +349,13 @@ export class PlanetModel {
       const name = object.name;
       const kind: Piece['kind'] = name.startsWith('slab')
         ? 'slab'
-        : name.startsWith('chunk')
-          ? 'chunk'
-          : name.startsWith('crack')
-            ? 'crack'
-            : 'body';
+        : name.startsWith('plate')
+          ? 'plate'
+          : name.startsWith('chunk')
+            ? 'chunk'
+            : name.startsWith('crack')
+              ? 'crack'
+              : 'body';
 
       const mesh = new THREE.Mesh(object.geometry, this.material);
       mesh.position.copy(object.position);
@@ -354,31 +367,36 @@ export class PlanetModel {
 
       const home = object.position.clone();
       const still = kind === 'body' || kind === 'crack';
+      // The planet's own plates expand too — there is no body that holds any
+      // more — but slowly, at the pace of something planetary letting go;
+      // the thrown pieces keep their faster continuation down their lines.
+      const plate = kind === 'plate';
       this.pieces.push({
         mesh,
         home,
-        // Continuation, in the authored frame: on down the corridor and out of
-        // it, faster for what is already furthest. The body and its cracks
-        // hold — the event leaves them behind.
         drift: still
           ? new THREE.Vector3()
-          : home.clone().normalize().multiplyScalar(0.5 + home.length() * 0.06),
+          : home
+              .clone()
+              .normalize()
+              .multiplyScalar(plate ? 0.18 + home.length() * 0.03 : 0.5 + home.length() * 0.06),
         spin: still
           ? new THREE.Vector3()
           : new THREE.Vector3(
-              (random() - 0.5) * 0.01,
-              (random() - 0.5) * 0.01,
-              (random() - 0.5) * 0.01
+              (random() - 0.5) * (plate ? 0.004 : 0.01),
+              (random() - 0.5) * (plate ? 0.004 : 0.01),
+              (random() - 0.5) * (plate ? 0.004 : 0.01)
             ),
         extent: 1,
         kind,
       });
     });
 
-    // The interior. Slightly under the manifest's core radius so it never
-    // z-fights the inner lining of the shell.
+    // The interior — recessed well under the shell, because the directive's
+    // rule is radiance through gaps, never a ball: the deeper the core sits,
+    // the less of its curvature any one opening can reveal.
     this.core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(manifest.coreRadius * 0.96, 3),
+      new THREE.IcosahedronGeometry(manifest.coreRadius * 0.9, 3),
       this.coreMaterial
     );
     this.inner.add(this.core);

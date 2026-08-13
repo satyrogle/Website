@@ -150,15 +150,21 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
   // record's typography. Around it, the field: every slab on the line out of
   // its own hole, debris in every direction, the whole crust webbed with
   // failing plate boundaries — one death, dominating the frame.
+  // Three-quarter, not down the throat: staring into the compound mouth
+  // frames the interior as a patterned ball with a ring of fire — the
+  // forbidden lamp, from any distance. From 58° off the blast axis the
+  // mouths burn on the limb, the surviving plates carry the spherical
+  // gestalt, the gaps between them glow across the whole face, and the
+  // hero corridor recedes past the frame's edge.
   waypoints.push({
     eye: asTriple(
       new THREE.Vector3()
-        .addScaledVector(axis, 20.0)
-        .addScaledVector(side, 13.0)
-        .addScaledVector(lift, 9.5)
+        .addScaledVector(axis, 14.0)
+        .addScaledVector(side, 20.0)
+        .addScaledVector(lift, 11.0)
     ),
     aim: asTriple(
-      new THREE.Vector3().addScaledVector(axis, 3.2).addScaledVector(side, -2.2)
+      new THREE.Vector3().addScaledVector(axis, 2.5).addScaledVector(side, -1.5)
     ),
   });
 
