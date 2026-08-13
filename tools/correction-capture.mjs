@@ -284,6 +284,29 @@ if (flag('event')) {
   }
 }
 
+if (flag('plates')) {
+  // The structural test, and it is pass/fail: no debris, no dust, no UI —
+  // only the superplates and the light between them. If the wide view does
+  // not read as an entire world exploding outward with the rubble gone, the
+  // rubble was never what made it read.
+  console.log('\nPLATES ONLY — DOES THE PLANET EXPLODE');
+  const isolated = await page.evaluate(() => {
+    if (!window.__correction?.isolate) return false;
+    window.__correction.isolate(true);
+    return true;
+  });
+  if (!isolated) {
+    console.log('  no isolate handle on this build');
+  } else {
+    for (const band of ['open', 'notice', 'floor']) {
+      await scrollToBand(band);
+      await page.waitForTimeout(900);
+      await shot(`60-plates-${band}`);
+    }
+    await page.evaluate(() => window.__correction?.isolate(false));
+  }
+}
+
 if (flag('scroll')) {
   console.log('\nTHE DESCENT');
   const bands = await page.evaluate(() =>

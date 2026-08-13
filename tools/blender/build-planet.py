@@ -64,21 +64,27 @@ SUBDIV = 7
 #: website's authored stops; the rest remain the exploding world, so the
 #: catastrophe does not appear to have broken into exactly five navigation
 #: objects.
-#: Eighteen, not fourteen: the first partition gave the five heroes cells
-#: that tiled the entire blast hemisphere, so their departure opened the
-#: whole face of the world and the core stood exposed as a clean glowing
-#: ball — the directive's own forbidden read. More seeds near the rupture
-#: mean smaller leaving pieces: slivers and mouths, not a missing hemisphere.
-PLATE_COUNT = 18
+#: Thirteen superplates. Eighteen made slivers, and slivers are rubble: the
+#: directive is explicit that enormous masses must define the event and small
+#: debris must stay subordinate. At thirteen each plate is ~8% of the world's
+#: surface — a continent, visibly huge at any stop.
+PLATE_COUNT = 13
 
 #: Flight distances for the five hero plates, near to far — the ladder the
 #: scroll descends.
 HERO_FLIGHTS = (2.6, 5.5, 9.0, 13.5, 18.0)
 
-#: Hero plate seed directions, as (u, v) offsets around the corridor axis —
-#: the proven blast-hemisphere spread. Seed 0 is the rupture centre the
-#: whole grading system keys from.
-HERO_OFFSETS = ((0.30, 0.22), (0.58, -0.04), (0.04, 0.42), (0.78, 0.66), (-0.14, 0.50))
+#: Hero plate seed directions, as (u, v) offsets around the corridor axis.
+#: Spread far wider than the old cluster: packed tightly they produced hero
+#: cells of a few hundred polygons — website stops made of slivers. Seed 0
+#: is the rupture centre the whole grading system keys from.
+HERO_OFFSETS = ((0.15, 0.10), (0.88, -0.36), (-0.30, 0.82), (0.55, 0.98), (-0.78, -0.46))
+
+#: How far each surviving plate has travelled from its seat, in planet
+#: radii, cycled by filler index. The directive's own ladder: some barely
+#: parted, some a third of a radius out, some most of a radius clear — so no
+#: subset of them can close back up into a shell.
+FILLER_TIERS = (0.16, 0.64, 0.30, 0.98, 0.22, 0.78, 0.44, 1.20)
 
 #: Medium debris: how many, and how far the furthest has got. Directions are
 #: drawn around the whole body — a breakup sheds everywhere — biased toward
@@ -193,17 +199,14 @@ def plate_seed_dirs():
     seeds = [unit(_AXIS + a * _U + b * _V) for a, b in HERO_OFFSETS]
     rng = np.random.default_rng(SEED + 211)
     attempts = 0
-    # First fill the rupture hemisphere itself, closer-packed: these are the
-    # plates that STAY and keep the core to slivers when the heroes leave.
-    while len(seeds) < len(HERO_OFFSETS) + 5 and attempts < 4000:
-        attempts += 1
-        candidate = unit(RUPTURE_DIR * 0.85 + rng.normal(size=3) * 0.8)
-        if all(float(np.dot(candidate, s)) < math.cos(0.42) for s in seeds):
-            seeds.append(candidate)
-    while len(seeds) < PLATE_COUNT and attempts < 8000:
+    # The rest spread over the whole sphere at superplate spacing. No
+    # clustering pass any more: the old one existed to keep survivors packed
+    # around the core so its silhouette stayed hidden, and the core has no
+    # silhouette to hide now.
+    while len(seeds) < PLATE_COUNT and attempts < 12000:
         attempts += 1
         candidate = unit(rng.normal(size=3))
-        if all(float(np.dot(candidate, s)) < math.cos(0.48) for s in seeds):
+        if all(float(np.dot(candidate, s)) < math.cos(0.72) for s in seeds):
             seeds.append(candidate)
     return seeds
 
@@ -232,17 +235,11 @@ def build_cells(seeds):
             rng = np.random.default_rng(SEED + 3000 + a * 41 + b)
             chord = unit(np.array(seeds[b]) - np.array(seeds[a]))
             normal = unit(chord + rng.normal(size=3) * 0.07)
+            # Fair again, jitter only. The hero-shrink weighting was a
+            # workaround for a core that had a boundary to unveil; with the
+            # interior unbounded, heroes are allowed to be the continents
+            # they need to be.
             offset = float(rng.uniform(-0.35, 0.35))
-            # Weighted, not fair: on a hero/survivor boundary the plane is
-            # pushed toward the hero seed, so the plates that LEAVE are
-            # compact plugs and the survivors grow to interleave between
-            # their mouths. Unweighted, the five hero cells tiled the whole
-            # blast hemisphere and their departure unveiled the core as a
-            # clean glowing ball — the forbidden read, twice.
-            hero_a = a < len(HERO_OFFSETS)
-            hero_b = b < len(HERO_OFFSETS)
-            if hero_a != hero_b:
-                offset += -0.45 if hero_a else 0.45
             plane_no = normal if i == a else -normal
             result = bmesh.ops.bisect_plane(
                 bm,
@@ -408,7 +405,7 @@ def radius_at(direction):
     return BODY_RADIUS * (1.0 + elevation(direction))
 
 
-def mark_crust(obj, tolerance=0.955):
+def mark_crust(obj, tolerance=0.955, heat=1.0, heat_seed=0):
     """
     The graded mark, baked per corner into one colour attribute.
 
@@ -471,10 +468,19 @@ def mark_crust(obj, tolerance=0.955):
         surface = BODY_RADIUS * (1.0 + elevation(np.array(direction[:])))
         outward = poly.normal.dot(direction)
         if poly.material_index == cut_slot:
-            # The boolean marked this face itself: a wall of the wound, or
-            # the torn band around a slab's edge. Fresh, full temperature.
+            # A wall where this plate tore from its neighbours — but not all
+            # of it, and not for ever. Every wall lit at full temperature is
+            # what welded the separated plates into a continuous orange
+            # annulus around the centre: peeled fruit, halo, eggshell. So
+            # heat is patchy along each wall (large fbm patches: a localised
+            # hot fracture edge with dark stretches between) and scaled by
+            # how far the plate has travelled since it parted — the pieces
+            # that flew keep only residual ember.
+            patch = 0.5 + 0.5 * fbm(np.array(direction[:]) * 2.6, SEED + 600 + heat_seed, octaves=3)
+            local = 0.10 + 0.95 * _smooth01((patch - 0.30) / 0.45)
+            value = max(0.05, min(1.0, heat * local))
             for loop_index in poly.loop_indices:
-                attribute.data[loop_index].color = (0.0, 1.0, 0.5, 0.0)
+                attribute.data[loop_index].color = (0.0, value, 0.5, 0.0)
         elif centre.length > surface * tolerance and outward > 0.05:
             for loop_index in poly.loop_indices:
                 vertex_index = mesh.loops[loop_index].vertex_index
@@ -588,6 +594,7 @@ def main():
         'coreRadius': CORE_RADIUS,
         'axis': [1.0, 0.0, 0.0],
         'stops': [],
+        'plates': [],
         'mediums': [],
     }
 
@@ -628,40 +635,53 @@ def main():
     # regular. The back of the world has barely let go — small separations
     # keep the spherical gestalt reconstructable — while the blast side is
     # already gone: the five hero plates ride the corridor ladder.
+    filler = 0
     for i, piece, seed_dir in plates:
-        mark_crust(piece)
-        centre = recentre(piece)
-        radial = unit(centre)
+        radial = unit(seed_dir)
         t1, t2 = tangent_basis(radial)
         drift = (t1 * float(RNG.uniform(-0.7, 0.7))
                  + t2 * float(RNG.uniform(-0.7, 0.7)))
+        blastw = _smooth01((float(np.dot(radial, RUPTURE_DIR)) + 0.55) / 1.55)
 
         if i < len(HERO_FLIGHTS):
-            position = centre + radial * HERO_FLIGHTS[i] + drift
+            travel = HERO_FLIGHTS[i]
             spin_range = 0.22
         else:
-            blastw = _smooth01((float(np.dot(radial, RUPTURE_DIR)) + 0.55) / 1.55)
-            # Surviving plates stay CLOSE — the gestalt lives or dies here.
-            # Even on the blast side, what has not been flung is only just
-            # letting go; the heroes carry the ejection story.
-            separation = (0.08 + 0.22 * float(RNG.random())
-                          + (blastw ** 2) * (0.5 + 0.9 * float(RNG.random())))
-            bias = RUPTURE_DIR * (blastw * (0.2 + 0.6 * float(RNG.random())))
-            position = centre + radial * separation + bias + drift * 0.5
-            spin_range = 0.06
+            # Radial explosion FIRST — every side of the world expanding —
+            # then the blast bias that makes one hemisphere the corridor.
+            # The old separations were a twentieth of a radius: a shell with
+            # gaps, not a planet coming apart.
+            travel = BODY_RADIUS * FILLER_TIERS[filler % len(FILLER_TIERS)]
+            travel += (blastw ** 2) * BODY_RADIUS * (0.30 + 0.55 * float(RNG.random()))
+            filler += 1
+            spin_range = 0.10
 
+        # Heat by separation age, per the chronology: barely-parted plates
+        # keep white-hot walls, the long-gone are ember at best.
+        heat = max(0.12, min(1.0, 1.05 - 0.085 * travel))
+        mark_crust(piece, heat=heat, heat_seed=i * 37)
+        centre = recentre(piece)
+
+        bias = RUPTURE_DIR * (blastw * (0.25 + 0.7 * float(RNG.random()))) if i >= len(HERO_FLIGHTS) else np.zeros(3)
+        position = centre + radial * travel + bias + drift * 0.6
         piece.location = tuple(float(x) for x in position)
         spin = unit(RNG.normal(size=3))
         piece.rotation_mode = 'QUATERNION'
         piece.rotation_quaternion = Quaternion(Vector(tuple(spin)), float(RNG.uniform(-spin_range, spin_range)))
 
+        extent = max((Vector(w.co).length for w in piece.data.vertices), default=1.0)
+        entry = {
+            'name': piece.name,
+            'position': [float(x) for x in position],
+            'extent': float(extent),
+        }
+        # Every plate is published, not just the five the scroll stops at:
+        # the rail needs the whole set to find a former tectonic boundary to
+        # fly through, and nothing may be staged from a piece that is not
+        # really there.
+        manifest['plates'].append(entry)
         if i < len(HERO_FLIGHTS):
-            extent = max((Vector(w.co).length for w in piece.data.vertices), default=1.0)
-            manifest['stops'].append({
-                'name': piece.name,
-                'position': [float(x) for x in position],
-                'extent': float(extent),
-            })
+            manifest['stops'].append(entry)
 
     # ---------------------------------------------------------------- mediums
     #

@@ -7,7 +7,7 @@ import { CopyShader } from 'three/examples/jsm/shaders/CopyShader.js';
 
 import { QualityManager } from './QualityManager';
 import { FUNNEL, FieldModel, STAR_POSITION } from './correction/FieldModel';
-import { PlanetModel } from './correction/PlanetModel';
+import { PlanetModel, type Stop } from './correction/PlanetModel';
 import { PulseClient } from './correction/sim/PulseClient';
 
 /**
@@ -136,10 +136,45 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     waypoints.push({
       eye: asTriple(stand(piece, 2.7)),
       // Aimed well past the fragment toward the source, so every stop holds
-      // the relationship — this piece, the body it left, the wound between
+      // the relationship — this piece, the world it left, the light between
       // them — instead of a fragment floating on black.
       aim: asTriple(piece.home.clone().multiplyScalar(0.55)),
     });
+  }
+
+  // The former tectonic boundary. Two plates that were neighbours in the
+  // intact world have drifted apart, and the camera goes through the space
+  // that used to be the seam between them: matching crust walls to either
+  // side, the interior's radiance beyond. The pair is found rather than
+  // authored — the two plates whose seats were closest together, so the
+  // walls really do match — which keeps the rule that the scroll can never
+  // visit a place that is not really there.
+  const plates = planet.plates;
+  if (plates.length >= 2) {
+    let best: { a: Stop; b: Stop; angle: number } | null = null;
+    for (let i = 0; i < plates.length; i++) {
+      for (let j = i + 1; j < plates.length; j++) {
+        const a = plates[i];
+        const b = plates[j];
+        if (a.extent < 2 || b.extent < 2) continue;
+        const angle = a.home.clone().normalize().angleTo(b.home.clone().normalize());
+        if (!best || angle < best.angle) best = { a, b, angle };
+      }
+    }
+    if (best) {
+      const gap = best.a.home.clone().add(best.b.home).multiplyScalar(0.5);
+      const outward = gap.clone().normalize();
+      // Stood off the seam and slightly out of it, so both walls are in
+      // frame rather than one filling the lens.
+      const across = new THREE.Vector3().subVectors(best.b.home, best.a.home).normalize();
+      const up = new THREE.Vector3().crossVectors(across, outward).normalize();
+      waypoints.splice(3, 0, {
+        eye: asTriple(
+          gap.clone().addScaledVector(outward, 7.5).addScaledVector(up, 2.4)
+        ),
+        aim: asTriple(gap.clone().multiplyScalar(0.25)),
+      });
+    }
   }
 
   // The reveal, stood before the rupture — the money shot, and it is
@@ -688,6 +723,16 @@ export class SceneController {
   /** Whether the structure has been struck at all yet. */
   get struck(): boolean {
     return this.pressed;
+  }
+
+  /**
+   * Development only: strip the debris and leave the superplates and the
+   * interior light. The structural question — does this read as a whole
+   * planet exploding outward — has to be answerable without rubble helping.
+   */
+  isolatePlates(on: boolean): void {
+    this.planet?.setIsolation(on);
+    this.renderStill();
   }
 
   resize(): void {
