@@ -108,6 +108,7 @@ export class PlanetModel {
   private stopsWorld: Stop[] = [];
   private dustTexture: THREE.CanvasTexture | null = null;
   private dustMaterial: THREE.PointsMaterial | null = null;
+  private core: THREE.Mesh | null = null;
 
   constructor(options: PlanetModelOptions) {
     // The authored +X corridor onto the site's diagonal.
@@ -141,13 +142,16 @@ export class PlanetModel {
       uCoreBase: { value: CORE_GLOW.base },
       uCoreFlare: { value: CORE_GLOW.flare },
     };
-    // Not a lamp. The first version shaded by facing alone, and through a
-    // wound the interior read as a clean white bulb — the directive's named
-    // fault. This is layered rupture heat: convection cells of uneven
-    // luminosity (two warped wave families, so no banding), white-hot only
-    // where the hottest cells face the eye, orange-yellow molten across the
-    // mid, deep cooling red toward the limb of the opening. The flare drives
-    // the whole gradient toward white, so the finale keeps its escalation.
+    // Not a lamp, and not an airbrushed gradient either. The interior is a
+    // crusted melt: thin cooled plates rafting on the molten body, and the
+    // heat burning through the seams between them — the same law the whole
+    // hero obeys, light belongs to the break, applied one layer deeper.
+    // Structure comes from two scales of domain-warped cellular fracture
+    // (warped so the plates raft rather than tile); regional convection
+    // makes some provinces more broken and brighter than others; one
+    // blackbody ramp carries ember plate -> orange seam -> white-hot core
+    // of the widest cracks. The flare widens the seams and drives the whole
+    // ramp toward white, so the finale keeps its escalation.
     this.coreMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       uniforms: this.coreUniforms,
@@ -173,20 +177,78 @@ export class PlanetModel {
         in vec3 vView;
         in vec3 vLocal;
         out vec4 fragColour;
+
+        vec3 hash3(vec3 p) {
+          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
+                   dot(p, vec3(269.5, 183.3, 246.1)),
+                   dot(p, vec3(113.5, 271.9, 124.6)));
+          return fract(sin(p) * 43758.5453);
+        }
+
+        // F1/F2 cellular distances: F2-F1 is ~0 on a border between plates
+        // and grows toward each plate's centre.
+        vec2 plates(vec3 x) {
+          vec3 n = floor(x);
+          vec3 f = fract(x);
+          float d1 = 8.0;
+          float d2 = 8.0;
+          for (int k = -1; k <= 1; k++)
+          for (int j = -1; j <= 1; j++)
+          for (int i = -1; i <= 1; i++) {
+            vec3 g = vec3(float(i), float(j), float(k));
+            vec3 r = g + hash3(n + g) - f;
+            float d = dot(r, r);
+            if (d < d1) { d2 = d1; d1 = d; }
+            else if (d < d2) { d2 = d; }
+          }
+          return sqrt(vec2(d1, d2));
+        }
+
+        // One temperature ramp for everything: deep ember, through orange,
+        // into yellow-white. Premium is one consistent physics, not many
+        // painted colours.
+        vec3 ramp(float t) {
+          vec3 c = mix(vec3(0.32, 0.05, 0.01), vec3(1.0, 0.42, 0.08), clamp(t * 1.4, 0.0, 1.0));
+          c = mix(c, vec3(1.0, 0.85, 0.55), clamp((t - 0.75) * 2.2, 0.0, 1.0));
+          return mix(c, vec3(1.0, 0.97, 0.90), clamp((t - 1.25) * 1.6, 0.0, 0.9));
+        }
+
         void main() {
           float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
+
+          // Rafted, not tiled: the cell domain is bent by a slow flow first.
+          vec3 p = vLocal * 0.95
+                 + 0.50 * vec3(sin(vLocal.y * 0.8 + vLocal.z * 0.5),
+                               sin(vLocal.z * 0.9 - vLocal.x * 0.4),
+                               sin(vLocal.x * 0.7 + vLocal.y * 0.6));
+          vec2 major = plates(p);
+          vec2 minor = plates(p * 2.9 + 7.31);
+
+          // Regional convection: whole provinces run hotter and more broken.
+          // Squared into a hard unevenness — the first cellular pass lit
+          // every seam white and the interior read as lace; an interior
+          // reads as pressure when most of it is dark crust with ember
+          // cracks and ONE province is burning through.
           float bend = 1.7 * sin(vLocal.y * 0.9 + vLocal.x * 0.5);
           float cells = sin(vLocal.x * 2.3 + bend) * sin(vLocal.y * 2.0 - bend)
                       + 0.6 * sin(vLocal.z * 3.4 + bend * 1.3) * sin(vLocal.x * 2.9 - vLocal.z * 1.1);
-          float turbulence = clamp(0.5 + 0.31 * cells, 0.0, 1.0);
-          float energy = (uCoreBase + uFlare * uCoreFlare)
-                       * (0.30 + 0.70 * pow(facing, 1.5))
-                       * (0.45 + 0.85 * turbulence);
-          vec3 colour = mix(vec3(0.55, 0.10, 0.02), vec3(1.0, 0.52, 0.14),
-                            clamp(energy * 0.60, 0.0, 1.0));
-          colour = mix(colour, vec3(1.0, 0.96, 0.90),
-                       clamp((energy - 1.55) * 0.60, 0.0, 0.85) * (0.30 + 0.70 * turbulence));
-          fragColour = vec4(colour * energy * uExposure, 1.0);
+          float region = clamp(0.5 + 0.31 * cells, 0.0, 1.0);
+          float province = 0.18 + 0.82 * region * region;
+
+          // Each seam is a thin incandescent line inside a wide molten
+          // bleed; fine fractures vein the plates' skin. The flare parts
+          // everything further.
+          float gap = major.y - major.x;
+          float hot = 1.0 - smoothstep(0.0, 0.10 + 0.10 * uFlare, gap);
+          float warm = 1.0 - smoothstep(0.0, 0.45, gap);
+          float fine = 1.0 - smoothstep(0.0, 0.13, minor.y - minor.x);
+
+          float pressure = uCoreBase + uFlare * uCoreFlare;
+          float skin = 0.09 + 0.20 * region;
+          float melt = (0.85 * hot + 0.38 * warm + 0.20 * fine) * province;
+          float energy = pressure * (skin + melt) * (0.45 + 0.55 * pow(facing, 1.4));
+
+          fragColour = vec4(ramp(energy) * energy * uExposure, 1.0);
         }
       `,
       side: THREE.FrontSide,
@@ -247,11 +309,11 @@ export class PlanetModel {
 
     // The interior. Slightly under the manifest's core radius so it never
     // z-fights the inner lining of the shell.
-    const core = new THREE.Mesh(
+    this.core = new THREE.Mesh(
       new THREE.IcosahedronGeometry(manifest.coreRadius * 0.96, 3),
       this.coreMaterial
     );
-    this.inner.add(core);
+    this.inner.add(this.core);
 
     // The stops, transformed into world space for the rail.
     this.stopsWorld = manifest.stops.map((stop) => ({
@@ -394,6 +456,13 @@ export class PlanetModel {
       piece.mesh.rotation.x += piece.spin.x * 0.016;
       piece.mesh.rotation.y += piece.spin.y * 0.016;
       piece.mesh.rotation.z += piece.spin.z * 0.016;
+    }
+    // The melt convects: the plate pattern crawls across the wound at a rate
+    // only a held gaze notices. Two unequal axes, so the drift never reads
+    // as a turntable.
+    if (this.core) {
+      this.core.rotation.y += 0.0034 * 0.016;
+      this.core.rotation.x += 0.0013 * 0.016;
     }
     void seconds;
   }
