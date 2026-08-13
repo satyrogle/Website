@@ -33,6 +33,7 @@ in vec3 vNormal;
 in vec3 vWorld;
 in vec3 vLocal;
 in vec3 vView;
+in float vCam;
 
 out vec4 fragColour;
 
@@ -78,6 +79,30 @@ void main() {
   vec3 colour = vec3(0.105, 0.110, 0.120)
               * (ground * shape * uCrustLight + graze * 0.40 * fall);
 
+  // Close-range grain: warped high-frequency mottling, faded in only as the
+  // camera arrives, so near stops read as pitted rock instead of clay while
+  // the wide shots stay exactly as composed. Multiplicative, so it carves
+  // cavity darkening out of whatever light is already there.
+  float near = clamp(1.0 - vCam / 15.0, 0.0, 1.0);
+  float grainWarp = 2.2 * sin(vLocal.y * 6.1 + vLocal.x * 4.3);
+  float grain = sin(vLocal.x * 21.0 + grainWarp) * sin(vLocal.y * 18.0 - grainWarp)
+              + 0.6 * sin(vLocal.z * 24.0 + grainWarp * 1.4) * sin(vLocal.x * 27.0 - vLocal.z * 15.0);
+  colour *= 1.0 - near * (0.16 + 0.10 * crust) * clamp(0.5 - 0.4 * grain, 0.0, 1.0);
+
+  // The interior is a light source: crust that faces it catches its warmth,
+  // falling off with the square of the distance — wound rims, slab
+  // undersides, the near faces of close debris. This is the spill that ties
+  // every lit edge to the same fire.
+  float spill = max(dot(n, l), 0.0) * fall * fall;
+  colour += vec3(1.0, 0.42, 0.14) * spill * 0.38 * uCrustLight;
+
+  // The failing plate boundaries, baked per vertex so the glow follows the
+  // fracture field and not the tessellation: ember hairlines far from the
+  // rupture, open venting near it, parting further as the flare climbs.
+  float vent = clamp(vMark.a, 0.0, 1.0) * crust;
+  vec3 ventGlow = mix(vec3(0.42, 0.055, 0.008), vec3(1.0, 0.5, 0.1), vent);
+  colour += ventGlow * vent * vent * uHeat * (0.9 + uFlare * 0.9);
+
   // Backlight. Only the limb, only against the source. Narrower than every
   // previous version: a broad warm fresnel across exterior faces was most of
   // why detached slabs still read as lit orange objects from across the
@@ -111,6 +136,11 @@ void main() {
   veins *= 0.93 + 0.07 * sin(vLocal.y * 4.0 + vLocal.z * 3.1 + warp * 1.6);
   veins *= 0.86 + 0.14 * sin(vLocal.x * 6.7 + vLocal.y * 5.3 - warp)
                        * sin(vLocal.z * 7.9 - vLocal.y * 4.1 + warp);
+  // A fourth, mineral-fine octave that only the near camera resolves: the
+  // frequencies above are sized for mid-range, and a break face inside a
+  // stop's distance rendered as a flat orange sheet without it.
+  veins *= 1.0 - near * 0.22 * (0.5 + 0.5 * sin(vLocal.x * 13.0 + vLocal.y * 10.0 + warp * 2.3)
+                                          * sin(vLocal.z * 16.0 - vLocal.x * 9.0 - warp * 1.7));
 
   // Interiors cool as they travel — and steeper than v3, because the debris
   // tail must read as dark mass with hot break edges, not as a stream of

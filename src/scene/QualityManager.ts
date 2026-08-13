@@ -6,17 +6,15 @@
  * It never steps back up: oscillating between tiers is far more visible
  * than simply running one notch below peak.
  *
- * A tier currently sets exactly one thing: the ceiling on device pixel ratio.
- * That is not an oversight, it is what THE CORRECTION costs. The simulation is
- * fixed-step in a Worker and cannot be thinned without changing what the
- * system does, and the structure is drawn as untextured lines with no post —
- * so the only thing left that scales with the machine is how many pixels those
- * lines are rasterised into.
+ * A tier sets two things: the ceiling on device pixel ratio, and whether the
+ * hero's emissives are allowed their bloom pass. The simulation is fixed-step
+ * in a Worker and cannot be thinned without changing what the system does, so
+ * pixels and post are the only knobs that scale with the machine.
  *
- * The presets used to carry six more fields: bloom, geometry detail, vein
- * count, shedding, and two for a reaction-diffusion pass. Every one belonged
- * to the retired entity and none had a reader once it was removed. They are
- * gone rather than left as configuration nothing consults.
+ * Bloom is back after being removed with the retired entity — the ruptured
+ * world's hot surfaces are light sources now, and a light source without
+ * halation reads as paint. It is the first thing a struggling machine gives
+ * up, before resolution: dropping glow is less visible than dropping pixels.
  */
 
 export type QualityTier = 'high' | 'medium' | 'low';
@@ -25,12 +23,14 @@ export interface QualitySettings {
   tier: QualityTier;
   /** Ceiling on device pixel ratio. */
   maxPixelRatio: number;
+  /** Whether the hero's emissives get their halation pass. */
+  bloom: boolean;
 }
 
 const PRESETS: Record<QualityTier, Omit<QualitySettings, 'tier'>> = {
-  high: { maxPixelRatio: 2 },
-  medium: { maxPixelRatio: 1.5 },
-  low: { maxPixelRatio: 1.25 },
+  high: { maxPixelRatio: 2, bloom: true },
+  medium: { maxPixelRatio: 1.5, bloom: true },
+  low: { maxPixelRatio: 1.25, bloom: false },
 };
 
 const ORDER: QualityTier[] = ['high', 'medium', 'low'];

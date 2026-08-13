@@ -13,17 +13,19 @@ uniform vec3 uStarPos;
 // `color` is not declared here: Three injects it when the material sets
 // vertexColors, and declaring it again is a redefinition that fails the whole
 // program — which renders the world invisible while the star behind it keeps
-// drawing, so the frame looks merely dark rather than broken. Widened through
-// a vec4 constructor so the program survives either attribute width.
+// drawing, so the frame looks merely dark rather than broken. The attribute
+// is vec4 by construction — our own exporter bakes venting into alpha — so
+// it is passed through whole.
 
 out vec4 vMark;
 out vec3 vNormal;
 out vec3 vWorld;
 out vec3 vLocal;
 out vec3 vView;
+out float vCam;
 
 void main() {
-  vMark = vec4(vec3(color).rgb, 1.0);
+  vMark = color;
   vLocal = position;
 
   // The ejecta tier is instanced; the hero fragments are not. Same material,
@@ -39,6 +41,7 @@ void main() {
 
   vWorld = world.xyz;
   vView = normalize(cameraPosition - world.xyz);
+  vCam = length(cameraPosition - world.xyz);
 
   gl_Position = projectionMatrix * viewMatrix * world;
 }

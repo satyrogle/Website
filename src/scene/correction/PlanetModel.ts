@@ -86,8 +86,8 @@ export const EJECTA = { perGeometry: 56, geometries: 8, reach: 29.0 };
  */
 export const DUST = {
   reach: 30.0,
-  haze: { count: 17000, size: 0.05, opacity: 0.26 },
-  motes: { count: 4600, size: 0.15, opacity: 0.46 },
+  haze: { count: 17000, size: 0.05, opacity: 0.19 },
+  motes: { count: 3200, size: 0.13, opacity: 0.32 },
   /** Share of each population that gathers into streaks rather than filling evenly. */
   clumped: 0.66,
   /** How many streaks the field is drawn into. */
@@ -512,13 +512,15 @@ export class PlanetModel {
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = z;
 
-        // Warm near the body it just left, grey and dim by the far shell —
-        // the same cooling journey the solid debris makes.
+        // Ash, not snow: dim, warm near the body it just left, grey by the
+        // far shell — and never bright enough to compete with the debris it
+        // is meant to sit between. The earlier values read as white UI
+        // specks and flattened every frame they touched.
         const heat = Math.max(0, 1 - flight / DUST.reach) * (0.4 + 0.6 * random());
-        const shade = 0.20 + 0.5 * random();
-        colours[i * 3] = shade * (0.75 + 0.55 * heat);
-        colours[i * 3 + 1] = shade * (0.55 + 0.25 * heat);
-        colours[i * 3 + 2] = shade * 0.5;
+        const shade = 0.11 + 0.33 * random();
+        colours[i * 3] = shade * (0.82 + 0.55 * heat);
+        colours[i * 3 + 1] = shade * (0.52 + 0.24 * heat);
+        colours[i * 3 + 2] = shade * 0.38;
       }
 
       const geometry = new THREE.BufferGeometry();

@@ -74,7 +74,7 @@ SUBDIV = 7
 #: radial line; the ladder of flight distances is what the scroll descends,
 #: not a shared axis the debris was never thrown down.
 SLABS = (
-    {"ang": 0.80, "flight": 2.6},
+    {"ang": 0.70, "flight": 2.6},
     {"ang": 0.55, "flight": 5.5},
     {"ang": 0.46, "flight": 9.0},
     {"ang": 0.36, "flight": 13.5},
@@ -86,7 +86,11 @@ SLABS = (
 #: tear as ONE compound wound (overlaps cannot double-extract — each slab is
 #: cut from the already-wounded shell, so adjoining pieces share torn rims);
 #: 3 and 4 sit further out along the fissure lines.
-WOUND_OFFSETS = ((0.30, 0.22), (0.64, -0.08), (-0.02, 0.48), (0.82, 0.72), (-0.20, 0.54))
+#: Tightened for the silhouette (spec: "the rupture as a wound INSIDE a
+#: recognizable globe"): the earlier spread left a floppy crescent of shell
+#: between the primary bite and its neighbours, and the body read as a
+#: cracked nut with a hood, not a world.
+WOUND_OFFSETS = ((0.30, 0.22), (0.58, -0.04), (0.04, 0.42), (0.78, 0.66), (-0.14, 0.50))
 
 #: Secondary fissures radiating from the rupture zone: (direction from the
 #: rupture centre in (u, v), reach along it, half-extents of the ragged wedge).
@@ -235,8 +239,10 @@ def fracture_field(d):
 #: mesh's own vertex spacing — a 0.14-unit scarp cannot exist on a mesh with
 #: 0.17-unit edges, and a 0.2-unit crater is 0.3% of the frame at the reveal.
 #: Terrain a viewer must recognise from thirty-five units out is built from
-#: half-unit steps, not decoration.
-ELEV_CAP = 0.21
+#: half-unit steps, not decoration — but the globe outranks the terrain: at
+#: 0.21 the silhouette tipped from "world with bold geology" into "black
+#: organic lump", which is on the spec's do-not list.
+ELEV_CAP = 0.18
 
 
 def elevation(direction):
@@ -261,7 +267,7 @@ def elevation(direction):
     # valleys from the rolling fbm, which is what stops the silhouette
     # reading as a melted lump — hard planetary character over soft mass.
     macro = 0.082 * fbm(d * 1.15, SEED + 11, octaves=3)
-    macro -= 0.055 * abs(fbm(d * 1.55, SEED + 13, octaves=3))
+    macro -= 0.045 * abs(fbm(d * 1.55, SEED + 13, octaves=3))
 
     # Fewer, taller steps, with risers wide enough for the mesh to carry:
     # each scarp stands about a third of a unit, and a riser spans several
@@ -270,7 +276,7 @@ def elevation(direction):
     q = (fbm(d * 1.25, SEED + 71, octaves=3) + 1.0) * steps
     level = math.floor(q)
     riser = _smooth01((q - level - 0.52) / 0.30)
-    plateau = 0.135 * ((level + riser) / steps - 1.0)
+    plateau = 0.120 * ((level + riser) / steps - 1.0)
 
     belt = _smooth01((fbm(d * 1.35, SEED + 29, octaves=2) - 0.02) / 0.55)
     ridged = 1.0 - abs(fbm(d * 3.9, SEED + 23, octaves=4))
@@ -329,12 +335,16 @@ def mark_crust(obj, tolerance=0.955):
     cut_slot = material_names.index('CUT_MAT') if 'CUT_MAT' in material_names else -1
     attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
 
-    # Altitude is sampled at the vertex, not the face centre, so the corners
-    # of neighbouring crust faces agree and the exporter can weld them — the
-    # per-face version split every vertex and quintupled the file. Class
-    # boundaries still split, which is exactly where the shader's lip needs
-    # the discontinuity.
+    # Altitude and venting are sampled at the vertex, not the face centre, so
+    # the corners of neighbouring crust faces agree, the exporter can weld
+    # them, and the values interpolate smoothly across faces. The venting
+    # used to be a per-face reclassification into the hot class, and it drew
+    # sawtooth: a binary mark flipping at mesh resolution, with the lip
+    # derivative firing along every flip. Baked per vertex into alpha, the
+    # glow follows the fracture field instead of the tessellation, and the
+    # lip stays where it belongs — on real torn edges only.
     vertex_altitude = [-1.0] * len(mesh.vertices)
+    vertex_venting = [-1.0] * len(mesh.vertices)
 
     def altitude_of(vertex_index):
         cached = vertex_altitude[vertex_index]
@@ -342,6 +352,15 @@ def mark_crust(obj, tolerance=0.955):
             d = Vector(mesh.vertices[vertex_index].co).normalized()
             cached = min(max(0.5 + 0.5 * (elevation(np.array(d[:])) / ELEV_CAP), 0.0), 1.0)
             vertex_altitude[vertex_index] = cached
+        return cached
+
+    def venting_of(vertex_index):
+        cached = vertex_venting[vertex_index]
+        if cached < 0.0:
+            d = Vector(mesh.vertices[vertex_index].co).normalized()
+            openness, proximity = fracture_field(np.array(d[:]))
+            cached = (openness ** 1.5) * proximity
+            vertex_venting[vertex_index] = cached
         return cached
 
     for poly in mesh.polygons:
@@ -353,26 +372,16 @@ def mark_crust(obj, tolerance=0.955):
             # The boolean marked this face itself: a wall of the wound, or
             # the torn band around a slab's edge. Fresh, full temperature.
             for loop_index in poly.loop_indices:
-                attribute.data[loop_index].color = (0.0, 1.0, 0.5, 1.0)
+                attribute.data[loop_index].color = (0.0, 1.0, 0.5, 0.0)
         elif centre.length > surface * tolerance and outward > 0.05:
-            openness, proximity = fracture_field(np.array(direction[:]))
-            if openness > 0.5 and proximity > 0.18:
-                # A failing plate boundary near the rupture: the crevasse
-                # vents, hotter the closer the death has come. Beyond the
-                # proximity floor the same crevasses stay cold hairlines —
-                # one event at different stages, which is the coherence the
-                # single glowing zone lacked.
-                venting = 0.25 + 0.55 * proximity * openness
-                for loop_index in poly.loop_indices:
-                    attribute.data[loop_index].color = (0.0, venting, 0.5, 1.0)
-            else:
-                for loop_index in poly.loop_indices:
-                    vertex_index = mesh.loops[loop_index].vertex_index
-                    attribute.data[loop_index].color = (1.0, 0.0, altitude_of(vertex_index), 1.0)
+            for loop_index in poly.loop_indices:
+                vertex_index = mesh.loops[loop_index].vertex_index
+                attribute.data[loop_index].color = (
+                    1.0, 0.0, altitude_of(vertex_index), venting_of(vertex_index))
         else:
             lining = (abs(centre.length - (surface - CRUST_THICKNESS)) < CRUST_THICKNESS * 0.35
                       and outward < -0.05)
-            colour = (0.0, 0.24 if lining else 1.0, 0.5, 1.0)
+            colour = (0.0, 0.24 if lining else 1.0, 0.5, 0.0)
             for loop_index in poly.loop_indices:
                 attribute.data[loop_index].color = colour
         poly.use_smooth = True
@@ -607,15 +616,25 @@ def main():
     # body: a breakup sheds everywhere, biased toward the rupture hemisphere
     # where most of the mass left, smaller the further it has got.
     chunks = carve_chunks(MEDIUM_COUNT)
-    for obj in chunks[:MEDIUM_COUNT]:
-        if RNG.random() < 0.62:
-            dirm = unit(RUPTURE_DIR * 1.2 + RNG.normal(size=3) * 0.75)
+    for index, obj in enumerate(chunks[:MEDIUM_COUNT]):
+        if index == 0:
+            # The reveal's foreground anchor, authored: one large mass in the
+            # money shot's near field, so the frame has a monumental close
+            # plane with the body and the field behind it. Placed well OFF
+            # the eye-to-wound line — the first position sat nearly on it
+            # and the anchor became a black occluder swallowing the rupture,
+            # which is the exact fault the spec forbids.
+            position = np.array([9.0, -10.0, -2.0])
+            scale = 1.35
         else:
-            dirm = unit(RNG.normal(size=3))
-        flight = 1.2 + (MEDIUM_REACH - 1.2) * float(RNG.random() ** 1.25)
-        position = dirm * (BODY_RADIUS + flight)
+            if RNG.random() < 0.62:
+                dirm = unit(RUPTURE_DIR * 1.2 + RNG.normal(size=3) * 0.75)
+            else:
+                dirm = unit(RNG.normal(size=3))
+            flight = 1.2 + (MEDIUM_REACH - 1.2) * float(RNG.random() ** 1.25)
+            position = dirm * (BODY_RADIUS + flight)
+            scale = float(RNG.uniform(0.5, 1.5)) * max(1.15 - 0.03 * flight, 0.38)
         obj.location = tuple(float(x) for x in position)
-        scale = float(RNG.uniform(0.5, 1.5)) * max(1.15 - 0.03 * flight, 0.38)
         obj.scale = (scale, scale, scale)
         spin = unit(RNG.normal(size=3))
         obj.rotation_mode = 'QUATERNION'
@@ -631,7 +650,9 @@ def main():
     for obj in chunks[MEDIUM_COUNT:]:
         bpy.data.objects.remove(obj, do_unlink=True)
 
-    crack_tubes()
+    # The crack tubes are gone (spec P5): thin beveled curves silhouetted
+    # against the melt read as bent wire, and the venting plate-boundary
+    # network now carries the fissure story with actual material logic.
 
     os.makedirs(os.path.dirname(OUT_GLB), exist_ok=True)
     bpy.ops.object.select_all(action='SELECT')
@@ -757,7 +778,7 @@ def carve_chunks(count):
         # rather than as a stream of embers competing with the wounds.
         attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
         for poly in mesh.polygons:
-            colour = (0.0, 0.72, 0.5, 1.0) if poly.material_index == 1 else (1.0, 0.0, 0.5, 1.0)
+            colour = (0.0, 0.72, 0.5, 0.0) if poly.material_index == 1 else (1.0, 0.0, 0.5, 0.0)
             for loop_index in poly.loop_indices:
                 attribute.data[loop_index].color = colour
             poly.use_smooth = True
@@ -778,49 +799,6 @@ def carve_chunks(count):
     bpy.data.objects.remove(source, do_unlink=True)
     chunks.sort(key=lambda o: -max((Vector(w.co).length for w in o.data.vertices), default=0))
     return chunks
-
-
-def crack_tubes(count=11):
-    rng = np.random.default_rng(SEED + 505)
-    axis = np.array([1.0, 0.0, 0.0])
-
-    for ci in range(count):
-        current = unit(axis + rng.normal(0.0, 0.32, size=3))
-        points = []
-        for _ in range(int(rng.integers(7, 13))):
-            u, v = tangent_basis(current)
-            step = u * rng.normal(0.03, 0.11) + v * rng.normal(0.03, 0.11)
-            current = unit(current + step)
-            points.append(current * (radius_at(current) * 1.004))
-        if len(points) < 3:
-            continue
-
-        curve = bpy.data.curves.new(f'crack_{ci:02d}', 'CURVE')
-        curve.dimensions = '3D'
-        curve.bevel_depth = 0.022 + float(rng.uniform(0.0, 0.016))
-        curve.bevel_resolution = 2
-        spline = curve.splines.new('POLY')
-        spline.points.add(len(points) - 1)
-        for k, p in enumerate(points):
-            spline.points[k].co = (float(p[0]), float(p[1]), float(p[2]), 1.0)
-
-        obj = bpy.data.objects.new(f'crack_{ci:02d}', curve)
-        bpy.context.collection.objects.link(obj)
-
-        select_only(obj)
-        bpy.ops.object.convert(target='MESH')
-        obj = bpy.context.active_object
-        if not obj.data.polygons:
-            bpy.data.objects.remove(obj, do_unlink=True)
-            continue
-
-        # Fissures: exposed and still venting — near-full temperature, so the
-        # surviving crust carries glowing crack lines against dead geology.
-        attribute = obj.data.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
-        for poly in obj.data.polygons:
-            for loop_index in poly.loop_indices:
-                attribute.data[loop_index].color = (0.0, 0.82, 0.5, 1.0)
-            poly.use_smooth = True
 
 
 if __name__ == '__main__':

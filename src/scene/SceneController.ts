@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { CopyShader } from 'three/examples/jsm/shaders/CopyShader.js';
 
 import { QualityManager } from './QualityManager';
 import { FUNNEL, FieldModel, STAR_POSITION } from './correction/FieldModel';
@@ -35,6 +40,17 @@ export function isWebGL2Available(): boolean {
 }
 
 const CAMERA = { fov: 38 };
+
+/**
+ * Halation for the hot surfaces, and only for them. The threshold sits far
+ * above anything the crust can output — charcoal peaks near 0.19 — so the
+ * only pixels that bloom are the ones the shaders author as emitters: the
+ * melt, the wound walls, the venting seams, the white lips. Restrained on
+ * purpose: this is the difference between light-emitting geology and orange
+ * paint, not a poster effect. The scene renders into half-float targets so
+ * the melt's >1 energies survive to feed it.
+ */
+const BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.85 };
 
 /** A waypoint the rail can interpolate: where the eye is, what it looks at. */
 interface Waypoint {
@@ -90,12 +106,29 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
   };
 
   if (stops.length) {
-    // Approach: the furthest-thrown piece, met from further out still, with
-    // the wounded world distant beyond it. The visitor does not yet know
-    // what they are looking at.
+    // The opening is an authored shot, not an approach that happens to start
+    // somewhere: the furthest-thrown slab hangs in the near field while the
+    // aim is pulled most of the way to the body, so the wounded world and
+    // its rupture light stand as the frame's subject with the wordmark laid
+    // over a scene that can carry it.
+    const first = stops[0];
+    const radial = first.home.clone().normalize();
+    const beside = new THREE.Vector3().crossVectors(radial, lift);
+    if (beside.lengthSq() < 1e-3) beside.crossVectors(radial, side);
+    beside.normalize();
+    const above = new THREE.Vector3().crossVectors(beside, radial).normalize();
     waypoints.push({
-      eye: asTriple(stand(stops[0], 3.4)),
-      aim: asTriple(stops[0].home.clone().multiplyScalar(0.72)),
+      eye: asTriple(
+        first.home
+          .clone()
+          .addScaledVector(radial, first.extent * 2.1)
+          .addScaledVector(beside, first.extent * 2.8)
+          .addScaledVector(above, first.extent * 1.15)
+      ),
+      // Aimed near the body but pulled off along the stand's own lateral,
+      // so the wounded world clears the wordmark's centre and stands in the
+      // frame's open third instead of hiding behind the type.
+      aim: asTriple(first.home.clone().multiplyScalar(0.22).addScaledVector(beside, 1.6)),
     });
   }
 
@@ -242,6 +275,7 @@ export class SceneController {
   planet: PlanetModel | null = null;
 
   private renderer: THREE.WebGLRenderer;
+  private composer: EffectComposer | null = null;
   private client: PulseClient | null = null;
   private frameHandle = 0;
   private running = false;
@@ -324,6 +358,18 @@ export class SceneController {
     this.renderer.setSize(clientWidth, clientHeight, false);
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
+
+    // The post chain: scene into half-float, hot pixels haloed, plain copy
+    // out. No OutputPass — the shaders author display values directly, and a
+    // colour-space conversion here would re-grade the whole look.
+    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+    this.composer = new EffectComposer(this.renderer, target);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.composer.addPass(
+      new UnrealBloomPass(new THREE.Vector2(clientWidth, clientHeight), BLOOM.strength, BLOOM.radius, BLOOM.threshold)
+    );
+    this.composer.addPass(new ShaderPass(CopyShader));
+
     this.compose();
     this.applyCamera();
 
@@ -643,12 +689,27 @@ export class SceneController {
     const ratio = this.quality.pixelRatio();
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(clientWidth, clientHeight, false);
+    this.composer?.setPixelRatio(ratio);
+    this.composer?.setSize(clientWidth, clientHeight);
     this.camera.aspect = clientWidth / Math.max(clientHeight, 1);
     // The march is per pixel, so the quality tier buys steps here rather than
     // elements. This is the whole performance story of the new carrier.
     this.model?.setSize(clientWidth * ratio, clientHeight * ratio);
     this.model?.setSteps(ratio > 1.25 ? 96 : 144);
     this.compose();
+  }
+
+  /**
+   * One seam for every frame drawn, still or looped: through the bloom chain
+   * when the tier affords it, straight to the canvas when it does not. A
+   * demoted machine loses halation before it loses pixels.
+   */
+  private draw(): void {
+    if (this.composer && this.quality.settings.bloom) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   /** Picks the composition the viewport shape needs, and nothing else. */
@@ -776,7 +837,7 @@ export class SceneController {
 
     const stills = frames.map((frame) => {
       this.model?.setCamera(this.camera);
-      this.renderer.render(this.scene, this.camera);
+      this.draw();
       return { stage: frame.stage, url: this.renderer.domElement.toDataURL('image/png') };
     });
 
@@ -798,7 +859,7 @@ export class SceneController {
     this.model?.setExposure(1);
     this.planet?.setFlare(this.flareAt(this.progress));
     this.planet?.setExposure(1);
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
   }
 
   /**
@@ -928,7 +989,7 @@ export class SceneController {
     this.planet?.setTime(now / 1000);
     this.planet?.setFlare(this.flareAt(this.progress));
     this.planet?.setExposure(this.exposure);
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
   };
 
   dispose(): void {
