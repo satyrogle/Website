@@ -70,10 +70,13 @@ export interface Stop {
 export const MATERIAL = { heat: 1.1, crustLight: 1.0, rim: 0.9 };
 
 /** The core's emission, and how much the flare drives it. */
-export const CORE_GLOW = { base: 2.1, flare: 3.6 };
+export const CORE_GLOW = { base: 1.75, flare: 3.6 };
 
 /** The instanced ejecta field along the corridor. */
-export const EJECTA = { perGeometry: 34, geometries: 6, reach: 27.0 };
+export const EJECTA = { perGeometry: 56, geometries: 8, reach: 29.0 };
+
+/** The particulate tier: dust and fragment mist filling the funnel. */
+export const DUST = { count: 5200, reach: 30.0, size: 0.055, opacity: 0.42 };
 
 /** mulberry32 — staging jitter must be identical on every machine and visit. */
 function mulberry32(seed: number): () => number {
@@ -103,6 +106,8 @@ export class PlanetModel {
   private readonly pieces: Piece[] = [];
   private readonly scratch = new THREE.Vector3();
   private stopsWorld: Stop[] = [];
+  private dustTexture: THREE.CanvasTexture | null = null;
+  private dustMaterial: THREE.PointsMaterial | null = null;
 
   constructor(options: PlanetModelOptions) {
     // The authored +X corridor onto the site's diagonal.
@@ -136,16 +141,25 @@ export class PlanetModel {
       uCoreBase: { value: CORE_GLOW.base },
       uCoreFlare: { value: CORE_GLOW.flare },
     };
+    // Not a lamp. The first version shaded by facing alone, and through a
+    // wound the interior read as a clean white bulb — the directive's named
+    // fault. This is layered rupture heat: convection cells of uneven
+    // luminosity (two warped wave families, so no banding), white-hot only
+    // where the hottest cells face the eye, orange-yellow molten across the
+    // mid, deep cooling red toward the limb of the opening. The flare drives
+    // the whole gradient toward white, so the finale keeps its escalation.
     this.coreMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       uniforms: this.coreUniforms,
       vertexShader: /* glsl */ `
         out vec3 vNormal;
         out vec3 vView;
+        out vec3 vLocal;
         void main() {
           vec4 world = modelMatrix * vec4(position, 1.0);
           vNormal = normalize(mat3(modelMatrix) * normal);
           vView = normalize(cameraPosition - world.xyz);
+          vLocal = position;
           gl_Position = projectionMatrix * viewMatrix * world;
         }
       `,
@@ -157,11 +171,21 @@ export class PlanetModel {
         uniform float uCoreFlare;
         in vec3 vNormal;
         in vec3 vView;
+        in vec3 vLocal;
         out vec4 fragColour;
         void main() {
           float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
-          float energy = (uCoreBase + uFlare * uCoreFlare) * (0.35 + 0.65 * pow(facing, 1.6));
-          vec3 colour = mix(vec3(1.0, 0.52, 0.16), vec3(1.0, 0.96, 0.9), clamp(energy * 0.5, 0.0, 0.85));
+          float bend = 1.7 * sin(vLocal.y * 0.9 + vLocal.x * 0.5);
+          float cells = sin(vLocal.x * 2.3 + bend) * sin(vLocal.y * 2.0 - bend)
+                      + 0.6 * sin(vLocal.z * 3.4 + bend * 1.3) * sin(vLocal.x * 2.9 - vLocal.z * 1.1);
+          float turbulence = clamp(0.5 + 0.31 * cells, 0.0, 1.0);
+          float energy = (uCoreBase + uFlare * uCoreFlare)
+                       * (0.30 + 0.70 * pow(facing, 1.5))
+                       * (0.45 + 0.85 * turbulence);
+          vec3 colour = mix(vec3(0.55, 0.10, 0.02), vec3(1.0, 0.52, 0.14),
+                            clamp(energy * 0.60, 0.0, 1.0));
+          colour = mix(colour, vec3(1.0, 0.96, 0.90),
+                       clamp((energy - 1.55) * 0.60, 0.0, 0.85) * (0.30 + 0.70 * turbulence));
           fragColour = vec4(colour * energy * uExposure, 1.0);
         }
       `,
@@ -254,13 +278,15 @@ export class PlanetModel {
       for (let i = 0; i < EJECTA.perGeometry; i++) {
         const t = Math.pow(random(), 1.5);
         const along = 4.5 + EJECTA.reach * t;
-        const funnel = (0.9 + 5.5 * t) * (0.25 + random() * 0.75);
+        const funnel = (1.2 + 6.5 * t) * (0.25 + random() * 0.75);
         const swing = random() * Math.PI * 2;
 
         position.set(along, Math.sin(swing) * funnel, Math.cos(swing) * funnel);
         euler.set(random() * 6.28, random() * 6.28, random() * 6.28);
         quaternion.setFromEuler(euler);
-        const s = 0.1 + random() * 0.24;
+        // Two shard populations: mist-fine and hand-sized. One band read as
+        // gravel poured at a single scale; two read as a breakup.
+        const s = random() < 0.62 ? 0.05 + random() * 0.12 : 0.16 + random() * 0.26;
         scale.set(s, s, s);
         matrix.compose(position, quaternion, scale);
         mesh.setMatrixAt(i, matrix);
@@ -270,7 +296,74 @@ export class PlanetModel {
       this.ejecta.add(mesh);
     }
 
+    this.buildDust(random);
     this.inner.add(this.ejecta);
+  }
+
+  /**
+   * The smallest tier: particulate dust down the whole funnel, one Points
+   * draw. This is what makes the corridor a volume with air in it rather
+   * than objects on black — every earlier version read as "a trail of
+   * chunks" partly because nothing existed between chunk-size and nothing.
+   * Lives inside the ejecta group so the flare carries it with the rest.
+   */
+  private buildDust(random: () => number): void {
+    const positions = new Float32Array(DUST.count * 3);
+    const colours = new Float32Array(DUST.count * 3);
+
+    for (let i = 0; i < DUST.count; i++) {
+      const t = Math.pow(random(), 1.3) * DUST.reach;
+      // The same cone the chunks obey, filled by area so the middle is not
+      // artificially dense, with a soft edge so the funnel has no skin.
+      const cone = (0.9 + 0.26 * t) * 1.15;
+      const radial = cone * Math.sqrt(random()) * (0.35 + 0.65 * random());
+      const swing = random() * Math.PI * 2;
+      positions[i * 3] = 1.5 + t;
+      positions[i * 3 + 1] = Math.sin(swing) * radial;
+      positions[i * 3 + 2] = Math.cos(swing) * radial;
+
+      // Warm near the rupture, grey and dim by the corridor's end — the same
+      // cooling journey the solid debris makes.
+      const heat = Math.max(0, 1 - t / DUST.reach) * (0.4 + 0.6 * random());
+      const shade = 0.22 + 0.5 * random();
+      colours[i * 3] = shade * (0.75 + 0.55 * heat);
+      colours[i * 3 + 1] = shade * (0.55 + 0.25 * heat);
+      colours[i * 3 + 2] = shade * 0.5;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+
+    // A soft round sprite, generated rather than shipped: an untextured
+    // Points pass draws squares, and 5,000 additive squares read as noise.
+    const sprite = document.createElement('canvas');
+    sprite.width = sprite.height = 32;
+    const ctx = sprite.getContext('2d');
+    if (ctx) {
+      const glow = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      glow.addColorStop(0, 'rgba(255,255,255,1)');
+      glow.addColorStop(0.45, 'rgba(255,255,255,0.4)');
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, 32, 32);
+    }
+    this.dustTexture = new THREE.CanvasTexture(sprite);
+
+    this.dustMaterial = new THREE.PointsMaterial({
+      size: DUST.size,
+      sizeAttenuation: true,
+      map: this.dustTexture,
+      vertexColors: true,
+      transparent: true,
+      opacity: DUST.opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const dust = new THREE.Points(geometry, this.dustMaterial);
+    dust.frustumCulled = false;
+    this.ejecta.add(dust);
   }
 
   /** The rail's destinations, world space, in authored (near→far) order. */
@@ -308,6 +401,9 @@ export class PlanetModel {
   setExposure(value: number): void {
     this.uniforms.uExposure.value = value;
     this.coreUniforms.uExposure.value = value;
+    // The dust is additive and has no exposure uniform of its own; without
+    // this it would hang at full brightness through the cold open.
+    if (this.dustMaterial) this.dustMaterial.opacity = DUST.opacity * value;
   }
 
   tune(patch: Record<string, number>): void {
@@ -320,8 +416,10 @@ export class PlanetModel {
   dispose(): void {
     this.material.dispose();
     this.coreMaterial.dispose();
+    this.dustMaterial?.dispose();
+    this.dustTexture?.dispose();
     this.inner.traverse((object) => {
-      if (object instanceof THREE.Mesh) object.geometry.dispose();
+      if (object instanceof THREE.Mesh || object instanceof THREE.Points) object.geometry.dispose();
       if (object instanceof THREE.InstancedMesh) object.dispose();
     });
   }

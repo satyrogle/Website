@@ -68,13 +68,30 @@ CORE_RADIUS = 3.55
 SUBDIV = 7
 
 #: The five wounds/slabs: angular size, corridor displacement, laterals.
-#: Same staging numbers as v2 — the rail and the wide reveal are approved.
+#: Corridor staging (disp/a/b) is unchanged; the cutter DIRECTIONS are
+#: clustered for V2 — one dominant rupture zone, not five potholes. The body
+#: stays roughly 70% intact, per the directive.
 SLABS = (
-    {"ang": 0.68, "disp": 3.0, "a": 0.35, "b": 0.65},
-    {"ang": 0.58, "disp": 6.6, "a": -1.55, "b": -1.10},
+    {"ang": 0.80, "disp": 3.0, "a": 0.35, "b": 0.65},
+    {"ang": 0.55, "disp": 6.6, "a": -1.55, "b": -1.10},
     {"ang": 0.46, "disp": 10.4, "a": 2.45, "b": -2.20},
-    {"ang": 0.39, "disp": 14.0, "a": -3.05, "b": 2.35},
-    {"ang": 0.34, "disp": 18.0, "a": 4.15, "b": 1.45},
+    {"ang": 0.36, "disp": 14.0, "a": -3.05, "b": 2.35},
+    {"ang": 0.30, "disp": 18.0, "a": 4.15, "b": 1.45},
+)
+
+#: Where the cutters bite, as (u, v) offsets around the corridor axis. The
+#: primary sits at the rupture centre; 1 and 2 overlap its rim so the three
+#: tear as ONE compound wound (overlaps cannot double-extract — each slab is
+#: cut from the already-wounded shell, so adjoining pieces share torn rims);
+#: 3 and 4 sit further out along the fissure lines.
+WOUND_OFFSETS = ((0.30, 0.22), (0.64, -0.08), (-0.02, 0.48), (0.82, 0.72), (-0.20, 0.54))
+
+#: Secondary fissures radiating from the rupture zone: (direction from the
+#: rupture centre in (u, v), reach along it, half-extents of the ragged wedge).
+FISSURES = (
+    {"dir": (1.30, 1.30), "reach": 0.52, "size": (2.9, 0.42, 0.62)},
+    {"dir": (-1.20, 0.90), "reach": 0.55, "size": (2.4, 0.38, 0.55)},
+    {"dir": (0.90, -0.95), "reach": 0.48, "size": (2.6, 0.40, 0.50)},
 )
 
 #: Medium debris distances. Laterals are drawn wider than v2 so the corridor
@@ -165,7 +182,7 @@ _CRATERS = _make_craters(SEED + 81)
 #: 0.17-unit edges, and a 0.2-unit crater is 0.3% of the frame at the reveal.
 #: Terrain a viewer must recognise from thirty-five units out is built from
 #: half-unit steps, not decoration.
-ELEV_CAP = 0.19
+ELEV_CAP = 0.21
 
 
 def elevation(direction):
@@ -186,7 +203,11 @@ def elevation(direction):
     """
     d = unit(direction)
 
+    # Smooth continents, folded: the crease term subtracts sharp-bottomed
+    # valleys from the rolling fbm, which is what stops the silhouette
+    # reading as a melted lump — hard planetary character over soft mass.
     macro = 0.082 * fbm(d * 1.15, SEED + 11, octaves=3)
+    macro -= 0.055 * abs(fbm(d * 1.55, SEED + 13, octaves=3))
 
     # Fewer, taller steps, with risers wide enough for the mesh to carry:
     # each scarp stands about a third of a unit, and a riser spans several
@@ -195,7 +216,7 @@ def elevation(direction):
     q = (fbm(d * 1.25, SEED + 71, octaves=3) + 1.0) * steps
     level = math.floor(q)
     riser = _smooth01((q - level - 0.52) / 0.30)
-    plateau = 0.110 * ((level + riser) / steps - 1.0)
+    plateau = 0.135 * ((level + riser) / steps - 1.0)
 
     belt = _smooth01((fbm(d * 1.35, SEED + 29, octaves=2) - 0.02) / 0.55)
     ridged = 1.0 - abs(fbm(d * 3.9, SEED + 23, octaves=4))
@@ -216,7 +237,7 @@ def elevation(direction):
         x = ang / max(rho, 1e-4)
         if x < 1.0:
             bowls -= crater['depth'] * (1.0 - _smooth01((x - 0.55) / 0.45))
-        lip = 1.0 - abs(x - 1.0) / 0.30
+        lip = 1.0 - abs(x - 1.0) / 0.22
         if lip > 0.0:
             bowls += crater['depth'] * crater['rim'] * lip * lip
 
@@ -319,33 +340,40 @@ def _marker_material(name):
 
 
 def irregular_cutter(centre, extent, seed):
-    """A jittered convex block — a bite, not a machined socket."""
+    """
+    A ragged volume — a tear, not a machined socket.
+
+    The v4 cutters were six flat planes, and every wound and every slab edge
+    inherited their geometry: clean boolean cuts, which is exactly the read
+    the directive kills ("the wound must feel like a violent tearing open").
+    This is a displaced sphere instead: broad lobes so the outline wanders,
+    torn detail so no rim segment is straight, anisotropic so no two wounds
+    share proportions. Two-octave families on separate seeds, per-cutter.
+    """
     rng = np.random.default_rng(seed)
-    base = np.array([
-        [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-        [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
-    ], dtype=float)
-    verts = (base + rng.uniform(-0.16, 0.16, size=base.shape)) * extent
-    faces = [(0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7)]
-    mesh = bpy.data.meshes.new('CUTTER_MESH')
-    mesh.from_pydata([tuple(v) for v in verts], [], faces)
-    mesh.update()
-    # The hand-authored face list winds inward — an inside-out solid. EXACT
-    # still cuts with it, but it cuts dirtier, and the material transfer that
-    # marks the walls silently matches nothing against inverted faces.
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1.0)
+    obj = bpy.context.active_object
+    obj.name = 'CUTTER'
+    for vert in obj.data.vertices:
+        d = np.array(Vector(vert.co).normalized()[:])
+        lobes = fbm(d * 1.6, seed, octaves=4)
+        torn = fbm(d * 5.2, seed + 1, octaves=3)
+        r = 1.0 + 0.30 * lobes + 0.13 * torn
+        vert.co = Vector((d[0] * extent[0], d[1] * extent[1], d[2] * extent[2])) * r
+    # Displacement along the radius keeps the solid star-shaped, but recalc
+    # anyway: an inverted operand cuts dirty and the material transfer that
+    # marks the walls silently matches nothing (v4's slab_00 died of this).
     bm = bmesh.new()
-    bm.from_mesh(mesh)
+    bm.from_mesh(obj.data)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    bm.to_mesh(mesh)
+    bm.to_mesh(obj.data)
     bm.free()
-    mesh.materials.append(_marker_material('CUT_MAT'))
-    obj = bpy.data.objects.new('CUTTER', mesh)
-    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(_marker_material('CUT_MAT'))
     obj.location = tuple(float(x) for x in centre)
-    # Tilted, so no cut face aligns with anything.
-    axis = unit(rng.normal(size=3))
+    # Tilted, so no cut axis aligns with anything.
+    tilt = unit(rng.normal(size=3))
     obj.rotation_mode = 'QUATERNION'
-    obj.rotation_quaternion = Quaternion(Vector(tuple(axis)), float(rng.uniform(-0.5, 0.5)))
+    obj.rotation_quaternion = Quaternion(Vector(tuple(tilt)), float(rng.uniform(-0.5, 0.5)))
     return obj
 
 
@@ -414,10 +442,9 @@ def main():
     axis = np.array([1.0, 0.0, 0.0])
     u, v = tangent_basis(axis)
 
-    offsets = ((0.44, 0.34), (-0.48, -0.18), (0.16, -0.52), (-0.18, 0.56), (0.52, 0.02))
     slab_dirs = []
     for i, slab in enumerate(SLABS):
-        a, b = offsets[i]
+        a, b = WOUND_OFFSETS[i]
         slab_dirs.append((unit(axis + a * u + b * v), slab))
 
     shell = build_master_shell()
@@ -455,6 +482,27 @@ def main():
             continue
         slabs.append((piece, slab))
 
+    # Secondary fissures, radiating outward from the rupture centre: long
+    # ragged wedges half-sunk into the crust, DIFFERENCE only — canyons that
+    # leak interior light, no piece comes off. Each is aimed along the local
+    # surface tangent toward its own target direction, so the cracks run
+    # ACROSS the crust rather than stabbing into it.
+    rupture_centre = unit(axis + WOUND_OFFSETS[0][0] * u + WOUND_OFFSETS[0][1] * v)
+    for i, fissure in enumerate(FISSURES):
+        fa, fb = fissure['dir']
+        target = unit(axis + (WOUND_OFFSETS[0][0] + fa) * u + (WOUND_OFFSETS[0][1] + fb) * v)
+        mid = unit(rupture_centre + (target - rupture_centre) * fissure['reach'])
+        tangent = unit(target - mid * float(np.dot(target, mid)))
+        centre = mid * (radius_at(mid) * 0.985)
+        wedge = irregular_cutter(centre, np.array(fissure['size']), SEED + 900 + i * 31)
+        # Long axis along the tangent, mid axis along the surface, thin axis
+        # radial-ish: build the swing from +X onto the tangent line.
+        swing = Quaternion(Vector((1.0, 0.0, 0.0)).cross(Vector(tuple(tangent))).normalized(),
+                           math.acos(max(-1.0, min(1.0, float(tangent[0])))))
+        wedge.rotation_quaternion = swing @ wedge.rotation_quaternion
+        apply_boolean(shell, wedge, 'DIFFERENCE')
+        bpy.data.objects.remove(wedge, do_unlink=True)
+
     shell.name = 'body'
     mark_crust(shell)
 
@@ -484,15 +532,17 @@ def main():
         if i >= len(chunks):
             break
         obj = chunks[i]
-        # Wider and taller than v2: a volume, not a queue.
-        cone = 0.75 + 0.17 * t
+        # A funnel with real cross-section: wide at the viewer's end of the
+        # corridor, narrowing toward the rupture, and fuller than v4 — the
+        # directive's failure read was "a trail of chunks", not a field.
+        cone = 0.9 + 0.26 * t
         theta = float(RNG.uniform(0, math.tau))
-        radial = cone * float(RNG.uniform(0.15, 1.3))
+        radial = cone * float(RNG.uniform(0.25, 1.45))
         position = (axis * t
                     + u * (math.cos(theta) * radial)
-                    + v * (math.sin(theta) * radial + float(RNG.normal(0.1, 0.5))))
+                    + v * (math.sin(theta) * radial + float(RNG.normal(0.1, 0.6))))
         obj.location = tuple(float(x) for x in position)
-        scale = float(RNG.uniform(0.4, 1.25)) * (1.1 - 0.012 * min(t, 25.0))
+        scale = float(RNG.uniform(0.5, 1.6)) * (1.1 - 0.012 * min(t, 25.0))
         obj.scale = (scale, scale, scale)
         spin = unit(RNG.normal(size=3))
         obj.rotation_mode = 'QUATERNION'

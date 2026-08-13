@@ -108,6 +108,21 @@ slabs that came out of them share the frame, so a viewer can mentally
 reassemble the original sphere. That relationship outranks any previous
 camera coordinates.
 
+**V2 directive (Jacob, 2026-08-13), the deltas that bind:**
+- ONE dominant rupture zone, body 65–75% intact, secondary fissures
+  radiating from it — not five separate potholes.
+- The wound is a violent tearing open, never a clean boolean cut.
+- The interior is layered rupture heat — white-hot pressure at the deepest
+  point, orange-yellow molten transition, darkened cooling crust at the
+  edge, uneven luminosity. Never a clean white disc.
+- Three debris tiers: 3–4 hero slabs (shell curvature, thick crust profile,
+  torn asymmetric edges), 8–12 medium fragments, many micro shards plus
+  particulate dust — the funnel is a volume with air in it.
+- Every scroll stop is a composed shot: slab, its wound and the body stay
+  legible together; no black wall fills the frame.
+- The wide reveal is the money shot: the planet dominates the frame, the
+  wound reads, the field feels epic.
+
 Each stop needs clean negative space for editorial content, a readable
 silhouette, and enough uniqueness to be memorable.
 

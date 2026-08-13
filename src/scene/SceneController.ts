@@ -88,12 +88,14 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     // Stand-off is in multiples of the piece's own radius. The authored slabs
     // are continent-scale — extents of two to five units — so a small multiple
     // is already a long way back; the old 8x was tuned for chips and framed
-    // nothing but void.
+    // nothing but void. Lift is over half the lateral now: the eye stands
+    // high enough that a foreground slab occupies the lower third and the
+    // body stays legible beyond it — a composed shot, not a black wall.
     return piece.home
       .clone()
       .addScaledVector(out, piece.extent * reach)
       .addScaledVector(axis, piece.extent * reach * 1.15)
-      .addScaledVector(lift, piece.extent * reach * 0.4);
+      .addScaledVector(lift, piece.extent * reach * 0.55);
   };
 
   if (stops.length) {
@@ -102,34 +104,38 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     // not yet know what they are looking at.
     waypoints.push({
       eye: asTriple(stand(stops[0], 3.4)),
-      aim: asTriple(stops[0].home.clone().multiplyScalar(0.82)),
+      aim: asTriple(stops[0].home.clone().multiplyScalar(0.72)),
     });
   }
 
   for (const piece of stops) {
     waypoints.push({
-      eye: asTriple(stand(piece, 2.2)),
-      // Aimed past the fragment toward the source, so every stop also points
-      // at where all of this came from.
-      aim: asTriple(piece.home.clone().multiplyScalar(0.7)),
+      eye: asTriple(stand(piece, 2.7)),
+      // Aimed well past the fragment toward the source, so every stop holds
+      // the relationship — this piece, the body it left, the wound between
+      // them — instead of a fragment floating on black.
+      aim: asTriple(piece.home.clone().multiplyScalar(0.55)),
     });
   }
 
-  // The reveal, stood on the blast side. The freeze on this pose served its
-  // purpose and Jacob lifted it for exactly this: square to the corridor,
-  // every wound is edge-on and the body reads as an intact black sphere. The
-  // old eye sat ~68° off the blast axis; from ~34°, same lateral bearing, the
-  // camera looks into the missing sections — wounds and the slabs that came
-  // out of them share the frame, far enough out that the trail still resolves
-  // into one event. That is the reveal: the sphere can be mentally reassembled.
+  // The reveal, stood on the blast side — the money shot, and it is composed,
+  // not surveyed. The camera's azimuth matches the rupture zone's, so the eye
+  // looks into the compound wound at a working obliquity; the distance is
+  // close enough that the body commands most of the frame's height instead
+  // of floating in it; and the aim is pulled off-side so the planet stands
+  // clear of the record's typography with the debris funnel sweeping past
+  // the eye toward it. Wounds, the slabs that left them, the corridor: one
+  // event, dominating the frame.
   waypoints.push({
     eye: asTriple(
       new THREE.Vector3()
-        .addScaledVector(axis, 30.5)
-        .addScaledVector(side, 17.0)
-        .addScaledVector(lift, 14.0)
+        .addScaledVector(axis, 20.0)
+        .addScaledVector(side, 13.0)
+        .addScaledVector(lift, 9.5)
     ),
-    aim: asTriple(new THREE.Vector3().addScaledVector(axis, 4.2)),
+    aim: asTriple(
+      new THREE.Vector3().addScaledVector(axis, 3.2).addScaledVector(side, -1.4)
+    ),
   });
 
   return waypoints;
