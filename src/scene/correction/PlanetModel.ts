@@ -281,6 +281,20 @@ export class PlanetModel {
     // compresses hardest. Decoding runs in the loader's own worker pool, so
     // the main thread is never blocked while the loader UI is up — the
     // decode is real initialisation work the loader is honestly reporting.
+    //
+    // Only the WASM decoder ships. The JS fallback was 512 kB that no real
+    // visitor ever downloaded, so WebAssembly is now as hard a requirement
+    // for the hero as WebGL2 is, and it is declared here rather than
+    // discovered halfway through a load. Without this the loader fetches a
+    // decoder that is not there, a static host answers a missing asset with
+    // index.html and a 200 rather than a 404, and the page dies evaluating
+    // markup as JavaScript — measured, not imagined. Refusing up front
+    // hands the boot sequence a clean failure, and it already knows what to
+    // do with one: the visitor gets the readable site and a recorded visit.
+    if (typeof WebAssembly !== 'object') {
+      throw new Error('correction: WebAssembly unavailable, cannot decode the world');
+    }
+
     const draco = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
     const loader = new GLTFLoader().setDRACOLoader(draco);
 
