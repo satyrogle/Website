@@ -75,8 +75,23 @@ export const CORE_GLOW = { base: 1.75, flare: 3.6 };
 /** The instanced ejecta field along the corridor. */
 export const EJECTA = { perGeometry: 56, geometries: 8, reach: 29.0 };
 
-/** The particulate tier: dust and fragment mist filling the funnel. */
-export const DUST = { count: 5200, reach: 30.0, size: 0.055, opacity: 0.42 };
+/**
+ * The particulate tier: dust and fragment mist filling the funnel.
+ *
+ * Two populations, because one size of mote at any count reads as grain on
+ * the lens rather than as matter in the corridor: `haze` is the air, far
+ * below the threshold of individual visibility, and `motes` are grit close
+ * enough to be seen as separate objects catching the rupture's light.
+ */
+export const DUST = {
+  reach: 30.0,
+  haze: { count: 17000, size: 0.05, opacity: 0.26 },
+  motes: { count: 4600, size: 0.15, opacity: 0.46 },
+  /** Share of each population that gathers into streaks rather than filling evenly. */
+  clumped: 0.66,
+  /** How many streaks the field is drawn into. */
+  streaks: 34,
+};
 
 /** mulberry32 — staging jitter must be identical on every machine and visit. */
 function mulberry32(seed: number): () => number {
@@ -107,7 +122,7 @@ export class PlanetModel {
   private readonly scratch = new THREE.Vector3();
   private stopsWorld: Stop[] = [];
   private dustTexture: THREE.CanvasTexture | null = null;
-  private dustMaterial: THREE.PointsMaterial | null = null;
+  private dustMaterials: { material: THREE.PointsMaterial; opacity: number }[] = [];
   private core: THREE.Mesh | null = null;
 
   constructor(options: PlanetModelOptions) {
@@ -367,42 +382,24 @@ export class PlanetModel {
   }
 
   /**
-   * The smallest tier: particulate dust down the whole funnel, one Points
-   * draw. This is what makes the corridor a volume with air in it rather
-   * than objects on black — every earlier version read as "a trail of
-   * chunks" partly because nothing existed between chunk-size and nothing.
-   * Lives inside the ejecta group so the flare carries it with the rest.
+   * The smallest tier: particulate dust down the whole funnel. This is what
+   * makes the corridor a volume with air in it rather than objects on black
+   * — every earlier version read as "a trail of chunks" partly because
+   * nothing existed between chunk-size and nothing. Lives inside the ejecta
+   * group so the flare carries it with the rest.
+   *
+   * Density is not a count. Twenty thousand motes seeded evenly through the
+   * cone read as grain on the lens: uniform noise has no depth cues, so the
+   * eye files it as a filter over the image rather than as matter in front
+   * of and behind things. So the field is drawn into streaks — most of the
+   * dust gathers into elongated trails with clear lanes between them, which
+   * is both what a blast actually leaves and what gives the volume its
+   * near-and-far reading.
    */
   private buildDust(random: () => number): void {
-    const positions = new Float32Array(DUST.count * 3);
-    const colours = new Float32Array(DUST.count * 3);
-
-    for (let i = 0; i < DUST.count; i++) {
-      const t = Math.pow(random(), 1.3) * DUST.reach;
-      // The same cone the chunks obey, filled by area so the middle is not
-      // artificially dense, with a soft edge so the funnel has no skin.
-      const cone = (0.9 + 0.26 * t) * 1.15;
-      const radial = cone * Math.sqrt(random()) * (0.35 + 0.65 * random());
-      const swing = random() * Math.PI * 2;
-      positions[i * 3] = 1.5 + t;
-      positions[i * 3 + 1] = Math.sin(swing) * radial;
-      positions[i * 3 + 2] = Math.cos(swing) * radial;
-
-      // Warm near the rupture, grey and dim by the corridor's end — the same
-      // cooling journey the solid debris makes.
-      const heat = Math.max(0, 1 - t / DUST.reach) * (0.4 + 0.6 * random());
-      const shade = 0.22 + 0.5 * random();
-      colours[i * 3] = shade * (0.75 + 0.55 * heat);
-      colours[i * 3 + 1] = shade * (0.55 + 0.25 * heat);
-      colours[i * 3 + 2] = shade * 0.5;
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-
     // A soft round sprite, generated rather than shipped: an untextured
-    // Points pass draws squares, and 5,000 additive squares read as noise.
+    // Points pass draws squares, and thousands of additive squares read as
+    // noise. Shared by both populations — one texture, one upload.
     const sprite = document.createElement('canvas');
     sprite.width = sprite.height = 32;
     const ctx = sprite.getContext('2d');
@@ -416,20 +413,90 @@ export class PlanetModel {
     }
     this.dustTexture = new THREE.CanvasTexture(sprite);
 
-    this.dustMaterial = new THREE.PointsMaterial({
-      size: DUST.size,
-      sizeAttenuation: true,
-      map: this.dustTexture,
-      vertexColors: true,
-      transparent: true,
-      opacity: DUST.opacity,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
+    // Where the field bunches. Each streak is drawn out along the corridor
+    // by the same blast that made it, so the clumps are lanes rather than
+    // balls of dust.
+    const streaks: { x: number; y: number; z: number; spread: number }[] = [];
+    for (let i = 0; i < DUST.streaks; i++) {
+      const t = Math.pow(random(), 1.15) * DUST.reach;
+      const cone = (0.9 + 0.26 * t) * 1.15;
+      const radial = cone * Math.sqrt(random());
+      const swing = random() * Math.PI * 2;
+      streaks.push({
+        x: 1.5 + t,
+        y: Math.sin(swing) * radial,
+        z: Math.cos(swing) * radial,
+        spread: 0.45 + 0.95 * random(),
+      });
+    }
 
-    const dust = new THREE.Points(geometry, this.dustMaterial);
-    dust.frustumCulled = false;
-    this.ejecta.add(dust);
+    // Sum of three uniforms: a cheap bell, so a streak has a dense spine
+    // that thins outward instead of a hard edge.
+    const bell = (): number => random() + random() + random() - 1.5;
+
+    const buildTier = (tier: { count: number; size: number; opacity: number }): void => {
+      const positions = new Float32Array(tier.count * 3);
+      const colours = new Float32Array(tier.count * 3);
+
+      for (let i = 0; i < tier.count; i++) {
+        let x: number;
+        let y: number;
+        let z: number;
+
+        if (random() < DUST.clumped) {
+          const streak = streaks[Math.floor(random() * streaks.length)];
+          x = streak.x + bell() * streak.spread * 2.8;
+          y = streak.y + bell() * streak.spread;
+          z = streak.z + bell() * streak.spread;
+        } else {
+          // The rest fills the cone by area, so the lanes between streaks
+          // are thin rather than empty and the funnel keeps a soft edge.
+          const t = Math.pow(random(), 1.3) * DUST.reach;
+          const cone = (0.9 + 0.26 * t) * 1.15;
+          const radial = cone * Math.sqrt(random()) * (0.35 + 0.65 * random());
+          const swing = random() * Math.PI * 2;
+          x = 1.5 + t;
+          y = Math.sin(swing) * radial;
+          z = Math.cos(swing) * radial;
+        }
+
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+
+        // Warm near the rupture, grey and dim by the corridor's end — the
+        // same cooling journey the solid debris makes.
+        const along = Math.max(0, x - 1.5);
+        const heat = Math.max(0, 1 - along / DUST.reach) * (0.4 + 0.6 * random());
+        const shade = 0.20 + 0.5 * random();
+        colours[i * 3] = shade * (0.75 + 0.55 * heat);
+        colours[i * 3 + 1] = shade * (0.55 + 0.25 * heat);
+        colours[i * 3 + 2] = shade * 0.5;
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: tier.size,
+        sizeAttenuation: true,
+        map: this.dustTexture,
+        vertexColors: true,
+        transparent: true,
+        opacity: tier.opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      this.dustMaterials.push({ material, opacity: tier.opacity });
+
+      const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
+      this.ejecta.add(points);
+    };
+
+    buildTier(DUST.haze);
+    buildTier(DUST.motes);
   }
 
   /** The rail's destinations, world space, in authored (near→far) order. */
@@ -475,8 +542,9 @@ export class PlanetModel {
     this.uniforms.uExposure.value = value;
     this.coreUniforms.uExposure.value = value;
     // The dust is additive and has no exposure uniform of its own; without
-    // this it would hang at full brightness through the cold open.
-    if (this.dustMaterial) this.dustMaterial.opacity = DUST.opacity * value;
+    // this it would hang at full brightness through the cold open. Each
+    // population keeps its own base, so the haze never overtakes the grit.
+    for (const dust of this.dustMaterials) dust.material.opacity = dust.opacity * value;
   }
 
   tune(patch: Record<string, number>): void {
@@ -489,7 +557,7 @@ export class PlanetModel {
   dispose(): void {
     this.material.dispose();
     this.coreMaterial.dispose();
-    this.dustMaterial?.dispose();
+    for (const dust of this.dustMaterials) dust.material.dispose();
     this.dustTexture?.dispose();
     this.inner.traverse((object) => {
       if (object instanceof THREE.Mesh || object instanceof THREE.Points) object.geometry.dispose();
