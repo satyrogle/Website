@@ -44,8 +44,6 @@ uniform float uStarNoise;
 uniform float uEjecta;
 uniform float uFlare;
 uniform float uExposure;
-uniform vec3 uRuptureDir;
-uniform float uHaze;
 
 out vec4 fragColour;
 
@@ -95,16 +93,7 @@ void main() {
     float ejecta = fil * fil
       * exp(-max(dStar - uStarRadius * 1.2, 0.0) * (0.5 / uStarRadius)) * uEjecta;
 
-    // The burning air. The event has already filled the void around itself
-    // with dust, and its own light is in that dust: a broad structured
-    // envelope, densest through the rupture fan, ragged like smoke, gone by
-    // the far shell. This is what stands between "objects on black" and a
-    // frame where the space itself carries the catastrophe.
-    float cloud = 0.55 + 0.45 * terrain(p * 0.16 + sdir * 1.2 + uBreath * 0.05);
-    float fan = 0.35 + 0.65 * smoothstep(-0.2, 0.9, dot(sdir, uRuptureDir));
-    float haze = exp(-max(dStar - 4.0, 0.0) * 0.075) * cloud * cloud * fan * uHaze;
-
-    star += (hot + dirty * 0.45 + ejecta + haze) * stride;
+    star += (hot + dirty * 0.45 + ejecta) * stride;
 
     travelled += stride;
     if (travelled > FAR) break;
@@ -113,13 +102,8 @@ void main() {
   float flared = uStarGlow * (1.0 + uFlare * 4.0);
   star = star / float(uSteps) * flared;
 
-  // Three temperatures, not two: the thin haze reads as deep amber smoke,
-  // the working glow as the record's warm cream, and only saturation goes
-  // white. Without the ember floor the burning air came out pale — parchment
-  // fog instead of firelight.
-  vec3 base = mix(vec3(0.72, 0.36, 0.14), uRecord, clamp(star * 1.4, 0.0, 1.0));
   vec3 colour =
-    mix(base, vec3(1.0, 0.95, 0.88), clamp(star * 0.7 + uFlare * 0.4, 0.0, 0.92)) * star;
+    mix(uRecord, vec3(1.0, 0.95, 0.88), clamp(star * 0.7 + uFlare * 0.4, 0.0, 0.92)) * star;
   // Clipping to white is allowed only well past core saturation, so the bloom
   // stays where the light actually is.
   colour += vec3(1.0) * max(star - 1.9, 0.0) * 0.5;

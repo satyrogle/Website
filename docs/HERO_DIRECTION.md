@@ -108,25 +108,6 @@ slabs that came out of them share the frame, so a viewer can mentally
 reassemble the original sphere. That relationship outranks any previous
 camera coordinates.
 
-**THE ULTRA DIRECTIVE (Jacob, 2026-08-13) — the ontology. Destruction
-language from Lamentis (globally compromised structure) and Krypton
-(core-driven failure reaching an explosive critical state); the site begins
-in the outward phase.** Stop modelling "planet + wound + detached pieces":
-model THE PLANET BECOMING ITS PIECES. The shell is partitioned into ~14
-continent-scale plates that together reconstruct the original sphere — no
-surviving lump plays "the planet" while everything else plays debris. At the
-hero state every plate has separation: back hemisphere barely (the spherical
-gestalt must stay mentally reconstructable), blast hemisphere ejected,
-forming the corridor. Five plates are the authored stops; the rest remain
-the catastrophe. Velocity is weighted: radial everywhere + dominant blast
-bias + local jitter. The core is never a clean silhouette — radiance through
-the widening gaps only. Fracture is hierarchical: real plate gaps (primary),
-baked crevasse belts (secondary), hairline vein web (tertiary), heat graded
-by separation age. Motion is inertial state-scrubbing; no springs, no waves.
-At 44/100 the plates span ~1.5–2.5 original diameters and the eye rebuilds
-the sphere from them. Topology and silhouette outrank bloom, dust and
-micro-material work until this read lands.
-
 **Radial restaging (Jacob, 2026-08-13): "I said funnel the view, not funnel
 the explosion."** The corridor was a misread and is dead. The breakup is
 omnidirectional: every slab flies on the line out of its own wound, mediums

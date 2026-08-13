@@ -1,5 +1,5 @@
 """
-build-planet.py — a planet ceasing to be a planet. v6.
+build-planet.py — one dying planet, shattered into its own parts. v4.
 
 Run headless:
 
@@ -7,26 +7,38 @@ Run headless:
 
 Writes `public/models/planet.glb` and `public/models/planet-manifest.json`.
 
-The ontology, from Jacob's ultra directive (2026-08-13, destruction language
-from Lamentis and Krypton): do not model "planet + wound + detached pieces" —
-model THE PLANET BECOMING ITS PIECES. One master shell (solidified before
-displacement, so the boolean operands stay manifold; terrain from `elevation`,
-disturbance graded by distance from the rupture centre) is partitioned into
-~14 continent-scale plates by tiling cell volumes cut from pair-jittered
-bisector planes. The plates together ARE the original sphere. Every plate has
-separated — the back hemisphere barely, so the spherical gestalt survives,
-the blast hemisphere entirely, forming the corridor the scroll travels. Five
-plates ride the corridor ladder as the website's authored stops; the rest
-remain the exploding world.
+The v3 rule, from Jacob, verbatim in docs/HERO_DIRECTION.md: the five hero
+slabs and the surviving body must derive from ONE common fractured planet. A
+viewer looking at a detached slab should be able to mentally place it back
+into the missing region. That pipeline is unchanged here — same cutters, same
+staging numbers, same layout.
 
-The mark, baked per corner into one colour attribute:
-    r  1.0 on the original exterior, 0.0 on anything the event exposed
-    g  temperature of an exposed face: 1.0 on true cross-sections and plate
-       walls, low on the solidify lining — the crust's old underside reads
-       as dark burnt mass, never as a dish of molten orange
-    b  terrain altitude, for the material's value language
-    a  venting along the baked fracture web (secondary/tertiary faults; the
-       primary faults are the real gaps between the plates now)
+What v4 changes, from Jacob's read of the v3 frames ("black sphere plus
+orange shards, not one planet tearing itself apart"):
+
+1.  GEOLOGY, not noise. The surface function now speaks planetary language —
+    terraced plateaus split by scarps, ridge belts that run in chains and
+    leave dead plains between them, and irregular impact basins with raised
+    rims — instead of three octaves of smooth fbm that read as lumps. The
+    total is soft-capped so the body still reads as a sphere that came apart.
+
+2.  SOLIDIFY BEFORE DISPLACEMENT. v3 displaced the sphere and then thickened
+    it, and where the terrain curved harder than the crust is thick, the
+    inner surface self-intersected — which is what made the EXACT boolean
+    return an empty mesh for slab_00, the nearest and largest piece. Now the
+    clean sphere is thickened first and both surfaces are displaced radially
+    afterwards; the shells stay parallel by construction and every cutter
+    gets a manifold operand.
+
+3.  A GRADED MARK instead of a binary one. Faces are classified into three
+    kinds and baked into one colour attribute:
+        r  1.0 on the original exterior, 0.0 on anything the event exposed
+        g  temperature of the exposed face: 1.0 on true cut cross-sections
+           and wound walls, low on the solidify lining — the crust's old
+           underside, which has had a planet's age to cool and must read as
+           dark burnt mass, not as a dish of molten orange
+        b  terrain height on the exterior, for the material's value language
+           (highlands catch more of the void's light than basins)
 
 Deterministic from SEED. Same file every run.
 """
@@ -55,36 +67,38 @@ CORE_RADIUS = 3.55
 #: crosses two of them, and smooth shading rounds the step back into a lump.
 SUBDIV = 7
 
-#: THE ONTOLOGY (Jacob's ultra directive, 2026-08-13): stop modelling
-#: "planet + wound + detached pieces" — model THE PLANET BECOMING ITS
-#: PIECES. The whole shell is partitioned into continent-scale plates that
-#: together reconstruct the original sphere; there is no surviving lump.
-#: Every plate has separated: the back hemisphere barely, the blast side
-#: entirely. The five plates flung down the corridor ladder are the
-#: website's authored stops; the rest remain the exploding world, so the
-#: catastrophe does not appear to have broken into exactly five navigation
-#: objects.
-#: Thirteen superplates. Eighteen made slivers, and slivers are rubble: the
-#: directive is explicit that enormous masses must define the event and small
-#: debris must stay subordinate. At thirteen each plate is ~8% of the world's
-#: surface — a continent, visibly huge at any stop.
-PLATE_COUNT = 13
+#: The five wounds/slabs: angular size, and how far each piece has flown
+#: ALONG ITS OWN WOUND NORMAL. Jacob, on the corridor this replaces: "how
+#: can debris flow in a line — I said funnel the view, not funnel the
+#: explosion." A piece leaves through its hole and keeps going on that
+#: radial line; the ladder of flight distances is what the scroll descends,
+#: not a shared axis the debris was never thrown down.
+SLABS = (
+    {"ang": 0.70, "flight": 2.6},
+    {"ang": 0.55, "flight": 5.5},
+    {"ang": 0.46, "flight": 9.0},
+    {"ang": 0.36, "flight": 13.5},
+    {"ang": 0.30, "flight": 18.0},
+)
 
-#: Flight distances for the five hero plates, near to far — the ladder the
-#: scroll descends.
-HERO_FLIGHTS = (2.6, 5.5, 9.0, 13.5, 18.0)
+#: Where the cutters bite, as (u, v) offsets around the corridor axis. The
+#: primary sits at the rupture centre; 1 and 2 overlap its rim so the three
+#: tear as ONE compound wound (overlaps cannot double-extract — each slab is
+#: cut from the already-wounded shell, so adjoining pieces share torn rims);
+#: 3 and 4 sit further out along the fissure lines.
+#: Tightened for the silhouette (spec: "the rupture as a wound INSIDE a
+#: recognizable globe"): the earlier spread left a floppy crescent of shell
+#: between the primary bite and its neighbours, and the body read as a
+#: cracked nut with a hood, not a world.
+WOUND_OFFSETS = ((0.30, 0.22), (0.58, -0.04), (0.04, 0.42), (0.78, 0.66), (-0.14, 0.50))
 
-#: Hero plate seed directions, as (u, v) offsets around the corridor axis.
-#: Spread far wider than the old cluster: packed tightly they produced hero
-#: cells of a few hundred polygons — website stops made of slivers. Seed 0
-#: is the rupture centre the whole grading system keys from.
-HERO_OFFSETS = ((0.15, 0.10), (0.88, -0.36), (-0.30, 0.82), (0.55, 0.98), (-0.78, -0.46))
-
-#: How far each surviving plate has travelled from its seat, in planet
-#: radii, cycled by filler index. The directive's own ladder: some barely
-#: parted, some a third of a radius out, some most of a radius clear — so no
-#: subset of them can close back up into a shell.
-FILLER_TIERS = (0.16, 0.64, 0.30, 0.98, 0.22, 0.78, 0.44, 1.20)
+#: Secondary fissures radiating from the rupture zone: (direction from the
+#: rupture centre in (u, v), reach along it, half-extents of the ragged wedge).
+FISSURES = (
+    {"dir": (1.30, 1.30), "reach": 0.52, "size": (2.9, 0.42, 0.62)},
+    {"dir": (-1.20, 0.90), "reach": 0.55, "size": (2.4, 0.38, 0.55)},
+    {"dir": (0.90, -0.95), "reach": 0.48, "size": (2.6, 0.40, 0.50)},
+)
 
 #: Medium debris: how many, and how far the furthest has got. Directions are
 #: drawn around the whole body — a breakup sheds everywhere — biased toward
@@ -181,84 +195,7 @@ def _make_plate_seeds(seed, count=16):
 
 _PLATE_SEEDS = _make_plate_seeds(SEED + 141)
 
-#: The finer tier of the same failure: a denser cellular web whose boundaries
-#: are hairlines, not canyons. The reference frame's fracture language is
-#: hierarchical — filament, vein, channel — and one cell size cannot speak it.
-_VEIN_SEEDS = _make_plate_seeds(SEED + 143, count=42)
-
-RUPTURE_DIR = unit(_AXIS + HERO_OFFSETS[0][0] * _U + HERO_OFFSETS[0][1] * _V)
-
-
-def plate_seed_dirs():
-    """
-    The five authored hero regions on the blast hemisphere, then filler
-    seeds rejection-sampled over the rest of the sphere with a minimum
-    separation. Heroes cluster and fillers spread, which is the physics:
-    the failing hemisphere breaks smaller, the far side breaks huge.
-    """
-    seeds = [unit(_AXIS + a * _U + b * _V) for a, b in HERO_OFFSETS]
-    rng = np.random.default_rng(SEED + 211)
-    attempts = 0
-    # The rest spread over the whole sphere at superplate spacing. No
-    # clustering pass any more: the old one existed to keep survivors packed
-    # around the core so its silhouette stayed hidden, and the core has no
-    # silhouette to hide now.
-    while len(seeds) < PLATE_COUNT and attempts < 12000:
-        attempts += 1
-        candidate = unit(rng.normal(size=3))
-        if all(float(np.dot(candidate, s)) < math.cos(0.72) for s in seeds):
-            seeds.append(candidate)
-    return seeds
-
-
-def build_cells(seeds):
-    """
-    One closed convex-ish volume per plate, tiling space: a big cube cut by
-    the jittered bisector plane of every seed pair. Jitter is derived from
-    the PAIR, canonically oriented, so both neighbours use the identical
-    plane and the cells tile with no gap and no overlap — the partition is
-    exact by construction. The jitter is what keeps the boundaries from
-    being perfect Voronoi: offset and tilted, they read as long tectonic
-    arcs, not a diagram.
-    """
-    cells = []
-    for i in range(len(seeds)):
-        bpy.ops.mesh.primitive_cube_add(size=30.0)
-        cell = bpy.context.active_object
-        cell.name = f'CELL_{i:02d}'
-        bm = bmesh.new()
-        bm.from_mesh(cell.data)
-        for j in range(len(seeds)):
-            if j == i:
-                continue
-            a, b = (i, j) if i < j else (j, i)
-            rng = np.random.default_rng(SEED + 3000 + a * 41 + b)
-            chord = unit(np.array(seeds[b]) - np.array(seeds[a]))
-            normal = unit(chord + rng.normal(size=3) * 0.07)
-            # Fair again, jitter only. The hero-shrink weighting was a
-            # workaround for a core that had a boundary to unveil; with the
-            # interior unbounded, heroes are allowed to be the continents
-            # they need to be.
-            offset = float(rng.uniform(-0.35, 0.35))
-            plane_no = normal if i == a else -normal
-            result = bmesh.ops.bisect_plane(
-                bm,
-                geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
-                plane_co=Vector(tuple(normal * offset)),
-                plane_no=Vector(tuple(plane_no)),
-                clear_outer=True,
-            )
-            if not bm.verts:
-                break
-            cut_edges = [g for g in result['geom_cut'] if isinstance(g, bmesh.types.BMEdge)]
-            if cut_edges:
-                bmesh.ops.edgenet_fill(bm, edges=cut_edges)
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-        bm.to_mesh(cell.data)
-        bm.free()
-        cell.data.materials.append(_marker_material('CUT_MAT'))
-        cells.append(cell)
-    return cells
+RUPTURE_DIR = unit(_AXIS + WOUND_OFFSETS[0][0] * _U + WOUND_OFFSETS[0][1] * _V)
 
 
 def fracture_field(d):
@@ -294,20 +231,6 @@ def fracture_field(d):
     facing = max(-1.0, min(1.0, float(np.dot(d, RUPTURE_DIR))))
     proximity = _smooth01((1.35 - math.acos(facing)) / 1.35)
     return openness, proximity
-
-
-def vein_field(d):
-    """The finer web: same construction, thinner boundaries, more cells."""
-    best = 8.0
-    second = 8.0
-    for seed_dir in _VEIN_SEEDS:
-        dist = 1.0 - float(np.dot(d, seed_dir))
-        if dist < best:
-            second = best
-            best = dist
-        elif dist < second:
-            second = dist
-    return 1.0 - _smooth01((second - best) / 0.020)
 
 #: Soft cap on total elevation, as a fraction of radius. Geology has to be
 #: unmistakable and the body still has to read as a sphere that came apart.
@@ -355,16 +278,9 @@ def elevation(direction):
     riser = _smooth01((q - level - 0.52) / 0.30)
     plateau = 0.120 * ((level + riser) / steps - 1.0)
 
-    # How disturbed this part of the world is. The reference frame's power is
-    # contrast: a calm, almost serene surviving cap against a shattering
-    # rupture hemisphere. Busy-ness everywhere reads as an asteroid; the
-    # gradient reads as a world in the act of failing.
-    facing = max(-1.0, min(1.0, float(np.dot(d, RUPTURE_DIR))))
-    unrest = 0.40 + 0.60 * _smooth01((1.9 - math.acos(facing)) / 1.9)
-
     belt = _smooth01((fbm(d * 1.35, SEED + 29, octaves=2) - 0.02) / 0.55)
     ridged = 1.0 - abs(fbm(d * 3.9, SEED + 23, octaves=4))
-    meso = 0.100 * unrest * belt * (ridged ** 2.4 - 0.30)
+    meso = 0.100 * belt * (ridged ** 2.4 - 0.30)
 
     bowls = 0.0
     for crater in _CRATERS:
@@ -380,22 +296,16 @@ def elevation(direction):
                                + 0.07 * math.sin(5.0 * phi + p2))
         x = ang / max(rho, 1e-4)
         if x < 1.0:
-            bowls -= crater['depth'] * unrest * (1.0 - _smooth01((x - 0.55) / 0.45))
+            bowls -= crater['depth'] * (1.0 - _smooth01((x - 0.55) / 0.45))
         lip = 1.0 - abs(x - 1.0) / 0.22
         if lip > 0.0:
-            bowls += crater['depth'] * crater['rim'] * unrest * lip * lip
+            bowls += crater['depth'] * crater['rim'] * lip * lip
 
     micro = 0.008 * fbm(d * 11.0, SEED + 37, octaves=3)
 
-    # The failing boundaries, carved into the whole globe at two scales:
-    # plate canyons, and the finer vein web that only opens where the death
-    # is close — filament, vein, channel, the fracture hierarchy.
-    # Demoted to the SECOND tier: the primary faults are the real geometric
-    # gaps between the separated plates now, so the baked boundaries carve
-    # shallower — structural memory, not the main event.
+    # The failing plate boundaries, carved into the whole globe.
     openness, proximity = fracture_field(d)
-    crevasse = -openness * (0.010 + 0.042 * proximity)
-    crevasse -= vein_field(d) * (0.004 + 0.030 * proximity)
+    crevasse = -openness * (0.020 + 0.085 * proximity)
 
     total = macro + plateau + meso + bowls + micro + crevasse
     return ELEV_CAP * math.tanh(total / ELEV_CAP)
@@ -405,7 +315,7 @@ def radius_at(direction):
     return BODY_RADIUS * (1.0 + elevation(direction))
 
 
-def mark_crust(obj, tolerance=0.955, heat=1.0, heat_seed=0):
+def mark_crust(obj, tolerance=0.955):
     """
     The graded mark, baked per corner into one colour attribute.
 
@@ -448,17 +358,8 @@ def mark_crust(obj, tolerance=0.955, heat=1.0, heat_seed=0):
         cached = vertex_venting[vertex_index]
         if cached < 0.0:
             d = Vector(mesh.vertices[vertex_index].co).normalized()
-            direction = np.array(d[:])
-            openness, proximity = fracture_field(direction)
-            veins = vein_field(direction)
-            # Both fracture tiers vent, graded by proximity — but with a
-            # floor: no region feels safe. The far side of a world under
-            # internal catastrophe carries dim ember hairlines, not clean
-            # crust; only the intensity varies with how far the death has
-            # progressed.
-            grade = 0.12 + 0.88 * proximity
-            cached = max((openness ** 1.5) * grade,
-                         (veins ** 1.8) * grade * 0.7)
+            openness, proximity = fracture_field(np.array(d[:]))
+            cached = (openness ** 1.5) * proximity
             vertex_venting[vertex_index] = cached
         return cached
 
@@ -468,19 +369,10 @@ def mark_crust(obj, tolerance=0.955, heat=1.0, heat_seed=0):
         surface = BODY_RADIUS * (1.0 + elevation(np.array(direction[:])))
         outward = poly.normal.dot(direction)
         if poly.material_index == cut_slot:
-            # A wall where this plate tore from its neighbours — but not all
-            # of it, and not for ever. Every wall lit at full temperature is
-            # what welded the separated plates into a continuous orange
-            # annulus around the centre: peeled fruit, halo, eggshell. So
-            # heat is patchy along each wall (large fbm patches: a localised
-            # hot fracture edge with dark stretches between) and scaled by
-            # how far the plate has travelled since it parted — the pieces
-            # that flew keep only residual ember.
-            patch = 0.5 + 0.5 * fbm(np.array(direction[:]) * 2.6, SEED + 600 + heat_seed, octaves=3)
-            local = 0.10 + 0.95 * _smooth01((patch - 0.30) / 0.45)
-            value = max(0.05, min(1.0, heat * local))
+            # The boolean marked this face itself: a wall of the wound, or
+            # the torn band around a slab's edge. Fresh, full temperature.
             for loop_index in poly.loop_indices:
-                attribute.data[loop_index].color = (0.0, value, 0.5, 0.0)
+                attribute.data[loop_index].color = (0.0, 1.0, 0.5, 0.0)
         elif centre.length > surface * tolerance and outward > 0.05:
             for loop_index in poly.loop_indices:
                 vertex_index = mesh.loops[loop_index].vertex_index
@@ -523,6 +415,44 @@ def _marker_material(name):
     if material is None:
         material = bpy.data.materials.new(name)
     return material
+
+
+def irregular_cutter(centre, extent, seed):
+    """
+    A ragged volume — a tear, not a machined socket.
+
+    The v4 cutters were six flat planes, and every wound and every slab edge
+    inherited their geometry: clean boolean cuts, which is exactly the read
+    the directive kills ("the wound must feel like a violent tearing open").
+    This is a displaced sphere instead: broad lobes so the outline wanders,
+    torn detail so no rim segment is straight, anisotropic so no two wounds
+    share proportions. Two-octave families on separate seeds, per-cutter.
+    """
+    rng = np.random.default_rng(seed)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1.0)
+    obj = bpy.context.active_object
+    obj.name = 'CUTTER'
+    for vert in obj.data.vertices:
+        d = np.array(Vector(vert.co).normalized()[:])
+        lobes = fbm(d * 1.6, seed, octaves=4)
+        torn = fbm(d * 5.2, seed + 1, octaves=3)
+        r = 1.0 + 0.30 * lobes + 0.13 * torn
+        vert.co = Vector((d[0] * extent[0], d[1] * extent[1], d[2] * extent[2])) * r
+    # Displacement along the radius keeps the solid star-shaped, but recalc
+    # anyway: an inverted operand cuts dirty and the material transfer that
+    # marks the walls silently matches nothing (v4's slab_00 died of this).
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.materials.append(_marker_material('CUT_MAT'))
+    obj.location = tuple(float(x) for x in centre)
+    # Tilted, so no cut axis aligns with anything.
+    tilt = unit(rng.normal(size=3))
+    obj.rotation_mode = 'QUATERNION'
+    obj.rotation_quaternion = Quaternion(Vector(tuple(tilt)), float(rng.uniform(-0.5, 0.5)))
+    return obj
 
 
 def duplicate(obj, name):
@@ -587,6 +517,14 @@ def build_master_shell():
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
+    axis = np.array([1.0, 0.0, 0.0])
+    u, v = tangent_basis(axis)
+
+    slab_dirs = []
+    for i, slab in enumerate(SLABS):
+        a, b = WOUND_OFFSETS[i]
+        slab_dirs.append((unit(axis + a * u + b * v), slab))
+
     shell = build_master_shell()
 
     manifest = {
@@ -594,94 +532,81 @@ def main():
         'coreRadius': CORE_RADIUS,
         'axis': [1.0, 0.0, 0.0],
         'stops': [],
-        'plates': [],
         'mediums': [],
     }
 
-    # ------------------------------------------------------------ the plates
-    #
-    # The whole shell, partitioned. Every plate is cut from the master by its
-    # own tiling cell, so together the plates ARE the original sphere — there
-    # is no surviving lump being treated as "the planet" while everything
-    # else plays debris. That ontology was the deep fault of every earlier
-    # version: one body with a wound reads as a damaged planet; a partitioned
-    # shell in graded separation reads as a planet ceasing to be one.
-    seeds = plate_seed_dirs()
-    cells = build_cells(seeds)
+    # Extract each slab with the same cutter that wounds the body, so the
+    # piece and the hole are complements by construction — the fit the whole
+    # reveal depends on.
+    slabs = []
+    for i, (direction, slab) in enumerate(slab_dirs):
+        centre = direction * (BODY_RADIUS * 0.99)
+        size = BODY_RADIUS * slab['ang'] * np.array([0.92, 0.74, 0.86])
+        size = np.maximum(size, 1.9)
+        cutter = irregular_cutter(centre, size, SEED + 404 + i * 17)
 
-    plates = []
-    for i, cell in enumerate(cells):
-        name = f'slab_{i:02d}' if i < len(HERO_FLIGHTS) else f'plate_{i:02d}'
-        piece = duplicate(shell, name)
-        apply_boolean(piece, cell, 'INTERSECT')
-        bpy.data.objects.remove(cell, do_unlink=True)
-        print(f'PLATE {i} polys {len(piece.data.polygons)}')
-        if len(piece.data.polygons) < 24:
-            print(f'PLATE {i} CULLED - degenerate cell')
+        piece = duplicate(shell, f'slab_{i:02d}')
+        apply_boolean(piece, cutter, 'INTERSECT')
+        apply_boolean(shell, cutter, 'DIFFERENCE')
+        bpy.data.objects.remove(cutter, do_unlink=True)
+
+        # A silent cull here is a wound with no piece — v3 shipped exactly
+        # that, slab_00 lost to a degenerate boolean, and the reveal lost the
+        # one fragment that still hangs beside its own hole. Loud either way.
+        print(f'SLAB {i} polys {len(piece.data.polygons)}')
+        if len(piece.data.polygons) < 8:
+            print(f'SLAB {i} CULLED — boolean returned a degenerate piece')
             bpy.data.objects.remove(piece, do_unlink=True)
             continue
-        plates.append((i, piece, np.array(seeds[i])))
+        slabs.append((piece, slab, direction))
 
-    # The master has given everything it had: the plates carry the whole
-    # shell between them, and exporting the intact original alongside them
-    # would put the planet in the frame twice.
-    bpy.data.objects.remove(shell, do_unlink=True)
+    # Secondary fissures, radiating outward from the rupture centre: long
+    # ragged wedges half-sunk into the crust, DIFFERENCE only — canyons that
+    # leak interior light, no piece comes off. Each is aimed along the local
+    # surface tangent toward its own target direction, so the cracks run
+    # ACROSS the crust rather than stabbing into it.
+    rupture_centre = unit(axis + WOUND_OFFSETS[0][0] * u + WOUND_OFFSETS[0][1] * v)
+    for i, fissure in enumerate(FISSURES):
+        fa, fb = fissure['dir']
+        target = unit(axis + (WOUND_OFFSETS[0][0] + fa) * u + (WOUND_OFFSETS[0][1] + fb) * v)
+        mid = unit(rupture_centre + (target - rupture_centre) * fissure['reach'])
+        tangent = unit(target - mid * float(np.dot(target, mid)))
+        centre = mid * (radius_at(mid) * 0.985)
+        wedge = irregular_cutter(centre, np.array(fissure['size']), SEED + 900 + i * 31)
+        # Long axis along the tangent, mid axis along the surface, thin axis
+        # radial-ish: build the swing from +X onto the tangent line.
+        swing = Quaternion(Vector((1.0, 0.0, 0.0)).cross(Vector(tuple(tangent))).normalized(),
+                           math.acos(max(-1.0, min(1.0, float(tangent[0])))))
+        wedge.rotation_quaternion = swing @ wedge.rotation_quaternion
+        apply_boolean(shell, wedge, 'DIFFERENCE')
+        bpy.data.objects.remove(wedge, do_unlink=True)
 
-    # ------------------------------------------------------- the separation
-    #
-    # Weighted velocity, per the directive: a radial component so the WHOLE
-    # planet is exploding, a dominant blast component so one hemisphere forms
-    # the corridor the scroll travels, and local jitter so nothing is
-    # regular. The back of the world has barely let go — small separations
-    # keep the spherical gestalt reconstructable — while the blast side is
-    # already gone: the five hero plates ride the corridor ladder.
-    filler = 0
-    for i, piece, seed_dir in plates:
-        radial = unit(seed_dir)
-        t1, t2 = tangent_basis(radial)
-        drift = (t1 * float(RNG.uniform(-0.7, 0.7))
-                 + t2 * float(RNG.uniform(-0.7, 0.7)))
-        blastw = _smooth01((float(np.dot(radial, RUPTURE_DIR)) + 0.55) / 1.55)
+    shell.name = 'body'
+    mark_crust(shell)
 
-        if i < len(HERO_FLIGHTS):
-            travel = HERO_FLIGHTS[i]
-            spin_range = 0.22
-        else:
-            # Radial explosion FIRST — every side of the world expanding —
-            # then the blast bias that makes one hemisphere the corridor.
-            # The old separations were a twentieth of a radius: a shell with
-            # gaps, not a planet coming apart.
-            travel = BODY_RADIUS * FILLER_TIERS[filler % len(FILLER_TIERS)]
-            travel += (blastw ** 2) * BODY_RADIUS * (0.30 + 0.55 * float(RNG.random()))
-            filler += 1
-            spin_range = 0.10
-
-        # Heat by separation age, per the chronology: barely-parted plates
-        # keep white-hot walls, the long-gone are ember at best.
-        heat = max(0.12, min(1.0, 1.05 - 0.085 * travel))
-        mark_crust(piece, heat=heat, heat_seed=i * 37)
+    for piece, slab, direction in slabs:
+        mark_crust(piece)
         centre = recentre(piece)
-
-        bias = RUPTURE_DIR * (blastw * (0.25 + 0.7 * float(RNG.random()))) if i >= len(HERO_FLIGHTS) else np.zeros(3)
-        position = centre + radial * travel + bias + drift * 0.6
+        # The piece leaves through its own hole and keeps going: flight is
+        # along the wound normal from the piece's original seat, with a small
+        # tangential drift so no line is laser-straight. A viewer tracing any
+        # slab back along its motion arrives at its wound — the kinship read
+        # is the physics now, not a layout convention.
+        t1, t2 = tangent_basis(direction)
+        drift = (t1 * float(RNG.uniform(-0.9, 0.9))
+                 + t2 * float(RNG.uniform(-0.9, 0.9)))
+        position = centre + direction * slab['flight'] + drift
         piece.location = tuple(float(x) for x in position)
         spin = unit(RNG.normal(size=3))
         piece.rotation_mode = 'QUATERNION'
-        piece.rotation_quaternion = Quaternion(Vector(tuple(spin)), float(RNG.uniform(-spin_range, spin_range)))
+        piece.rotation_quaternion = Quaternion(Vector(tuple(spin)), float(RNG.uniform(-0.3, 0.3)))
 
         extent = max((Vector(w.co).length for w in piece.data.vertices), default=1.0)
-        entry = {
+        manifest['stops'].append({
             'name': piece.name,
             'position': [float(x) for x in position],
             'extent': float(extent),
-        }
-        # Every plate is published, not just the five the scroll stops at:
-        # the rail needs the whole set to find a former tectonic boundary to
-        # fly through, and nothing may be staged from a piece that is not
-        # really there.
-        manifest['plates'].append(entry)
-        if i < len(HERO_FLIGHTS):
-            manifest['stops'].append(entry)
+        })
 
     # ---------------------------------------------------------------- mediums
     #

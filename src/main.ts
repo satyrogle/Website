@@ -353,8 +353,6 @@ if (import.meta.env.DEV) {
         return scene?.quality.settings ?? null;
       },
       press: (x: number, y: number) => scene?.pressAt(x, y) ?? -1,
-      // The structural test: superplates and interior light only.
-      isolate: (on: boolean) => scene?.isolatePlates(on),
     },
   });
 }

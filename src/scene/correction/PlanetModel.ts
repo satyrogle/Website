@@ -46,7 +46,6 @@ interface Manifest {
   bodyRadius: number;
   coreRadius: number;
   stops: ManifestEntry[];
-  plates?: ManifestEntry[];
   mediums: ManifestEntry[];
 }
 
@@ -58,7 +57,7 @@ export interface Piece {
   drift: THREE.Vector3;
   spin: THREE.Vector3;
   extent: number;
-  kind: 'body' | 'slab' | 'chunk' | 'crack' | 'plate';
+  kind: 'body' | 'slab' | 'chunk' | 'crack';
 }
 
 /** A stop the rail can visit, in world space. */
@@ -72,7 +71,7 @@ export interface Stop {
 export const MATERIAL = { heat: 1.1, crustLight: 1.0, rim: 0.9 };
 
 /** The core's emission, and how much the flare drives it. */
-export const CORE_GLOW = { base: 2.8, flare: 4.2 };
+export const CORE_GLOW = { base: 1.75, flare: 3.6 };
 
 /** The instanced ejecta field along the corridor. */
 export const EJECTA = { perGeometry: 56, geometries: 8, reach: 29.0 };
@@ -139,7 +138,6 @@ export class PlanetModel {
   private readonly pieces: Piece[] = [];
   private readonly scratch = new THREE.Vector3();
   private stopsWorld: Stop[] = [];
-  private platesWorld: Stop[] = [];
   private dustTexture: THREE.CanvasTexture | null = null;
   private dustMaterials: { material: THREE.PointsMaterial; opacity: number }[] = [];
   private core: THREE.Mesh | null = null;
@@ -176,38 +174,28 @@ export class PlanetModel {
       uCoreBase: { value: CORE_GLOW.base },
       uCoreFlare: { value: CORE_GLOW.flare },
     };
-    // THE INTERIOR HAS NO SURFACE. Every version until now put a sphere
-    // here — a mesh with a silhouette — and a sphere is a thing you can
-    // point at: "there's the core", and the crust around it becomes an
-    // eggshell peeling off a reactor. Jacob, exactly: delete the visible
-    // core sphere completely.
-    //
-    // So this is a volume, not an object. It renders on the INSIDE of an
-    // oversized shell, which puts its depth beyond the plates so any plate
-    // occludes it and it can only be seen through real gaps; it is additive,
-    // so it is light rather than material; and its brightness is a function
-    // of how near the sightline passes to the centre, falling smoothly to
-    // nothing long before the shell it is drawn on. There is no radius at
-    // which it stops — nothing for the eye to find an edge on.
-    //
-    // Structure without a surface: turbulence sampled along the sightline
-    // gives it filaments and pressure cells, and the one blackbody ramp
-    // still runs ember -> orange -> white so it belongs to the same fire as
-    // every break face.
+    // Not a lamp, and not an airbrushed gradient either. The interior is a
+    // crusted melt: thin cooled plates rafting on the molten body, and the
+    // heat burning through the seams between them — the same law the whole
+    // hero obeys, light belongs to the break, applied one layer deeper.
+    // Structure comes from two scales of domain-warped cellular fracture
+    // (warped so the plates raft rather than tile); regional convection
+    // makes some provinces more broken and brighter than others; one
+    // blackbody ramp carries ember plate -> orange seam -> white-hot core
+    // of the widest cracks. The flare widens the seams and drives the whole
+    // ramp toward white, so the finale keeps its escalation.
     this.coreMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       uniforms: this.coreUniforms,
       vertexShader: /* glsl */ `
-        out vec3 vWorld;
-        out vec3 vCentre;
+        out vec3 vNormal;
+        out vec3 vView;
+        out vec3 vLocal;
         void main() {
           vec4 world = modelMatrix * vec4(position, 1.0);
-          vWorld = world.xyz;
-          // Carried from here because modelMatrix is a vertex-stage
-          // built-in: reaching for it in the fragment shader fails the whole
-          // program, and a failed program is an invisible one — the interior
-          // simply was not being drawn.
-          vCentre = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          vNormal = normalize(mat3(modelMatrix) * normal);
+          vView = normalize(cameraPosition - world.xyz);
+          vLocal = position;
           gl_Position = projectionMatrix * viewMatrix * world;
         }
       `,
@@ -217,9 +205,36 @@ export class PlanetModel {
         uniform float uExposure;
         uniform float uCoreBase;
         uniform float uCoreFlare;
-        in vec3 vWorld;
-        in vec3 vCentre;
+        in vec3 vNormal;
+        in vec3 vView;
+        in vec3 vLocal;
         out vec4 fragColour;
+
+        vec3 hash3(vec3 p) {
+          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
+                   dot(p, vec3(269.5, 183.3, 246.1)),
+                   dot(p, vec3(113.5, 271.9, 124.6)));
+          return fract(sin(p) * 43758.5453);
+        }
+
+        // F1/F2 cellular distances: F2-F1 is ~0 on a border between plates
+        // and grows toward each plate's centre.
+        vec2 plates(vec3 x) {
+          vec3 n = floor(x);
+          vec3 f = fract(x);
+          float d1 = 8.0;
+          float d2 = 8.0;
+          for (int k = -1; k <= 1; k++)
+          for (int j = -1; j <= 1; j++)
+          for (int i = -1; i <= 1; i++) {
+            vec3 g = vec3(float(i), float(j), float(k));
+            vec3 r = g + hash3(n + g) - f;
+            float d = dot(r, r);
+            if (d < d1) { d2 = d1; d1 = d; }
+            else if (d < d2) { d2 = d; }
+          }
+          return sqrt(vec2(d1, d2));
+        }
 
         // One temperature ramp for everything: deep ember, through orange,
         // into yellow-white. Premium is one consistent physics, not many
@@ -230,64 +245,49 @@ export class PlanetModel {
           return mix(c, vec3(1.0, 0.97, 0.90), clamp((t - 1.25) * 1.6, 0.0, 0.9));
         }
 
-        // Pressure structure: warped sine products, so the volume carries
-        // filaments and cells without ever describing a surface. Biased
-        // dark by the square, so the density has real voids rather than an
-        // even haze — voids are what stop an integral reading as a ball.
-        float turbulence(vec3 q) {
-          float bend = 1.6 * sin(q.y * 0.72 + q.x * 0.43);
-          float a = sin(q.x * 1.5 + bend) * sin(q.y * 1.3 - bend);
-          float b = sin(q.z * 2.4 + bend * 1.3) * sin(q.x * 2.0 - q.z * 0.9);
-          float c = sin(q.x * 4.1 - bend) * sin(q.y * 3.6 + bend);
-          float t = clamp(0.5 + 0.34 * a + 0.22 * b + 0.12 * c, 0.0, 1.0);
-          return t * t;
-        }
-
         void main() {
-          // The interior is INTEGRATED along the sightline, not evaluated as
-          // a function of how near that line passes the centre. The
-          // distance form was tried first and it draws a disc: any
-          // radially symmetric emission, seen from outside, has a circular
-          // extent — the forbidden spherical boundary wearing a soft edge.
-          // Marching a turbulent density means each sightline accumulates a
-          // different amount through a different part of the volume, so the
-          // light ends in a ragged, unrepeatable outline that belongs to no
-          // sphere.
-          vec3 centre = vCentre;
-          vec3 ray = normalize(vWorld - cameraPosition);
-          float along = dot(centre - cameraPosition, ray);
+          float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
 
-          const int STEPS = 10;
-          const float SPAN = 13.0;
-          float acc = 0.0;
-          for (int i = 0; i < STEPS; i++) {
-            float t = along + (float(i) / float(STEPS - 1) - 0.5) * SPAN;
-            if (t <= 0.0) continue;
-            vec3 rel = cameraPosition + ray * t - centre;
-            // No pow(): the base is exactly zero on the sightline through
-            // the centre, and pow(0, y) is the NaN that once rendered this
-            // project's hero black on the real card while software
-            // rasterisers showed it fine.
-            float r2 = dot(rel, rel) / 10.5;
-            acc += exp(-r2) * turbulence(rel * 0.62);
-          }
-          acc /= float(STEPS);
+          // Rafted, not tiled: the cell domain is bent by a slow flow first.
+          // Plate size is authored for the wound aperture: at 0.95 the hot
+          // province showed a dozen cells at once and read as honeycomb
+          // (Jacob). At 0.62 the aperture holds two to four monumental
+          // rafts — fracture, not pattern.
+          vec3 p = vLocal * 0.62
+                 + 0.50 * vec3(sin(vLocal.y * 0.8 + vLocal.z * 0.5),
+                               sin(vLocal.z * 0.9 - vLocal.x * 0.4),
+                               sin(vLocal.x * 0.7 + vLocal.y * 0.6));
+          vec2 major = plates(p);
+          vec2 minor = plates(p * 2.9 + 7.31);
+
+          // Regional convection: whole provinces run hotter and more broken.
+          // Squared into a hard unevenness — the first cellular pass lit
+          // every seam white and the interior read as lace; an interior
+          // reads as pressure when most of it is dark crust with ember
+          // cracks and ONE province is burning through.
+          float bend = 1.7 * sin(vLocal.y * 0.9 + vLocal.x * 0.5);
+          float cells = sin(vLocal.x * 2.3 + bend) * sin(vLocal.y * 2.0 - bend)
+                      + 0.6 * sin(vLocal.z * 3.4 + bend * 1.3) * sin(vLocal.x * 2.9 - vLocal.z * 1.1);
+          float region = clamp(0.5 + 0.31 * cells, 0.0, 1.0);
+          float province = 0.18 + 0.82 * region * region;
+
+          // Each seam is a thin incandescent line inside a wide molten
+          // bleed; fine fractures vein the plates' skin. The flare parts
+          // everything further.
+          float gap = major.y - major.x;
+          float hot = 1.0 - smoothstep(0.0, 0.10 + 0.10 * uFlare, gap);
+          float warm = 1.0 - smoothstep(0.0, 0.45, gap);
+          float fine = 1.0 - smoothstep(0.0, 0.13, minor.y - minor.x);
 
           float pressure = uCoreBase + uFlare * uCoreFlare;
-          float energy = pressure * acc * 3.4;
+          float skin = 0.09 + 0.20 * region;
+          float melt = (0.85 * hot + 0.38 * warm + 0.20 * fine) * province;
+          float energy = pressure * (skin + melt) * (0.45 + 0.55 * pow(facing, 1.4));
 
-          // Additive: this is light in the gaps, not a material in them.
           fragColour = vec4(ramp(energy) * energy * uExposure, 1.0);
         }
       `,
-      // Drawn on the far side of its own shell, so its depth sits beyond the
-      // plates: every plate occludes it, and it reaches the eye only through
-      // the openings between them. Additive and depth-write-free, because
-      // light does not hide what is behind it.
-      side: THREE.BackSide,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      side: THREE.FrontSide,
     });
   }
 
@@ -338,13 +338,11 @@ export class PlanetModel {
       const name = object.name;
       const kind: Piece['kind'] = name.startsWith('slab')
         ? 'slab'
-        : name.startsWith('plate')
-          ? 'plate'
-          : name.startsWith('chunk')
-            ? 'chunk'
-            : name.startsWith('crack')
-              ? 'crack'
-              : 'body';
+        : name.startsWith('chunk')
+          ? 'chunk'
+          : name.startsWith('crack')
+            ? 'crack'
+            : 'body';
 
       const mesh = new THREE.Mesh(object.geometry, this.material);
       mesh.position.copy(object.position);
@@ -356,49 +354,41 @@ export class PlanetModel {
 
       const home = object.position.clone();
       const still = kind === 'body' || kind === 'crack';
-      // The planet's own plates expand too — there is no body that holds any
-      // more — but slowly, at the pace of something planetary letting go;
-      // the thrown pieces keep their faster continuation down their lines.
-      const plate = kind === 'plate';
       this.pieces.push({
         mesh,
         home,
+        // Continuation, in the authored frame: on down the corridor and out of
+        // it, faster for what is already furthest. The body and its cracks
+        // hold — the event leaves them behind.
         drift: still
           ? new THREE.Vector3()
-          : home
-              .clone()
-              .normalize()
-              .multiplyScalar(plate ? 0.18 + home.length() * 0.03 : 0.5 + home.length() * 0.06),
+          : home.clone().normalize().multiplyScalar(0.5 + home.length() * 0.06),
         spin: still
           ? new THREE.Vector3()
           : new THREE.Vector3(
-              (random() - 0.5) * (plate ? 0.004 : 0.01),
-              (random() - 0.5) * (plate ? 0.004 : 0.01),
-              (random() - 0.5) * (plate ? 0.004 : 0.01)
+              (random() - 0.5) * 0.01,
+              (random() - 0.5) * 0.01,
+              (random() - 0.5) * 0.01
             ),
         extent: 1,
         kind,
       });
     });
 
-    // The shell the interior is drawn on — a carrier, not a core. It is
-    // deliberately larger than the plate field so its own surface is never
-    // where the light appears to end; the falloff decides that, far inside.
-    // Nothing about this radius is visible.
+    // The interior. Slightly under the manifest's core radius so it never
+    // z-fights the inner lining of the shell.
     this.core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(manifest.coreRadius * 2.4, 2),
+      new THREE.IcosahedronGeometry(manifest.coreRadius * 0.96, 3),
       this.coreMaterial
     );
     this.inner.add(this.core);
 
     // The stops, transformed into world space for the rail.
-    const toWorld = (entry: ManifestEntry): Stop => ({
-      name: entry.name,
-      home: yUp(entry.position).applyQuaternion(this.group.quaternion),
-      extent: entry.extent,
-    });
-    this.stopsWorld = manifest.stops.map(toWorld);
-    this.platesWorld = (manifest.plates ?? []).map(toWorld);
+    this.stopsWorld = manifest.stops.map((stop) => ({
+      name: stop.name,
+      home: yUp(stop.position).applyQuaternion(this.group.quaternion),
+      extent: stop.extent,
+    }));
 
     this.buildEjecta(chunkGeometries, random);
   }
@@ -563,24 +553,6 @@ export class PlanetModel {
     return this.stopsWorld;
   }
 
-  /** Every superplate, world space — the rail needs the whole set. */
-  get plates(): Stop[] {
-    return this.platesWorld;
-  }
-
-  /**
-   * The directive's own pass/fail test, made repeatable: hide every piece
-   * of debris and leave only the superplates and the interior light. If the
-   * wide view does not read as a whole planet exploding outward with the
-   * rubble gone, no amount of rubble was ever going to save it.
-   */
-  setIsolation(on: boolean): void {
-    this.ejecta.visible = !on;
-    for (const piece of this.pieces) {
-      if (piece.kind === 'chunk') piece.mesh.visible = !on;
-    }
-  }
-
   /**
    * The finale: everything already moving keeps moving along its own line,
    * the interior's output climbs, and the body holds — a continuation of the
@@ -608,8 +580,9 @@ export class PlanetModel {
       piece.mesh.rotation.y += piece.spin.y * 0.016;
       piece.mesh.rotation.z += piece.spin.z * 0.016;
     }
-    // The interior convects: its filaments crawl at a rate only a held gaze
-    // notices. Two unequal axes, so the drift never reads as a turntable.
+    // The melt convects: the plate pattern crawls across the wound at a rate
+    // only a held gaze notices. Two unequal axes, so the drift never reads
+    // as a turntable.
     if (this.core) {
       this.core.rotation.y += 0.0034 * 0.016;
       this.core.rotation.x += 0.0013 * 0.016;
