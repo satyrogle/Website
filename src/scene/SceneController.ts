@@ -79,7 +79,64 @@ export const HERO_SUBJECT = {
     const fraction = column + (1 - column) / 2;
     return (fraction - 0.5) * 2;
   },
+
+  /**
+   * How much of the frame the subject occupies, as a share of the half-frame.
+   *
+   * The column contract answers "where is there room for the subject" and
+   * says nothing about how big the subject is. Pinning the opening pose made
+   * the consequence visible: at the contract's own coordinate the body sits
+   * hard against the right edge with its slabs cropping and the left half of
+   * the frame goes dead. A subject centred in the free column only works if
+   * it fits in the free column.
+   *
+   * `SILHOUETTE` is what has to stay inside. Not the bare body — the wounded
+   * world reads as the body plus the slabs still lying against it, and
+   * containing every far-flung fragment is neither possible at this stand-off
+   * nor wanted, because the debris field is supposed to run off frame.
+   */
+  extent(distance: number, bodyRadius: number): { x: number; y: number } {
+    const tanHalf = Math.tan((CAMERA.fov * Math.PI) / 360);
+    const halfHeight = Math.max(distance * tanHalf, 1e-6);
+    const radius = bodyRadius * SILHOUETTE.ofBody;
+    return { x: radius / (halfHeight * this.aspect()), y: radius / halfHeight };
+  },
+
+  /**
+   * The contract's placement, pulled back until the subject is contained.
+   *
+   * Clamps rather than overrides: when the subject is small enough to fit
+   * where the column wants it, the column wins and this changes nothing. It
+   * only bites when the two genuinely disagree, which is exactly the case the
+   * contract could not see.
+   */
+  containedX(distance: number, bodyRadius: number): number {
+    const wanted = this.centreX();
+    const limit = Math.max(SILHOUETTE.margin - this.extent(distance, bodyRadius).x, 0);
+    return Math.sign(wanted) * Math.min(Math.abs(wanted), limit);
+  },
+
+  containedY(distance: number, bodyRadius: number): number {
+    const limit = Math.max(SILHOUETTE.margin - this.extent(distance, bodyRadius).y, 0);
+    return Math.sign(this.centreY) * Math.min(Math.abs(this.centreY), limit);
+  },
 };
+
+/**
+ * What "the whole body is in frame" means, in multiples of the body's radius.
+ *
+ * 1.0 would contain the bare sphere and is not enough: the slabs lying against
+ * the rupture read as part of the wounded world, and cropping them is what
+ * made the pinned frame look jammed even though the body itself was inside.
+ * Walked up from there against captures — 1.55 still put the body's edge on
+ * the frame edge, 1.78 clears it. Containing every far-flung fragment is
+ * neither reachable at this stand-off nor wanted: the debris field is
+ * supposed to run off frame, and demanding it fit would drag the subject to
+ * the centre and collapse the type column entirely. `margin` keeps a little
+ * void outside the silhouette, because a subject exactly touching the frame
+ * edge still reads as cropped.
+ */
+const SILHOUETTE = { ofBody: 1.78, margin: 0.94 };
 
 /**
  * Halation for the hot surfaces, and only for them. The threshold sits far
@@ -281,37 +338,37 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     // attempts at eyeballing this moved the planet the wrong way, because the
     // sign of a world-space lateral depends on the approach; the camera's own
     // basis does not.
-    // Centre of the column the type does not occupy, in NDC.
+    // Where the column wants the subject, pulled back until the subject
+    // actually fits there.
+    const standOff = eye.distanceTo(body);
     const opening: Waypoint = {
       eye: asTriple(eye),
-      aim: asTriple(composeAim(eye, body, HERO_SUBJECT.centreX(), HERO_SUBJECT.centreY)),
+      aim: asTriple(
+        composeAim(
+          eye,
+          body,
+          HERO_SUBJECT.containedX(standOff, planet.bodyRadius),
+          HERO_SUBJECT.containedY(standOff, planet.bodyRadius)
+        )
+      ),
     };
 
-    waypoints.push(opening);
-
-    // NOT held, deliberately, and this is worth knowing before anyone
-    // "fixes" it.
+    // Pushed twice, which holds this pose for the whole first leg.
     //
-    // The load frame is not waypoint 0. The director maps narrative from the
-    // viewport's middle, so an untouched page already reads about 0.03, and
-    // the rail is a piecewise lerp — at that parameter the camera has already
-    // travelled roughly 15% of the way toward the first stop. The composition
-    // a visitor actually sees on load is that blend, and it is the blend that
-    // was judged and approved.
+    // The load frame was never waypoint 0. The director maps narrative from
+    // the viewport's middle, so an untouched page already reads about 0.03,
+    // and the rail is a piecewise lerp — at that parameter the camera had
+    // already travelled roughly 15% of the way toward the first stop. The
+    // approved opening was therefore not the authored composition but a blend
+    // of it with whatever the first stop happened to be, which meant every
+    // change to the journey silently moved the hero frame: composing the
+    // first stop to the left threw the body back under the wordmark on load
+    // while every measurement about the descent still passed.
     //
-    // Pushing this waypoint twice pins the pose for the whole first leg and
-    // is the obviously correct engineering: it decouples the hero frame from
-    // whatever the journey does. It was built, measured and reverted, because
-    // what it reveals is that the authored waypoint is not a good frame — the
-    // body jams into the right edge with slabs cropping and the left half goes
-    // dead. The type-column contract centres the subject in the column the
-    // wordmark leaves free without accounting for how much of the frame the
-    // subject itself occupies.
-    //
-    // So the coupling stays until Jacob has judged the pinned frame, because
-    // changing the approved hero composition is his call. The cost of leaving
-    // it: the first stop's shot influences the opening, which is why SHOTS[0]
-    // continues the opening's right column instead of cutting away from it.
+    // A stationary first leg decouples them. The visitor now sees the
+    // authored frame until they genuinely start travelling, and the journey
+    // after it is free to be composed however it needs to be.
+    waypoints.push(opening, opening);
   }
 
   stops.forEach((piece, index) => {
@@ -965,7 +1022,7 @@ export class SceneController {
   probe(): {
     tMs: number;
     adjustments: number;
-    pieces: { x: number; y: number; r: number; u: number; engaged: number }[];
+    pieces: { x: number; y: number; r: number; u: number; engaged: number; gain: number }[];
   } | null {
     if (!this.planet || !this.correction) return null;
     const width = this.renderer.domElement.clientWidth || window.innerWidth;
@@ -997,6 +1054,12 @@ export class SceneController {
         r: Math.hypot(ex - cx, ey - cy),
         u: this.correction!.deviationOf(index),
         engaged: this.correction!.operator.engaged[index] ?? 0,
+        // Per-piece enforcement gain. Exposed because it scales three things
+        // at once — how soon the system notices, how fast the ramp runs and
+        // how hard it pulls — so an event's duration cannot be reasoned about
+        // without it, and tuning the shared constants to fix one piece's
+        // timing moves every other piece too.
+        gain: this.correction!.operator.gainField[index] ?? 1,
       };
     });
 

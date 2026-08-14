@@ -155,6 +155,16 @@ export class PlanetModel {
   private core: THREE.Mesh | null = null;
   private flareValue = 0;
 
+  /**
+   * The wounded world's own radius, from the manifest. Zero until loaded.
+   *
+   * Published because composition needs it: a camera cannot decide whether
+   * the subject is contained in the frame without knowing how big the
+   * subject is, and the alternative is a constant that silently stops
+   * matching the geometry the next time the generator runs.
+   */
+  bodyRadius = 0;
+
   constructor(options: PlanetModelOptions) {
     // The authored +X corridor onto the site's diagonal.
     this.group.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), options.axis.clone().normalize());
@@ -433,6 +443,7 @@ export class PlanetModel {
 
     // The interior. Slightly under the manifest's core radius so it never
     // z-fights the inner lining of the shell.
+    this.bodyRadius = manifest.bodyRadius;
     const coreRadius = manifest.coreRadius * 0.96;
     this.coreUniforms.uCoreRadius.value = coreRadius;
     this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(coreRadius, 3), this.coreMaterial);

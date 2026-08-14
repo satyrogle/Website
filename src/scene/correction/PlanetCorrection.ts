@@ -102,12 +102,25 @@ const SPREAD = [0.22, 0.13, 0.07];
 const FALSE_FIRST_ACTION_DELAY = 8;
 
 /**
- * Below this, and once the system has let go, a piece is seated exactly.
+ * Below this, a piece is seated exactly.
  *
- * The operator is asymptotic and its release hysteresis disengages while a
- * sliver of offset survives. On a staged composition that sliver is permanent
- * drift away from the authored frame — the thing this whole approach exists
+ * The operator is asymptotic — it pulls a piece to the EDGE of the record's
+ * tolerance band rather than to the seat itself — so a sliver of offset
+ * always survives. On a staged composition that sliver is permanent drift
+ * away from the authored frame, which is the thing this whole approach exists
  * to preserve. The path is the operator's; the endpoint is this.
+ *
+ * It used to also require the operator to have let go, and that coupled the
+ * reseat to the wrong clock. Release waits on the sensed envelope decaying
+ * below the release threshold, and that decay starts from the deviation's
+ * peak and runs at the sensor's own time constant — so a bigger press meant a
+ * longer wait for the piece to sit down, with the event running to 4.8 s
+ * while raising stiffness by a quarter changed it by five milliseconds.
+ *
+ * The two are separate facts. "Inside the record's tolerance" is about where
+ * the piece is; "still engaged" is about whether the system is still
+ * watching, and it should keep holding — and keep showing violet — for as
+ * long as its sensor says so. Reseating no longer waits on it.
  */
 const SETTLE_EPSILON = 0.06;
 
@@ -271,12 +284,15 @@ export class PlanetCorrection {
 
       this.operator.apply(this.u, this.rate, this.tick);
 
-      const { engaged } = this.operator;
       for (let i = 0; i < this.u.length; i++) {
-        if (!engaged[i] && this.u[i] !== 0 && Math.abs(this.u[i]) < SETTLE_EPSILON) {
-          this.u[i] = 0;
-          this.rate[i] = 0;
-        }
+        if (this.u[i] === 0 || Math.abs(this.u[i]) >= SETTLE_EPSILON) continue;
+        // A piece on its way out is not a piece that has arrived. The escape
+        // writes `u` directly and passes through small values on its way to
+        // large ones, so without this the snap would zero every press in its
+        // first few ticks and no deviation could ever leave the seat.
+        if (this.escapes.some((escape) => escape.index === i)) continue;
+        this.u[i] = 0;
+        this.rate[i] = 0;
       }
     }
 
