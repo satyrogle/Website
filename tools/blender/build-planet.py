@@ -769,7 +769,24 @@ def carve_chunks(count):
         vert.co = d * 1.35 * (1.0 + n)
 
     rng = np.random.default_rng(SEED + 500)
-    seeds = [unit(rng.normal(size=3)) * (0.35 + 0.55 * rng.random()) * 1.35 for _ in range(count + 8)]
+    # Seeds pulled off the source's own surface. A cell whose seed sits near
+    # the outer skin is bounded by the skin on one side and its neighbours'
+    # planes on the others, so it comes out as a thin cap — the literal
+    # triangular wedges visible in the debris field. Interior seeds give
+    # equant cells. Deeper pool than needed, because the sliver test below
+    # now rejects candidates.
+    seeds = [unit(rng.normal(size=3)) * (0.26 + 0.46 * rng.random()) * 1.35
+             for _ in range(count + 24)]
+
+    #: Three silhouette families, cycled. Ejecta off a layered crust is not a
+    #: bag of pebbles: it is platy where the crust delaminated, bladed where
+    #: it sheared, blocky where it simply broke. One isotropic family, carved
+    #: from a round source and scaled uniformly, is what made the whole field
+    #: read as gravel. Baked into the vertices rather than applied as object
+    #: scale, so the exported normals stay exact and `extent` keeps meaning
+    #: what it says. Each chunk is randomly rotated afterwards, so no family
+    #: shares an axis.
+    families = ((1.20, 1.12, 0.34), (1.74, 0.60, 0.54), (1.02, 0.94, 0.86))
 
     chunks = []
     for index, seed_point in enumerate(seeds):
@@ -815,10 +832,15 @@ def carve_chunks(count):
         # rather than as a stream of embers competing with the wounds.
         attribute = mesh.color_attributes.new(name='crust', type='FLOAT_COLOR', domain='CORNER')
         for poly in mesh.polygons:
-            colour = (0.0, 0.72, 0.5, 0.0) if poly.material_index == 1 else (1.0, 0.0, 0.5, 0.0)
+            cut = poly.material_index == 1
+            colour = (0.0, 0.72, 0.5, 0.0) if cut else (1.0, 0.0, 0.5, 0.0)
             for loop_index in poly.loop_indices:
                 attribute.data[loop_index].color = colour
-            poly.use_smooth = True
+            # A fracture facet is flat and its edges are sharp; the weathered
+            # exterior is not. Smooth-shading everything rounded every cut
+            # face into the next and turned angular debris into pebbles —
+            # the geometry was already faceted, the shading was hiding it.
+            poly.use_smooth = not cut
 
         centre = Vector((0, 0, 0))
         for vert in mesh.vertices:
@@ -826,6 +848,29 @@ def carve_chunks(count):
         centre /= max(len(mesh.vertices), 1)
         for vert in mesh.vertices:
             vert.co -= centre
+
+        # Reject slivers before they can be dressed up as debris. The cell
+        # carve can still leave a near-flat offcut, and a wedge that thin
+        # reads as a scrap of paper however it is shaded or lit — no family
+        # shaping can rescue it, because the fault is that it has no volume.
+        lo = Vector((1e9, 1e9, 1e9))
+        hi = Vector((-1e9, -1e9, -1e9))
+        for vert in mesh.vertices:
+            for axis in range(3):
+                lo[axis] = min(lo[axis], vert.co[axis])
+                hi[axis] = max(hi[axis], vert.co[axis])
+        dims = sorted(hi[axis] - lo[axis] for axis in range(3))
+        if dims[2] < 1e-6 or dims[0] / dims[2] < 0.17:
+            bpy.data.meshes.remove(mesh)
+            continue
+
+        shape = families[len(chunks) % len(families)]
+        for vert in mesh.vertices:
+            vert.co = Vector((vert.co.x * shape[0], vert.co.y * shape[1], vert.co.z * shape[2]))
+        # The vertices moved, so every derived normal is stale. Leaving this
+        # out is the quiet version of the from_pydata trap: the geometry is
+        # right, the shading is computed against the shape it used to be.
+        mesh.update()
 
         obj = bpy.data.objects.new(f'chunk_{index:02d}', mesh)
         bpy.context.collection.objects.link(obj)
