@@ -1,5 +1,29 @@
 # PRODUCTION PLAN — THE CORRECTION, ON THE WOUNDED WORLD
 
+> **STATUS 2026-08-14, end of the build pass.** P1 and P3–P8 are implemented
+> and committed (`09b8dd4` … `6f532b9`); P2 predates this pass. Measured on
+> the RTX 3060 against the **production** build: 12.90 ms/frame at 2560×1440,
+> 5.10 ms at 1440×900, zero console output, and no dev handle or tuning panel
+> in the bundle. Blender rebuilds byte-identically; two scripted identical
+> visits produce identical records. `package.json` is unchanged from `main`.
+>
+> **Outstanding, and deliberately not guessed at:**
+> - **Quality-tier thresholds (P7.3).** After the field early-out, bloom,
+>   pixel ratio and march steps all measure inside the run-to-run spread on
+>   this card — bloom *off* measured slower than bloom *on*. Setting tiers
+>   from that would be fitting noise. Needs a mid-tier machine.
+> - **P7.4 cleanup.** D6 telemetry single-sourcing and the disposal audit are
+>   not done. The plan's named stray files are already gone.
+> - **CP-1 through CP-8 are unjudged.** Every checkpoint in this plan is
+>   Jacob's to call on his own GPU, and none has been called.
+> - **Acceptance instrumentation is DEV-only.** `window.__correction` is
+>   correctly absent from the production bundle, so the shipped artefact
+>   cannot self-verify P1's criteria. Dev and production render identically
+>   (lit 22.6%, mean 0.0441 on both), which is what makes the dev
+>   measurements transferable — but that equivalence is the assumption the
+>   numbers rest on, and it is worth re-checking whenever the build changes.
+
+
 **Status: ACTIVE BUILD ORDER. Written 2026-08-14, after the cold review of the
 running site. Supersedes the staging in `CORRECTION_BUILD_PLAN.md`; that file
 remains authoritative for anything this one does not decide (interaction
