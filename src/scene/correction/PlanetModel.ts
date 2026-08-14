@@ -146,6 +146,9 @@ export class PlanetModel {
   private readonly scratch = new THREE.Vector3();
   /** Separate from `scratch`, which `place` owns. */
   private readonly aim = new THREE.Vector3();
+  private readonly probeVec = new THREE.Vector3();
+  private readonly ghosts: THREE.Mesh[] = [];
+  private ghostMaterial: THREE.ShaderMaterial | null = null;
   private stopsWorld: Stop[] = [];
   private dustTexture: THREE.CanvasTexture | null = null;
   private dustMaterials: { material: THREE.PointsMaterial; opacity: number }[] = [];
@@ -395,6 +398,8 @@ export class PlanetModel {
     this.inner.add(this.core);
 
     // The stops, transformed into world space for the rail.
+    this.buildGhosts();
+
     this.stopsWorld = manifest.stops.map((stop) => ({
       name: stop.name,
       home: yUp(stop.position).applyQuaternion(this.group.quaternion),
@@ -600,17 +605,133 @@ export class PlanetModel {
     piece.mesh.position.copy(this.scratch);
   }
 
+  /**
+   * The record, as geometry.
+   *
+   * One ghost per pressable piece, sharing that piece's own mesh, parked at
+   * the position the composition was authored with. Amber, because amber is
+   * the model of the world and this is literally that: where the system says
+   * the piece is. Rim-weighted and depth-tested but not depth-writing, so it
+   * reads as a held position rather than as a second solid object.
+   *
+   * Violet arrives on the same surface while the operator is engaged — the
+   * consequence of the world and the record disagreeing, present only while
+   * the disagreement is being acted on. That is `V = D x C` drawn where it
+   * happens.
+   */
+  private buildGhosts(): void {
+    this.ghostMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.FrontSide,
+      uniforms: { uPresence: { value: 0 }, uEnforce: { value: 0 } },
+      vertexShader: /* glsl */ `
+        out vec3 vN;
+        out vec3 vV;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vN = normalize(mat3(modelMatrix) * normal);
+          vV = normalize(cameraPosition - world.xyz);
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }`,
+      fragmentShader: /* glsl */ `
+        precision highp float;
+        uniform float uPresence;
+        uniform float uEnforce;
+        in vec3 vN;
+        in vec3 vV;
+        out vec4 fragColour;
+        void main() {
+          // Rim only. A filled ghost is a second planet; an edge is a
+          // position being asserted.
+          float facing = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+          float rim = pow(clamp(facing, 0.0, 1.0), 2.6);
+          vec3 amber = vec3(1.0, 0.62, 0.16);
+          vec3 violet = vec3(0.55, 0.22, 0.95);
+          vec3 colour = mix(amber, violet, clamp(uEnforce, 0.0, 1.0) * 0.75);
+          float a = rim * uPresence * 0.85;
+          if (a < 0.002) discard;
+          fragColour = vec4(colour * a, a);
+        }`,
+    });
+
+    // One material per ghost. Presence and enforcement are per-piece
+    // quantities, and a shared material would make every ghost in the scene
+    // light up for whichever piece was last touched.
+    this.pressable.forEach((piece) => {
+      const ghost = new THREE.Mesh(
+        (piece.mesh as THREE.Mesh).geometry,
+        this.ghostMaterial!.clone()
+      );
+      ghost.visible = false;
+      ghost.renderOrder = 2;
+      ghost.scale.copy(piece.mesh.scale);
+      this.ghosts.push(ghost);
+      this.inner.add(ghost);
+    });
+  }
+
+  /**
+   * How many pixels one unit of deviation moves this piece, right now.
+   *
+   * The press is sized from this, because acceptance is stated in screen
+   * space. Deviation measured in world units is meaningless to a visitor: the
+   * same 0.79 units is a shove on a near slab and nothing at all on a chunk
+   * twenty units further out.
+   */
+  pixelsPerDeviation(
+    index: number,
+    camera: THREE.Camera,
+    width: number,
+    height: number,
+    atDeviation = 1
+  ): number {
+    const piece = this.pressable[index];
+    if (!piece) return 0;
+    // Measured at the deviation we actually intend, not at one unit.
+    // Projection is not linear along the drift — a piece escaping radially is
+    // also receding, so it covers fewer pixels per unit the further it goes,
+    // and a unit-distance estimate overshoots the energy needed by a third.
+    const here = piece.mesh.getWorldPosition(this.aim).clone().project(camera);
+    const there = this.probeVec
+      .copy(piece.mesh.getWorldPosition(this.aim))
+      .add(this.scratch.copy(piece.drift).applyQuaternion(this.group.quaternion).multiplyScalar(atDeviation))
+      .project(camera);
+    const dx = (there.x - here.x) * 0.5 * width;
+    const dy = (there.y - here.y) * 0.5 * height;
+    return Math.hypot(dx, dy) / Math.max(atDeviation, 1e-6);
+  }
+
   /** Everything a visitor is allowed to disturb. The body holds; it always has. */
   get pressable(): Piece[] {
     return this.pieces.filter((p) => p.kind === 'slab' || p.kind === 'chunk');
   }
 
   /** Move one piece off its recorded seat. `u` is in drift lengths. */
-  setDeviation(index: number, u: number): void {
+  setDeviation(index: number, u: number, enforcing = 0): void {
     const piece = this.pressable[index];
     if (!piece) return;
     piece.deviation = u;
     this.place(piece);
+
+    // The record, made visible. Amber sits at the seat the piece is supposed
+    // to occupy, so the deviation has something to be measured against —
+    // which is the whole reason a press could move a slab and read as
+    // nothing. Presence rises with separation and is gone at rest.
+    const ghost = this.ghosts[index];
+    if (!ghost) return;
+    const separation = Math.abs(u) * piece.drift.length();
+    const presence = Math.min(separation / 0.35, 1);
+    ghost.visible = presence > 0.004;
+    if (ghost.visible) {
+      ghost.position.copy(piece.home);
+      ghost.quaternion.copy(piece.mesh.quaternion);
+      const uniforms = (ghost.material as THREE.ShaderMaterial).uniforms;
+      uniforms.uPresence.value = presence;
+      uniforms.uEnforce.value = enforcing;
+    }
   }
 
   /**
@@ -693,6 +814,11 @@ export class PlanetModel {
   }
 
   dispose(): void {
+    for (const ghost of this.ghosts) (ghost.material as THREE.Material).dispose();
+    this.ghostMaterial?.dispose();
+    this.ghostMaterial = null;
+    this.ghosts.length = 0;
+
     this.material.dispose();
     this.coreMaterial.dispose();
     for (const dust of this.dustMaterials) dust.material.dispose();

@@ -593,7 +593,15 @@ export class SceneController {
     const node = this.planet.pick(this.raycaster, this.camera, this.pointerNdc, tolerance ?? 0.20);
     if (node < 0) return -1;
 
-    this.correction.inject(node);
+    const probe = this.probe();
+    const piecePx = probe?.pieces[node]?.r ?? 0;
+    this.correction.injectAt(
+      node,
+      this.camera,
+      this.renderer.domElement.clientWidth || window.innerWidth,
+      this.renderer.domElement.clientHeight || window.innerHeight,
+      piecePx
+    );
     this.client.inject(node, this.pressEnergy);
     this.pressesLeft--;
     this.pressed = true;
@@ -672,6 +680,56 @@ export class SceneController {
    * something they were never even shown happening. Subtracting the
    * system's own work is what makes YOUR RECORD true on every path.
    */
+  /**
+   * DEV measurement surface — where every pressable piece is on screen, how
+   * big it is there, and how far it has left its seat.
+   *
+   * Acceptance for the enforcement event is stated in screen space, because
+   * that is the only space the visitor has: a slab that moves a generous
+   * number of world units and thirty-seven pixels has not moved. Reading
+   * that from a screenshot is guesswork, so the harness reads it from here.
+   */
+  probe(): {
+    tMs: number;
+    adjustments: number;
+    pieces: { x: number; y: number; r: number; u: number; engaged: number }[];
+  } | null {
+    if (!this.planet || !this.correction) return null;
+    const width = this.renderer.domElement.clientWidth || window.innerWidth;
+    const height = this.renderer.domElement.clientHeight || window.innerHeight;
+    const centre = new THREE.Vector3();
+    const edge = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    this.camera.matrixWorld.extractBasis(right, new THREE.Vector3(), new THREE.Vector3());
+
+    const pieces = this.planet.pressable.map((piece, index) => {
+      piece.mesh.getWorldPosition(centre);
+      const geometry = piece.mesh as THREE.Mesh;
+      const sphere = (geometry.geometry as THREE.BufferGeometry | undefined)?.boundingSphere;
+      if (!sphere) (geometry.geometry as THREE.BufferGeometry)?.computeBoundingSphere();
+      const worldRadius =
+        ((geometry.geometry as THREE.BufferGeometry)?.boundingSphere?.radius ?? 1) *
+        Math.max(piece.mesh.scale.x, piece.mesh.scale.y, piece.mesh.scale.z);
+      edge.copy(centre).addScaledVector(right, worldRadius);
+
+      const c = centre.clone().project(this.camera);
+      const e = edge.clone().project(this.camera);
+      const cx = (c.x * 0.5 + 0.5) * width;
+      const cy = (-c.y * 0.5 + 0.5) * height;
+      const ex = (e.x * 0.5 + 0.5) * width;
+      const ey = (-e.y * 0.5 + 0.5) * height;
+      return {
+        x: cx,
+        y: cy,
+        r: Math.hypot(ex - cx, ey - cy),
+        u: this.correction!.deviationOf(index),
+        engaged: this.correction!.operator.engaged[index] ?? 0,
+      };
+    });
+
+    return { tMs: performance.now(), adjustments: this.correction.adjustments, pieces };
+  }
+
   get visitAdjustments(): number {
     // The staged world's own operator, not the Worker's. The Worker still
     // steps the structure it was written for, but nothing it corrects is on

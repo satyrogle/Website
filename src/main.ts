@@ -353,6 +353,7 @@ if (import.meta.env.DEV) {
         return scene?.quality.settings ?? null;
       },
       press: (x: number, y: number) => scene?.pressAt(x, y) ?? -1,
+      probe: () => scene?.probe() ?? null,
     },
   });
 }

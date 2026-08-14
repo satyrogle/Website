@@ -46,9 +46,9 @@ export const PLANET_CORRECTION: CorrectionParameters = {
   ...DEFAULT_CORRECTION,
   /** ~0.8 s at 120 Hz before the system concedes the piece has moved. */
   holdTicks: 96,
-  stiffnessFrom: 0.0008,
-  stiffnessTo: 0.022,
-  stiffnessCeiling: 0.045,
+  stiffnessFrom: 0.0009,
+  stiffnessTo: 0.0085,
+  stiffnessCeiling: 0.02,
 };
 
 /** The operator's constants are written against this rate. Do not vary it. */
@@ -67,6 +67,29 @@ const MAX_STEPS_PER_FRAME = 8;
  */
 export const PRESS_ENERGY = 0.9;
 
+/**
+ * What a press has to be worth, in pixels, on the piece it struck.
+ *
+ * Deviation was previously sized in world units and the result was measured
+ * at thirteen pixels on a piece two hundred and forty across — five percent,
+ * a change the eye does not register as an event at all. Energy is therefore
+ * solved backwards from screen space at press time: whatever `u` it takes to
+ * move this piece, at this camera distance, this far.
+ */
+const PRESS_TARGET_PX = 165;
+const PRESS_TARGET_SHARE_OF_PIECE = 0.30;
+
+/**
+ * How long the escape takes.
+ *
+ * A press used to add its whole deviation in one tick, and a teleport of any
+ * size is invisible — the eye catches motion, not displacement. Easing the
+ * same distance over a third of a second costs nothing and is the difference
+ * between a piece that moved and a piece that is somewhere slightly
+ * different. Well inside the operator's hold, so nothing fights it.
+ */
+const ESCAPE_MS = 380;
+
 /** How a press spreads to what is near it: the region yields, then converges. */
 const SPREAD = [0.22, 0.13, 0.07];
 
@@ -81,7 +104,7 @@ const FALSE_FIRST_ACTION_DELAY = 8;
  * drift away from the authored frame — the thing this whole approach exists
  * to preserve. The path is the operator's; the endpoint is this.
  */
-const SETTLE_EPSILON = 0.004;
+const SETTLE_EPSILON = 0.06;
 
 export class PlanetCorrection {
   readonly operator: CorrectionOperator;
@@ -93,6 +116,9 @@ export class PlanetCorrection {
   private accumulator = 0;
   private tick = 0;
   private idle = 0;
+
+  /** In-flight escapes: the piece is still leaving, the system not yet involved. */
+  private escapes: { index: number; from: number; to: number; t: number }[] = [];
 
   /** Adjustments the system caused, which the record will still call yours. */
   systemAdjustments = 0;
@@ -139,16 +165,68 @@ export class PlanetCorrection {
     this.operator.setGain(value);
   }
 
-  /** A press. Returns the piece that took it, or -1. */
+  /**
+   * A press. Returns the piece that took it, or -1.
+   *
+   * `energy` is normally solved from screen space by `injectAt`; the raw form
+   * stays for scripted events that already know what they want.
+   */
   inject(index: number, energy = PRESS_ENERGY): number {
     if (index < 0 || index >= this.u.length) return -1;
     this.touched = true;
     this.idle = 0;
-    this.u[index] += energy;
+    this.beginEscape(index, energy);
     this.neighbours[index]?.forEach((target, rank) => {
-      this.u[target] += energy * SPREAD[rank];
+      this.beginEscape(target, energy * SPREAD[rank]);
     });
     return index;
+  }
+
+  /**
+   * A press, sized so the visitor can see it.
+   *
+   * Solves the deviation backwards from how many pixels this piece moves per
+   * unit of `u` at the current camera pose, so a near slab and a distant
+   * chunk both produce an event of comparable weight on screen. Deterministic
+   * for a given camera pose and input trace.
+   */
+  injectAt(
+    index: number,
+    camera: import('three').Camera,
+    width: number,
+    height: number,
+    piecePx: number
+  ): number {
+    const wanted = Math.max(PRESS_TARGET_PX, piecePx * PRESS_TARGET_SHARE_OF_PIECE);
+    const perUnit = this.planet.pixelsPerDeviation(index, camera, width, height);
+    if (perUnit <= 1) return this.inject(index, PRESS_ENERGY);
+
+    // Fixed point, three passes. Each estimate lands further out than the
+    // one it was measured at, and pixels-per-unit keeps falling with
+    // distance, so a single correction still undershoots — it went 165 asked,
+    // 126 delivered. Three passes converge inside a few percent and cost
+    // three projections. Deterministic for a given camera pose.
+    let energy = wanted / perUnit;
+    for (let pass = 0; pass < 3; pass++) {
+      const at = this.planet.pixelsPerDeviation(index, camera, width, height, energy);
+      if (at <= 1) break;
+      energy = wanted / at;
+    }
+    return this.inject(index, Math.min(energy, 8));
+  }
+
+  /** The piece starts leaving. It arrives under its own easing, not instantly. */
+  private beginEscape(index: number, energy: number): void {
+    const existing = this.escapes.find((e) => e.index === index);
+    const from = this.u[index];
+    const to = (existing ? existing.to : from) + energy;
+    if (existing) {
+      existing.from = from;
+      existing.to = to;
+      existing.t = 0;
+      return;
+    }
+    this.escapes.push({ index, from, to, t: 0 });
   }
 
   /** Fixed-step advance. Same input trace, same run, any frame rate. */
@@ -159,6 +237,20 @@ export class PlanetCorrection {
       this.accumulator -= STEP_SECONDS;
       this.tick++;
       steps++;
+
+      // The escape runs first and owns `u` while it lasts. The operator's
+      // hold latency is longer than the escape, so the two never contend:
+      // the piece leaves, and only then is it noticed.
+      if (this.escapes.length) {
+        const step = (STEP_SECONDS * 1000) / ESCAPE_MS;
+        this.escapes = this.escapes.filter((escape) => {
+          escape.t = Math.min(escape.t + step, 1);
+          const eased = 1 - Math.pow(1 - escape.t, 3);
+          this.u[escape.index] = escape.from + (escape.to - escape.from) * eased;
+          return escape.t < 1;
+        });
+      }
+
       this.operator.apply(this.u, this.rate, this.tick);
 
       const { engaged } = this.operator;
@@ -175,7 +267,10 @@ export class PlanetCorrection {
       if (this.idle >= FALSE_FIRST_ACTION_DELAY) this.fireFalseFirstAction();
     }
 
-    for (let i = 0; i < this.u.length; i++) this.planet.setDeviation(i, this.u[i]);
+    const { engaged, contact } = this.operator;
+    for (let i = 0; i < this.u.length; i++) {
+      this.planet.setDeviation(i, this.u[i], engaged[i] ? Math.min(1, 0.35 + contact[i] * 3) : 0);
+    }
   }
 
   /**
@@ -202,6 +297,11 @@ export class PlanetCorrection {
     this.inject(index, PRESS_ENERGY * 0.75);
     this.touched = false;
     this.systemAdjustments += Math.max(this.operator.adjustments - before, 1);
+  }
+
+  /** How far one piece currently sits from its recorded seat. */
+  deviationOf(index: number): number {
+    return this.u[index] ?? 0;
   }
 
   /** N, for the floor panel. */

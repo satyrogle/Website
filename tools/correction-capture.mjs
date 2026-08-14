@@ -9,6 +9,8 @@
  *   node tools/correction-capture.mjs                    opening frame
  *   node tools/correction-capture.mjs --event            opening + one full
  *                                                        enforcement event
+ *   node tools/correction-capture.mjs --metrics          measure one enforcement
+ *                                                        event in screen space
  *   node tools/correction-capture.mjs --scroll           one frame per band,
  *                                                        down the whole descent
  *   node tools/correction-capture.mjs --url http://... --out captures/x
@@ -257,6 +259,109 @@ if (flag('motion')) {
       `p90 ${m.p90.toFixed(1)}  max ${m.max.toFixed(1)}   (${m.columns} columns tracked)`
   );
   console.log(`  ${m.median >= 3 ? 'BREATHING' : 'READS AS STILL'}`);
+}
+
+if (flag('metrics')) {
+  console.log('\nENFORCEMENT EVENT — MEASURED IN SCREEN SPACE');
+
+  // Acceptance for the event is stated in pixels and seconds because that is
+  // the only space the visitor has. A press that moves a slab a generous
+  // number of world units and thirty-seven pixels has not moved it.
+  const result = await page.evaluate(async ([w, h]) => {
+    const api = window.__correction;
+    if (!api?.probe) return { error: 'no probe surface' };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // Strike the most prominent piece on screen — the one a visitor would
+    // have been looking at. Targeting by world distance picks specks.
+    const start = api.probe();
+    if (!start) return { error: 'probe returned null' };
+    let target = -1;
+    let best = -1;
+    start.pieces.forEach((p, i) => {
+      const onScreen = p.x > w * 0.05 && p.x < w * 0.95 && p.y > h * 0.05 && p.y < h * 0.95;
+      if (onScreen && p.r > best) {
+        best = p.r;
+        target = i;
+      }
+    });
+    if (target < 0) return { error: 'nothing pressable on screen' };
+
+    const before = start.pieces[target];
+    const struck = api.press(before.x, before.y);
+    const t0 = performance.now();
+
+    let peak = 0;
+    let peakAt = 0;
+    let engagedAt = -1;
+    let settledAt = -1;
+    for (let i = 0; i < 560; i++) {
+      await sleep(16);
+      const now = api.probe();
+      if (!now) break;
+      const p = now.pieces[target];
+      const d = Math.hypot(p.x - before.x, p.y - before.y);
+      if (d > peak) {
+        peak = d;
+        peakAt = performance.now() - t0;
+      }
+      if (engagedAt < 0 && p.engaged) engagedAt = performance.now() - t0;
+      // Settled is when the piece is back where the visitor can see it is
+      // back — under two pixels of its seat — not when the operator drops its
+      // engaged flag. The flag lags by seconds because the sensor reads a
+      // decaying envelope, and measuring that reported a six-second event
+      // for something the eye had watched finish in one and a half.
+      if (engagedAt >= 0 && peak > 0 && d < 2 && settledAt < 0) {
+        settledAt = performance.now() - t0;
+        // Let it finish arriving before reading the residual: the two-pixel
+        // trip-wire is the visible settle, not the exact reseat.
+        await sleep(900);
+        break;
+      }
+    }
+    const end = api.probe();
+    return {
+      struck,
+      target,
+      sizePx: +before.r.toFixed(1),
+      peakPx: +peak.toFixed(1),
+      peakPctOfPiece: +((peak / Math.max(before.r, 1e-6)) * 100).toFixed(1),
+      peakPctOfViewport: +((peak / h) * 100).toFixed(1),
+      timeToPeakMs: Math.round(peakAt),
+      engagedAtMs: Math.round(engagedAt),
+      settledAtMs: Math.round(settledAt),
+      adjustmentsBefore: start.adjustments,
+      adjustmentsAfter: end?.adjustments ?? -1,
+      residualPx: +Math.hypot(
+        (end?.pieces[target].x ?? before.x) - before.x,
+        (end?.pieces[target].y ?? before.y) - before.y
+      ).toFixed(2),
+    };
+  }, [WIDTH, HEIGHT]);
+
+  if (result.error) {
+    console.log(`  FAILED: ${result.error}`);
+  } else {
+    const pass = [];
+    if (result.peakPx < 140) pass.push(`peak ${result.peakPx}px < 140px`);
+    if (result.peakPctOfPiece < 25) pass.push(`peak ${result.peakPctOfPiece}% of piece < 25%`);
+    if (result.timeToPeakMs > 500) pass.push(`time-to-peak ${result.timeToPeakMs}ms > 500ms`);
+    if (result.settledAtMs < 2500 || result.settledAtMs > 4500) {
+      pass.push(`event ${result.settledAtMs}ms outside 2500-4500ms`);
+    }
+    if (result.adjustmentsAfter <= result.adjustmentsBefore) pass.push('N did not increment');
+    if (result.residualPx > 1.5) pass.push(`residual ${result.residualPx}px — did not reseat`);
+
+    console.log(`  struck piece      ${result.target} (${result.sizePx}px across on screen)`);
+    console.log(`  peak displacement ${result.peakPx}px  ` +
+      `= ${result.peakPctOfPiece}% of the piece, ${result.peakPctOfViewport}% of viewport`);
+    console.log(`  time to peak      ${result.timeToPeakMs}ms`);
+    console.log(`  engaged at        ${result.engagedAtMs}ms`);
+    console.log(`  settled at        ${result.settledAtMs}ms`);
+    console.log(`  N                 ${result.adjustmentsBefore} -> ${result.adjustmentsAfter}`);
+    console.log(`  residual          ${result.residualPx}px`);
+    console.log(`  P1 ACCEPTANCE     ${pass.length ? 'FAILED: ' + pass.join('; ') : 'PASSED'}`);
+  }
 }
 
 if (flag('event')) {
