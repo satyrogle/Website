@@ -13,6 +13,7 @@ import {
 } from '../scene/correction/FieldModel';
 import { DEFAULT_DYNAMICS, INJECTION } from '../scene/correction/sim/DeviationField';
 import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
+import { GRADE } from '../scene/GradeShader';
 
 /**
  * TuningPanel — the feel of the system, on sliders.
@@ -40,7 +41,7 @@ import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
 interface Knob {
   label: string;
   /** Which layer owns it. */
-  group: 'dynamics' | 'correction' | 'render' | 'press' | 'layout';
+  group: 'dynamics' | 'correction' | 'render' | 'press' | 'layout' | 'grade';
   /** Property name within that group. */
   key: string;
   min: number;
@@ -58,6 +59,14 @@ interface Knob {
  * the current state is worse than no tuning tool.
  */
 const KNOBS: Knob[] = [
+  // The grade, last in the chain and first on the panel. "Brutally dark" is a
+  // judgement, not a measurement, so these are the numbers most likely to be
+  // wrong and the ones worth being able to move while looking at the frame.
+  { label: 'black point', group: 'grade', key: 'uBlack', min: 0, max: 0.12, step: 0.002, value: GRADE.black, source: 'GRADE.black' },
+  { label: 'contrast', group: 'grade', key: 'uContrast', min: 0.8, max: 2.0, step: 0.01, value: GRADE.contrast, source: 'GRADE.contrast' },
+  { label: 'white point', group: 'grade', key: 'uWhite', min: 0.3, max: 1.6, step: 0.02, value: GRADE.white, source: 'GRADE.white' },
+  { label: 'white rolloff', group: 'grade', key: 'uWhiteRoll', min: 0, max: 4, step: 0.05, value: GRADE.whiteRoll, source: 'GRADE.whiteRoll' },
+
   // The hero composition, live. Type column is the share of the viewport the
   // wordmark may occupy — CSS and camera read the same number, so dragging it
   // moves both halves of the contract together. Stand-off scales the judged

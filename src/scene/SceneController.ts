@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { CopyShader } from 'three/examples/jsm/shaders/CopyShader.js';
+import { GradeShader } from './GradeShader';
 
 import { QualityManager } from './QualityManager';
 import { FUNNEL, FieldModel, STAR_POSITION } from './correction/FieldModel';
@@ -583,6 +583,7 @@ export class SceneController {
 
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer | null = null;
+  private grade: ShaderPass | null = null;
   private client: PulseClient | null = null;
   private frameHandle = 0;
   private running = false;
@@ -671,16 +672,19 @@ export class SceneController {
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
 
-    // The post chain: scene into half-float, hot pixels haloed, plain copy
-    // out. No OutputPass — the shaders author display values directly, and a
-    // colour-space conversion here would re-grade the whole look.
+    // The post chain: scene into half-float, hot pixels haloed, then graded.
+    // No OutputPass — the shaders author display values directly, and a
+    // colour-space conversion here would re-grade the whole look. The grade
+    // that IS wanted is explicit and last, working on luminance so it moves
+    // level without moving hue.
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
     this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.composer.addPass(
       new UnrealBloomPass(new THREE.Vector2(clientWidth, clientHeight), BLOOM.strength, BLOOM.radius, BLOOM.threshold)
     );
-    this.composer.addPass(new ShaderPass(CopyShader));
+    this.grade = new ShaderPass(GradeShader);
+    this.composer.addPass(this.grade);
 
     this.compose();
     this.applyCamera();
@@ -961,6 +965,7 @@ export class SceneController {
     correction?: Record<string, number>;
     render?: Record<string, number>;
     layout?: Record<string, number>;
+    grade?: Record<string, number>;
     hops?: number;
     energy?: number;
   }): void {
@@ -990,6 +995,14 @@ export class SceneController {
       if (patch.layout.standOff !== undefined) HERO_SUBJECT.standOffScale = patch.layout.standOff;
       if (patch.layout.height !== undefined) HERO_SUBJECT.centreY = patch.layout.height;
       if (this.planet) RAIL.waypoints = buildRail(this.planet);
+    }
+    if (patch.grade) {
+      // The grade is the one layer whose right answer is a judgement rather
+      // than a measurement, so it is on the panel before it is in a constant.
+      for (const [key, value] of Object.entries(patch.grade)) {
+        const uniform = this.grade?.uniforms[key];
+        if (uniform) uniform.value = value;
+      }
     }
     if (patch.energy !== undefined) this.pressEnergy = patch.energy;
   }
