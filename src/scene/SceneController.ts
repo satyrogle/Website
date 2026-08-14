@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { SAOPass } from 'three/examples/jsm/postprocessing/SAOPass.js';
 import { GradeShader } from './GradeShader';
 
 import { QualityManager } from './QualityManager';
@@ -40,7 +41,7 @@ export function isWebGL2Available(): boolean {
   }
 }
 
-const CAMERA = { fov: 38 };
+const CAMERA = { fov: 38, near: 1.0, far: 130 };
 
 /**
  * Where the subject sits on screen, derived from the layout rather than
@@ -185,6 +186,28 @@ const SILHOUETTE = { ofBody: 1.78, ofBodyTall: 1.35, margin: 0.94 };
  * the melt's >1 energies survive to feed it.
  */
 const BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.85 };
+
+/**
+ * Contact shading.
+ *
+ * SAO rather than GTAO, and that is a finding rather than a preference. GTAO
+ * was wired first and returned an ambient-occlusion buffer that was pure
+ * white at every radius from 0.6 to 14 — no occlusion anywhere. Its inputs
+ * were fine: the normal prepass rendered a valid normal buffer and the depth
+ * prepass a valid depth buffer, both checked by rendering them to screen. So
+ * the gbuffer was not the problem and neither was scale, since radius made
+ * no difference at all. Raising the camera's near plane to fix the 2000:1
+ * near/far ratio did not move it either. SAO, given the same scene and the
+ * same camera, produces occlusion immediately.
+ *
+ * Kernel radius is in pixels, not world units, which is why it is large.
+ */
+const AO = {
+  bias: 0.5,
+  intensity: 0.05,
+  scale: 8,
+  kernelRadius: 40,
+};
 
 /** A waypoint the rail can interpolate: where the eye is, what it looks at. */
 interface Waypoint {
@@ -584,6 +607,7 @@ export class SceneController {
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer | null = null;
   private grade: ShaderPass | null = null;
+  private ao: SAOPass | null = null;
   private client: PulseClient | null = null;
   private frameHandle = 0;
   private running = false;
@@ -670,7 +694,7 @@ export class SceneController {
     const { clientWidth, clientHeight } = this.canvasSize();
     this.renderer.setSize(clientWidth, clientHeight, false);
 
-    this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(CAMERA.fov, clientWidth / Math.max(clientHeight, 1), CAMERA.near, CAMERA.far);
 
     // The post chain: scene into half-float, hot pixels haloed, then graded.
     // No OutputPass — the shaders author display values directly, and a
@@ -680,6 +704,29 @@ export class SceneController {
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
     this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+    // Ambient occlusion, before the halation.
+    //
+    // Nothing in this scene cast anything onto anything: a slab crossed in
+    // front of the core with no contact darkening and debris hung over the
+    // body without ever grounding, so the eye read composited assets rather
+    // than one world. That was the largest single "fake" signal in the frame
+    // after the material faults.
+    //
+    // It sits before the bloom because occlusion belongs to the beauty pass —
+    // haloing first and then darkening would put a bright fringe around
+    // creases that are supposed to be the darkest part of the frame. Radius
+    // is in world units against a body of radius 4.6, so this is contact
+    // shading in the wounds and between stacked slabs, not a global dimmer.
+    this.ao = new SAOPass(this.scene, this.camera);
+    this.ao.params.saoBias = AO.bias;
+    this.ao.params.saoIntensity = AO.intensity;
+    this.ao.params.saoScale = AO.scale;
+    this.ao.params.saoKernelRadius = AO.kernelRadius;
+    this.ao.params.saoBlur = true;
+    this.ao.resolution.set(1024, 1024);
+    this.composer.addPass(this.ao);
+
     this.composer.addPass(
       new UnrealBloomPass(new THREE.Vector2(clientWidth, clientHeight), BLOOM.strength, BLOOM.radius, BLOOM.threshold)
     );
