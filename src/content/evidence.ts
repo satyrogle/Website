@@ -217,8 +217,8 @@ export const GAME_STATES: GameState[] = [
     connector: 'combines into',
   },
   {
-    id: 'roguelite',
-    name: 'Roguelite',
+    id: 'confluence',
+    name: 'Confluence',
     role: 'Persistent systems + reactive simulation',
     prose:
       'A third product may combine the persistent institutional causality proven in Desk42 with the environmental and agent simulation developed through Brawler. Scope and production commitment follow evidence from the first two products on demand, cost, production time and reusable capability — not the other way round.',
