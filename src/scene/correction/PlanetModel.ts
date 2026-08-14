@@ -5,6 +5,15 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import planetVert from '../../shaders/planet-fragment.vert.glsl?raw';
 import planetFrag from '../../shaders/planet-fragment.frag.glsl?raw';
 
+// Staging jitter must be identical on every machine and every visit, so it
+// comes from the same generator as everything else rather than from a copy.
+//
+// This file used to carry its own byte-identical mulberry32, which made
+// `random.ts`'s opening line — "The one random stream, and the only one" —
+// untrue, and left the determinism claim with two implementations to keep in
+// step. They agreed today; nothing would have caught the day they stopped.
+import { mulberry32 } from './graph/random';
+
 /**
  * PlanetModel — the ruptured world, staged from its own manifest.
  *
@@ -101,17 +110,6 @@ export const DUST = {
   streaks: 34,
 };
 
-/** mulberry32 — staging jitter must be identical on every machine and visit. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /**
  * A unit direction for thrown matter, in the authored frame: drawn around
