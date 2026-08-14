@@ -186,6 +186,10 @@ export class PlanetModel {
       uExposure: { value: 1 },
       uCoreBase: { value: CORE_GLOW.base },
       uCoreFlare: { value: CORE_GLOW.flare },
+      // The rift network is authored in units of the body's own radius, so
+      // its frequencies mean something. Written at load, when the manifest
+      // is known; the placeholder only has to be non-zero.
+      uCoreRadius: { value: 1 },
     };
     // Not a lamp, and not an airbrushed gradient either. The interior is a
     // crusted melt: thin cooled plates rafting on the molten body, and the
@@ -218,35 +222,41 @@ export class PlanetModel {
         uniform float uExposure;
         uniform float uCoreBase;
         uniform float uCoreFlare;
+        uniform float uCoreRadius;
         in vec3 vNormal;
         in vec3 vView;
         in vec3 vLocal;
         out vec4 fragColour;
 
-        vec3 hash3(vec3 p) {
-          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-                   dot(p, vec3(269.5, 183.3, 246.1)),
-                   dot(p, vec3(113.5, 271.9, 124.6)));
-          return fract(sin(p) * 43758.5453);
+        float hash1(vec3 p) {
+          return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
         }
 
-        // F1/F2 cellular distances: F2-F1 is ~0 on a border between plates
-        // and grows toward each plate's centre.
-        vec2 plates(vec3 x) {
-          vec3 n = floor(x);
+        float vnoise(vec3 x) {
+          vec3 i = floor(x);
           vec3 f = fract(x);
-          float d1 = 8.0;
-          float d2 = 8.0;
-          for (int k = -1; k <= 1; k++)
-          for (int j = -1; j <= 1; j++)
-          for (int i = -1; i <= 1; i++) {
-            vec3 g = vec3(float(i), float(j), float(k));
-            vec3 r = g + hash3(n + g) - f;
-            float d = dot(r, r);
-            if (d < d1) { d2 = d1; d1 = d; }
-            else if (d < d2) { d2 = d; }
+          f = f * f * (3.0 - 2.0 * f);
+          float n000 = hash1(i + vec3(0.0, 0.0, 0.0));
+          float n100 = hash1(i + vec3(1.0, 0.0, 0.0));
+          float n010 = hash1(i + vec3(0.0, 1.0, 0.0));
+          float n110 = hash1(i + vec3(1.0, 1.0, 0.0));
+          float n001 = hash1(i + vec3(0.0, 0.0, 1.0));
+          float n101 = hash1(i + vec3(1.0, 0.0, 1.0));
+          float n011 = hash1(i + vec3(0.0, 1.0, 1.0));
+          float n111 = hash1(i + vec3(1.0, 1.0, 1.0));
+          return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+                     mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+        }
+
+        float fbm(vec3 p) {
+          float sum = 0.0;
+          float amp = 0.5;
+          for (int i = 0; i < 4; i++) {
+            sum += amp * vnoise(p);
+            p = p * 2.03 + 11.7;
+            amp *= 0.5;
           }
-          return sqrt(vec2(d1, d2));
+          return sum;
         }
 
         // One temperature ramp for everything: deep ember, through orange,
@@ -261,41 +271,73 @@ export class PlanetModel {
         void main() {
           float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
 
-          // Rafted, not tiled: the cell domain is bent by a slow flow first.
-          // Plate size is authored for the wound aperture: at 0.95 the hot
-          // province showed a dozen cells at once and read as honeycomb
-          // (Jacob). At 0.62 the aperture holds two to four monumental
-          // rafts — fracture, not pattern.
-          vec3 p = vLocal * 0.62
-                 + 0.50 * vec3(sin(vLocal.y * 0.8 + vLocal.z * 0.5),
-                               sin(vLocal.z * 0.9 - vLocal.x * 0.4),
-                               sin(vLocal.x * 0.7 + vLocal.y * 0.6));
-          vec2 major = plates(p);
-          vec2 minor = plates(p * 2.9 + 7.31);
+          // Rifts, not cells.
+          //
+          // Every cellular form of this shader failed the same way: a Voronoi
+          // field has ONE characteristic cell size, so whatever the aperture
+          // showed — a dozen cells or four — the eye found a repeating unit
+          // and read honeycomb, golf ball, dragon egg. Warping the domain
+          // moved the cells; it could not stop them being cells.
+          //
+          // A crack is not a cell boundary, it is a level set: the curve
+          // where a field crosses zero. Level sets of warped noise are long
+          // winding branching curves with no characteristic size at all —
+          // there is no unit to find, because a rift is a one-dimensional
+          // thing living in a three-dimensional field. Three generations at
+          // different scales give the hierarchy real fracture has: a few
+          // rifts crossing the whole body, secondaries branching off them,
+          // hairlines veining the plate between.
+          // Everything below is in units of the body's own radius, so a
+          // width is a readable fraction of the object rather than a number
+          // that happens to work. The first pass of this was authored in raw
+          // local units against a radius of 3.55: the field ran at three
+          // periods across the whole body, its level sets were a tenth of
+          // the radius wide, and the core rendered as one white blob whose
+          // bloom washed the crust to grey.
+          vec3 unit = vLocal / max(uCoreRadius, 1e-4);
+          vec3 q = unit * 2.6;
+          vec3 warp = vec3(fbm(q + 3.1), fbm(q + 11.7), fbm(q + 27.3)) - 0.5;
+          vec3 p = q + warp * 0.45;
 
-          // Regional convection: whole provinces run hotter and more broken.
-          // Squared into a hard unevenness — the first cellular pass lit
-          // every seam white and the interior read as lace; an interior
-          // reads as pressure when most of it is dark crust with ember
-          // cracks and ONE province is burning through.
-          float bend = 1.7 * sin(vLocal.y * 0.9 + vLocal.x * 0.5);
-          float cells = sin(vLocal.x * 2.3 + bend) * sin(vLocal.y * 2.0 - bend)
-                      + 0.6 * sin(vLocal.z * 3.4 + bend * 1.3) * sin(vLocal.x * 2.9 - vLocal.z * 1.1);
-          float region = clamp(0.5 + 0.31 * cells, 0.0, 1.0);
-          float province = 0.18 + 0.82 * region * region;
+          // Convection provinces: where the shell is thin and failing. Most
+          // of the interior is not — an interior reads as pressure when most
+          // of it is dark and ONE region is burning through.
+          float province = clamp(fbm(unit * 1.5 + 5.0) * 2.0 - 0.52, 0.0, 1.0);
+          province *= province;
 
-          // Each seam is a thin incandescent line inside a wide molten
-          // bleed; fine fractures vein the plates' skin. The flare parts
-          // everything further.
-          float gap = major.y - major.x;
-          float hot = 1.0 - smoothstep(0.0, 0.10 + 0.10 * uFlare, gap);
-          float warm = 1.0 - smoothstep(0.0, 0.45, gap);
-          float fine = 1.0 - smoothstep(0.0, 0.13, minor.y - minor.x);
+          // Width varies along a rift, so one opens into a chasm while the
+          // next closes to a hairline. Constant width is piping.
+          float openness = fbm(unit * 2.4 + 60.0);
+
+          float f1 = fbm(p) - 0.5;
+          float f2 = fbm(p * 2.7 + 19.0) - 0.5;
+          float f3 = fbm(p * 6.1 + 41.0) - 0.5;
+
+          float w1 = mix(0.030, 0.075, openness) * (1.0 + 0.9 * uFlare);
+          float w2 = mix(0.025, 0.055, openness) * (1.0 + 0.7 * uFlare);
+          float w3 = 0.035 * (1.0 + 0.5 * uFlare);
+
+          // Each rift is a narrow incandescent core inside a wide dim bleed:
+          // the core carries almost no area and all of the brightness, the
+          // bleed does the spilling into the rock beside it.
+          float core1 = 1.0 - smoothstep(0.0, w1, abs(f1));
+          float bleed1 = 1.0 - smoothstep(0.0, w1 * 5.5, abs(f1));
+          float core2 = (1.0 - smoothstep(0.0, w2, abs(f2))) * province;
+          float bleed2 = (1.0 - smoothstep(0.0, w2 * 4.5, abs(f2))) * province;
+          float core3 = (1.0 - smoothstep(0.0, w3, abs(f3))) * province * province;
 
           float pressure = uCoreBase + uFlare * uCoreFlare;
-          float skin = 0.09 + 0.20 * region;
-          float melt = (0.85 * hot + 0.38 * warm + 0.20 * fine) * province;
-          float energy = pressure * (skin + melt) * (0.45 + 0.55 * pow(facing, 1.4));
+          // Mostly ember plate. The skin is what the eye spends its time on,
+          // so it stays dark and the seams stay rare. The weights are set
+          // against the ramp: it saturates to white above about 1.25, so a
+          // lone rift core lands near 1.1 — bright orange-yellow — and only
+          // a wide rift crossed by a secondary reaches white. Summing to 3.0
+          // is how every seam went white at once and the interior read as
+          // one lamp.
+          float skin = 0.040 + 0.100 * province;
+          float bleed = 0.20 * bleed1 + 0.10 * bleed2;
+          float seam = 0.42 * core1 + 0.24 * core2 + 0.12 * core3;
+          float energy = pressure * (skin + bleed + seam) * (0.45 + 0.55 * pow(facing, 1.4));
 
           fragColour = vec4(ramp(energy) * energy * uExposure, 1.0);
         }
@@ -391,10 +433,9 @@ export class PlanetModel {
 
     // The interior. Slightly under the manifest's core radius so it never
     // z-fights the inner lining of the shell.
-    this.core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(manifest.coreRadius * 0.96, 3),
-      this.coreMaterial
-    );
+    const coreRadius = manifest.coreRadius * 0.96;
+    this.coreUniforms.uCoreRadius.value = coreRadius;
+    this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(coreRadius, 3), this.coreMaterial);
     this.inner.add(this.core);
 
     // The stops, transformed into world space for the rail.

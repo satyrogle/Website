@@ -99,22 +99,37 @@ async function frameStats() {
     let rSum = 0;
     let gSum = 0;
     let bSum = 0;
+    // Incandescence, separately from light. "Lit" counts anything above the
+    // void, which a charcoal crust satisfies; the ember law is a claim about
+    // how much of the frame is BURNING. A hot pixel is one whose red channel
+    // dominates and carries real level — that is the orange sheet the wound
+    // lining is not allowed to be. Counted at two levels so a change can be
+    // read as "less area, same peak" rather than "dimmer everywhere".
+    let hot = 0;
+    let white = 0;
     for (let i = 0; i < data.length; i += 4) {
-      const l = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const l = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255;
       sum += l;
       if (l > peak) peak = l;
       if (l > 0.04) {
         lit++;
-        rSum += data[i];
-        gSum += data[i + 1];
-        bSum += data[i + 2];
+        rSum += r;
+        gSum += g;
+        bSum += b;
       }
+      if (r > 90 && r > b * 1.6) hot++;
+      if (r > 235 && g > 190) white++;
     }
     const pixels = data.length / 4;
     resolve({
       litShare: lit / pixels,
       meanLuma: sum / pixels,
       peakLuma: peak,
+      hotShare: hot / pixels,
+      whiteShare: white / pixels,
       litMeanRGB: lit ? [Math.round(rSum / lit), Math.round(gSum / lit), Math.round(bSum / lit)] : [0, 0, 0],
     });
   })));
@@ -221,8 +236,8 @@ async function shot(name) {
   const t = await telemetry();
   console.log(
     `  ${name.padEnd(28)} lit ${(stats.litShare * 100).toFixed(1)}%  mean ${stats.meanLuma.toFixed(4)}  ` +
-      `peak ${stats.peakLuma.toFixed(3)}  litRGB ${stats.litMeanRGB.join(',')}` +
-      (t ? `  | tick ${t.tick} adj ${t.adjustments} held ${t.engaged} dev ${t.peakDeviation.toFixed(3)}` : '')
+      `peak ${stats.peakLuma.toFixed(3)}  hot ${(stats.hotShare * 100).toFixed(2)}%  ` +
+      `white ${(stats.whiteShare * 100).toFixed(2)}%  litRGB ${stats.litMeanRGB.join(',')}`
   );
   return { stats, telemetry: t };
 }

@@ -123,7 +123,10 @@ void main() {
   // light, which stays four to eight times brighter than any crust.
   float relief = clamp(0.5 + (altitude - 0.5) * 2.05, 0.0, 1.0);
   float wash = max(dot(n, WASH_DIR), 0.0);
-  float graze = pow(1.0 - abs(dot(n, v)), 3.0);
+  // Tight, because a broad one is a wet edge. At exponent 3 this lifted a
+  // wide band around every silhouette — the reading a viewer names as
+  // plastic before naming anything else about the material.
+  float graze = pow(1.0 - abs(dot(n, v)), 5.5);
   float ground = 0.10 + 1.25 * relief;
   float shape = 0.04 + 1.30 * pow(wash, 1.35);
   vec3 colour = vec3(0.105, 0.110, 0.120)
@@ -170,13 +173,22 @@ void main() {
   // as soap. Cool and tight, from the interior light and the void wash both,
   // roughened per-patch so it glints along edges instead of lacquering the
   // whole surface.
+  // Sparse and hard, because the previous form was neither. `gloss` never
+  // fell below 0.35, so every pixel of the crust carried some specular and
+  // the whole body read as wet vinyl — the exact fault this section was
+  // added to cure, reintroduced by giving the cure full coverage. A mineral
+  // glint is isolated: a facet catches the light and the rock either side of
+  // it does not. Thresholding the grain leaves only its peaks glinting, and
+  // tighter lobes keep those glints hard instead of smearing them into
+  // sheen. Faded with distance, since a sparse high-frequency highlight on a
+  // far piece is a sparkle, not a mineral.
+  float facet = smoothstep(0.58, 0.94, 0.5 + 0.5 * grain) * (0.2 + 0.8 * fine);
   vec3 h = normalize(l + v);
-  float gloss = 0.35 + 0.65 * clamp(0.5 + 0.5 * grain, 0.0, 1.0);
-  float sheen = pow(max(dot(n, h), 0.0), 26.0) * gloss * fall;
+  float sheen = pow(max(dot(n, h), 0.0), 62.0) * facet * fall;
   vec3 hw = normalize(WASH_DIR + v);
-  float voidSheen = pow(max(dot(n, hw), 0.0), 34.0) * gloss;
-  colour += vec3(0.44, 0.50, 0.60) * voidSheen * 0.30 * crust * uCrustLight;
-  colour += vec3(1.0, 0.60, 0.30) * sheen * 0.55 * crust;
+  float voidSheen = pow(max(dot(n, hw), 0.0), 74.0) * facet;
+  colour += vec3(0.44, 0.50, 0.60) * voidSheen * 0.34 * crust * uCrustLight;
+  colour += vec3(1.0, 0.60, 0.30) * sheen * 0.60 * crust;
 
   // The interior is a light source: crust that faces it catches its warmth,
   // falling off with the square of the distance — wound rims, slab
@@ -236,16 +248,28 @@ void main() {
   // the wound walls are exactly that big: the first frames striped every rim
   // like printed fabric. Warped, the bands close into marbling.
   float warp = 1.9 * sin(vLocal.z * 0.83 + vLocal.x * 0.31);
-  float veins = 0.80 + 0.20 * sin(vLocal.x * 1.7 + vLocal.y * 1.2 + warp)
-                           * sin(vLocal.z * 1.4 - vLocal.x * 0.9 - warp);
-  veins *= 0.93 + 0.07 * sin(vLocal.y * 4.0 + vLocal.z * 3.1 + warp * 1.6);
-  veins *= 0.86 + 0.14 * sin(vLocal.x * 6.7 + vLocal.y * 5.3 - warp)
-                       * sin(vLocal.z * 7.9 - vLocal.y * 4.1 + warp);
+  float o1 = sin(vLocal.x * 1.7 + vLocal.y * 1.2 + warp)
+           * sin(vLocal.z * 1.4 - vLocal.x * 0.9 - warp);
+  float o2 = sin(vLocal.y * 4.0 + vLocal.z * 3.1 + warp * 1.6);
+  float o3 = sin(vLocal.x * 6.7 + vLocal.y * 5.3 - warp)
+           * sin(vLocal.z * 7.9 - vLocal.y * 4.1 + warp);
   // A fourth, mineral-fine octave that only the near camera resolves: the
   // frequencies above are sized for mid-range, and a break face inside a
-  // stop's distance rendered as a flat orange sheet without it.
-  veins *= 1.0 - near * 0.22 * (0.5 + 0.5 * sin(vLocal.x * 13.0 + vLocal.y * 10.0 + warp * 2.3)
-                                          * sin(vLocal.z * 16.0 - vLocal.x * 9.0 - warp * 1.7));
+  // stop's distance rendered as a flat sheet without it.
+  float o4 = sin(vLocal.x * 13.0 + vLocal.y * 10.0 + warp * 2.3)
+           * sin(vLocal.z * 16.0 - vLocal.x * 9.0 - warp * 1.7);
+  float veinField = clamp(0.5 + 0.30 * o1 + 0.11 * o2 + 0.15 * o3 + near * 0.10 * o4, 0.0, 1.0);
+
+  // The ember law, as a curve rather than as a promise.
+  //
+  // These octaves used to be multiplied together as (0.8 + 0.2 * x) terms,
+  // which cannot go below about half: the wound wall was a continuous orange
+  // sheet with variation painted onto it, and no amount of extra octaves
+  // could make a floor of 0.5 read as burnt mass. Remapped, burnt is the
+  // default and incandescence is the exception — most of the face sits near
+  // the floor and only the vein network carries heat. The peak is unchanged,
+  // so the wound loses area, not intensity.
+  float veins = 0.05 + 0.95 * pow(smoothstep(0.30, 0.88, veinField), 1.5);
 
   // Interiors cool as they travel — and steeper than v3, because the debris
   // tail must read as dark mass with hot break edges, not as a stream of
