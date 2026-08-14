@@ -238,6 +238,11 @@ export class PlanetModel {
         in vec3 vLocal;
         out vec4 fragColour;
 
+        // Sin-based, deliberately. A multiply-and-fract hash is cheaper per
+        // call and was measured here: it saved nothing outside the noise
+        // floor, because this shader is 0.4 ms of the frame, and it changed
+        // the realisation enough that the rift network read as cells again —
+        // which is the one thing this material exists to avoid.
         float hash1(vec3 p) {
           return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
         }

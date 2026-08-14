@@ -57,6 +57,16 @@ const vec3 WASH_DIR = vec3(0.565, 0.823, 0.057);
 // WASH_DIR (dot ≈ 0.09), so the two never agree on a direction.
 const vec3 RAKE_DIR = vec3(0.600, -0.350, 0.719);
 
+/**
+ * Stays sin-based, and that is a measurement rather than an oversight.
+ *
+ * Swapping this for a multiply-and-fract hash is the standard optimisation
+ * and it was tried: it moved the frame by less than the run-to-run spread,
+ * because this shader is not the bottleneck, and it changed the noise
+ * realisation enough that the core's rift network went blobby and the crust
+ * lost its grain. A different hash is a different surface. Not worth it for
+ * nothing.
+ */
 float hash1(vec3 p) {
   return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
 }
@@ -102,8 +112,12 @@ float relief_height(vec3 p, float fine) {
   float h = 1.30 * fbm3(p * 0.55);
   h -= 0.60 * abs(fbm3(p * 1.30 + 17.0));
   // Grain, faded out with distance — detail this fine, differentiated across
-  // a distant pixel, is aliasing rather than texture.
-  h += fine * 0.35 * fbm3(p * 4.10 + 41.0);
+  // a distant pixel, is aliasing rather than texture. Skipped outright once
+  // the fade has taken it, rather than multiplied by nothing: it is a third
+  // of this function's cost, the fade reaches zero at 26 units, and most of
+  // what the frame draws is further away than that. The branch is coherent
+  // — whole pieces are near or far together — so it costs nothing to take.
+  if (fine > 0.01) h += fine * 0.35 * fbm3(p * 4.10 + 41.0);
   return h;
 }
 
