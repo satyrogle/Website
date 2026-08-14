@@ -344,29 +344,37 @@ void main() {
   // paint parallel bands across any face bigger than their wavelength, and
   // the wound walls are exactly that big: the first frames striped every rim
   // like printed fabric. Warped, the bands close into marbling.
-  float warp = 1.9 * sin(vLocal.z * 0.83 + vLocal.x * 0.31);
-  float o1 = sin(vLocal.x * 1.7 + vLocal.y * 1.2 + warp)
-           * sin(vLocal.z * 1.4 - vLocal.x * 0.9 - warp);
-  float o2 = sin(vLocal.y * 4.0 + vLocal.z * 3.1 + warp * 1.6);
-  float o3 = sin(vLocal.x * 6.7 + vLocal.y * 5.3 - warp)
-           * sin(vLocal.z * 7.9 - vLocal.y * 4.1 + warp);
-  // A fourth, mineral-fine octave that only the near camera resolves: the
-  // frequencies above are sized for mid-range, and a break face inside a
-  // stop's distance rendered as a flat sheet without it.
-  float o4 = sin(vLocal.x * 13.0 + vLocal.y * 10.0 + warp * 2.3)
-           * sin(vLocal.z * 16.0 - vLocal.x * 9.0 - warp * 1.7);
-  float veinField = clamp(0.5 + 0.30 * o1 + 0.11 * o2 + 0.15 * o3 + near * 0.10 * o4, 0.0, 1.0);
-
-  // The ember law, as a curve rather than as a promise.
+  // The ember law, finally with something to act on.
   //
-  // These octaves used to be multiplied together as (0.8 + 0.2 * x) terms,
-  // which cannot go below about half: the wound wall was a continuous orange
-  // sheet with variation painted onto it, and no amount of extra octaves
-  // could make a floor of 0.5 read as burnt mass. Remapped, burnt is the
-  // default and incandescence is the exception — most of the face sits near
-  // the floor and only the vein network carries heat. The peak is unchanged,
-  // so the wound loses area, not intensity.
-  float veins = 0.05 + 0.95 * pow(smoothstep(0.30, 0.88, veinField), 1.5);
+  // Two faults in sequence, both visible only at magnification. First these
+  // octaves ran at 1.7 per unit on a body of radius 4.6, so barely one cycle
+  // spanned the whole world and across a wall two units wide the field was
+  // effectively CONSTANT. A constant is a flat sheet, which is why the wound
+  // read as orange rind and why the ember-law remap appeared to do nothing:
+  // the remap was correct and had no distribution to remap.
+  //
+  // Raising the frequency exposed the second fault immediately. Products of
+  // unaligned sines are a lattice, and once resolvable the walls came back as
+  // a regular herringbone — the grid HERO_DIRECTION names as the single most
+  // damaging fault available, arriving by the same route it did in the crust
+  // relief and the core.
+  //
+  // So the veins are a LEVEL SET of noise, the technique that killed the
+  // cellular core: the curve where a warped field crosses zero is a network
+  // of long sinuous cracks with no characteristic size and no repeating unit.
+  // It also delivers the ember law by construction rather than by remapping —
+  // a level set occupies very little area, so most of the wall is burnt mass
+  // and the network carries the heat.
+  float rift = fbm3(vLocal * 2.4 + 11.0);
+  float vein = 1.0 - smoothstep(0.0, 0.085, abs(rift));
+  // A finer network the near camera resolves, faded out beyond it so a
+  // distant wall is not differentiating high frequencies into noise.
+  float capillary = 1.0 - smoothstep(0.0, 0.05, abs(fbm3(vLocal * 5.8 + 41.0)));
+  float veinField = clamp(vein + 0.55 * capillary * near, 0.0, 1.0);
+
+  // Burnt is the default; incandescence is the exception. The floor is what
+  // keeps a cooled wall from going pure black, not a base level of glow.
+  float veins = 0.05 + 0.95 * veinField;
 
   // Interiors cool as they travel — and steeper than v3, because the debris
   // tail must read as dark mass with hot break edges, not as a stream of
