@@ -42,26 +42,68 @@ out vec4 fragColour;
 // distance — the void does not fall off.
 const vec3 WASH_DIR = vec3(0.565, 0.823, 0.057);
 
+// A second fixed direction, deliberately low across the body. Landscape
+// reads under a low sun and flattens under an overhead one, and the wash
+// alone sits too near the reveal pose to cast terrain across itself. This
+// one only shapes: it is applied mean-preserving, redistributing value
+// between slopes that face it and slopes turned away rather than adding
+// light. Chosen off both the wash and the star so no two of the three ever
+// agree on a direction.
+// Pre-normalised: a const initialiser cannot call normalize(). Chosen with
+// a positive component along the approach so it actually falls on the
+// hemisphere the camera can see — aimed away, every visible slope reads
+// zero, the mean-preserving mix collapses to its floor, and the term
+// becomes a flat dimming that shapes nothing. Near-perpendicular to
+// WASH_DIR (dot ≈ 0.09), so the two never agree on a direction.
+const vec3 RAKE_DIR = vec3(0.600, -0.350, 0.719);
+
+float hash1(vec3 p) {
+  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float vnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(hash1(i + vec3(0.0, 0.0, 0.0)), hash1(i + vec3(1.0, 0.0, 0.0)), f.x),
+                 mix(hash1(i + vec3(0.0, 1.0, 0.0)), hash1(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(hash1(i + vec3(0.0, 0.0, 1.0)), hash1(i + vec3(1.0, 0.0, 1.0)), f.x),
+                 mix(hash1(i + vec3(0.0, 1.0, 1.0)), hash1(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}
+
+/** Three octaves, centred on zero. Bounded cost: this runs on the whole body. */
+float fbm3(vec3 p) {
+  float sum = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 3; i++) {
+    sum += amp * vnoise(p);
+    p = p * 2.07 + 13.3;
+    amp *= 0.5;
+  }
+  return sum - 0.4375;
+}
+
 /**
- * Relief height at a point, in the piece's own local frame: bedding planes
- * first, then blockiness, then grain. This is the surface the light is
- * actually allowed to see — see the bump note in main().
+ * Relief height at a point, in the piece's own local frame. This is the
+ * surface the light is actually allowed to see — see the bump note in main().
+ *
+ * Built from noise, not from products of sines. A product of sines is a
+ * regular three-dimensional lattice: it tiles, and the moment the real
+ * terrain amplitude came down to something planetary the lattice stopped
+ * being masked and the crust read as woven corduroy — the grid fault
+ * HERO_DIRECTION names as the single most damaging one available. Noise has
+ * no repeating unit, so relief can be pushed hard and no pattern ever
+ * emerges from it.
  */
 float relief_height(vec3 p, float fine) {
-  // Blocky jointing leads. Rock reads as fractured mass through irregular
-  // blocks meeting at angles, not through banding — and a band that leads
-  // becomes wood grain, which is the fault this scale is set against.
-  float h = 0.60 * sin(p.x * 1.9 + 1.2) * sin(p.z * 1.6 - 0.6)
-                 * sin(p.y * 1.4 + 2.2);
-  h += 0.30 * sin(p.z * 3.1 - 0.4) * sin(p.x * 2.7 + 1.9);
-  // Bedding: broad and shallow, a few thick layers across a whole piece
-  // rather than a stripe pattern printed over it.
-  float bedFold = 0.55 * sin(p.x * 0.9 + p.z * 0.6);
-  h += 0.22 * sin(p.y * 0.95 + p.x * 0.26 + bedFold);
-  // Grain, faded out with distance — a sine this fine, differentiated
-  // across a distant pixel, is aliasing rather than texture.
-  float warp = 2.2 * sin(p.y * 6.1 + p.x * 4.3);
-  h += fine * 0.16 * sin(p.x * 21.0 + warp) * sin(p.y * 18.0 - warp);
+  // Rolling mass first, then ridged jointing subtracted from it: an absolute
+  // value has a sharp bottom, which is what makes rock read as fractured
+  // blocks meeting at angles rather than as dunes.
+  float h = 1.30 * fbm3(p * 0.55);
+  h -= 0.60 * abs(fbm3(p * 1.30 + 17.0));
+  // Grain, faded out with distance — detail this fine, differentiated across
+  // a distant pixel, is aliasing rather than texture.
+  h += fine * 0.35 * fbm3(p * 4.10 + 41.0);
   return h;
 }
 
@@ -92,6 +134,23 @@ void main() {
   float height = relief_height(vLocal, fine);
   vec3 dPdx = dFdx(vWorld);
   vec3 dPdy = dFdy(vWorld);
+
+  // Curvature of the real surface, taken before the procedural bump touches
+  // the normal, so what it reports is the terrain the generator built and
+  // not the noise this shader adds on top.
+  //
+  // Normals converge into a hollow and diverge over a ridge, so the
+  // divergence of the interpolated normal field is a cavity/crest signal
+  // read straight off the mesh — what a baked ambient-occlusion map would
+  // give, without the bake, and deterministic. Dividing by the screen
+  // footprint turns it into a curvature in world units, which is what makes
+  // it hold still as the camera moves instead of strengthening as the body
+  // fills more pixels.
+  vec3 dNdx = dFdx(n);
+  vec3 dNdy = dFdy(n);
+  float footprint = max(dot(dPdx, dPdx) + dot(dPdy, dPdy), 1e-9);
+  float curvature = (dot(dNdx, dPdx) + dot(dNdy, dPdy)) / footprint;
+
   vec3 r1 = cross(dPdy, n);
   vec3 r2 = cross(n, dPdx);
   float det = dot(dPdx, r1);
@@ -129,6 +188,12 @@ void main() {
   float graze = pow(1.0 - abs(dot(n, v)), 5.5);
   float ground = 0.10 + 1.25 * relief;
   float shape = 0.04 + 1.30 * pow(wash, 1.35);
+  // The rake, mean-preserving: slopes turned into it gain what slopes turned
+  // away lose. Terrain casts value across itself and the body's overall
+  // brightness is unchanged, which is the difference between revealing
+  // geology and simply adding a second lamp to a world that must stay dark.
+  float rake = smoothstep(0.0, 0.50, dot(n, RAKE_DIR));
+  shape *= mix(0.66, 1.34, rake);
   vec3 colour = vec3(0.105, 0.110, 0.120)
               * (ground * shape * uCrustLight + graze * 0.40 * fall);
 
@@ -137,10 +202,28 @@ void main() {
   // the wide shots stay exactly as composed. Multiplicative, so it carves
   // cavity darkening out of whatever light is already there.
   float near = nearness;
-  float grainWarp = 2.2 * sin(vLocal.y * 6.1 + vLocal.x * 4.3);
-  float grain = sin(vLocal.x * 21.0 + grainWarp) * sin(vLocal.y * 18.0 - grainWarp)
-              + 0.6 * sin(vLocal.z * 24.0 + grainWarp * 1.4) * sin(vLocal.x * 27.0 - vLocal.z * 15.0);
+  // Pitting, from the same noise for the same reason: the sine-product form
+  // of this was a fine lattice, and a lattice at grain scale is the speckled
+  // fabric weave that came with the corduroy.
+  float grain = 3.2 * fbm3(vLocal * 7.5 + 3.7);
   colour *= 1.0 - near * (0.16 + 0.10 * crust) * clamp(0.5 - 0.4 * grain, 0.0, 1.0);
+
+  // Landforms, made legible. The generator puts crater rims, scarps and
+  // basins into the mesh; smooth shading on a body this dark was not
+  // revealing any of them, so the terrain existed and could not be named.
+  // Hollows darken, rims catch. Both come from real curvature, so what the
+  // eye finds is the terrain that is actually there rather than a texture
+  // implying it.
+  //
+  // Cavity carries the weight because it is zero on anything convex: a
+  // sphere, and every debris chunk, is untouched, and only genuine
+  // concavity darkens. Crest stays small for the same reason in reverse —
+  // a small chunk has high curvature everywhere, and a large crest term
+  // would light the debris field as a side effect.
+  float cavity = clamp(-curvature * 0.60, 0.0, 1.0);
+  float crest = clamp(curvature * 0.25, 0.0, 1.0);
+  colour *= 1.0 - 0.52 * cavity * crust;
+  colour *= 1.0 + 0.18 * crest * crust;
 
   // ------------------------------------------------------------- the strata
   //

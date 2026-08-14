@@ -157,23 +157,39 @@ def _smooth01(x):
     return x * x * (3.0 - 2.0 * x)
 
 
-def _make_craters(seed, count=11):
+def _make_craters(seed, count=22):
     """
     Impact basins, precomputed once. Each carries its own axis, its own
     tangent basis and its own rim-modulation phases, so no two share an axis
     and no outline is a circle — the no-rotational-symmetry rule, applied at
     feature scale.
+
+    Sizes follow a power law, because a crater field is the one planetary
+    feature everybody has seen a photograph of and it is never uniform: many
+    small sharp craters, a few great basins. Drawn from a flat 10-29 degree
+    range they were all continent-sized and all shallow, so at any amplitude
+    they read as gentle undulations — the smooth pebble surface Jacob
+    rejected — rather than as impacts.
+
+    Depth is proportional to the bowl, which is both the real relation and
+    what keeps a small crater a sharp pit instead of a dimple: a fixed depth
+    across a 6x size range makes the small ones invisible and the large ones
+    shallow saucers.
     """
     rng = np.random.default_rng(seed)
     craters = []
     for _ in range(count):
         cdir = unit(rng.normal(size=3))
         cu, cv = tangent_basis(cdir)
+        # Mostly small, rarely huge. The floor is set by the mesh: below
+        # roughly four degrees a bowl is finer than the vertex spacing at
+        # SUBDIV 7 and does not exist however it is authored.
+        rho = float(0.075 + 0.345 * (rng.random() ** 2.2))
         craters.append({
             'dir': cdir, 'u': cu, 'v': cv,
-            'rho': float(rng.uniform(0.18, 0.50)),      # angular radius
-            'depth': float(rng.uniform(0.050, 0.100)),  # fraction of radius
-            'rim': float(rng.uniform(0.22, 0.40)),      # of depth
+            'rho': rho,                                  # angular radius
+            'depth': float(rho * rng.uniform(0.30, 0.46)),  # fraction of radius
+            'rim': float(rng.uniform(0.34, 0.58)),       # of depth
             'ph': rng.uniform(0, math.tau, size=3),
         })
     return craters
@@ -242,7 +258,26 @@ def fracture_field(d):
 #: half-unit steps, not decoration — but the globe outranks the terrain: at
 #: 0.21 the silhouette tipped from "world with bold geology" into "black
 #: organic lump", which is on the spec's do-not list.
-ELEV_CAP = 0.18
+#: How much of the body the terrain is allowed to take.
+#:
+#: The terrain was authored for legibility at close range, and at full
+#: amplitude it deformed the silhouette by nearly a fifth of the radius —
+#: which is why the body read as a clenched organic mass rather than as a
+#: planet (Jacob, 2026-08-14: "the shape of the planet is off"). A world this
+#: battered sits near five percent; past that an outline stops being a sphere
+#: and `HERO_DIRECTION`'s 55-70% inferable silhouette cannot survive.
+#:
+#: Scaling the summed terrain and the cap by the same factor is a pure
+#: amplitude change — ELEV_CAP * tanh(total/ELEV_CAP) scales exactly — so
+#: every relative feature keeps its shape, and the altitude mark, which is
+#: normalised against the cap in `mark_crust`, comes through untouched. The
+#: shading contrast that makes terrain readable is therefore fully preserved
+#: while the potato goes: contrast, not amplitude, exactly as P4 asks.
+#: 0.30 read as a clean sphere but a smooth one — the landforms went with
+#: the potato. 0.42 puts maximum relief near eight percent of the radius,
+#: which is Vesta territory: unmistakably a sphere, unmistakably battered.
+RELIEF_SCALE = 0.42
+ELEV_CAP = 0.18 * RELIEF_SCALE
 
 
 def elevation(direction):
@@ -297,7 +332,9 @@ def elevation(direction):
         x = ang / max(rho, 1e-4)
         if x < 1.0:
             bowls -= crater['depth'] * (1.0 - _smooth01((x - 0.55) / 0.45))
-        lip = 1.0 - abs(x - 1.0) / 0.22
+        # A crater rim is a ridge, not a swell: narrow enough that the wall
+        # rises and falls inside a fifth of the bowl's own radius.
+        lip = 1.0 - abs(x - 1.0) / 0.16
         if lip > 0.0:
             bowls += crater['depth'] * crater['rim'] * lip * lip
 
@@ -307,7 +344,7 @@ def elevation(direction):
     openness, proximity = fracture_field(d)
     crevasse = -openness * (0.020 + 0.085 * proximity)
 
-    total = macro + plateau + meso + bowls + micro + crevasse
+    total = (macro + plateau + meso + bowls + micro + crevasse) * RELIEF_SCALE
     return ELEV_CAP * math.tanh(total / ELEV_CAP)
 
 
