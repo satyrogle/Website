@@ -53,6 +53,12 @@
 
     <canvas id="lattice-canvas" aria-hidden="true"></canvas>
 
+    <!-- Why a press did nothing. Under reduced motion the invitation is
+         hidden but the canvas is still there to be tapped, and a refusal in
+         silence is indistinguishable from a fault. Polite, so a screen reader
+         hears it at the next pause rather than interrupting. -->
+    <p class="refusal" data-refusal role="status" aria-live="polite" hidden></p>
+
     <!-- Loader. Removed immediately if JS never runs. -->
     <div class="loader" id="loader" role="status" aria-live="polite">
       <p class="loader__label" id="loader-label">Initialising</p>

@@ -25,6 +25,7 @@ const a11y = new AccessibilityController();
 const reveals = new TextReveals(motion.animated);
 
 let scene: SceneController | null = null;
+let refusalTimer = 0;
 let director: ScrollDirector | null = null;
 let record: RecordController | null = null;
 
@@ -165,6 +166,21 @@ async function boot(): Promise<void> {
     reveals.revealHero();
     return;
   }
+  // A declined press explains itself. The scene knows it refused; only this
+  // layer knows how to say so, and it says it in a polite live region so a
+  // screen reader hears it without the sighted visitor being interrupted by
+  // anything louder than a line of text.
+  scene.onRefusal = () => {
+    const out = document.querySelector<HTMLElement>('[data-refusal]');
+    if (!out) return;
+    out.textContent = 'Reduced motion is on, so the simulation is not running.';
+    out.hidden = false;
+    window.clearTimeout(refusalTimer);
+    refusalTimer = window.setTimeout(() => {
+      out.hidden = true;
+    }, 4000);
+  };
+
   setLoaderProgress(0.55);
 
   // 4 — Synthesise the structure, run it unsupervised, and take the

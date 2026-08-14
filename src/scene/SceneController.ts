@@ -69,6 +69,36 @@ export const HERO_SUBJECT = {
     const parsed = Number.parseFloat(raw);
     return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0.54;
   },
+  /**
+   * Share of the viewport HEIGHT the wordmark owns, measured from the bottom.
+   *
+   * Portrait's counterpart to the type column. A tall frame has no spare
+   * column — the type spans the width — so the split that has to be honoured
+   * is horizontal: type along the bottom, subject in the band above it.
+   */
+  typeRow: (): number => {
+    const hero = document.querySelector('.hero');
+    const raw = getComputedStyle(hero ?? document.documentElement).getPropertyValue(
+      '--hero-type-row'
+    );
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0;
+  },
+
+  /**
+   * NDC y where the subject belongs.
+   *
+   * With a type row declared, the subject takes the middle of the band above
+   * it: NDC y runs +1 at the top to -1 at the bottom, so a type row of `r`
+   * leaves the band from the top down to screen fraction 1 − r, whose middle
+   * lands at NDC y = r. Without one — every landscape layout — this is just
+   * the authored height, which the dev dial still drives.
+   */
+  subjectY(): number {
+    const row = this.typeRow();
+    return row > 0.02 ? row : this.centreY;
+  },
+
   /** NDC x of the free column's centre. Zero when the type spans the frame. */
   centreX(): number {
     const column = this.typeColumn();
@@ -95,10 +125,16 @@ export const HERO_SUBJECT = {
    * containing every far-flung fragment is neither possible at this stand-off
    * nor wanted, because the debris field is supposed to run off frame.
    */
-  extent(distance: number, bodyRadius: number): { x: number; y: number } {
-    const tanHalf = Math.tan((CAMERA.fov * Math.PI) / 360);
+  extent(distance: number, bodyRadius: number, fov = CAMERA.fov): { x: number; y: number } {
+    const tanHalf = Math.tan((fov * Math.PI) / 360);
     const halfHeight = Math.max(distance * tanHalf, 1e-6);
-    const radius = bodyRadius * SILHOUETTE.ofBody;
+    // A tall frame asks less of containment, deliberately. Demanding that the
+    // body AND the slabs lying against it fit inside the top four-tenths of a
+    // phone forces the camera so far back that the planet becomes a detail —
+    // and on that frame the debris field has already left the sides anyway.
+    // What has to read is the body; the slabs are allowed to go.
+    const tall = this.aspect() < PORTRAIT.below;
+    const radius = bodyRadius * (tall ? SILHOUETTE.ofBodyTall : SILHOUETTE.ofBody);
     return { x: radius / (halfHeight * this.aspect()), y: radius / halfHeight };
   },
 
@@ -110,15 +146,16 @@ export const HERO_SUBJECT = {
    * only bites when the two genuinely disagree, which is exactly the case the
    * contract could not see.
    */
-  containedX(distance: number, bodyRadius: number): number {
+  containedX(distance: number, bodyRadius: number, fov = CAMERA.fov): number {
     const wanted = this.centreX();
-    const limit = Math.max(SILHOUETTE.margin - this.extent(distance, bodyRadius).x, 0);
+    const limit = Math.max(SILHOUETTE.margin - this.extent(distance, bodyRadius, fov).x, 0);
     return Math.sign(wanted) * Math.min(Math.abs(wanted), limit);
   },
 
-  containedY(distance: number, bodyRadius: number): number {
-    const limit = Math.max(SILHOUETTE.margin - this.extent(distance, bodyRadius).y, 0);
-    return Math.sign(this.centreY) * Math.min(Math.abs(this.centreY), limit);
+  containedY(distance: number, bodyRadius: number, fov = CAMERA.fov): number {
+    const wanted = this.subjectY();
+    const limit = Math.max(SILHOUETTE.margin - this.extent(distance, bodyRadius, fov).y, 0);
+    return Math.sign(wanted) * Math.min(Math.abs(wanted), limit);
   },
 };
 
@@ -136,7 +173,7 @@ export const HERO_SUBJECT = {
  * void outside the silhouette, because a subject exactly touching the frame
  * edge still reads as cropped.
  */
-const SILHOUETTE = { ofBody: 1.78, margin: 0.94 };
+const SILHOUETTE = { ofBody: 1.78, ofBodyTall: 1.35, margin: 0.94 };
 
 /**
  * Halation for the hot surfaces, and only for them. The threshold sits far
@@ -191,7 +228,8 @@ const composeAim = (
   eye: THREE.Vector3,
   subject: THREE.Vector3,
   nx: number,
-  ny: number
+  ny: number,
+  fov = CAMERA.fov
 ): THREE.Vector3 => {
   const forward = subject.clone().sub(eye);
   if (forward.lengthSq() < 1e-8) return subject.clone();
@@ -205,7 +243,7 @@ const composeAim = (
   const camUp = new THREE.Vector3().crossVectors(camRight, forward).normalize();
 
   const distance = eye.distanceTo(subject);
-  const tanHalf = Math.tan((CAMERA.fov * Math.PI) / 360);
+  const tanHalf = Math.tan((fov * Math.PI) / 360);
   const aspect = HERO_SUBJECT.aspect();
 
   return subject
@@ -482,7 +520,7 @@ const DEMONSTRATIONS = [
  * rather than shrinks. The camera is still on a straight rail; only its
  * horizon is different.
  */
-const PORTRAIT = { fov: 34, roll: -0.92, below: 0.85, retreat: 1.7, drop: 1.0 };
+const PORTRAIT = { fov: 34, roll: -0.92, below: 0.85, retreat: 2.4 };
 
 const smoothstep = (t: number): number => {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
@@ -549,6 +587,9 @@ export class SceneController {
   private frameHandle = 0;
   private running = false;
   private reducedMotion: boolean;
+
+  /** Raised when a press is declined, so the DOM layer can say why. */
+  onRefusal: ((reason: 'reduced-motion') => void) | null = null;
   private disposed = false;
 
   private raycaster = new THREE.Raycaster();
@@ -801,7 +842,18 @@ export class SceneController {
     if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > TAP_SLOP) return;
     if (this.isReading(event.target)) return;
 
-    this.pressAt(event.clientX, event.clientY);
+    // No distance tolerance, for the same reason the keyboard path has none:
+    // by this line the gesture has already proved it was deliberate — armed
+    // on contact, held briefly, released within a few pixels, and not on any
+    // text. Refusing it because the thumb missed is a control that silently
+    // does nothing.
+    //
+    // It matters more since the portrait recomposition, which stands the
+    // camera back so the subject occupies the frame's upper band rather than
+    // filling it. At the previous 0.20 tolerance a tap anywhere below the
+    // planet — most of a phone screen — reached nothing, and the site's one
+    // action was dead on the device most likely to be holding it.
+    this.pressAt(event.clientX, event.clientY, Infinity);
   };
 
   /** The browser took the gesture for itself — a scroll, or a system edge swipe. */
@@ -844,7 +896,15 @@ export class SceneController {
     // into a world that is never re-rendered. In both cases the action has no
     // consequence the visitor can observe, and an action without an
     // observable consequence is the one thing this interaction cannot be.
-    if (!this.machineOn || this.reducedMotion) return -1;
+    if (!this.machineOn || this.reducedMotion) {
+      // Refused, and said so. A press that is declined in silence is
+      // indistinguishable from one that is broken, and under reduced motion
+      // the invitation is hidden but the canvas is still there to be tapped.
+      // The scene reports the refusal; what it looks like is the DOM layer's
+      // business, which is where that boundary already sits.
+      if (this.reducedMotion) this.onRefusal?.('reduced-motion');
+      return -1;
+    }
 
     this.pointerNdc.set(
       (clientX / window.innerWidth) * 2 - 1,
@@ -1376,14 +1436,30 @@ export class SceneController {
 
     this.railPose(t, this.railOffset, this.railTarget);
 
-    // A tall frame sees far less across its width, and the choir's long axis
-    // runs across the frame — held level it would be cropped to a fragment. So
-    // portrait stands further back along the same line and aims lower, which
-    // carries the field into the frame's upper reach and leaves the copy on its
-    // own ground. Still one straight rail; only distance and aim move.
+    // Portrait is a recomposition, not a scale.
+    //
+    // A tall frame sees far less across its width, so the camera stands
+    // further back along the same line — still one straight rail, only the
+    // distance moves. What follows used to be `railTarget.y -= 1.0`, a fixed
+    // world-space nudge inherited from the retired choir carrier, and on this
+    // subject at this distance it moved the frame by about eight hundredths
+    // of the height: the wordmark sat directly on the wound, which is exactly
+    // the fault the landscape contract exists to prevent, and the CSS claimed
+    // a recomposition that nothing implemented.
+    //
+    // The split is now honoured on the axis a tall frame actually has spare.
+    // The type owns a band along the bottom, declared by `--hero-type-row`,
+    // and the subject is composed into the middle of what is left — the same
+    // solve the landscape column uses, turned ninety degrees, and clamped by
+    // the same containment so a body too large to sit high simply does not.
     if (this.portrait) {
       this.railOffset.sub(this.railTarget).multiplyScalar(PORTRAIT.retreat).add(this.railTarget);
-      this.railTarget.y -= PORTRAIT.drop;
+      const bodyRadius = this.planet?.bodyRadius ?? 0;
+      if (bodyRadius > 0) {
+        const stand = this.railOffset.distanceTo(this.railTarget);
+        const ny = HERO_SUBJECT.containedY(stand, bodyRadius, PORTRAIT.fov);
+        this.railTarget.copy(composeAim(this.railOffset, this.railTarget, 0, ny, PORTRAIT.fov));
+      }
     }
 
     this.camera.position.copy(this.railOffset);

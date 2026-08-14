@@ -40,10 +40,21 @@
 }
 
 @media (max-width: 900px) {
-  /* Portrait is a recomposition, not a scale: the subject takes the upper
-     frame and the wordmark sits beneath it, so neither crops the other. */
+  /*
+   * Portrait is a recomposition, not a scale: the subject takes the upper
+   * frame and the wordmark sits beneath it, so neither crops the other.
+   *
+   * This used to be the column alone, which in a tall frame means the type
+   * spans the width — and with no other instruction both halves centred and
+   * the wordmark landed on the wound. `--hero-type-row` is the missing half
+   * of the contract: the share of the viewport HEIGHT the type owns, counted
+   * from the bottom. SceneController reads the same number and composes the
+   * subject into the band above it, so the two move together exactly as the
+   * column and the camera do in landscape.
+   */
   .hero {
     --hero-type-column: 1;
+    --hero-type-row: 0.58;
   }
 }
 
@@ -93,6 +104,23 @@
    * one number instead of being nudged toward each other.
    */
   font-size: min(var(--display-xl), calc(var(--hero-type-column) * 100vw / 4.35));
+}
+
+/*
+ * Portrait: the wordmark drops to the foot of its row so the band the camera
+ * has been told to leave empty actually is empty.
+ *
+ * This has to live AFTER the base rule, not with the rest of the portrait
+ * block at the top of the file. Both selectors are a single class, so
+ * specificity is equal and source order decides — declared earlier, the base
+ * `align-self: center` silently won, the wordmark floated in the middle of
+ * the subject's band, and the camera dutifully composed around a gap that
+ * was not where the type was.
+ */
+@media (max-width: 900px) {
+  .hero__title {
+    align-self: end;
+  }
 }
 
 .hero__title .reveal-line > span {
@@ -1274,4 +1302,36 @@
     font-size: 8pt;
     color: #555;
   }
+}
+
+/* ============================================================
+   Refusal notice
+
+   Sits over the canvas rather than in the flow: it answers a
+   gesture, so it belongs where the gesture happened, and it must
+   not reflow the page when it appears and disappears.
+   ============================================================ */
+
+.refusal {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(1.2rem, 4vh, 2.4rem);
+  transform: translateX(-50%);
+  z-index: 60;
+  margin: 0;
+  padding: 0.7rem 1.1rem;
+  max-width: min(38ch, calc(100vw - 2 * var(--gutter)));
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--panel-veil-solid);
+  border: 1px solid var(--line);
+  pointer-events: none;
+}
+
+.refusal[hidden] {
+  display: none;
 }
