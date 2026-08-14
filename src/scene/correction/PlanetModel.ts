@@ -198,6 +198,9 @@ export class PlanetModel {
       // its frequencies mean something. Written at load, when the manifest
       // is known; the placeholder only has to be non-zero.
       uCoreRadius: { value: 1 },
+      // The camera, in the core's own object space. A volume has to be
+      // marched along the view ray, and the ray only exists in this space.
+      uCamLocal: { value: new THREE.Vector3() },
     };
     // Not a lamp, and not an airbrushed gradient either. The interior is a
     // crusted melt: thin cooled plates rafting on the molten body, and the
@@ -231,10 +234,15 @@ export class PlanetModel {
         uniform float uCoreBase;
         uniform float uCoreFlare;
         uniform float uCoreRadius;
+        uniform vec3 uCamLocal;
         in vec3 vNormal;
         in vec3 vView;
         in vec3 vLocal;
         out vec4 fragColour;
+
+        // Emission is gathered per unit length, so the march's total is not
+        // the surface evaluation's; this restores the authored brightness.
+        const float CORE_GAIN = 0.85;
 
         // Sin-based, deliberately. A multiply-and-fract hash is cheaper per
         // call and was measured here: it saved nothing outside the noise
@@ -282,77 +290,72 @@ export class PlanetModel {
         }
 
         void main() {
-          float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
-
-          // Rifts, not cells.
+          // Marched, not painted.
           //
-          // Every cellular form of this shader failed the same way: a Voronoi
-          // field has ONE characteristic cell size, so whatever the aperture
-          // showed — a dozen cells or four — the eye found a repeating unit
-          // and read honeycomb, golf ball, dragon egg. Warping the domain
-          // moved the cells; it could not stop them being cells.
+          // Every previous version evaluated the rift field at the SURFACE
+          // position and wrapped the result on a sphere, which is a texture
+          // however good the field is: no parallax as the camera moves, no
+          // depth between near cracks and far ones, and a limb that behaves
+          // like a decal rather than like a body. Jacob, twice: "it still
+          // looks like a texture."
           //
-          // A crack is not a cell boundary, it is a level set: the curve
-          // where a field crosses zero. Level sets of warped noise are long
-          // winding branching curves with no characteristic size at all —
-          // there is no unit to find, because a rift is a one-dimensional
-          // thing living in a three-dimensional field. Three generations at
-          // different scales give the hierarchy real fracture has: a few
-          // rifts crossing the whole body, secondaries branching off them,
-          // hairlines veining the plate between.
-          // Everything below is in units of the body's own radius, so a
-          // width is a readable fraction of the object rather than a number
-          // that happens to work. The first pass of this was authored in raw
-          // local units against a radius of 3.55: the field ran at three
-          // periods across the whole body, its level sets were a tenth of
-          // the radius wide, and the core rendered as one white blob whose
-          // bloom washed the crust to grey.
-          vec3 unit = vLocal / max(uCoreRadius, 1e-4);
-          vec3 q = unit * 2.6;
-          vec3 warp = vec3(fbm(q + 3.1), fbm(q + 11.7), fbm(q + 27.3)) - 0.5;
-          vec3 p = q + warp * 0.45;
+          // So the ray enters at this fragment and travels inward, gathering
+          // emission through the field it passes. Cracks at different depths
+          // now slide across one another as the camera moves, the centre
+          // accumulates more path than the limb, and the interior reads as a
+          // volume with pressure in it because that is what is being drawn.
+          vec3 ro = vLocal;
+          vec3 rd = normalize(vLocal - uCamLocal);
+          float R = max(uCoreRadius, 1e-4);
 
-          // Convection provinces: where the shell is thin and failing. Most
-          // of the interior is not — an interior reads as pressure when most
-          // of it is dark and ONE region is burning through.
-          float province = clamp(fbm(unit * 1.5 + 5.0) * 2.0 - 0.52, 0.0, 1.0);
-          province *= province;
+          // The far side, analytically: the entry point lies on the sphere,
+          // so the chord to the exit is -2 (ro . rd). Capped, because a ray
+          // through the middle would otherwise cost twice a grazing one for
+          // light that is absorbed long before it gets there.
+          float chord = max(-2.0 * dot(ro, rd), 0.0);
+          float far = min(chord, R * 1.7);
 
-          // Width varies along a rift, so one opens into a chasm while the
-          // next closes to a hairline. Constant width is piping.
-          float openness = fbm(unit * 2.4 + 60.0);
+          const int STEPS = 16;
+          float dt = far / float(STEPS);
 
-          float f1 = fbm(p) - 0.5;
-          float f2 = fbm(p * 2.7 + 19.0) - 0.5;
-          float f3 = fbm(p * 6.1 + 41.0) - 0.5;
-
-          float w1 = mix(0.030, 0.075, openness) * (1.0 + 0.9 * uFlare);
-          float w2 = mix(0.025, 0.055, openness) * (1.0 + 0.7 * uFlare);
-          float w3 = 0.035 * (1.0 + 0.5 * uFlare);
-
-          // Each rift is a narrow incandescent core inside a wide dim bleed:
-          // the core carries almost no area and all of the brightness, the
-          // bleed does the spilling into the rock beside it.
-          float core1 = 1.0 - smoothstep(0.0, w1, abs(f1));
-          float bleed1 = 1.0 - smoothstep(0.0, w1 * 5.5, abs(f1));
-          float core2 = (1.0 - smoothstep(0.0, w2, abs(f2))) * province;
-          float bleed2 = (1.0 - smoothstep(0.0, w2 * 4.5, abs(f2))) * province;
-          float core3 = (1.0 - smoothstep(0.0, w3, abs(f3))) * province * province;
-
+          vec3 acc = vec3(0.0);
+          float trans = 1.0;
           float pressure = uCoreBase + uFlare * uCoreFlare;
-          // Mostly ember plate. The skin is what the eye spends its time on,
-          // so it stays dark and the seams stay rare. The weights are set
-          // against the ramp: it saturates to white above about 1.25, so a
-          // lone rift core lands near 1.1 — bright orange-yellow — and only
-          // a wide rift crossed by a secondary reaches white. Summing to 3.0
-          // is how every seam went white at once and the interior read as
-          // one lamp.
-          float skin = 0.040 + 0.100 * province;
-          float bleed = 0.20 * bleed1 + 0.10 * bleed2;
-          float seam = 0.42 * core1 + 0.24 * core2 + 0.12 * core3;
-          float energy = pressure * (skin + bleed + seam) * (0.45 + 0.55 * pow(facing, 1.4));
 
-          fragColour = vec4(ramp(energy) * energy * uExposure, 1.0);
+          for (int i = 0; i < STEPS; i++) {
+            vec3 p = ro + rd * (dt * (float(i) + 0.5));
+            vec3 u = p / R;
+            // 0 at the shell, 1 at the centre.
+            float depth = 1.0 - clamp(length(u), 0.0, 1.0);
+
+            // The same level set as before, now sampled in three dimensions
+            // instead of on a surface: the curve where a warped field crosses
+            // zero is a sheet inside a volume, and a sheet seen edge-on is a
+            // crack.
+            float f = fbm(u * 2.6 + 11.0) - 0.5;
+            float crack = 1.0 - smoothstep(0.0, 0.075 + 0.05 * uFlare, abs(f));
+
+            // Pressure lives at the centre, not on the skin, so the deep
+            // cracks are the bright ones and the shell is nearly cold.
+            float heat = crack * (0.30 + 1.70 * depth * depth);
+            // A dim continuum, so the space between cracks is molten rather
+            // than empty.
+            heat += 0.030 * depth * depth;
+
+            float energy = heat * pressure;
+            acc += ramp(energy) * energy * trans * dt;
+
+            // Absorption: crust nearer the eye hides what is behind it, which
+            // is what stops the accumulation reading as a flat sum. Kept low
+            // deliberately — at the first value tried, transmittance halved
+            // every step, only the two samples nearest the shell reached the
+            // eye, and a volume that is opaque one step in is a surface with
+            // extra cost.
+            trans *= exp(-(crack * 0.95 + 0.06) * dt);
+            if (trans < 0.02) break;
+          }
+
+          fragColour = vec4(acc * CORE_GAIN * uExposure, 1.0);
         }
       `,
       side: THREE.FrontSide,
@@ -704,6 +707,10 @@ export class PlanetModel {
         in vec3 vN;
         in vec3 vV;
         out vec4 fragColour;
+
+        // Emission is gathered per unit length, so the march's total is not
+        // the surface evaluation's; this restores the authored brightness.
+        const float CORE_GAIN = 0.85;
         void main() {
           // Rim only. A filled ghost is a second planet; an edge is a
           // position being asserted. The exponent is wide enough to survive
@@ -737,6 +744,24 @@ export class PlanetModel {
       this.inner.add(ghost);
     });
   }
+
+  /**
+   * Where the camera stands, in the core's own object space.
+   *
+   * The interior is marched along the view ray, and that ray is only
+   * meaningful in the space the field is defined in. Recomputed per frame
+   * because the group carries the site's diagonal and the camera travels the
+   * rail; a stale value would slide the parallax off the geometry, which is
+   * the one artefact that would look worse than the texture it replaces.
+   */
+  setCameraLocal(camera: THREE.Camera): void {
+    if (!this.core) return;
+    this.core.updateWorldMatrix(true, false);
+    const local = this.coreUniforms.uCamLocal.value as THREE.Vector3;
+    local.copy(camera.position);
+    this.core.worldToLocal(local);
+  }
+
 
   /**
    * How many pixels one unit of deviation moves this piece, right now.

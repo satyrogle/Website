@@ -1556,6 +1556,7 @@ export class SceneController {
     this.model?.setTime(now / 1000);
     this.model?.setFlare(this.flareAt(this.progress));
     this.planet?.setTime(now / 1000);
+    this.planet?.setCameraLocal(this.camera);
     this.planet?.setFlare(this.flareAt(this.progress));
     this.planet?.setExposure(this.exposure);
     // Stepped after the flare, because both write the same positions and the
