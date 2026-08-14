@@ -106,6 +106,8 @@ export class RecordController {
   /** The record as it stood when this visit began. */
   private previous: StoredRecord | null;
   private entered = false;
+  /** The visitor took the way out; crossing bands after that is transit. */
+  private skipped = false;
   private band = '';
 
   private falseActionTimer = 0;
@@ -148,6 +150,11 @@ export class RecordController {
       link.addEventListener('click', () => {
         // Not marked as entered, and not counted as a refusal either: the
         // record simply says what happened. Leaving is a permitted state.
+        //
+        // Latched, because committing here is not enough on its own — the
+        // smooth scroll that follows crosses the machine's bands and the
+        // editorial arrival commits a second time, overwriting this one.
+        this.skipped = true;
         this.cancelFalseAction();
         this.commit();
       });
@@ -189,11 +196,23 @@ export class RecordController {
   private onBandChange = (event: CustomEvent<{ band: string }>): void => {
     this.band = event.detail.band;
 
-    // Past the invitation is far enough in to count as having entered. The
-    // skip path leaves from the first frame, so it never reaches this.
-    if (this.band === 'notice' || this.band === 'gradient' || this.band === 'floor') {
-      this.entered = true;
-    }
+    // Past the invitation is far enough in to count as having entered —
+    // unless the visitor took the way out, in which case crossing these bands
+    // is transit rather than arrival.
+    //
+    // The skip control does not jump; it scrolls, and it scrolls smoothly, so
+    // the director publishes every band on the way down exactly as it would
+    // for someone travelling. A visitor who left from the first frame was
+    // therefore recorded as having entered the simulation, and on their next
+    // visit the panel would not say SIMULATION: NOT ENTERED. That is the one
+    // dishonesty this record cannot afford: the site's whole proposition is a
+    // system whose account of events diverges from what happened, and the lie
+    // it is allowed to tell is the authored one — the first action attributed
+    // to a visitor who never acted. An accidental second lie undermines the
+    // first by making the record merely unreliable rather than pointed.
+    const passingThrough =
+      this.band === 'notice' || this.band === 'gradient' || this.band === 'floor';
+    if (passingThrough && !this.skipped) this.entered = true;
 
     if (this.band === 'editorial') {
       this.cancelFalseAction();
@@ -210,6 +229,10 @@ export class RecordController {
   };
 
   private onInjected = (): void => {
+    // A press is unambiguous entry, and it outranks the skip latch: someone
+    // who left, came back up and touched the structure did enter, whatever
+    // they clicked earlier.
+    this.skipped = false;
     this.entered = true;
     this.cancelFalseAction();
     this.falseActionDone = true;
