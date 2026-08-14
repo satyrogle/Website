@@ -620,11 +620,17 @@ export class PlanetModel {
    * happens.
    */
   private buildGhosts(): void {
+    // Normal blending, deliberately. The seat this marks sits inside the
+    // wound — the brightest region of the frame — and an additive amber rim
+    // over near-white-hot pixels adds nothing the eye can register: the
+    // first build of this ghost passed every check and was invisible in
+    // every capture. A normally-blended line asserts its own colour over
+    // whatever is behind it, which is what an assertion is.
     this.ghostMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       side: THREE.FrontSide,
       uniforms: { uPresence: { value: 0 }, uEnforce: { value: 0 } },
       vertexShader: /* glsl */ `
@@ -645,15 +651,19 @@ export class PlanetModel {
         out vec4 fragColour;
         void main() {
           // Rim only. A filled ghost is a second planet; an edge is a
-          // position being asserted.
+          // position being asserted. The exponent is wide enough to survive
+          // being looked at — 2.6 produced a hairline that vanished into the
+          // wound light — and the rim's core runs toward white-amber so the
+          // line stays legible over the hottest pixels in the frame.
           float facing = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-          float rim = pow(clamp(facing, 0.0, 1.0), 2.6);
+          float rim = pow(clamp(facing, 0.0, 1.0), 1.8);
           vec3 amber = vec3(1.0, 0.62, 0.16);
           vec3 violet = vec3(0.55, 0.22, 0.95);
           vec3 colour = mix(amber, violet, clamp(uEnforce, 0.0, 1.0) * 0.75);
-          float a = rim * uPresence * 0.85;
-          if (a < 0.002) discard;
-          fragColour = vec4(colour * a, a);
+          colour = mix(colour, vec3(1.0, 0.9, 0.7), rim * 0.45);
+          float a = rim * uPresence * 0.9;
+          if (a < 0.004) discard;
+          fragColour = vec4(colour, a);
         }`,
     });
 

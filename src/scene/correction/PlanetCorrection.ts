@@ -39,15 +39,20 @@ import type { PlanetModel } from './PlanetModel';
  *
  * A continent-scale slab that flicks back into line reads as a mechanism
  * resetting. It has to read as something massive being overruled, so the
- * system waits longer before admitting the violation and then removes the
- * error over roughly a second rather than a frame.
+ * system waits longer before admitting the violation, strains against it for
+ * over half a second, and then removes the error across a couple of seconds.
+ * P1 puts the whole beat — press to visibly reseated — between 2.5 and 4.5
+ * seconds; at the previous ramp (20 ticks, stiffnessTo 0.0085) the event
+ * finished in 1.85 s, a blink the eye files as a bounce rather than a grip.
  */
 export const PLANET_CORRECTION: CorrectionParameters = {
   ...DEFAULT_CORRECTION,
   /** ~0.8 s at 120 Hz before the system concedes the piece has moved. */
   holdTicks: 96,
   stiffnessFrom: 0.0009,
-  stiffnessTo: 0.0085,
+  stiffnessTo: 0.0036,
+  /** ~0.6 s of visible resistance before the pull wins. */
+  rampTicks: 72,
   stiffnessCeiling: 0.02,
 };
 
@@ -124,6 +129,7 @@ export class PlanetCorrection {
   systemAdjustments = 0;
   private touched = false;
   private falseActionFired = false;
+  private falseActionArmed = false;
 
   constructor(private readonly planet: PlanetModel) {
     const pieces = planet.pressable;
@@ -163,6 +169,18 @@ export class PlanetCorrection {
   /** Narrative gain, driven by scroll. */
   setGain(value: number): void {
     this.operator.setGain(value);
+  }
+
+  /**
+   * The false first action stays holstered until the visitor has entered the
+   * system. It used to fire eight seconds into the untouched opening frame,
+   * and with no context in which a moving piece could mean enforcement, it
+   * read as the composition breaking — "the planet is off", verbatim. A
+   * one-way latch driven by scroll: the lie still happens, but only once
+   * there is a system for it to happen inside.
+   */
+  armFalseAction(): void {
+    this.falseActionArmed = true;
   }
 
   /**
@@ -262,7 +280,7 @@ export class PlanetCorrection {
       }
     }
 
-    if (!this.touched && !this.falseActionFired) {
+    if (this.falseActionArmed && !this.touched && !this.falseActionFired) {
       this.idle += deltaSeconds;
       if (this.idle >= FALSE_FIRST_ACTION_DELAY) this.fireFalseFirstAction();
     }

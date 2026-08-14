@@ -72,6 +72,9 @@ export class ScrollDirector {
   private progressReadout: HTMLElement | null;
   private lastReadout = -1;
   private band = '';
+  /** Scroll offset when the director started; NaN until running. */
+  private restY = Number.NaN;
+  private moved = false;
 
   constructor(scene: SceneController, reduced: boolean) {
     this.scene = scene;
@@ -195,6 +198,7 @@ export class ScrollDirector {
   private onReducedScroll = (): void => {
     const max = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
     this.docProgress = Math.min(Math.max(window.scrollY / max, 0), 1);
+    this.noteMovement(window.scrollY);
     // Nothing spatial moves, but the band still has to be published: the
     // editorial hand-off is a DOM state change, not a camera move, and it
     // must happen on this path too.
@@ -209,6 +213,7 @@ export class ScrollDirector {
     const scrollY = window.scrollY;
     const max = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
     this.docProgress = Math.min(Math.max(scrollY / max, 0), 1);
+    this.noteMovement(scrollY);
 
     const narrative = this.toNarrative(scrollY);
     this.narrative = narrative;
@@ -216,6 +221,23 @@ export class ScrollDirector {
 
     this.updateReadout();
   };
+
+  /**
+   * Real displacement, in pixels, from wherever this visit started. This is
+   * the one signal that means the visitor actually did something: narrative
+   * progress drifts on its own as fonts and images settle the layout, and a
+   * latch keyed on it armed the false first action at boot, on the untouched
+   * opening frame.
+   */
+  private noteMovement(scrollY: number): void {
+    if (Number.isNaN(this.restY)) {
+      this.restY = scrollY;
+      return;
+    }
+    if (this.moved || Math.abs(scrollY - this.restY) < 48) return;
+    this.moved = true;
+    this.scene.visitorMoved();
+  }
 
   private updateReadout(): void {
     if (!this.progressReadout) return;

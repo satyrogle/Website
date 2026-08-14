@@ -1,4 +1,4 @@
-import { PRESS_ENERGY, type SceneController } from '../scene/SceneController';
+import { HERO_SUBJECT, PRESS_ENERGY, type SceneController } from '../scene/SceneController';
 import {
   DEBRIS_FIELD,
   DENSITY,
@@ -40,7 +40,7 @@ import { DEFAULT_CORRECTION } from '../scene/correction/sim/CorrectionOperator';
 interface Knob {
   label: string;
   /** Which layer owns it. */
-  group: 'dynamics' | 'correction' | 'render' | 'press';
+  group: 'dynamics' | 'correction' | 'render' | 'press' | 'layout';
   /** Property name within that group. */
   key: string;
   min: number;
@@ -58,6 +58,16 @@ interface Knob {
  * the current state is worse than no tuning tool.
  */
 const KNOBS: Knob[] = [
+  // The hero composition, live. Type column is the share of the viewport the
+  // wordmark may occupy — CSS and camera read the same number, so dragging it
+  // moves both halves of the contract together. Stand-off scales the judged
+  // camera distance (smaller = nearer = bigger planet); height is the
+  // subject's vertical seat in NDC. Set the frame by eye, press copy, and the
+  // numbers land in the contract.
+  { label: 'type column', group: 'layout', key: 'typeColumn', min: 0.3, max: 1, step: 0.01, value: HERO_SUBJECT.typeColumn(), source: '--hero-type-column (sections.css)' },
+  { label: 'stand-off (near <)', group: 'layout', key: 'standOff', min: 0.6, max: 1.6, step: 0.02, value: HERO_SUBJECT.standOffScale, source: 'HERO_SUBJECT.standOffScale' },
+  { label: 'planet height', group: 'layout', key: 'height', min: -0.4, max: 0.3, step: 0.01, value: HERO_SUBJECT.centreY, source: 'HERO_SUBJECT.centreY' },
+
   // How a deviation behaves once it exists. Relaxation is how fast the world
   // returns to the law on its own — too fast and the disturbance settles before
   // the system has to act, so the whole proposition goes unwitnessed. Coupling

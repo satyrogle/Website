@@ -314,8 +314,12 @@ if (flag('metrics')) {
       if (engagedAt >= 0 && peak > 0 && d < 2 && settledAt < 0) {
         settledAt = performance.now() - t0;
         // Let it finish arriving before reading the residual: the two-pixel
-        // trip-wire is the visible settle, not the exact reseat.
-        await sleep(900);
+        // trip-wire is the visible settle, not the exact reseat. The exact
+        // reseat is the epsilon snap, and that fires when the operator
+        // releases — which lags the visible settle by the sensor's memory
+        // (1.2 s), not by a frame. 900 ms here read a still-held piece and
+        // reported a reseat failure that was actually a too-early probe.
+        await sleep(2600);
         break;
       }
     }
@@ -386,6 +390,42 @@ if (flag('event')) {
   for (const [name, wait] of beats) {
     await page.waitForTimeout(wait);
     await shot(name);
+  }
+}
+
+if (flag('idle')) {
+  console.log('\nTHE FALSE FIRST ACTION — WHAT AN IDLE VISITOR SEES');
+  // After eight seconds of nothing the system moves a piece itself. These
+  // frames are that event unprompted, which is what a visitor who only looks
+  // ever sees. The thing they have to show is a piece out of its seat reading
+  // as enforcement in progress — if it reads as a broken composition, the
+  // reference state (the ghost) is not doing its job.
+  const planetBefore = await page.evaluate(() => window.__correction?.probe?.()?.adjustments ?? -1);
+  const fired = await page
+    .waitForFunction(() => (window.__correction?.telemetry?.injections ?? 0) > 0, { timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!fired) {
+    console.log('  no false first action within 20s — already struck this visit?');
+  } else {
+    // Which system acted? `injections` is the Worker's halo-field counter;
+    // the staged planet counts its own corrections. Conflating them has
+    // already cost one whole debugging round.
+    const planetAfter = await page.evaluate(() => window.__correction?.probe?.()?.adjustments ?? -1);
+    console.log(
+      `  worker injected; planet adjustments ${planetBefore} -> ${planetAfter} ` +
+        `(${planetAfter > planetBefore ? 'PLANET MOVED' : 'planet held its seat — field only'})`
+    );
+    const beats = [
+      ['50-idle-deviation', 350],
+      ['51-idle-hold', 900],
+      ['52-idle-grip', 1100],
+      ['53-idle-settled', 1800],
+    ];
+    for (const [name, wait] of beats) {
+      await page.waitForTimeout(wait);
+      await shot(name);
+    }
   }
 }
 

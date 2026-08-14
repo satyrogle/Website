@@ -51,12 +51,21 @@ const CAMERA = { fov: 38 };
  * number owns both halves of the composition, so the planet cannot drift
  * back under the type when the type changes size.
  */
-const HERO_SUBJECT = {
+export const HERO_SUBJECT = {
   /** NDC y. Slightly low, so the body sits under the eyeline, not on it. */
   centreY: -0.06,
+  /** Dev-tune multiplier on the judged stand-off. 1 is the shipped frame. */
+  standOffScale: 1,
   aspect: (): number => window.innerWidth / Math.max(window.innerHeight, 1),
   typeColumn: (): number => {
-    const raw = getComputedStyle(document.documentElement).getPropertyValue('--hero-type-column');
+    // Read off the .hero element, where the variable is actually defined.
+    // Reading the document root returned the fallback forever — which
+    // silently ate the portrait media query's column of 1, so the portrait
+    // camera kept solving for a type column that portrait does not have.
+    const hero = document.querySelector('.hero');
+    const raw = getComputedStyle(hero ?? document.documentElement).getPropertyValue(
+      '--hero-type-column'
+    );
     const parsed = Number.parseFloat(raw);
     return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0.54;
   },
@@ -157,12 +166,27 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     // Far enough back that the entire body is contained. The silhouette is
     // what says "planet"; a cropped one says nothing, which is how a dark
     // ovoid with a seam down it ends up reading as anatomy.
+    // The stand-off belongs to the same contract as the aim. 24 units is the
+    // distance the composition was judged at, and it was judged at 1440x900 —
+    // aspect 1.6. The vertical FOV is fixed, so a wider window at the same
+    // distance shows more world on either side of the body and the subject's
+    // share of its column falls: at 16:9 the judged frame thins into type
+    // over void, which is how "the planet is off" was reported. Holding the
+    // share means distance scales as judgedAspect / aspect — the camera steps
+    // in exactly as much as the frame widened. Clamped so windows at or
+    // narrower than the judged aspect keep the judged stand-off untouched
+    // (portrait is its own recomposition, not this shot), and an ultrawide
+    // cannot pull in past containment of the full silhouette.
+    const JUDGED_STAND = { distance: 24, aspect: 1440 / 900 };
+    const standAspect = Math.min(Math.max(HERO_SUBJECT.aspect(), JUDGED_STAND.aspect), 2.6);
     const eye = new THREE.Vector3()
       .addScaledVector(axis, 1.65)
       .addScaledVector(side, 2.35)
       .addScaledVector(lift, 0.92)
       .normalize()
-      .multiplyScalar(24);
+      .multiplyScalar(
+        JUDGED_STAND.distance * (JUDGED_STAND.aspect / standAspect) * HERO_SUBJECT.standOffScale
+      );
 
     // Put the body where the CSS says the subject lives, by solving for it
     // rather than nudging toward it.
@@ -693,6 +717,7 @@ export class SceneController {
     dynamics?: Record<string, number>;
     correction?: Record<string, number>;
     render?: Record<string, number>;
+    layout?: Record<string, number>;
     hops?: number;
     energy?: number;
   }): void {
@@ -708,6 +733,20 @@ export class SceneController {
       // actually owns, so a knob cannot silently write into the void.
       this.model?.tune(patch.render);
       this.planet?.tune(patch.render);
+    }
+    if (patch.layout) {
+      // The composition contract, live. Type column moves the CSS and the
+      // camera from the same number, exactly as a stylesheet edit would;
+      // the others override the solve's own constants. Rebuilding the rail
+      // is the same path a resize takes.
+      if (patch.layout.typeColumn !== undefined) {
+        document
+          .querySelector<HTMLElement>('.hero')
+          ?.style.setProperty('--hero-type-column', String(patch.layout.typeColumn));
+      }
+      if (patch.layout.standOff !== undefined) HERO_SUBJECT.standOffScale = patch.layout.standOff;
+      if (patch.layout.height !== undefined) HERO_SUBJECT.centreY = patch.layout.height;
+      if (this.planet) RAIL.waypoints = buildRail(this.planet);
     }
     if (patch.energy !== undefined) this.pressEnergy = patch.energy;
   }
@@ -868,6 +907,18 @@ export class SceneController {
   // ------------------------------------------------------------------
   //  Narrative surface — the only things the director may change
   // ------------------------------------------------------------------
+
+  /**
+   * The director saw real scroll displacement — the visitor has entered the
+   * system, which is what licenses it to act unprompted. Until then the
+   * opening frame stays exactly the frame that was approved. Driven by
+   * measured scroll rather than by narrative progress, because the at-rest
+   * narrative moves on its own as fonts and layout settle, and a latch on
+   * it armed at boot.
+   */
+  visitorMoved(): void {
+    this.correction?.armFalseAction();
+  }
 
   /**
    * Global narrative progress, 0..1.
