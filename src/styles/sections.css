@@ -377,6 +377,23 @@
   display: none;
 }
 
+/*
+ * The weld. Deliberately NOT typeset like the rest of the panel: the label,
+ * the statement and the note are the machine talking in mono and amber, and
+ * this is the site talking about the machine. Setting it in the editorial
+ * face is what marks the handoff — the reader has stopped being told what the
+ * system did to them and started being told what it means.
+ */
+.record__weld {
+  font-size: var(--step-0);
+  line-height: 1.6;
+  color: var(--text);
+  margin: 2.4rem 0 0;
+  max-width: 44ch;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.6rem;
+}
+
 /* ============================================================
    The ground
 
