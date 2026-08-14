@@ -7,6 +7,7 @@ import { CopyShader } from 'three/examples/jsm/shaders/CopyShader.js';
 
 import { QualityManager } from './QualityManager';
 import { FUNNEL, FieldModel, STAR_POSITION } from './correction/FieldModel';
+import { PlanetCorrection } from './correction/PlanetCorrection';
 import { PlanetModel } from './correction/PlanetModel';
 import { PulseClient } from './correction/sim/PulseClient';
 
@@ -273,6 +274,8 @@ export class SceneController {
 
   model: FieldModel | null = null;
   planet: PlanetModel | null = null;
+  /** The system holding the catastrophe in the pose it was authored in. */
+  correction: PlanetCorrection | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer | null = null;
@@ -424,6 +427,11 @@ export class SceneController {
     await this.planet.load();
     this.scene.add(this.planet.group);
     RAIL.waypoints = buildRail(this.planet);
+    this.correction = new PlanetCorrection(this.planet);
+
+    if (import.meta.env.DEV) {
+      (window as unknown as { dl?: unknown }).dl = { scene: this, planet: this.planet, correction: this.correction };
+    }
 
     this.resize();
 
@@ -576,17 +584,16 @@ export class SceneController {
     );
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-    // Deliberately dead while the carrier is being judged.
-    //
-    // The implicit field has no elements to raycast against and no deviation
-    // input attached yet, so a press would spend budget, mark the structure as
-    // struck, cancel the false first action, and show the visitor nothing. An
-    // action without an observable consequence is the one thing this
-    // interaction cannot be, so it is off rather than half-wired.
-    void tolerance;
-    const node = -1;
+    // Live. This was dead for as long as the hero was a picture: nothing was
+    // raycastable, so a press spent budget and showed the visitor nothing,
+    // and the system this site is named after ran connected to nothing at
+    // all. The staged composition has slabs and chunks to hit, and each one
+    // can only escape along the flight it was already on.
+    if (!this.planet || !this.correction) return -1;
+    const node = this.planet.pick(this.raycaster, this.camera, this.pointerNdc, tolerance ?? 0.20);
     if (node < 0) return -1;
 
+    this.correction.inject(node);
     this.client.inject(node, this.pressEnergy);
     this.pressesLeft--;
     this.pressed = true;
@@ -666,6 +673,14 @@ export class SceneController {
    * system's own work is what makes YOUR RECORD true on every path.
    */
   get visitAdjustments(): number {
+    // The staged world's own operator, not the Worker's. The Worker still
+    // steps the structure it was written for, but nothing it corrects is on
+    // screen, and putting its count on YOUR RECORD would report adjustments
+    // the visitor could never have caused or seen.
+    if (this.correction) {
+      const own = this.correction.adjustments - this.correction.systemAdjustments;
+      return own > 0 ? own : 0;
+    }
     const own = this.telemetry.adjustments - (this.client?.systemAdjustments ?? 0);
     return own > 0 ? own : 0;
   }
@@ -741,7 +756,12 @@ export class SceneController {
     this.progress = Math.min(Math.max(p, 0), 1);
 
     const depth = smoothstep((this.progress - GAIN.from) / (GAIN.to - GAIN.from));
-    this.client?.setGain(GAIN.low + (GAIN.high - GAIN.low) * depth);
+    const gain = GAIN.low + (GAIN.high - GAIN.low) * depth;
+    this.client?.setGain(gain);
+    // The same curve drives the staged world. One enforcement gradient for
+    // the site, not one per subsystem: the journey travels inward toward the
+    // source, and the grip tightens as it does.
+    this.correction?.setGain(gain);
   }
 
   /** Drives the cold-open reveal out of darkness. */
@@ -989,6 +1009,9 @@ export class SceneController {
     this.planet?.setTime(now / 1000);
     this.planet?.setFlare(this.flareAt(this.progress));
     this.planet?.setExposure(this.exposure);
+    // Stepped after the flare, because both write the same positions and the
+    // correction's deviation has to be the one that lands last.
+    this.correction?.update(dt);
     this.draw();
   };
 
@@ -1012,6 +1035,7 @@ export class SceneController {
       this.scene.remove(this.planet.group);
       this.planet.dispose();
       this.planet = null;
+      this.correction = null;
     }
     this.client?.dispose();
     this.client = null;

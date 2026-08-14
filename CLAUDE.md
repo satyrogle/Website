@@ -47,7 +47,14 @@ Retired. Do not rebuild, re-propose, or audit against:
 - THE LATTICE / excess-order ascent,
 - the central entity, the trench/strata/truss stage, the Signal Horizon terrain, the nine-movement structure.
 
-Work `docs/CORRECTION_BUILD_PLAN.md` one step at a time. Jacob judges the two visual checkpoints on his own GPU. Audits and QA phases run after the build stands, not before.
+**Work `docs/PRODUCTION_PLAN.md` phase by phase — it is the active build
+order (2026-08-14), written after the correction was wired into the approved
+wounded-planet composition.** It supersedes `CORRECTION_BUILD_PLAN.md`'s
+staging; that file still governs whatever the plan does not decide. Jacob
+judges every named checkpoint on his own GPU. P1 (make one enforcement event
+unmissable) gates everything; if its kill criterion fires, stop and report
+rather than tune. Audits and QA phases run after the build stands, not
+before.
 
 Invariants that bind every edit:
 - **Colour grammar.** Cyan is the world, amber is the model of the world (and therefore the divine face), violet is the consequence of their disagreement. Never redefined per section.

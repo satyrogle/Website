@@ -58,6 +58,13 @@ export interface Piece {
   spin: THREE.Vector3;
   extent: number;
   kind: 'body' | 'slab' | 'chunk' | 'crack';
+  /**
+   * u — how far this piece has escaped its recorded seat, along its own
+   * drift. Zero is the approved composition, and at zero the staging is
+   * bit-identical to the frame that was signed off. The visitor moves this;
+   * the correction returns it.
+   */
+  deviation: number;
 }
 
 /** A stop the rail can visit, in world space. */
@@ -137,10 +144,13 @@ export class PlanetModel {
   private readonly coreUniforms: Record<string, THREE.IUniform>;
   private readonly pieces: Piece[] = [];
   private readonly scratch = new THREE.Vector3();
+  /** Separate from `scratch`, which `place` owns. */
+  private readonly aim = new THREE.Vector3();
   private stopsWorld: Stop[] = [];
   private dustTexture: THREE.CanvasTexture | null = null;
   private dustMaterials: { material: THREE.PointsMaterial; opacity: number }[] = [];
   private core: THREE.Mesh | null = null;
+  private flareValue = 0;
 
   constructor(options: PlanetModelOptions) {
     // The authored +X corridor onto the site's diagonal.
@@ -372,6 +382,7 @@ export class PlanetModel {
             ),
         extent: 1,
         kind,
+        deviation: 0,
       });
     });
 
@@ -560,17 +571,92 @@ export class PlanetModel {
    */
   setFlare(value: number): void {
     const flare = Math.max(0, Math.min(1, value));
+    this.flareValue = flare;
     this.uniforms.uFlare.value = flare;
     this.coreUniforms.uFlare.value = flare;
     for (const piece of this.pieces) {
       if (piece.kind === 'body' || piece.kind === 'crack') continue;
-      this.scratch.copy(piece.home).addScaledVector(piece.drift, flare);
-      piece.mesh.position.copy(this.scratch);
+      this.place(piece);
     }
     // The small debris expands radially from the body, because that is what
     // it is doing — the old corridor push slid the whole field sideways as
     // if the explosion had a direction it never had.
     this.ejecta.scale.setScalar(1 + flare * 0.16);
+  }
+
+  /**
+   * Where a piece actually sits: its recorded seat, plus the finale's global
+   * continuation, plus whatever the visitor has pulled it out to.
+   *
+   * Both offsets ride the same `drift`, so a deviation is the piece
+   * continuing the flight it was already on rather than being shoved in some
+   * direction the event never had. At `flare = 0` and `deviation = 0` this
+   * writes the authored position back exactly.
+   */
+  private place(piece: Piece): void {
+    this.scratch
+      .copy(piece.home)
+      .addScaledVector(piece.drift, this.flareValue + piece.deviation);
+    piece.mesh.position.copy(this.scratch);
+  }
+
+  /** Everything a visitor is allowed to disturb. The body holds; it always has. */
+  get pressable(): Piece[] {
+    return this.pieces.filter((p) => p.kind === 'slab' || p.kind === 'chunk');
+  }
+
+  /** Move one piece off its recorded seat. `u` is in drift lengths. */
+  setDeviation(index: number, u: number): void {
+    const piece = this.pressable[index];
+    if (!piece) return;
+    piece.deviation = u;
+    this.place(piece);
+  }
+
+  /**
+   * Which pressable piece the pointer is over, or -1.
+   *
+   * Raycast against the pressable set only. The body is most of the
+   * silhouette, and letting it absorb presses would mean most clicks landing
+   * on the one thing that cannot move.
+   */
+  pick(
+    raycaster: THREE.Raycaster,
+    camera?: THREE.Camera,
+    ndc?: THREE.Vector2,
+    tolerance = 0.20
+  ): number {
+    const pressable = this.pressable;
+    const hits = raycaster.intersectObjects(
+      pressable.map((p) => p.mesh),
+      false
+    );
+    if (hits.length) return pressable.findIndex((p) => p.mesh === hits[0].object);
+
+    // Nothing directly under the pointer, so take the nearest piece on
+    // screen. A strict raycast covered sixteen percent of the frame — the
+    // debris is small and mostly void — which meant five clicks in six did
+    // nothing at all. An action without an observable consequence is the one
+    // thing this interaction cannot be, and that applies just as much to the
+    // press that missed as to the press that was never wired.
+    if (!camera || !ndc) return -1;
+    let best = -1;
+    let bestDistance = tolerance;
+    for (let i = 0; i < pressable.length; i++) {
+      const projected = pressable[i].mesh.getWorldPosition(this.aim).project(camera);
+      if (projected.z > 1) continue;
+      // Weighted, not merely nearest. A press that lands on a speck of debris
+      // twenty units away moves something the visitor cannot see moving, and
+      // reads as nothing happening. The hero slabs are the subject of the
+      // frame, so they win ties by a wide margin and pull from further off.
+      const prominence = pressable[i].kind === 'slab' ? 0.42 : 1.0;
+      const d = Math.hypot(projected.x - ndc.x, projected.y - ndc.y) * prominence;
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = i;
+      }
+    }
+    return best;
   }
 
   /** Heavy, slow. A slab turns a few degrees in the time anyone watches. */
