@@ -105,7 +105,7 @@ float fbm3(vec3 p) {
  * no repeating unit, so relief can be pushed hard and no pattern ever
  * emerges from it.
  */
-float relief_height(vec3 p, float fine) {
+float relief_height(vec3 p, float fine, float micro) {
   // Rolling mass first, then ridged jointing subtracted from it: an absolute
   // value has a sharp bottom, which is what makes rock read as fractured
   // blocks meeting at angles rather than as dunes.
@@ -118,6 +118,17 @@ float relief_height(vec3 p, float fine) {
   // what the frame draws is further away than that. The branch is coherent
   // — whole pieces are near or far together — so it costs nothing to take.
   if (fine > 0.01) h += fine * 0.35 * fbm3(p * 4.10 + 41.0);
+
+  // Pitting, and it only exists where the camera can resolve it.
+  //
+  // The scale above tops out around four cycles per unit, which is landscape
+  // detail: correct at a stop's distance and far too coarse when the rail
+  // brings a slab close, where it left the crust reading as smooth stone
+  // rather than as rock. This octave is nearly three times finer and fades in
+  // over the last fifteen units, so a near piece breaks its highlights the
+  // way a real surface does without any of it existing to alias in the wide
+  // shots.
+  if (micro > 0.01) h += micro * 0.20 * fbm3(p * 11.5 + 73.0);
   return h;
 }
 
@@ -145,7 +156,7 @@ void main() {
   // across a far pixel produces noise, not stone.
   float nearness = clamp(1.0 - vCam / 15.0, 0.0, 1.0);
   float fine = clamp(1.0 - vCam / 26.0, 0.0, 1.0);
-  float height = relief_height(vLocal, fine);
+  float height = relief_height(vLocal, fine, nearness);
   vec3 dPdx = dFdx(vWorld);
   vec3 dPdy = dFdy(vWorld);
 
@@ -389,6 +400,23 @@ void main() {
   float intensity = heat * (0.05 + 0.95 * fresh) * veins * cooling * uHeat * (1.0 + uFlare * 1.2);
   colour += molten * intensity;
   colour += vec3(1.0, 0.94, 0.85) * lip * (0.35 + 0.65 * cooling) * uHeat * (0.85 + uFlare * 0.8);
+
+  // ------------------------------------------------------------ the depth
+  //
+  // Distance takes light away, and a frame that forgets this cannot state
+  // scale. Every fragment out in the field was being lit as though it stood
+  // beside the body, so a chunk twenty units out and a slab against the
+  // rupture arrived at the eye with the same weight — which is most of why
+  // the composition read as a pebble surrounded by confetti rather than as a
+  // world with a field around it.
+  //
+  // Not a fog colour: this is a dark scene and mixing toward anything would
+  // grey the void the grade just cleared. Light is simply removed, so the far
+  // field recedes into the black it already sits in. Floored well above zero,
+  // because the far pieces are where the enforcement gradient is demonstrated
+  // and a piece nobody can see teaches nothing.
+  float recession = mix(1.0, 0.34, smoothstep(24.0, 95.0, vCam));
+  colour *= recession;
 
   fragColour = vec4(colour * uExposure, 1.0);
 }

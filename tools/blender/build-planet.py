@@ -662,7 +662,18 @@ def main():
             # and the anchor became a black occluder swallowing the rupture,
             # which is the exact fault the spec forbids.
             position = np.array([9.0, -10.0, -2.0])
-            scale = 1.35
+            # Big enough to be a near plane rather than another chunk.
+            #
+            # Scale is stated by comparison, and with every fragment inside
+            # the frame there was nothing to compare the body against — the
+            # field read as uniform confetti around a pebble. This one is
+            # meant to crowd its edge of the frame at the stops that pass it,
+            # so the eye gets a foreground, a subject and a distance.
+            #
+            # It stays well off the eye-to-wound line, which is not optional:
+            # the first version of this anchor sat nearly on that line and
+            # became a black occluder swallowing the rupture.
+            scale = 2.30
         else:
             if RNG.random() < 0.62:
                 dirm = unit(RUPTURE_DIR * 1.2 + RNG.normal(size=3) * 0.75)
@@ -670,7 +681,13 @@ def main():
                 dirm = unit(RNG.normal(size=3))
             flight = 1.2 + (MEDIUM_REACH - 1.2) * float(RNG.random() ** 1.25)
             position = dirm * (BODY_RADIUS + flight)
-            scale = float(RNG.uniform(0.5, 1.5)) * max(1.15 - 0.03 * flight, 0.38)
+            # Power law, not a flat range. A uniform 0.5-1.5 makes every
+            # chunk roughly one size, and a field of one size is confetti: it
+            # gives the eye no way to read distance, because a small piece
+            # near and a large piece far are indistinguishable. Mostly small,
+            # occasionally very large, which is both what a breakup produces
+            # and what lets the field carry depth.
+            scale = float(0.32 + 2.05 * RNG.random() ** 2.3) * max(1.15 - 0.03 * flight, 0.38)
         obj.location = tuple(float(x) for x in position)
         obj.scale = (scale, scale, scale)
         spin = unit(RNG.normal(size=3))
