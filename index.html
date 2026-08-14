@@ -115,10 +115,24 @@
           </div>
 
           <div class="hero__actions">
+            <!--
+              Ships pointing at the editorial and is UPGRADED to the machine
+              once the scene is confirmed live, rather than the reverse.
+
+              It used to ship as href="#ask" with JavaScript walking it back
+              on failure, which meant the failure case depended on the thing
+              that had failed. With scripting off, the noscript rule hides
+              every `.band` — including #ask — and a fragment link to a
+              display:none target does nothing at all, so the site's most
+              prominent invitation silently died for exactly the visitor with
+              the least ability to recover. It also covered the reduced-motion
+              case for free: that path hides .band--ask too, and nothing was
+              re-aiming this anchor there either.
+            -->
             <a
               class="action fade-in"
-              href="#ask"
-              data-fallback-href="#premise"
+              href="#premise"
+              data-live-href="#ask"
               data-magnetic
               data-scroll-to
             >

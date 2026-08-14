@@ -418,7 +418,7 @@
   color: var(--text);
   margin: 2.4rem 0 0;
   max-width: 44ch;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--line);
   padding-top: 1.6rem;
 }
 

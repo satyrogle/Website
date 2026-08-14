@@ -100,11 +100,15 @@ function enterFallback(reason: string): void {
   // Controls that only affect the 3D object are removed, not disabled:
   // a dead control is worse than an absent one.
   document.querySelectorAll('[data-webgl-only]').forEach((el) => el.remove());
-  // Anything that pointed into the removed sections is re-aimed at the
-  // editorial rather than left as a link to nowhere.
-  document.querySelectorAll<HTMLAnchorElement>('[data-fallback-href]').forEach((anchor) => {
-    anchor.href = anchor.dataset.fallbackHref ?? '#main';
-  });
+  // Nothing needs re-aiming here any more, and that is the point.
+  //
+  // This used to walk `[data-fallback-href]` anchors back to the editorial
+  // after the fact, which put the recovery in the hands of the layer that had
+  // just failed — and it never ran at all with scripting off, where the
+  // noscript rule hides the machine's bands and left the hero's invitation
+  // pointing into a display:none section. Controls now ship aimed at the
+  // editorial and are upgraded to the machine only once it is confirmed live,
+  // so every failure path inherits a working link instead of repairing one.
   dismissLoader();
 
   // The visit still happened, and it did not enter the simulation. Recording
@@ -235,6 +239,15 @@ async function boot(): Promise<void> {
   } else {
     scene.setWake(1);
     scene.start();
+
+    // The machine is live and its bands exist, so the invitation can point at
+    // them. Upgrading here rather than shipping the machine as the default
+    // means every way this can fail — no scripting, no WebGL, reduced motion,
+    // a thrown error before this line — leaves the control aimed at the
+    // editorial, which is always there.
+    document.querySelectorAll<HTMLAnchorElement>('[data-live-href]').forEach((anchor) => {
+      anchor.href = anchor.dataset.liveHref ?? anchor.href;
+    });
   }
 
   setLoaderProgress(1);

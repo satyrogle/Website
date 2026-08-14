@@ -947,7 +947,7 @@ if (flag('paths')) {
       fallback: document.documentElement.classList.contains('no-webgl'),
       bands: document.querySelectorAll('.band').length,
       canvas: !!document.getElementById('lattice-canvas'),
-      enterHref: document.querySelector('[data-fallback-href]')?.getAttribute('href'),
+      enterHref: document.querySelector('.hero__actions .action')?.getAttribute('href'),
       premise: !!document.getElementById('premise'),
       studio: !!document.getElementById('studio'),
       loader: document.getElementById('loader')?.hidden,
@@ -963,7 +963,7 @@ if (flag('paths')) {
     // The re-aimed control has to carry the keyboard with it, not just the
     // scroll position.
     const focus = await reader.evaluate(async () => {
-      document.querySelector('[data-fallback-href]')?.click();
+      document.querySelector('.hero__actions .action')?.click();
       await new Promise((r) => setTimeout(r, 700));
       const active = document.activeElement;
       return { id: active?.id ?? '(none)', tag: active?.tagName.toLowerCase() ?? '' };
