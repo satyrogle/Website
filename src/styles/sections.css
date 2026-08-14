@@ -39,6 +39,14 @@
   opacity: 0.6;
 }
 
+@media (max-width: 900px) {
+  /* Portrait is a recomposition, not a scale: the subject takes the upper
+     frame and the wordmark sits beneath it, so neither crops the other. */
+  .hero {
+    --hero-type-column: 1;
+  }
+}
+
 @media (max-width: 760px) {
   .movement__index {
     display: none;
@@ -50,6 +58,13 @@
    ============================================================ */
 
 .hero {
+  /*
+   * The composition contract, in one place. `--hero-type-column` is the share
+   * of the viewport the wordmark may occupy; the remainder is the subject's,
+   * and `SceneController` reads the same split to decide where to put the
+   * planet on screen. Change it here and both halves move together.
+   */
+  --hero-type-column: 0.54;
   position: relative;
   min-height: 100svh;
   display: grid;
@@ -61,9 +76,23 @@
 
 .hero__title {
   align-self: center;
-  /* Deliberately allowed to crop against the viewport edge at the
-     largest sizes — the brief asks for viewport-cropped type. */
   margin-inline-start: -0.06em;
+  /*
+   * The wordmark owns the left column and nothing else.
+   *
+   * It used to span the frame and sit on top of the planet, which cost the
+   * silhouette entirely: what reached the eye was two lit lobes either side
+   * of a seam, with no outline to read them as a world. Constraining the box
+   * alone is not the fix — capping `max-inline-size` at this size simply
+   * clipped LATTICE to LATTIC, because display type set in viewport units
+   * does not reflow, it overflows. The type has to get SMALLER so the
+   * subject gets room.
+   *
+   * `--hero-type-column` is the contract: the same fraction is handed to the
+   * camera below, so the two halves of this composition are laid out from
+   * one number instead of being nudged toward each other.
+   */
+  font-size: min(var(--display-xl), calc(var(--hero-type-column) * 100vw / 4.35));
 }
 
 .hero__title .reveal-line > span {

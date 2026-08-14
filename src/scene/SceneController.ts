@@ -43,6 +43,36 @@ export function isWebGL2Available(): boolean {
 const CAMERA = { fov: 38 };
 
 /**
+ * Where the subject sits on screen, derived from the layout rather than
+ * guessed at.
+ *
+ * `--hero-type-column` in `sections.css` states what share of the viewport
+ * the wordmark occupies; the subject gets the middle of what is left. One
+ * number owns both halves of the composition, so the planet cannot drift
+ * back under the type when the type changes size.
+ */
+const HERO_SUBJECT = {
+  /** NDC y. Slightly low, so the body sits under the eyeline, not on it. */
+  centreY: -0.06,
+  aspect: (): number => window.innerWidth / Math.max(window.innerHeight, 1),
+  typeColumn: (): number => {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--hero-type-column');
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0.54;
+  },
+  /** NDC x of the free column's centre. Zero when the type spans the frame. */
+  centreX(): number {
+    const column = this.typeColumn();
+    if (column >= 0.98) return 0;
+    // Screen fraction of the free column's middle, then into NDC. NDC spans
+    // -1..1, so the conversion is (fraction - 0.5) * 2 — halving it leaves the
+    // subject stranded between the two columns, still under the type.
+    const fraction = column + (1 - column) / 2;
+    return (fraction - 0.5) * 2;
+  },
+};
+
+/**
  * Halation for the hot surfaces, and only for them. The threshold sits far
  * above anything the crust can output — charcoal peaks near 0.19 — so the
  * only pixels that bloom are the ones the shaders author as emitters: the
@@ -107,29 +137,60 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
   };
 
   if (stops.length) {
-    // The opening is an authored shot, not an approach that happens to start
-    // somewhere: the furthest-thrown slab hangs in the near field while the
-    // aim is pulled most of the way to the body, so the wounded world and
-    // its rupture light stand as the frame's subject with the wordmark laid
-    // over a scene that can carry it.
-    const first = stops[0];
-    const radial = first.home.clone().normalize();
-    const beside = new THREE.Vector3().crossVectors(radial, lift);
-    if (beside.lengthSq() < 1e-3) beside.crossVectors(radial, side);
-    beside.normalize();
-    const above = new THREE.Vector3().crossVectors(beside, radial).normalize();
+    // The opening is an authored shot, and it has one job the previous
+    // version did not do: show a whole planet.
+    //
+    // Jacob, on the frame this replaces: the body was off camera and the
+    // composition read as anatomy. Three faults compounded. The wordmark sat
+    // ON the planet, so the silhouette was never legible as an outline. The
+    // rupture ran near-vertical through the middle, which left two soft lobes
+    // flanking a central cleft. And the stand-off was close enough that the
+    // body was cropped rather than contained. Bilateral symmetry plus a
+    // central seam plus a smooth dark ovoid is a shape nobody can un-see.
+    //
+    // So: stand far enough back that the entire body sits inside the frame,
+    // put it in the open right third where no type reaches, and approach from
+    // an azimuth that throws the wound across a diagonal instead of down the
+    // middle.
+    const body = new THREE.Vector3(0, 0, 0);
+
+    // Far enough back that the entire body is contained. The silhouette is
+    // what says "planet"; a cropped one says nothing, which is how a dark
+    // ovoid with a seam down it ends up reading as anatomy.
+    const eye = new THREE.Vector3()
+      .addScaledVector(axis, 1.65)
+      .addScaledVector(side, 2.35)
+      .addScaledVector(lift, 0.92)
+      .normalize()
+      .multiplyScalar(24);
+
+    // Put the body where the CSS says the subject lives, by solving for it
+    // rather than nudging toward it.
+    //
+    // Shifting the aim perpendicular to the view rotates the frame, and the
+    // subject moves the opposite way by offset / (distance * tan(halfFov)).
+    // Inverting that places the body at a chosen NDC coordinate exactly. Two
+    // attempts at eyeballing this moved the planet the wrong way, because the
+    // sign of a world-space lateral depends on the approach; the camera's own
+    // basis does not.
+    const forward = body.clone().sub(eye).normalize();
+    const camRight = new THREE.Vector3().crossVectors(forward, lift).normalize();
+    const camUp = new THREE.Vector3().crossVectors(camRight, forward).normalize();
+    const distance = eye.distanceTo(body);
+    const tanHalf = Math.tan((CAMERA.fov * Math.PI) / 360);
+    const aspect = HERO_SUBJECT.aspect();
+
+    // Centre of the column the type does not occupy, in NDC.
+    const nx = HERO_SUBJECT.centreX();
+    const ny = HERO_SUBJECT.centreY;
     waypoints.push({
-      eye: asTriple(
-        first.home
+      eye: asTriple(eye),
+      aim: asTriple(
+        body
           .clone()
-          .addScaledVector(radial, first.extent * 2.1)
-          .addScaledVector(beside, first.extent * 2.8)
-          .addScaledVector(above, first.extent * 1.15)
+          .addScaledVector(camRight, -nx * distance * tanHalf * aspect)
+          .addScaledVector(camUp, -ny * distance * tanHalf)
       ),
-      // Aimed near the body but pulled off along the stand's own lateral,
-      // so the wounded world clears the wordmark's centre and stands in the
-      // frame's open third instead of hiding behind the type.
-      aim: asTriple(first.home.clone().multiplyScalar(0.22).addScaledVector(beside, 1.6)),
     });
   }
 
@@ -758,6 +819,11 @@ export class SceneController {
   }
 
   resize(): void {
+    // The composition is stated in screen fractions, so a viewport change
+    // moves where the subject belongs. Rebuilding the rail here is what stops
+    // the planet sliding back under the wordmark on a window resize.
+    if (this.planet) RAIL.waypoints = buildRail(this.planet);
+
     const { clientWidth, clientHeight } = this.canvasSize();
     const ratio = this.quality.pixelRatio();
     this.renderer.setPixelRatio(ratio);
