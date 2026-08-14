@@ -117,13 +117,97 @@ const asTriple = (v: THREE.Vector3): readonly [number, number, number] => [v.x, 
  * Waypoints are computed after the geometry loads, because a stop that is
  * not derived from a real piece is a stop that can point at nothing.
  */
+/**
+ * Where the aim must point for `subject` to land at a chosen NDC coordinate.
+ *
+ * Shifting the aim perpendicular to the view rotates the frame, and the
+ * subject moves the opposite way by offset / (distance * tan(halfFov));
+ * inverting that places it exactly. The opening shot solved this inline and
+ * it is the only reliable way to compose in this scene — eyeballing a lateral
+ * moved the planet the wrong way twice, because the sign of a world-space
+ * offset depends on the approach while the camera's own basis does not.
+ *
+ * Lifted out of the opening so every stop can use it, which is what turns a
+ * rail that travels into a rail that composes.
+ */
+const composeAim = (
+  eye: THREE.Vector3,
+  subject: THREE.Vector3,
+  nx: number,
+  ny: number
+): THREE.Vector3 => {
+  const forward = subject.clone().sub(eye);
+  if (forward.lengthSq() < 1e-8) return subject.clone();
+  forward.normalize();
+
+  let camRight = new THREE.Vector3().crossVectors(forward, FUNNEL.lift);
+  // Looking straight along the lift axis leaves the basis undefined; the
+  // funnel's side vector is the standing fallback everywhere else here.
+  if (camRight.lengthSq() < 1e-6) camRight.crossVectors(forward, FUNNEL.side);
+  camRight.normalize();
+  const camUp = new THREE.Vector3().crossVectors(camRight, forward).normalize();
+
+  const distance = eye.distanceTo(subject);
+  const tanHalf = Math.tan((CAMERA.fov * Math.PI) / 360);
+  const aspect = HERO_SUBJECT.aspect();
+
+  return subject
+    .clone()
+    .addScaledVector(camRight, -nx * distance * tanHalf * aspect)
+    .addScaledVector(camUp, -ny * distance * tanHalf);
+};
+
+/**
+ * One composition per stop — the whole of P5.
+ *
+ * Every middle stop used to be `stand(piece, 2.7)` with the same three
+ * offsets and the same aim rule, so the rail travelled a long way and
+ * delivered the subject to the middle of the frame every time. Measured, the
+ * subject's centroid spanned 14.6% of the frame width and its vertical
+ * position varied by one percent across the entire descent: one shot, five
+ * times.
+ *
+ * `nx`/`ny` are where this stop's subject sits in NDC, so the framing is
+ * stated rather than emergent. `reach` is the stand-off in multiples of the
+ * fragment's own radius, and `beside`/`above` swing the eye around it — a
+ * near stop with the eye low reads as looming, a far stop with the eye high
+ * reads as survey. Cycled over however many stops the manifest carries.
+ */
+const SHOTS = [
+  /**
+   * Continues the opening rather than cutting away from it.
+   *
+   * The load frame is not waypoint 0: the director maps from the viewport's
+   * middle, so an untouched page already sits a few percent along the rail
+   * and blends toward this stop. Composing this one to the left threw the
+   * body back under the wordmark on load — the exact fault the layout
+   * contract exists to prevent — while every measurement about the descent
+   * still passed. The first leg holds the opening's right column; the
+   * journey diverges once the visitor is actually travelling.
+   */
+  { reach: 3.30, beside: 1.35, above: 0.34, nx: 0.42, ny: 0.14 },
+  /** The swing: subject thrown left, eye dropped low, and the fragment looms. */
+  { reach: 2.10, beside: 0.60, above: -0.30, nx: -0.44, ny: -0.22 },
+  /** Closest: the body is seen PAST this fragment, which crosses the near field. */
+  { reach: 1.55, beside: 1.15, above: 0.10, nx: 0.40, ny: -0.14 },
+  /** High survey, subject left and up. */
+  { reach: 2.75, beside: 0.80, above: 0.85, nx: -0.34, ny: 0.26 },
+  /** Far and level, subject settling toward centre before the reveal. */
+  { reach: 3.60, beside: 1.50, above: 0.22, nx: 0.18, ny: 0.06 },
+];
+
 const buildRail = (planet: PlanetModel): Waypoint[] => {
   const { axis, lift, side } = FUNNEL;
   const waypoints: Waypoint[] = [];
   // Furthest-flown first: the journey is inward.
   const stops = [...planet.stops].sort((a, b) => b.home.length() - a.home.length());
 
-  const stand = (piece: (typeof stops)[number], reach: number): THREE.Vector3 => {
+  const stand = (
+    piece: (typeof stops)[number],
+    reach: number,
+    besideScale = 0.9,
+    aboveScale = 0.55
+  ): THREE.Vector3 => {
     // The eye stands behind and beside the fragment on its own flight line —
     // further from the body than the piece, offset sideways and above — so
     // every stop looks past its fragment at the wounded world beyond. The
@@ -141,8 +225,8 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     return piece.home
       .clone()
       .addScaledVector(radial, piece.extent * reach * 1.05)
-      .addScaledVector(beside, piece.extent * reach * 0.9)
-      .addScaledVector(above, piece.extent * reach * 0.55);
+      .addScaledVector(beside, piece.extent * reach * besideScale)
+      .addScaledVector(above, piece.extent * reach * aboveScale);
   };
 
   if (stops.length) {
@@ -197,36 +281,52 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
     // attempts at eyeballing this moved the planet the wrong way, because the
     // sign of a world-space lateral depends on the approach; the camera's own
     // basis does not.
-    const forward = body.clone().sub(eye).normalize();
-    const camRight = new THREE.Vector3().crossVectors(forward, lift).normalize();
-    const camUp = new THREE.Vector3().crossVectors(camRight, forward).normalize();
-    const distance = eye.distanceTo(body);
-    const tanHalf = Math.tan((CAMERA.fov * Math.PI) / 360);
-    const aspect = HERO_SUBJECT.aspect();
-
     // Centre of the column the type does not occupy, in NDC.
-    const nx = HERO_SUBJECT.centreX();
-    const ny = HERO_SUBJECT.centreY;
+    const opening: Waypoint = {
+      eye: asTriple(eye),
+      aim: asTriple(composeAim(eye, body, HERO_SUBJECT.centreX(), HERO_SUBJECT.centreY)),
+    };
+
+    waypoints.push(opening);
+
+    // NOT held, deliberately, and this is worth knowing before anyone
+    // "fixes" it.
+    //
+    // The load frame is not waypoint 0. The director maps narrative from the
+    // viewport's middle, so an untouched page already reads about 0.03, and
+    // the rail is a piecewise lerp — at that parameter the camera has already
+    // travelled roughly 15% of the way toward the first stop. The composition
+    // a visitor actually sees on load is that blend, and it is the blend that
+    // was judged and approved.
+    //
+    // Pushing this waypoint twice pins the pose for the whole first leg and
+    // is the obviously correct engineering: it decouples the hero frame from
+    // whatever the journey does. It was built, measured and reverted, because
+    // what it reveals is that the authored waypoint is not a good frame — the
+    // body jams into the right edge with slabs cropping and the left half goes
+    // dead. The type-column contract centres the subject in the column the
+    // wordmark leaves free without accounting for how much of the frame the
+    // subject itself occupies.
+    //
+    // So the coupling stays until Jacob has judged the pinned frame, because
+    // changing the approved hero composition is his call. The cost of leaving
+    // it: the first stop's shot influences the opening, which is why SHOTS[0]
+    // continues the opening's right column instead of cutting away from it.
+  }
+
+  stops.forEach((piece, index) => {
+    const shot = SHOTS[index % SHOTS.length];
+    const eye = stand(piece, shot.reach, shot.beside, shot.above);
+    // The subject of a stop is the relationship, not the fragment: a point
+    // between the piece and the body, so this piece, the world it left and
+    // the wound between them stay in one frame. Composed to the shot's own
+    // NDC rather than parked in the middle.
+    const subject = piece.home.clone().multiplyScalar(0.55);
     waypoints.push({
       eye: asTriple(eye),
-      aim: asTriple(
-        body
-          .clone()
-          .addScaledVector(camRight, -nx * distance * tanHalf * aspect)
-          .addScaledVector(camUp, -ny * distance * tanHalf)
-      ),
+      aim: asTriple(composeAim(eye, subject, shot.nx, shot.ny)),
     });
-  }
-
-  for (const piece of stops) {
-    waypoints.push({
-      eye: asTriple(stand(piece, 2.7)),
-      // Aimed well past the fragment toward the source, so every stop holds
-      // the relationship — this piece, the body it left, the wound between
-      // them — instead of a fragment floating on black.
-      aim: asTriple(piece.home.clone().multiplyScalar(0.55)),
-    });
-  }
+  });
 
   // The reveal, stood before the rupture — the money shot, and it is
   // composed, not surveyed. The camera's azimuth matches the rupture zone's,
@@ -236,16 +336,20 @@ const buildRail = (planet: PlanetModel): Waypoint[] => {
   // record's typography. Around it, the field: every slab on the line out of
   // its own hole, debris in every direction, the whole crust webbed with
   // failing plate boundaries — one death, dominating the frame.
+  //
+  // Composed for the record panel, which is the one thing this frame shares
+  // the screen with. YOUR RECORD is typeset down the left, and the reveal was
+  // delivering the body to x = 0.373 — directly under it, so the site's most
+  // important sentence was being read over the brightest part of the frame.
+  // The body now sits right of centre and the record has clear ground.
+  const revealEye = new THREE.Vector3()
+    .addScaledVector(axis, 20.0)
+    .addScaledVector(side, 13.0)
+    .addScaledVector(lift, 9.5);
+  const revealSubject = new THREE.Vector3().addScaledVector(axis, 3.2).addScaledVector(side, -2.2);
   waypoints.push({
-    eye: asTriple(
-      new THREE.Vector3()
-        .addScaledVector(axis, 20.0)
-        .addScaledVector(side, 13.0)
-        .addScaledVector(lift, 9.5)
-    ),
-    aim: asTriple(
-      new THREE.Vector3().addScaledVector(axis, 3.2).addScaledVector(side, -2.2)
-    ),
+    eye: asTriple(revealEye),
+    aim: asTriple(composeAim(revealEye, revealSubject, 0.34, 0.02)),
   });
 
   return waypoints;
@@ -286,6 +390,26 @@ const FLARE = { from: 0.73, to: 0.86 };
  * both directions. What does not come back is the damage.
  */
 const GAIN = { from: 0.28, to: 0.75, low: 1.0, high: 2.2 };
+
+/**
+ * Where the enforcement gradient is put on screen (P5).
+ *
+ * The gradient has always been real: the gain field holds the near slabs
+ * hardest and lets the far field drift, and narrative gain climbs through the
+ * descent. None of that is visible unless something escapes at both ends of
+ * it, so the visitor reads the far field as a different art direction rather
+ * than as the same system running out of authority.
+ *
+ * Two scripted escapes of identical energy at different depths. Fired once
+ * each, deterministically, on whichever qualifying piece is most prominent on
+ * screen — an event the visitor cannot see teaches nothing.
+ */
+const DEMONSTRATIONS = [
+  /** In the GRADIENT band, out where the file is loosest: caught slowly. */
+  { at: 0.46, far: true, energy: 1.6 },
+  /** Approaching the floor, where the record is enforced hardest: caught at once. */
+  { at: 0.66, far: false, energy: 1.6 },
+];
 
 /**
  * Portrait recomposition.
@@ -399,6 +523,8 @@ export class SceneController {
   private hoverStrength = 0;
 
   private progress = 0;
+  /** Which scripted gradient demonstrations have already fired this visit. */
+  private readonly demonstrated = new Set<number>();
   private exposure = 0;
   private exposureTarget = 0;
   private lastFrameTime = 0;
@@ -789,6 +915,53 @@ export class SceneController {
    * number of world units and thirty-seven pixels has not moved. Reading
    * that from a screenshot is guesswork, so the harness reads it from here.
    */
+  /**
+   * Fires each scripted demonstration once, on the most prominent qualifying
+   * piece currently on screen.
+   *
+   * Prominence rather than world distance, for the same reason the tolerant
+   * picker uses it: the far field is full of specks, and staging the
+   * gradient's slow correction on a four-pixel chunk demonstrates nothing.
+   * "Far" is measured against the median reach of the pressable set, so it
+   * follows the composition rather than a hardcoded radius.
+   */
+  private stageDemonstration(): void {
+    if (!this.planet || !this.correction) return;
+
+    for (let i = 0; i < DEMONSTRATIONS.length; i++) {
+      const scene = DEMONSTRATIONS[i];
+      if (this.demonstrated.has(i) || this.progress < scene.at) continue;
+      this.demonstrated.add(i);
+
+      const probe = this.probe();
+      if (!probe) continue;
+      const width = this.renderer.domElement.clientWidth || window.innerWidth;
+      const height = this.renderer.domElement.clientHeight || window.innerHeight;
+
+      const reaches = this.planet.pressable.map((piece) => piece.home.length());
+      const sorted = [...reaches].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+
+      let chosen = -1;
+      let largest = 0;
+      probe.pieces.forEach((piece, index) => {
+        const onScreen =
+          piece.x > width * 0.06 &&
+          piece.x < width * 0.94 &&
+          piece.y > height * 0.06 &&
+          piece.y < height * 0.94;
+        if (!onScreen) return;
+        if (reaches[index] > median !== scene.far) return;
+        if (piece.r > largest) {
+          largest = piece.r;
+          chosen = index;
+        }
+      });
+
+      if (chosen >= 0) this.correction.demonstrate(chosen, scene.energy);
+    }
+  }
+
   probe(): {
     tMs: number;
     adjustments: number;
@@ -929,6 +1102,8 @@ export class SceneController {
    */
   setProgress(p: number): void {
     this.progress = Math.min(Math.max(p, 0), 1);
+
+    this.stageDemonstration();
 
     const depth = smoothstep((this.progress - GAIN.from) / (GAIN.to - GAIN.from));
     const gain = GAIN.low + (GAIN.high - GAIN.low) * depth;

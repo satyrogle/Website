@@ -123,6 +123,26 @@ async function frameStats() {
       if (r > 90 && r > b * 1.6) hot++;
       if (r > 235 && g > 190) white++;
     }
+
+    // Where the subject actually sits in the frame. P5's whole claim is that
+    // the descent is five composed shots rather than one shot five times,
+    // and "the camera moved" is not the same thing as "the composition
+    // changed" — a rail can travel a long way and deliver the subject to the
+    // middle of the frame every time. Luminance-weighted, so it follows the
+    // mass the eye follows rather than the bounding box of anything faintly
+    // lit.
+    let wsum = 0;
+    let wx = 0;
+    let wy = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const l = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
+      if (l <= 0.04) continue;
+      const p = i / 4;
+      wsum += l;
+      wx += l * (p % copy.width);
+      wy += l * Math.floor(p / copy.width);
+    }
+
     const pixels = data.length / 4;
     resolve({
       litShare: lit / pixels,
@@ -130,6 +150,8 @@ async function frameStats() {
       peakLuma: peak,
       hotShare: hot / pixels,
       whiteShare: white / pixels,
+      centroidX: wsum > 0 ? wx / wsum / copy.width : 0.5,
+      centroidY: wsum > 0 ? wy / wsum / copy.height : 0.5,
       litMeanRGB: lit ? [Math.round(rSum / lit), Math.round(gSum / lit), Math.round(bSum / lit)] : [0, 0, 0],
     });
   })));
@@ -453,14 +475,55 @@ if (flag('scroll')) {
   const seen = [];
   for (const band of bands) if (!seen.includes(band)) seen.push(band);
 
+  const framing = [];
   for (let i = 0; i < seen.length; i++) {
     const band = seen[i];
     await scrollToBand(band);
     await page.waitForTimeout(900);
 
     const reported = await page.evaluate(() => document.documentElement.dataset.narrativeBand ?? '');
-    await shot(`${String(10 + i)}-band-${band}`);
+    const { stats } = await shot(`${String(10 + i)}-band-${band}`);
     if (reported !== band) console.log(`    band attribute reads "${reported}"`);
+
+    // Is the system visibly acting here? P5 wants the enforcement gradient
+    // on screen, not merely in the gain field, so the GRADIENT band has to
+    // catch a correction mid-flight rather than report one afterwards.
+    const live = await page.evaluate(() => {
+      const p = window.__correction?.probe?.();
+      if (!p) return null;
+      const off = p.pieces.filter((piece) => Math.abs(piece.u) > 0.02);
+      return {
+        engaged: p.pieces.filter((piece) => piece.engaged).length,
+        offSeat: off.length,
+        worst: off.reduce((m, piece) => Math.max(m, Math.abs(piece.u)), 0),
+      };
+    });
+    if (live && (live.engaged || live.offSeat)) {
+      console.log(
+        `    system acting: ${live.engaged} held, ${live.offSeat} off seat, ` +
+          `worst deviation ${live.worst.toFixed(3)}`
+      );
+    }
+    // The editorial band covers the canvas, so it has no composition to
+    // judge and would drag the spread with a meaningless 0.5.
+    if (stats.litShare > 0.01) framing.push({ band, x: stats.centroidX, y: stats.centroidY });
+  }
+
+  if (framing.length) {
+    console.log('\nCOMPOSITION ACROSS THE DESCENT');
+    for (const f of framing) {
+      const col = Math.round(f.x * 40);
+      console.log(
+        `  ${f.band.padEnd(10)} x ${f.x.toFixed(3)}  y ${f.y.toFixed(3)}  ` +
+          `|${'-'.repeat(col)}o${'-'.repeat(Math.max(0, 40 - col))}|`
+      );
+    }
+    const xs = framing.map((f) => f.x);
+    const spread = Math.max(...xs) - Math.min(...xs);
+    console.log(
+      `  subject centroid spans ${(spread * 100).toFixed(1)}% of frame width ` +
+        `(P5 asks for 15%+) — ${spread >= 0.15 ? 'PASSED' : 'FAILED: one shot, five times'}`
+    );
   }
 }
 

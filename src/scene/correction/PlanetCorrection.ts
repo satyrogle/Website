@@ -317,6 +317,32 @@ export class PlanetCorrection {
     this.systemAdjustments += Math.max(this.operator.adjustments - before, 1);
   }
 
+  /**
+   * A scripted escape, staged so the enforcement gradient can be watched
+   * rather than merely obeyed.
+   *
+   * The gradient is real — the gain field holds the near slabs hardest and
+   * lets the far field drift — but a visitor only ever sees it if something
+   * escapes at both ends of it. Same energy, two distances: out in the field
+   * the system engages and takes a long time to win, near the body the same
+   * escape is over almost before it is seen.
+   *
+   * Counted as the system's own. The record will still call these the
+   * visitor's, which is the canon — but the truth has to stay recoverable
+   * somewhere, and that somewhere is this counter.
+   */
+  demonstrate(index: number, energy: number): void {
+    const before = this.operator.adjustments;
+    // A demonstration is not the visitor acting, so it must not cancel the
+    // false first action or reset the idle clock.
+    const wasTouched = this.touched;
+    this.inject(index, energy);
+    this.touched = wasTouched;
+    // The operator has not engaged yet — it waits out the hold first — so the
+    // difference reads zero here and the floor is what actually lands.
+    this.systemAdjustments += Math.max(this.operator.adjustments - before, 1);
+  }
+
   /** How far one piece currently sits from its recorded seat. */
   deviationOf(index: number): number {
     return this.u[index] ?? 0;
