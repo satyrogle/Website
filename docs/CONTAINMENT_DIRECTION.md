@@ -4,6 +4,81 @@
 carrier.** v4 survives, scoped down, as the material law for the planet
 layer. Read both before hero work; read this one first.
 
+## Amendment, 2026-08-15 (v5.2) — read this before the body of the document
+
+Three decisions were taken live, on rendered frames, during the Act I build.
+They are settled, and they contradict the letter of what follows. **The
+amendment wins.** It is written down because the next agent, reading only the
+body, would "correct" the build back toward decisions already abandoned.
+
+1. **The macro body is AUTHORED, in Blender, and that is permitted.**
+   `tools/blender/build-entity.py` sculpts one surface; `entity.glb` and
+   `entity.json` are its output; the trajectory system reads the same control
+   data and places the veins on it by construction. The v5 amendment's "if a
+   form is not produced by the authoritative simulation, it does not exist"
+   is **narrowed**: it still forbids decorative geometry, and the causal graph
+   still runs through the body and still produces every event. But the graph
+   does not get to design the hero — five carriers died of exactly that, and
+   the diagnosis was recorded at the time: a flow on nested shells can only
+   produce shells. Simulation topology and visible form are separated
+   permanently.
+
+2. **Presence replaces `TOUCH IT`.** The written invitation and the technical
+   readout are out of the hero (`?hud` and `?poses` restore them for
+   development). Hovering the body raises a real deviation across the region
+   under the cursor, and when it passes what the system can ignore, the system
+   answers. The kill sequence below still reads `TOUCH IT`; read it as *the
+   visitor produces the phenomenon themselves*, which is the beat that
+   matters. An instruction printed on screen made it a button.
+
+3. **The colour grammar's open question is answered, and it is not the
+   proposal below.** Shipped and judged: the field and the ridges rest at a
+   cool near-white (`0.80, 0.84, 0.93`); the body is warm bone (`0.92, 0.90,
+   0.84`) at a face value of 0.008, understood by occlusion, by its grazing
+   rim and by the veins beneath it. Cyan is deviation, violet is arrest,
+   exactly as `CLAUDE.md` locks them — and neither is spent on the resting
+   state, so the grammar still has something to say when something happens.
+   The "pale white-amber field" proposal in **Open decision for Jacob** is
+   superseded; the rest of that section's reasoning stands.
+
+4. **The wounded planet is RETIRED from the active website direction.** Not
+   relocated, not deferred, not waiting in Act III. It remains historical
+   work only — `bc94903` and `HERO_DIRECTION.md` v4 are kept as a record of
+   engineering that was good and is not being used — and **it must not be
+   reintroduced as Act III, or anywhere else, without a new founder
+   decision.**
+
+   The entity itself carries the complete arc: beauty → comprehension →
+   menace. It does not need a second subject to point at. **The whole thesis
+   is already in the sentence "the entity appears harmonious because
+   deviation is being suppressed."** Six further metaphors prove the same
+   point six more times and cost a week each.
+
+   This supersedes everything below it. **Act III — the descent penetrates
+   the structure**, the depth table at 35/50/60/70%, **The payoff**, and
+   every "the planet arrives" clause in this document are **historical
+   text**. They describe a plan that was abandoned. Read them as a record of
+   how this direction was reasoned to, never as work to be done.
+
+   The reason this is written this sharply: a planet left canonically "in
+   Act III" is a planet some future agent starts building toward, and that
+   is how the last eleven carriers consumed a year.
+
+The shape of the finished experience, correspondingly, is:
+
+```
+authored entity → hover/presence → local propagation → correction →
+approach/cross → comprehension → editorial
+```
+
+**Contingent, not yet locked** — pending Jacob's judgement of the OBSERVE
+frame: if it passes, the next phase is the actual website rather than another
+Act I revision, reduced to OBSERVE → APPROACH → CROSS → black → editorial;
+and `YOUR RECORD` stops being mandatory. The record system is not deleted,
+but shipping the company site must not depend on it. If it integrates
+elegantly as a short transition, use it; if it costs another week of state
+management, cut it.
+
 ## The one sentence
 
 > Dark Lattice presents an impossibly beautiful deterministic structure whose
@@ -112,6 +187,11 @@ bright. This is the rule that makes the site technically hard for a reason
 that matters.
 
 ## Act III — the descent penetrates the structure
+
+> **HISTORICAL from 2026-08-15. The planet is retired — see amendment 4 at the
+> top.** The camera still enters the structure, and that beat is live. Nothing
+> arrives inside it. The depth table and the payoff below are a record of an
+> abandoned plan, not a specification.
 
 The camera does not visit objects. It **enters the thing it was looking at**.
 
@@ -235,7 +315,7 @@ recognises, and the visitor should be given the silence to notice that.
 - Interpreting the reveal at the moment of the reveal.
 - A second simulation. One authority, one state, one record.
 
-## Open decision for Jacob
+## Open decision for Jacob — ANSWERED 2026-08-15, see the amendment at the top
 
 **The colour grammar needs restating under the inversion, and that is your
 call, not mine.** `CLAUDE.md` locks: cyan is the world, amber is the model of

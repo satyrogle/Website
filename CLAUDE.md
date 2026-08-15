@@ -29,18 +29,18 @@ Do not use a cheap monster reveal, jumpscare, generic evil-AI language, or arbit
 
 ## Direction status
 
-**THE CONTAINMENT: CHOSEN 2026-08-14. THE FIELD IS THE HERO; THE PLANET IS WHAT IT HOLDS.**
+**THE CONTAINMENT: CHOSEN 2026-08-14. THE ENTITY IS THE HERO, AND IT IS THE WHOLE SUBJECT. THE PLANET IS RETIRED (2026-08-15).**
 
 **`docs/CONTAINMENT_DIRECTION.md` is the lock (v5).** Chosen by Jacob 2026-08-14, superseding the ruptured-planet carrier as the hero. The inversion, and it is the whole brief:
 
 ```
 CORRECTION = what you see
-PLANET     = what you eventually discover it is containing
+SUPPRESSION = what you eventually discover it is doing
 ```
 
-The site opens on near-black with one enormous, extraordinarily ordered, **unclassifiable** structure — pale energetic trajectories, layered interference, impossible curvature. The visitor cannot say whether it is celestial, mathematical, biological or engineered. Disturbances propagate through it by branching fission; the system arrests them in reverse causal order and leaves a scar. Only during the descent *into* the structure does the planet arrive, and only at the deepest point does the visitor understand that the beautiful thing has been holding a planetary catastrophe inside its approved state the entire time. The revelation is ontological, not informational — comprehension, never a costume change.
+The site opens on near-black with one enormous, extraordinarily ordered, **unclassifiable** structure — pale energetic trajectories, layered interference, impossible curvature. The visitor cannot say whether it is celestial, mathematical, biological or engineered. Disturbances propagate through it by branching fission; the system arrests them in reverse causal order and leaves a scar. The descent goes *into* the structure and finds no second subject waiting there: what the visitor comes to understand is that the harmony they were admiring is maintained — that every beautiful thing about it is a deviation being suppressed on a schedule. The revelation is ontological, not informational — comprehension, never a costume change, and nothing arrives to explain it.
 
-**The planet is not deleted, it is relocated to Act III.** `docs/HERO_DIRECTION.md` is superseded as the carrier but remains fully authoritative for the planet layer's material and geometry law: fragment hierarchy, thickness, geology over noise, fracture light only, the wound's construction. `bc94903` is frozen as the best version of that layer. Do not do further Blender or geology work until the Act I slice passes its kill test.
+**The wounded planet is RETIRED (2026-08-15, `CONTAINMENT_DIRECTION.md` amendment v5.2).** Not deleted from history, not relocated to Act III, not deferred — **out of the active direction**, and it may not be reintroduced anywhere without a new founder decision. `docs/HERO_DIRECTION.md` and `bc94903` are kept as a record of good engineering that is not being used. The entity alone carries beauty → comprehension → menace, because the entire thesis is already in one sentence: **the entity appears harmonious because deviation is being suppressed.** A planet left canonically "in Act III" is a planet some future agent starts building toward, which is how eleven carriers were consumed. Do no Blender or geology work on it.
 
 Its old `## Never` list banned "Abstract entities", which had the effect of forbidding the thing the site is about. **That one ban is lifted.** Every other entry, and the symmetry law, still binds.
 
