@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Dark Lattice — containment slice</title>
+    <style>
+      /* Deliberately no design system. This page is a kill test, not a site:
+         if the form needs chrome to work, it does not work. */
+      html,
+      body {
+        margin: 0;
+        background: #000;
+      }
+      /* The canvas is fixed and the page scrolls behind it: scroll is the
+         descent's input, not a thing that moves the picture. */
+      canvas {
+        display: block;
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+      /* The travel, as page length. Six poses over six screens. */
+      #rail {
+        height: 620vh;
+        pointer-events: none;
+      }
+      #readout {
+        position: fixed;
+        left: 24px;
+        bottom: 22px;
+        font: 11px/1.7 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        letter-spacing: 0.16em;
+        color: rgba(255, 255, 255, 0.42);
+        text-transform: uppercase;
+        pointer-events: none;
+        white-space: pre;
+      }
+
+      /* The invitation. It arrives after the system has demonstrated the
+         phenomenon once, and it leaves the moment the visitor takes it —
+         an instruction that stays on screen is a button, and this is not a
+         button. */
+      #invite {
+        position: fixed;
+        /* In the void, not on the structure. Centred at the foot of the frame
+           it landed across the trajectories and read as debris; the empty
+           lower right is the one region the eye is not already busy in, and
+           putting it there is the negative space doing work. */
+        right: 13vw;
+        bottom: 27vh;
+        text-align: right;
+        font: 12px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        letter-spacing: 0.42em;
+        text-indent: 0.42em;
+        color: rgba(255, 255, 255, 0.72);
+        text-transform: uppercase;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      #invite.is-open {
+        opacity: 1;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #invite {
+          transition: none;
+        }
+      }
+
+      /* The way out. Present from the first frame, before anything has
+         happened and whether or not anything does — a site arguing that
+         records are incomplete must not trap a reader who needs the record.
+         Small, quiet, fixed. No penalty, no modal, no confirmation. */
+      #skip {
+        position: fixed;
+        top: 24px;
+        /* Letter-spacing adds a trailing space inside the box, so the element
+           is wider than the text it shows and the focus ring was landing hard
+           against the frame edge. */
+        right: 34px;
+        font: 11px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.38);
+        text-decoration: none;
+        padding: 6px 2px;
+        transition: color 200ms ease-out;
+      }
+      #skip:hover,
+      #skip:focus-visible {
+        color: rgba(255, 255, 255, 0.85);
+      }
+      #skip:focus-visible {
+        outline: 1px solid rgba(255, 255, 255, 0.6);
+        outline-offset: 4px;
+      }
+      /* Where the visitor is on the rail. Named, because the pose names are
+         the narrative and the visitor should be able to feel the beats. */
+      #pose {
+        position: fixed;
+        left: 24px;
+        top: 24px;
+        font: 11px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.3);
+        pointer-events: none;
+      }
+
+      /* Unused now the rail exists; kept for the reduced-motion path. */
+      #descend {
+        position: fixed;
+        left: 50%;
+        bottom: 5vh;
+        transform: translateX(-50%);
+        background: none;
+        border: 0;
+        font: 11px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        letter-spacing: 0.3em;
+        text-indent: 0.3em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.55);
+        cursor: pointer;
+        padding: 10px 6px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      #descend.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      #descend:hover,
+      #descend:focus-visible {
+        color: rgba(255, 255, 255, 0.9);
+      }
+      #descend:focus-visible {
+        outline: 1px solid rgba(255, 255, 255, 0.6);
+        outline-offset: 4px;
+      }
+
+      /* THE FLOOR ------------------------------------------------------
+         One clean viewport for the statement, and the diff below it for
+         anyone who goes looking. Nothing here explains what it means. */
+      #record[hidden] {
+        display: none;
+      }
+      #record {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        overflow-y: auto;
+        background: #000;
+        color: rgba(255, 255, 255, 0.9);
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .record__statement {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 8vw;
+        max-width: 60rem;
+      }
+      .record__title {
+        margin: 0 0 3.5rem;
+        font-size: clamp(2.2rem, 6vw, 4.4rem);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+        outline: none;
+      }
+      .record__figures {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 0.9rem 2.5rem;
+        justify-content: start;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: clamp(0.8rem, 1.4vw, 1rem);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .record__figures dt {
+        color: rgba(255, 255, 255, 0.45);
+      }
+      .record__figures dd {
+        margin: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .record__diff {
+        padding: 14vh 8vw 16vh;
+        max-width: 72rem;
+      }
+      .record__lines {
+        margin: 0 0 3rem;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.8rem;
+        line-height: 2;
+        color: rgba(255, 255, 255, 0.62);
+        white-space: pre-wrap;
+      }
+      .record__table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.72rem;
+        text-align: left;
+      }
+      .record__table th {
+        padding: 0 1.5rem 0.9rem 0;
+        font-weight: 400;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.35);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .record__table td {
+        padding: 0.7rem 1.5rem 0.7rem 0;
+        white-space: pre;
+        color: rgba(255, 255, 255, 0.78);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .record__table tr.is-match td {
+        color: rgba(255, 255, 255, 0.32);
+      }
+      .record__visits {
+        margin: 3rem 0 0;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.35);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="slice"></canvas>
+    <div id="rail"></div>
+    <!-- The reduced-motion path's way to the floor. Hidden on the scrolling
+         path, where the floor is arrived at rather than requested. -->
+    <button id="descend" type="button">Your record</button>
+    <div id="record" hidden></div>
+    <!-- href, not a button: it works with scripting disabled, and the
+         destination is a real place rather than an application state. -->
+    <a id="skip" data-skip href="/#premise">Skip to company information</a>
+    <div id="pose"></div>
+    <div id="invite">Touch it</div>
+    <div id="readout"></div>
+    <script type="module" src="/src/prototype.ts"></script>
+  </body>
+</html>
