@@ -52,18 +52,21 @@ const SEAT: [number, number, number] = [0.42, -0.31, 0.55];
 export const POSES: Pose[] = [
   {
     name: 'OBSERVE',
-    position: [12.6, 5.4, 14.5],
-    target: [-0.6, 0.2, 0.1],
-    near: 9.0,
-    far: 34.0,
+    // Fourteen out, not twenty. The entity spans fourteen units, so at the
+    // previous distance it sat in the middle of the frame with black on every
+    // side and read as a specimen. It has to crowd the frame to be enormous.
+    position: [8.8, 3.8, 10.2],
+    target: [-0.4, 0.1, 0.2],
+    near: 6.0,
+    far: 24.0,
     fov: 40,
   },
   {
     name: 'APPROACH',
-    position: [9.0, 3.4, 9.6],
-    target: [0.0, -0.1, 0.3],
-    near: 6.0,
-    far: 24.0,
+    position: [7.0, 2.7, 7.5],
+    target: [0.1, -0.1, 0.3],
+    near: 4.5,
+    far: 19.0,
     fov: 46,
   },
   {

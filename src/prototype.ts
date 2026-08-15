@@ -16,6 +16,7 @@ import { RecordPanel } from './content/RecordPanel';
 import { sampleDescent, POSES } from './scene/containment/Descent';
 import { Halation } from './scene/containment/Halation';
 import { SheetMass } from './scene/containment/SheetMass';
+import { SheetRidges } from './scene/containment/SheetRidges';
 
 const canvas = document.getElementById('slice') as HTMLCanvasElement;
 const readout = document.getElementById('readout') as HTMLDivElement;
@@ -77,7 +78,10 @@ const record = new Record(structure.graph.positions, structure.seeds, visit.seed
 // Level 1 first: the silhouette occludes, and everything else depth-tests
 // against it.
 const mass = new SheetMass();
-scene.add(mass.object, field.object);
+// Level 2 between the silhouette and the fibres. Without a scale in between,
+// a surface has no material.
+const ridges = new SheetRidges(structure);
+scene.add(mass.object, ridges.object, field.object);
 
 /**
  * Where the visitor is on the rail, 0 at OBSERVE and 1 at REVEAL.
@@ -468,6 +472,7 @@ function frame(now: number): void {
   applyCamera(eased);
 
   field.setEnergy(fission.energy);
+  ridges.setEnergy(fission.energy);
 
   // The chrome reports the system's own file, and nothing else.
   //
@@ -492,7 +497,12 @@ function frame(now: number): void {
     openFloor();
   }
 
-  halation.render(renderer, scene, camera, field);
+  halation.render(renderer, scene, camera, {
+    setEmissiveOnly: (on: boolean) => {
+      field.setEmissiveOnly(on);
+      ridges.setEmissiveOnly(on);
+    },
+  });
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -512,6 +522,8 @@ requestAnimationFrame(frame);
   openRail,
   poses: POSES,
   halation,
+  mass,
+  ridges,
   applyCamera,
   progressNow: () => eased,
   heldAgainst,
