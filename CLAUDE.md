@@ -29,11 +29,22 @@ Do not use a cheap monster reveal, jumpscare, generic evil-AI language, or arbit
 
 ## Direction status
 
-**THE CORRECTION: CHOSEN 2026-08-12. BUILD IN PROGRESS.**
+**THE CONTAINMENT: CHOSEN 2026-08-14. THE FIELD IS THE HERO; THE PLANET IS WHAT IT HOLDS.**
 
-**Hero carrier: a ruptured planet and its debris — `docs/HERO_DIRECTION.md` is the lock.** Chosen by Jacob 2026-08-12, superseding the implicit-field carrier chosen earlier the same day. The hero is authored geometry: one displaced, solidified world built in Blender (`tools/blender/build-planet.py`), its five continent slabs cut from the body by the same volumes that wound it, exported as glTF and staged live in Three.js (`src/scene/correction/PlanetModel.ts`, `src/shaders/planet-fragment.*.glsl`). The volumetric star field behind it (`src/scene/correction/FieldModel.ts`) carries the source's light and the halo. Authored meshes do not violate the live-3D requirement — Jacob, explicitly, in `docs/HERO_DIRECTION.md`, which also lifts the old `HERO GLB` vocabulary ban.
+**`docs/CONTAINMENT_DIRECTION.md` is the lock (v5).** Chosen by Jacob 2026-08-14, superseding the ruptured-planet carrier as the hero. The inversion, and it is the whole brief:
 
-The diagnosis that killed the five abstract carriers before it — **visible primitives**: filaments read as spaghetti, a swept surface as a cutting board, lamellae as hanging anatomy — still governs abstract and repeated-element carriers, and grids on surfaces remain the named killer fault. The planet direction answers it differently: the hero is representational now, and a viewer naming "crust slab torn from a planet" is the intended read, not a failure. Material law, fragment hierarchy, the wide reveal standing on the blast side so wounds and their detached slabs share the frame — all in `docs/HERO_DIRECTION.md`. Read it before any hero work.
+```
+CORRECTION = what you see
+PLANET     = what you eventually discover it is containing
+```
+
+The site opens on near-black with one enormous, extraordinarily ordered, **unclassifiable** structure — pale energetic trajectories, layered interference, impossible curvature. The visitor cannot say whether it is celestial, mathematical, biological or engineered. Disturbances propagate through it by branching fission; the system arrests them in reverse causal order and leaves a scar. Only during the descent *into* the structure does the planet arrive, and only at the deepest point does the visitor understand that the beautiful thing has been holding a planetary catastrophe inside its approved state the entire time. The revelation is ontological, not informational — comprehension, never a costume change.
+
+**The planet is not deleted, it is relocated to Act III.** `docs/HERO_DIRECTION.md` is superseded as the carrier but remains fully authoritative for the planet layer's material and geometry law: fragment hierarchy, thickness, geology over noise, fracture light only, the wound's construction. `bc94903` is frozen as the best version of that layer. Do not do further Blender or geology work until the Act I slice passes its kill test.
+
+Its old `## Never` list banned "Abstract entities", which had the effect of forbidding the thing the site is about. **That one ban is lifted.** Every other entry, and the symmetry law, still binds.
+
+The diagnosis that killed the earlier abstract carriers — **visible primitives**: filaments read as spaghetti, a swept surface as a cutting board, lamellae as hanging anatomy — binds this direction harder than any before it, because the field is abstract by construction. The cure v5 names is **order**: the structure must read as one coherent system with impossible curvature, not as many strands. If the eye can classify the opening form, the direction has failed and dies at its kill test.
 
 `docs/CHOIR_BUILD_PLAN.md` is **retired as a carrier** but remains authoritative for everything the carrier does not decide: colour grammar, the interaction canon (false first action, skip path, persistence, real `ADJUSTMENTS APPLIED: N`), determinism, integration bones and guardrails. `docs/decision/02-correction-dossier.md` holds the design detail. Read both before any hero, scene, camera, system or editorial work.
 
@@ -44,17 +55,35 @@ The causal argument in `docs/ARCHITECTURE.md` — colour grammar, observation mo
 Retired. Do not rebuild, re-propose, or audit against:
 - THE INTAKE descent/growth/cathedral staging (founder-vetoed before build),
 - False Façade / Anamorphic Threshold Guardian — `.claude/skills/dark-lattice-web/references/hero-concept.md` is kept as a record only,
-- THE LATTICE / excess-order ascent,
-- the central entity, the trench/strata/truss stage, the Signal Horizon terrain, the nine-movement structure.
+- the trench/strata/truss stage, the Signal Horizon terrain, the nine-movement structure.
 
-**Work `docs/PRODUCTION_PLAN.md` phase by phase — it is the active build
-order (2026-08-14), written after the correction was wired into the approved
-wounded-planet composition.** It supersedes `CORRECTION_BUILD_PLAN.md`'s
-staging; that file still governs whatever the plan does not decide. Jacob
-judges every named checkpoint on his own GPU. P1 (make one enforcement event
-unmissable) gates everything; if its kill criterion fires, stop and report
-rather than tune. Audits and QA phases run after the build stands, not
-before.
+**Amended 2026-08-14.** This list previously retired "THE LATTICE / excess-order ascent" and "the central entity". Those entries are **withdrawn**, and the distinction matters: what was rejected was a *decorative* entity and a *decorative* tunnel — a scary final monster and a cool tunnel, neither of which the simulation drove. v5 does not restore them. It makes the structure the rendering of the causal graph that the correction system already steps, the tunnel the act of entering it, and the "entity" simply the total shape the visitor eventually comprehends. Nothing is added for its own sake; if a form is not produced by the authoritative simulation, it does not exist. Re-proposing the decorative versions remains forbidden.
+
+**The active build order is `docs/CONTAINMENT_DIRECTION.md`'s kill criterion:
+build Act I and the first mechanism beat only** — black → field → autonomous
+fission → arrest → scar → `TOUCH IT` → visitor repeat → correction. No
+editorial, no planet reveal, no new materials, no debris work. If that slice
+does not produce beauty, order, and then the first suspicion that something
+is *responding*, it dies there and `bc94903` remains the site.
+
+`docs/PRODUCTION_PLAN.md` (2026-08-14) was written for the planet-as-hero
+staging and is **paused**, not retired: its P1 (make one enforcement event
+unmissable) is the same requirement v5 states, and its later phases resume if
+and when the Act I slice passes. `CORRECTION_BUILD_PLAN.md` still governs
+whatever neither decides. Jacob judges every named checkpoint on his own GPU;
+if a kill criterion fires, stop and report rather than tune. Audits and QA
+run after the build stands, not before.
+
+**One authority.** The repository currently runs two correction realities:
+the authoritative `PulseWorker` simulation, which nothing renders and whose
+snapshot `consume()` calls "telemetry only", and `PlanetCorrection`, which
+drives the visible planet. A visitor press is sent to both
+(`SceneController.ts` — `correction.injectAt` and `client.inject`). This is
+the architecture the company's own thesis forbids. Collapse it: one
+deterministic state model, renderers that observe snapshots, and a press
+that travels `input → authoritative state → visible consequence → record`
+and nowhere else. Do not add a third simulation; the Act I field must read
+the same snapshot.
 
 Invariants that bind every edit:
 - **Colour grammar.** Cyan is the world, amber is the model of the world (and therefore the divine face), violet is the consequence of their disagreement. Never redefined per section.

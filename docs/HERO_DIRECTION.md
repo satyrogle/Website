@@ -1,9 +1,30 @@
-# THE HERO — a ruptured planet and its debris
+# THE PLANET LAYER — a ruptured planet and its debris
 
-**LOCKED by Jacob, 2026-08-12 (v4).** Supersedes every earlier version. Read
-before touching the hero. Nothing rendered so far is final.
+> **SUPERSEDED AS THE CARRIER, 2026-08-14, by
+> `docs/CONTAINMENT_DIRECTION.md` (v5). Read that first.**
+>
+> The planet is no longer the hero. It is what the hero is holding, and it
+> appears in Act III. Nothing below about *staging, arc, success condition or
+> reveal timing* is current — the wide reveal moves to the deepest point of
+> the descent, and the planet must not be visible in Act I at all.
+>
+> **What remains fully authoritative here is the material and geometry law**
+> for the planet layer itself: fragment hierarchy, thickness, geology over
+> noise, fracture light only, the wound's construction, no rotational
+> symmetry. That law is unchanged and still binds every edit to the planet,
+> its shaders and `tools/blender/build-planet.py`.
+>
+> `bc94903` is frozen as the best version of this layer. It is reused whole,
+> later, where it pays off.
+>
+> The `## Never` section at the foot of this file no longer binds. In
+> particular its ban on "Abstract entities" was the instruction that
+> prevented the site from being built, and is lifted by v5.
 
-## Success condition
+**LOCKED by Jacob, 2026-08-12 (v4).** Superseded as the carrier 2026-08-14;
+retained as the planet layer's material law.
+
+## Success condition *(retired — see v5)*
 
 A cold viewer must be able to say: *"I'm travelling through giant fragments
 from one exploding planet, and by the end I understand the whole shattered
@@ -12,7 +33,10 @@ world and the direction of the blast."*
 If they say "cool floating sci-fi chunks", "space rocks", "procedural
 debris", or "glowing orb with pieces around it", the build has failed.
 
-## The arc
+That reading is now the **Act III** payoff rather than the whole experience,
+and it must not be reachable before the descent. v5 replaces the arc below.
+
+## The arc *(retired — see v5)*
 
 Local mystery → global revelation.
 
@@ -181,8 +205,14 @@ entity work and to pre-rendered assets, not to authored live geometry.
 5. Final wide reveal monumental and conclusive.
 6. Only then light, particles, secondary motion.
 
-## Never
+## Never *(scoped to the planet layer — "Abstract entities" is LIFTED)*
 
-Abstract entities. A white-disc core. Cube/box fragments. Grid on every
-surface. Debris as random clutter. A busy void. Equal glow on everything.
-A small or quick final reveal. A space background with UI on top.
+A white-disc core. Cube/box fragments. Grid on every surface. Debris as
+random clutter. A busy void. Equal glow on everything. A small or quick final
+reveal. A space background with UI on top.
+
+**"Abstract entities" was here and is removed.** It was written when the
+planet was the carrier, and it had the effect of forbidding the correction
+field — the thing the site is actually about. See
+`docs/CONTAINMENT_DIRECTION.md`. The remaining bans above still hold for the
+planet layer, and the symmetry law holds everywhere.
