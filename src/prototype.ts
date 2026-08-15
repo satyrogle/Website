@@ -14,6 +14,7 @@ import { Record } from './scene/containment/Record';
 import { Visit } from './scene/containment/Visit';
 import { RecordPanel } from './content/RecordPanel';
 import { sampleDescent, POSES } from './scene/containment/Descent';
+import { Halation } from './scene/containment/Halation';
 
 const canvas = document.getElementById('slice') as HTMLCanvasElement;
 const readout = document.getElementById('readout') as HTMLDivElement;
@@ -62,6 +63,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+const halation = new Halation(window.innerWidth, window.innerHeight);
 
 const structure = synthesiseContainment(DEFAULT_CONTAINMENT);
 const field = new ContainmentField(structure);
@@ -94,6 +96,10 @@ function applyCamera(t: number): void {
   const state = sampleDescent(t);
   camera.position.set(state.position[0], state.position[1], state.position[2]);
   camera.lookAt(state.target[0], state.target[1], state.target[2]);
+  if (camera.fov !== state.fov) {
+    camera.fov = state.fov;
+    camera.updateProjectionMatrix();
+  }
   field.setRecession(state.near, state.far);
   // Development scaffolding, off by default.
   //
@@ -120,6 +126,8 @@ function resize(): void {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  const ratio = renderer.getPixelRatio();
+  halation.resize(w * ratio, h * ratio);
 }
 resize();
 window.addEventListener('resize', resize);
@@ -266,6 +274,8 @@ let invited = false;
 let left = false;
 /** Set once the way down has been offered. It is not offered twice. */
 let descended = false;
+/** Set once the descent exists. Requires the visitor to have acted. */
+let railOpen = false;
 
 /**
  * The way out, recorded.
@@ -385,6 +395,18 @@ function frame(now: number): void {
     record.log(pending.source, pending.node, pending.tick, fission.peakFronts);
     pending = null;
     visit.commit(record.recorded, fission.adjustments, false, record.statement);
+    // The descent opens once the visitor has produced the phenomenon
+    // THEMSELVES, not when the system demonstrated it.
+    //
+    // Before that they are observing a structure; after it they are
+    // investigating one, and the camera movement has a reason. Opening at the
+    // autonomous event let someone descend having only watched, which makes
+    // the travel a thing the page does rather than a thing they decided to do.
+    if (!railOpen && record.physical.some((e) => e.source === 'VISITOR')) {
+      railOpen = true;
+      openRail();
+    }
+
     // On the reduced-motion path the floor is a control, because there is no
     // descent to arrive at the bottom of.
     if (reduced && !descended && record.physical.some((e) => e.source === 'VISITOR')) {
@@ -399,9 +421,6 @@ function frame(now: number): void {
   if (!invited && !manual && record.physical.length > 0 && fission.phase === 'held') {
     invited = true;
     invite.classList.add('is-open');
-    // The way down appears with the invitation: the beat has been shown, and
-    // only now is there something for the descent to be a descent into.
-    openRail();
   }
 
   // Eased toward the scroll position. Frame-rate independent: the coefficient
@@ -437,7 +456,7 @@ function frame(now: number): void {
     openFloor();
   }
 
-  renderer.render(scene, camera);
+  halation.render(renderer, scene, camera, field);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -456,6 +475,7 @@ requestAnimationFrame(frame);
   openFloor,
   openRail,
   poses: POSES,
+  halation,
   applyCamera,
   progressNow: () => eased,
   heldAgainst,

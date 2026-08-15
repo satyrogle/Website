@@ -641,10 +641,40 @@ if (process.argv.includes('--descent')) {
     .catch(() => {});
   await page.waitForTimeout(600);
 
+  // The descent does not exist until the visitor has produced the phenomenon
+  // themselves, so the harness has to do that before it can ride anything.
+  const before = await page.evaluate(
+    () => document.documentElement.scrollHeight - window.innerHeight
+  );
+  console.log(`  rail before the visitor acts: ${before}px`);
+  const seat = await page.evaluate(() => {
+    const s = window.__slice;
+    const p = s.structure.graph.positions;
+    const g = s.structure.graph;
+    const v = s.camera.position.clone();
+    s.camera.updateMatrixWorld();
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < g.nodeCount; i += 5) {
+      if (g.offsets[i + 1] - g.offsets[i] < 3) continue;
+      v.set(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]).project(s.camera);
+      if (v.z > 1) continue;
+      const d = Math.hypot(v.x + 0.1, v.y - 0.05);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight };
+      }
+    }
+    return best;
+  });
+  await page.mouse.click(seat.x, seat.y);
+  await page.waitForFunction(() => window.__slice.fission.phase === 'held', { timeout: 14000 }).catch(() => {});
+  await page.waitForTimeout(900);
+
   const travel = await page.evaluate(
     () => document.documentElement.scrollHeight - window.innerHeight
   );
-  console.log(`  rail length: ${travel}px of scroll`);
+  console.log(`  rail after they act: ${travel}px of scroll`);
 
   for (let i = 0; i < poses.length; i++) {
     const t = i / (poses.length - 1);

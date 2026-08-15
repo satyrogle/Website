@@ -29,6 +29,17 @@ export interface Pose {
   /** Recession window, so near and far trajectories keep arriving differently. */
   near: number;
   far: number;
+  /**
+   * Vertical field of view.
+   *
+   * Widens as the camera goes inside. At 38 degrees throughout, the thirty
+   * trajectories within a metre of the CROSS pose were nearly all outside the
+   * frustum — the camera was passing between enormous strands and showing none
+   * of them. A wide lens is also what enclosure looks like: peripheral
+   * structure streaming past is the difference between travelling through a
+   * thing and looking at it down a tube.
+   */
+  fov: number;
 }
 
 /** Centre of the forbidden volume. Must match `ContainmentSynth`'s void. */
@@ -41,6 +52,7 @@ export const POSES: Pose[] = [
     target: [-1.4, 0.3, -0.4],
     near: 3.0,
     far: 15.0,
+    fov: 38,
   },
   {
     name: 'APPROACH',
@@ -48,6 +60,7 @@ export const POSES: Pose[] = [
     target: [0.0, -0.1, 0.3],
     near: 2.4,
     far: 12.0,
+    fov: 44,
   },
   {
     name: 'CROSS',
@@ -55,6 +68,7 @@ export const POSES: Pose[] = [
     target: SEAT,
     near: 1.6,
     far: 9.0,
+    fov: 60,
   },
   {
     // Elevation climbs again here. A monotonic descent reads as a lift shaft.
@@ -63,6 +77,7 @@ export const POSES: Pose[] = [
     target: SEAT,
     near: 1.2,
     far: 7.5,
+    fov: 62,
   },
   {
     name: 'UNDERSTAND',
@@ -70,6 +85,7 @@ export const POSES: Pose[] = [
     target: SEAT,
     near: 1.0,
     far: 7.0,
+    fov: 56,
   },
   {
     // Stops 2.9 from the seat, not 2.0.
@@ -85,6 +101,7 @@ export const POSES: Pose[] = [
     target: SEAT,
     near: 0.8,
     far: 6.0,
+    fov: 48,
   },
 ];
 
@@ -93,6 +110,7 @@ export interface CameraState {
   target: [number, number, number];
   near: number;
   far: number;
+  fov: number;
   /** The pose the visitor is nearest to, for the readout. */
   pose: Pose['name'];
   /** How far between poses, 0..1, for anything that needs a beat boundary. */
@@ -140,6 +158,7 @@ const TRACKS = {
   tz: axis('target', 2),
   near: POSES.map((p) => p.near),
   far: POSES.map((p) => p.far),
+  fov: POSES.map((p) => p.fov),
 };
 
 export function sampleDescent(progress: number): CameraState {
@@ -154,6 +173,7 @@ export function sampleDescent(progress: number): CameraState {
     // camera and the near field inverts.
     near: TRACKS.near[index] + (TRACKS.near[index + 1] - TRACKS.near[index]) * (scaled - index),
     far: TRACKS.far[index] + (TRACKS.far[index + 1] - TRACKS.far[index]) * (scaled - index),
+    fov: TRACKS.fov[index] + (TRACKS.fov[index + 1] - TRACKS.fov[index]) * (scaled - index),
     pose: POSES[Math.round(scaled)].name,
     within: scaled - index,
   };

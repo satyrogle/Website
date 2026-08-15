@@ -17,6 +17,7 @@
 
 import * as THREE from 'three';
 import type { ContainmentStructure } from './ContainmentSynth';
+import { ContainmentStrands } from './ContainmentStrands';
 
 export interface FieldLook {
   /** The resting glow of an undisturbed trajectory. */
@@ -40,6 +41,15 @@ export const FIELD_LOOK: FieldLook = {
 
 export class ContainmentField {
   readonly object: THREE.Object3D;
+  /**
+   * The near field, drawn with width.
+   *
+   * Same edges, same energy, same colour — the only difference is that these
+   * have world-space thickness and so gain physical size as the camera
+   * arrives. Far away they collapse to nothing and the hairlines carry the
+   * structure alone.
+   */
+  private readonly strands: ContainmentStrands;
   private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.ShaderMaterial;
   private readonly energyAttr: THREE.BufferAttribute;
@@ -95,6 +105,7 @@ export class ContainmentField {
         uNear: { value: look.near },
         uFar: { value: look.far },
         uExposure: { value: 1 },
+        uEmissiveOnly: { value: 0 },
       },
       vertexShader: /* glsl */ `
         in float aDepth;
@@ -124,6 +135,7 @@ export class ContainmentField {
         uniform float uNear;
         uniform float uFar;
         uniform float uExposure;
+        uniform float uEmissiveOnly;
         in float vDepth;
         in float vEnergy;
         in float vCross;
@@ -182,6 +194,16 @@ export class ContainmentField {
           // level goes into the colour and the alpha stays at one. Putting it
           // in both squares it, and the whole field renders at a tenth of the
           // authored brightness.
+          // The emissive pass carries halation, and the law is that the
+          // resting field does not glow. Dropping the floor here rather than
+          // thresholding brightness afterwards makes that structural: no
+          // amount of accumulated crossings can bloom, because the approved
+          // state contributes literally zero to the buffer that gets blurred.
+          if (uEmissiveOnly > 0.5) {
+            level = (deviation * 3.4 + arrest * 1.5) * recede;
+            if (e < 0.02) discard;
+          }
+
           fragColour = vec4(colour * level * uExposure, 1.0);
         }
       `,
@@ -189,7 +211,12 @@ export class ContainmentField {
 
     const lines = new THREE.LineSegments(this.geometry, this.material);
     lines.frustumCulled = false;
-    this.object = lines;
+
+    this.strands = new ContainmentStrands(structure);
+
+    const group = new THREE.Group();
+    group.add(lines, this.strands.object);
+    this.object = group;
   }
 
   /** Per-node energy from the authoritative simulation. */
@@ -197,10 +224,18 @@ export class ContainmentField {
     const target = this.energyAttr.array as Float32Array;
     target.set(energy.subarray(0, target.length));
     this.energyAttr.needsUpdate = true;
+    this.strands.setEnergy(energy);
+  }
+
+  /** Draw only what an event produced. Used for the halation buffer. */
+  setEmissiveOnly(on: boolean): void {
+    this.material.uniforms.uEmissiveOnly.value = on ? 1 : 0;
+    this.strands.setEmissiveOnly(on);
   }
 
   setExposure(value: number): void {
     this.material.uniforms.uExposure.value = value;
+    this.strands.setExposure(value);
   }
 
   /**
@@ -223,5 +258,6 @@ export class ContainmentField {
   dispose(): void {
     this.geometry.dispose();
     this.material.dispose();
+    this.strands.dispose();
   }
 }
