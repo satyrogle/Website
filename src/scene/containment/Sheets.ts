@@ -1,9 +1,16 @@
 /**
  * The entity — five authored surfaces, and nothing derived.
  *
- * These are hand-placed. No field equation, no seeded synthesis, no emergent
- * arrangement: a small number of control points chosen so the silhouette is a
- * decision rather than an outcome. That is the whole point of this file.
+ * ONE surface, and the control data comes from `tools/blender/build-entity.py`
+ * — the same numbers that produced the mesh, so the veins lie on the body by
+ * construction and the two cannot drift.
+ *
+ * It was five independently authored sheets, and five objects arranged
+ * together read as five objects however carefully they are arranged. The
+ * silhouette was countable because the geometry was countable. Now the width
+ * pulses along a single spine so lobes grow out of the same body, and every
+ * major part flows into another because they are the same sheet at different
+ * values of u.
  *
  * The previous form let the causal graph design the hero, and a flow on nested
  * shells can only ever produce shells — raising the density turned strands into
@@ -29,98 +36,51 @@ export type Vec = [number, number, number];
 
 export interface Sheet {
   name: string;
-  /** Open spine. Control points, hand-placed. */
   spine: Vec[];
-  /** Half-width at each control point. Varies, so no sheet is a band. */
   width: number[];
-  /** Radians of twist at each control point. */
   twist: number[];
-  /** How far the surface bows out of its own plane. Vanes, not ribbons. */
-  billow: number;
-  /** Reference up for the frame, chosen off every axis and off the tangent. */
+  /** Per control point, splined — matches the Python exactly. */
+  billow: number[];
   up: Vec;
+  aperture: { u: number; v: number; ru: number; rv: number };
 }
 
-/** Centre of the forbidden volume. Must match `ContainmentSynth`'s void. */
+export interface EntityManifest {
+  spine: number[][];
+  width: number[];
+  twist: number[];
+  billow: number[];
+  aperture: { u: number; v: number; ru: number; rv: number };
+  up: number[];
+  thickness: number;
+  bounds: { min: number[]; max: number[] };
+}
+
+/** Centre of the forbidden volume. */
 export const SEAT: Vec = [0.42, -0.31, 0.55];
 
-export const SHEETS: Sheet[] = [
-  {
-    // The dominant mass. Sweeps the whole frame and passes in front of the
-    // absence; this is the one a thumbnail shows.
-    name: 'spar',
-    spine: [
-      [-5.6, 2.9, -3.1],
-      [-2.4, 1.4, -0.4],
-      [0.9, -0.2, 1.6],
-      [3.6, -1.9, 2.4],
-      [5.4, -3.6, 1.2],
-    ],
-    width: [0.5, 1.5, 2.0, 1.4, 0.4],
-    twist: [0.0, 0.5, 1.05, 1.7, 2.3],
-    billow: 0.85,
-    up: [0.31, 0.83, 0.46],
-  },
-  {
-    // Crosses the spar high and behind it, at a different bearing entirely.
-    name: 'cowl',
-    spine: [
-      [3.9, 3.4, -3.6],
-      [1.6, 2.9, -0.8],
-      [-0.8, 1.7, 1.5],
-      [-3.2, -0.4, 2.6],
-      [-4.6, -2.6, 2.0],
-    ],
-    width: [0.35, 1.15, 1.55, 1.0, 0.3],
-    twist: [0.4, -0.2, -0.85, -1.5, -2.0],
-    billow: 0.62,
-    up: [-0.62, 0.55, 0.56],
-  },
-  {
-    // Dives toward the absence and stops short of it. The gesture that makes
-    // the void feel like something rather than like a gap.
-    name: 'tongue',
-    spine: [
-      [-1.2, -3.9, -2.4],
-      [-0.4, -2.4, -0.9],
-      [0.35, -1.15, 0.35],
-      [0.6, -0.5, 1.35],
-    ],
-    width: [0.28, 0.72, 0.95, 0.6],
-    twist: [0.0, 0.35, 0.8, 1.15],
-    billow: 0.44,
-    up: [0.72, 0.28, -0.63],
-  },
-  {
-    // Wraps behind the absence without closing around it — an arc, not a ring.
-    name: 'shroud',
-    spine: [
-      [2.6, 1.6, -3.4],
-      [3.3, 0.1, -1.3],
-      [2.9, -1.3, 0.9],
-      [1.4, -2.2, 2.5],
-    ],
-    width: [0.3, 1.05, 1.25, 0.55],
-    twist: [-0.3, -0.8, -1.35, -1.9],
-    billow: 0.55,
-    up: [0.18, -0.74, 0.65],
-  },
-  {
-    // The smallest, threaded between the others near the top. Breaks any
-    // remaining symmetry in the group.
-    name: 'splint',
-    spine: [
-      [-3.4, 3.2, 1.9],
-      [-1.5, 3.5, 0.2],
-      [0.7, 2.9, -1.2],
-      [2.5, 1.6, -2.1],
-    ],
-    width: [0.22, 0.62, 0.7, 0.26],
-    twist: [0.9, 1.35, 1.8, 2.25],
-    billow: 0.36,
-    up: [0.46, 0.16, 0.87],
-  },
-];
+/** Populated from the manifest before anything is synthesised. */
+export const SHEETS: Sheet[] = [];
+
+export function loadSheets(manifest: EntityManifest): void {
+  SHEETS.length = 0;
+  SHEETS.push({
+    name: 'entity',
+    spine: manifest.spine.map((p) => [p[0], p[1], p[2]] as Vec),
+    width: manifest.width,
+    twist: manifest.twist,
+    billow: manifest.billow,
+    up: [manifest.up[0], manifest.up[1], manifest.up[2]],
+    aperture: manifest.aperture,
+  });
+}
+
+/** True where the body has been cut through. No veins hang in the hole. */
+export function inAperture(sheet: Sheet, u: number, v: number): boolean {
+  const du = (u - sheet.aperture.u) / sheet.aperture.ru;
+  const dv = (v - sheet.aperture.v) / sheet.aperture.rv;
+  return du * du + dv * dv < 1;
+}
 
 const add = (a: Vec, b: Vec): Vec => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const scale = (a: Vec, s: number): Vec => [a[0] * s, a[1] * s, a[2] * s];
@@ -212,7 +172,7 @@ export function frameAt(sheet: Sheet, u: number): Frame {
 export function surfacePoint(sheet: Sheet, u: number, v: number, frame?: Frame): Vec {
   const f = frame ?? frameAt(sheet, u);
   const across = scale(f.right, v * f.halfWidth);
-  const bow = scale(f.normal, sheet.billow * f.halfWidth * (1 - v * v));
+  const bow = scale(f.normal, spline(sheet.billow, u) * f.halfWidth * (1 - v * v));
   return add(add(f.point, across), bow);
 }
 

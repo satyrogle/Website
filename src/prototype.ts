@@ -7,6 +7,8 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { loadSheets, type EntityManifest } from './scene/containment/Sheets';
 import { synthesiseContainment, DEFAULT_CONTAINMENT } from './scene/containment/ContainmentSynth';
 import { ContainmentField } from './scene/containment/ContainmentField';
 import { Fission, DEFAULT_FISSION } from './scene/containment/Fission';
@@ -25,7 +27,10 @@ const skip = document.getElementById('skip') as HTMLAnchorElement;
 const descend = document.getElementById('descend') as HTMLButtonElement;
 const panel = new RecordPanel(document.getElementById('record') as HTMLElement);
 const poseLabel = document.getElementById('pose') as HTMLDivElement;
-const showPoses = new URLSearchParams(window.location.search).has('poses');
+const params = new URLSearchParams(window.location.search);
+const showPoses = params.has('poses');
+const showHud = params.has('hud');
+if (showHud) readout.hidden = false;
 const rail = document.getElementById('rail') as HTMLDivElement;
 
 /**
@@ -67,6 +72,18 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
 const halation = new Halation(window.innerWidth, window.innerHeight);
 
+// The body, authored in Blender, loaded before anything is synthesised: the
+// veins are placed from the same control data that produced the mesh.
+const base = `${import.meta.env.BASE_URL}models/`;
+const manifest = (await fetch(`${base}entity.json`).then((r) => r.json())) as EntityManifest;
+loadSheets(manifest);
+const gltf = await new GLTFLoader().loadAsync(`${base}entity.glb`);
+let bodyGeometry: THREE.BufferGeometry | null = null;
+gltf.scene.traverse((child) => {
+  if (!bodyGeometry && (child as THREE.Mesh).isMesh) bodyGeometry = (child as THREE.Mesh).geometry;
+});
+if (!bodyGeometry) throw new Error('containment: entity.glb has no mesh');
+
 const structure = synthesiseContainment(DEFAULT_CONTAINMENT);
 const field = new ContainmentField(structure);
 const fission = new Fission(structure, DEFAULT_FISSION);
@@ -77,7 +94,7 @@ const visit = new Visit(Date.now());
 const record = new Record(structure.graph.positions, structure.seeds, visit.seed, visit.index);
 // Level 1 first: the silhouette occludes, and everything else depth-tests
 // against it.
-const mass = new SheetMass();
+const mass = new SheetMass(bodyGeometry);
 // Level 2 between the silhouette and the fibres. Without a scale in between,
 // a surface has no material.
 const ridges = new SheetRidges(structure);
@@ -198,7 +215,7 @@ function contactUnder(clientX: number, clientY: number): Contact | null {
   if (!hits.length) return null;
 
   const hit = hits[0];
-  const sheet = mass.sheetAt(hit);
+  const sheet = mass.sheetAt();
   const { x, y, z } = hit.point;
 
   const p = structure.graph.positions;
@@ -399,10 +416,6 @@ canvas.addEventListener('pointerdown', (e) => {
   if (node === null) return;
   if (!disturb(node, 'VISITOR')) return;
   acted = true;
-  if (invited) {
-    // The invitation has been taken. It does not come back.
-    invite.classList.remove('is-open');
-  }
 });
 
 /**
@@ -469,7 +482,6 @@ function frame(now: number): void {
   // first cascade is still running it would read as a control for it.
   if (!invited && !manual && record.physical.length > 0 && fission.phase === 'held') {
     invited = true;
-    invite.classList.add('is-open');
   }
 
   // Presence is the input. Being near a trajectory disturbs it, and when that
@@ -484,10 +496,7 @@ function frame(now: number): void {
     fission.relax(seconds);
 
     const provoked = fission.provoked;
-    if (provoked >= 0 && disturb(provoked, 'VISITOR')) {
-      acted = true;
-      if (invited) invite.classList.remove('is-open');
-    }
+    if (provoked >= 0 && disturb(provoked, 'VISITOR')) acted = true;
   }
 
   // Eased toward the scroll position. Frame-rate independent: the coefficient
@@ -510,7 +519,7 @@ function frame(now: number): void {
   // simply not announced. It belongs at the floor, under YOUR RECORD, where
   // the two logs are diffed and the visitor finds it themselves. Every line
   // here is true from inside the file; that is exactly what makes it a lie.
-  readout.textContent = [
+  if (showHud) readout.textContent = [
     `STATE: ${fission.phase === 'held' ? 'HELD' : fission.phase.toUpperCase()}`,
     `PATHS: ${String(fission.active).padStart(3, ' ')}`,
     `ADJUSTMENTS APPLIED: ${heldAgainst()}`,

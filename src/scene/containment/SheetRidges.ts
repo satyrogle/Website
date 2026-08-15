@@ -18,11 +18,11 @@
  */
 
 import * as THREE from 'three';
-import { SHEETS, frameAt, surfacePoint, surfaceNormal } from './Sheets';
+import { SHEETS, frameAt, surfacePoint, surfaceNormal, inAperture } from './Sheets';
 import type { ContainmentStructure } from './ContainmentSynth';
 
 /** Ridges per sheet, and samples along each. */
-const PER_SHEET = 6;
+const PER_SHEET = 26;
 const ALONG = 108;
 
 export interface RidgeLook {
@@ -47,11 +47,13 @@ export const RIDGE_LOOK: RidgeLook = {
  * arrangement, and no arrangement is symmetric about the spine.
  */
 const SEATS: number[][] = [
-  [-0.86, -0.52, -0.19, 0.07, 0.34, 0.61, 0.89],
-  [-0.79, -0.41, -0.08, 0.22, 0.46, 0.7, 0.92],
-  [-0.9, -0.58, -0.3, 0.02, 0.29, 0.55, 0.84],
-  [-0.82, -0.46, -0.15, 0.13, 0.4, 0.68, 0.91],
-  [-0.88, -0.55, -0.24, 0.05, 0.31, 0.59, 0.87],
+  (() => {
+    // Irregular by construction, across the one body. An even sweep is a comb
+    // and the golden ratio is the least even sequence available.
+    const out: number[] = [];
+    for (let i = 0; i < 26; i++) out.push(((i * 0.61803398875) % 1) * 1.94 - 0.97);
+    return out.sort((a, b) => a - b);
+  })(),
 ];
 
 export class SheetRidges {
@@ -149,7 +151,8 @@ export class SheetRidges {
           const frame = frameAt(sheet, u);
           const p = surfacePoint(sheet, u, v, frame);
           const n = surfaceNormal(sheet, u, v);
-          spine.push([p[0] + n[0] * look.lift, p[1] + n[1] * look.lift, p[2] + n[2] * look.lift]);
+          const lift = inAperture(sheet, u, v) ? 0 : look.lift;
+          spine.push([p[0] + n[0] * lift, p[1] + n[1] * lift, p[2] + n[2] * lift]);
         }
 
         for (let i = 0; i <= ALONG; i++) {

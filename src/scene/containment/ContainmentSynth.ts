@@ -31,7 +31,7 @@
 
 import type { CausalGraph } from '../correction/graph/GraphAsset';
 import { mulberry32 } from '../correction/graph/random';
-import { SHEETS, SEAT, frameAt, surfacePoint, surfaceNormal } from './Sheets';
+import { SHEETS, SEAT, frameAt, surfacePoint, surfaceNormal, inAperture } from './Sheets';
 
 export interface ContainmentConfig {
   seed: number;
@@ -59,10 +59,10 @@ export interface ContainmentConfig {
 
 export const DEFAULT_CONTAINMENT: ContainmentConfig = {
   seed: 0x5eed_1a77,
-  // Dense enough that the gaps close, and not denser. Five sheets at 110 is
-  // roughly the node count the shell version reached, which Jacob asked to
-  // leave alone.
-  linesPerSheet: 110,
+  // 560 across the one body. It was 110 per sheet across five, and collapsing
+  // to a single surface took the node count from fifty thousand to ten
+  // without anyone asking for it — density is one of the things Jacob froze.
+  linesPerSheet: 560,
   samplesPerLine: 90,
   stride: 0.105,
   radius: 5.0,
@@ -195,6 +195,10 @@ export function synthesiseContainment(
 
         const dVoid = Math.hypot(p[0] - SEAT[0], p[1] - SEAT[1], p[2] - SEAT[2]);
         if (dVoid < VOID_RADIUS) break;
+        // The body has been cut through here; a vein crossing the aperture
+        // would hang in the negative space that is doing the composition's
+        // work.
+        if (inAperture(sheet, u, v)) continue;
 
         const index = positions.length / 3;
         positions.push(p[0], p[1], p[2]);

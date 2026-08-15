@@ -27,6 +27,12 @@
         height: 620vh;
         pointer-events: none;
       }
+      /* Hidden in the hero. A technical readout makes this a graphics demo, and
+         the visitor is meant to be looking at a thing rather than reading its
+         instrumentation. `?hud` brings it back for development. */
+      #readout[hidden] {
+        display: none;
+      }
       #readout {
         position: fixed;
         left: 24px;
@@ -252,8 +258,8 @@
          destination is a real place rather than an application state. -->
     <a id="skip" data-skip href="/#premise">Skip to company information</a>
     <div id="pose"></div>
-    <div id="invite">Reach into it</div>
-    <div id="readout"></div>
+    <div id="invite" hidden></div>
+    <div id="readout" hidden></div>
     <script type="module" src="/src/prototype.ts"></script>
   </body>
 </html>

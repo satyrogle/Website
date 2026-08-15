@@ -1,8 +1,9 @@
 /**
  * Level 1 — the silhouette.
  *
- * The sheets drawn as actual surfaces: near-black faces that OCCLUDE, with
- * light only at their grazing edges. That combination is what produces a shape
+ * The body Blender authored, loaded as a GLB and shaded here.
+ *
+ * Near-black faces that OCCLUDE, with light only at their grazing edges. That combination is what produces a shape
  * at thumbnail size without producing a bright slab — the eye finds the form
  * from its rim and from what it hides, which is how mass reads on black.
  *
@@ -14,12 +15,6 @@
  */
 
 import * as THREE from 'three';
-import { SHEETS, frameAt, surfacePoint, surfaceNormal } from './Sheets';
-
-/** Tessellation. Along the spine, and across the width. */
-const ALONG = 96;
-const ACROSS = 14;
-
 export interface MassLook {
   /** How dark the face is. Near zero: this is mass, not a lamp. */
   face: number;
@@ -30,67 +25,20 @@ export interface MassLook {
 }
 
 export const MASS_LOOK: MassLook = {
-  // Dark, and grazing only. The vanes are large enough that a generous rim
-  // covers most of their area from most angles, and a sheet lit across its
-  // whole face is a slab rather than a mass.
-  face: 0.012,
-  rim: 0.16,
-  edge: 0.13,
+  // Almost nothing. The visitor understands the body through its grazing edge,
+  // through what it occludes, and through the veins beneath it — not by it
+  // glowing. A translucent, milky surface reads as fabric or as a wing; an
+  // opaque near-black one reads as mass.
+  face: 0.008,
+  rim: 0.30,
+  edge: 0.0,
 };
 
 export class SheetMass {
   readonly object: THREE.Mesh;
-  /** Which sheet each vertex belongs to, so a ray hit names a lobe. */
-  private readonly sheetOf: Uint8Array;
-  private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.ShaderMaterial;
 
-  constructor(look: MassLook = MASS_LOOK) {
-    const positions: number[] = [];
-    const normals: number[] = [];
-    const acrossAttr: number[] = [];
-    const alongAttr: number[] = [];
-    const index: number[] = [];
-    const owners: number[] = [];
-
-    let base = 0;
-    for (let sheetIndex = 0; sheetIndex < SHEETS.length; sheetIndex++) {
-      const sheet = SHEETS[sheetIndex];
-      for (let i = 0; i <= ALONG; i++) {
-        const u = i / ALONG;
-        const frame = frameAt(sheet, u);
-        for (let j = 0; j <= ACROSS; j++) {
-          const v = (j / ACROSS) * 2 - 1;
-          const p = surfacePoint(sheet, u, v, frame);
-          const n = surfaceNormal(sheet, u, v);
-          positions.push(p[0], p[1], p[2]);
-          normals.push(n[0], n[1], n[2]);
-          acrossAttr.push(Math.abs(v));
-          alongAttr.push(u);
-          owners.push(sheetIndex);
-        }
-      }
-      const stride = ACROSS + 1;
-      for (let i = 0; i < ALONG; i++) {
-        for (let j = 0; j < ACROSS; j++) {
-          const a = base + i * stride + j;
-          const b = a + 1;
-          const c = a + stride;
-          const d = c + 1;
-          index.push(a, c, b, b, c, d);
-        }
-      }
-      base += (ALONG + 1) * stride;
-    }
-
-    this.sheetOf = new Uint8Array(owners);
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-    this.geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-    this.geometry.setAttribute('aAcross', new THREE.BufferAttribute(new Float32Array(acrossAttr), 1));
-    this.geometry.setAttribute('aAlong', new THREE.BufferAttribute(new Float32Array(alongAttr), 1));
-    this.geometry.setIndex(index);
-
+  constructor(geometry: THREE.BufferGeometry, look: MassLook = MASS_LOOK) {
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       side: THREE.DoubleSide,
@@ -99,22 +47,15 @@ export class SheetMass {
       uniforms: {
         uFace: { value: look.face },
         uRim: { value: look.rim },
-        uEdge: { value: look.edge },
         uExposure: { value: 1 },
       },
       vertexShader: /* glsl */ `
-        in float aAcross;
-        in float aAlong;
         out vec3 vNormal;
         out vec3 vView;
-        out float vAcross;
-        out float vAlong;
         void main() {
           vec4 world = modelMatrix * vec4(position, 1.0);
           vNormal = normalize(mat3(modelMatrix) * normal);
           vView = normalize(cameraPosition - world.xyz);
-          vAcross = aAcross;
-          vAlong = aAlong;
           gl_Position = projectionMatrix * viewMatrix * world;
         }
       `,
@@ -122,54 +63,39 @@ export class SheetMass {
         precision highp float;
         uniform float uFace;
         uniform float uRim;
-        uniform float uEdge;
         uniform float uExposure;
         in vec3 vNormal;
         in vec3 vView;
-        in float vAcross;
-        in float vAlong;
         out vec4 fragColour;
 
         void main() {
           vec3 n = normalize(vNormal);
           vec3 v = normalize(vView);
 
-          // Grazing only. A broad falloff lifts the whole face and the sheet
-          // becomes a lit slab; the silhouette lives in the last few degrees
-          // before the surface turns away.
-          float graze = pow(1.0 - abs(dot(n, v)), 4.5);
+          // Grazing only, and tight. A broad falloff lifts the whole face and
+          // the body becomes a lit slab; the silhouette lives in the last few
+          // degrees before the surface turns away.
+          float graze = pow(1.0 - abs(dot(n, v)), 5.5);
 
-          // The two long edges of the vane, where the surface simply stops.
-          float edge = pow(vAcross, 7.0);
-
-          // Both ends taper out rather than being cut off, so a sheet has no
-          // visible termination anywhere.
-          float ends = smoothstep(0.0, 0.10, vAlong) * smoothstep(1.0, 0.90, vAlong);
-
-          vec3 pale = vec3(0.74, 0.79, 0.90);
-          float level = uFace + (graze * uRim + edge * uEdge) * ends;
-
-          fragColour = vec4(pale * level * uExposure, 1.0);
+          // Bone, very slightly warm. Not cyan: cyan is reserved for a real
+          // deviation, and spending it on the resting state leaves the
+          // grammar with nothing to say when something actually happens.
+          vec3 bone = vec3(0.92, 0.90, 0.84);
+          fragColour = vec4(bone * (uFace + graze * uRim) * uExposure, 1.0);
         }
       `,
     });
 
-    const mesh = new THREE.Mesh(this.geometry, this.material);
+    const mesh = new THREE.Mesh(geometry, this.material);
     mesh.frustumCulled = false;
     // Drawn before the additive layers so they depth-test against it.
     mesh.renderOrder = -1;
     this.object = mesh;
   }
 
-  /**
-   * Which sheet a ray hit landed on.
-   *
-   * The mass is one mesh so it raycasts in a single pass, and the vertex the
-   * hit belongs to carries its sheet — that is what turns a pixel into a lobe.
-   */
-  sheetAt(hit: THREE.Intersection): number {
-    const face = hit.face;
-    return face ? this.sheetOf[face.a] : -1;
+  /** The whole body is one lobe now, so a hit is simply a hit. */
+  sheetAt(): number {
+    return 0;
   }
 
   setExposure(value: number): void {
@@ -177,7 +103,6 @@ export class SheetMass {
   }
 
   dispose(): void {
-    this.geometry.dispose();
     this.material.dispose();
   }
 }

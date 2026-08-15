@@ -55,8 +55,11 @@ export const POSES: Pose[] = [
     // Fourteen out, not twenty. The entity spans fourteen units, so at the
     // previous distance it sat in the middle of the frame with black on every
     // side and read as a specimen. It has to crowd the frame to be enormous.
-    position: [8.8, 3.8, 10.2],
-    target: [-0.4, 0.1, 0.2],
+    // The body spans 12.8 x 9.9 and its centre is near the origin, so this
+    // stands well off it and looks at the middle. Measured from the mesh
+    // bounds rather than guessed.
+    position: [10.5, 4.2, 15.5],
+    target: [-0.2, 0.05, -0.23],
     near: 6.0,
     far: 24.0,
     fov: 40,
