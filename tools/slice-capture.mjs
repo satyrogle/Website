@@ -250,15 +250,18 @@ if (process.argv.includes('--touch')) {
     return best;
   });
   console.log(`  pressing at ${Math.round(target.x)},${Math.round(target.y)} (node ${target.node})`);
+  const filedBefore = await page.evaluate(() => window.__slice.record.physical.length);
   await page.mouse.click(target.x, target.y);
   await page.waitForTimeout(200);
-
+  const responded = await page.evaluate(() => window.__slice.fission.phase !== 'held');
+  // An event is filed when its correction completes, not when it starts, so
+  // the entry has to be waited for rather than read straight after the press.
+  await page.waitForFunction((n) => window.__slice.record.physical.length > n, filedBefore, { timeout: 12000 }).catch(() => {});
   const hit = await page.evaluate(() => {
-    const s = window.__slice;
-    const last = s.record.physical[s.record.physical.length - 1];
-    return { phase: s.fission.phase, source: last.source, node: last.node };
+    const last = window.__slice.record.physical[window.__slice.record.physical.length - 1];
+    return { source: last.source, node: last.node };
   });
-  console.log(`  it responded where pressed: ${hit.phase !== 'held'} (node ${hit.node}, ${hit.source})`);
+  console.log(`  it responded where pressed: ${responded} (node ${hit.node}, ${hit.source})`);
   await writeFile(path.join(OUT, '21-touched.png'), await page.screenshot({ type: 'png' }));
 
   const gone = await page.evaluate(() => !window.__slice.invite.classList.contains('is-open'));
@@ -490,10 +493,8 @@ if (process.argv.includes('--record')) {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__slice !== undefined, { timeout: 20000 });
 
-  const offeredEarly = await page.evaluate(() =>
-    window.__slice.descend.classList.contains('is-open')
-  );
-  console.log(`  offered before anything happened: ${offeredEarly}`);
+  const openEarly = await page.evaluate(() => !document.getElementById('record').hidden);
+  console.log(`  floor open before anything happened: ${openEarly}`);
 
   // Let the system act, then act twice ourselves.
   await page
@@ -501,10 +502,8 @@ if (process.argv.includes('--record')) {
     .catch(() => console.log('  false first action never settled'));
   await page.waitForTimeout(600);
 
-  const offeredAfterSystem = await page.evaluate(() =>
-    window.__slice.descend.classList.contains('is-open')
-  );
-  console.log(`  offered after the system acted alone: ${offeredAfterSystem}`);
+  const openAfterSystem = await page.evaluate(() => !document.getElementById('record').hidden);
+  console.log(`  floor open after the system acted alone: ${openAfterSystem}`);
 
   const press = async () => {
     const target = await page.evaluate(() => {
@@ -533,11 +532,9 @@ if (process.argv.includes('--record')) {
   };
 
   await press();
-  const offeredAfterThem = await page.evaluate(() =>
-    window.__slice.descend.classList.contains('is-open')
-  );
-  console.log(`  offered after they did it themselves: ${offeredAfterThem}`);
   await press();
+  const openBeforeDescent = await page.evaluate(() => !document.getElementById('record').hidden);
+  console.log(`  floor open after two presses but no descent: ${openBeforeDescent}`);
 
   // What the simulation says, before the panel is asked anything.
   const truth = await page.evaluate(() => {
@@ -575,8 +572,12 @@ if (process.argv.includes('--record')) {
   );
   console.log(`  field at rest ${frame.meanLuma.toFixed(4)} -> after ${truth.physical} events ${fieldNow.toFixed(4)} (${((fieldNow / frame.meanLuma - 1) * 100).toFixed(0)}% lift)`);
 
-  await page.click('#descend');
+  // Reached by riding the rail to the bottom. The button is the
+  // reduced-motion route and is not in the tab order on this path.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForFunction(() => !document.getElementById('record').hidden, { timeout: 12000 });
   await page.waitForTimeout(400);
+  console.log('  floor reached by descending: true');
   await writeFile(path.join(OUT, '50-floor.png'), await page.screenshot({ type: 'png' }));
 
   const printed = await page.evaluate(() => {

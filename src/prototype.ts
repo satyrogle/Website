@@ -22,6 +22,7 @@ const skip = document.getElementById('skip') as HTMLAnchorElement;
 const descend = document.getElementById('descend') as HTMLButtonElement;
 const panel = new RecordPanel(document.getElementById('record') as HTMLElement);
 const poseLabel = document.getElementById('pose') as HTMLDivElement;
+const showPoses = new URLSearchParams(window.location.search).has('poses');
 const rail = document.getElementById('rail') as HTMLDivElement;
 
 /**
@@ -32,7 +33,28 @@ const rail = document.getElementById('rail') as HTMLDivElement;
  * the same two things, which is what the canon asks of every alternate path.
  */
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-if (reduced) rail.style.height = '0';
+
+/**
+ * The rail has no length until the first mechanism beat is over.
+ *
+ * Scroll drove the descent from page load, so a visitor who scrolled on
+ * arrival met the arrest somewhere between CROSS and REVEAL — the mechanism
+ * demonstrated at a camera position that cannot read it, and the opening
+ * composition never held long enough to be the thing the descent is later
+ * entering.
+ *
+ * Not a scroll lock: there is simply nowhere to go yet, because the descent
+ * does not exist until the structure has been seen doing something. The page
+ * is one screen, then it is six. Clamping progress instead would have banked
+ * scroll and snapped the camera the moment it released.
+ */
+const RAIL_LENGTH = '620vh';
+rail.style.height = '0';
+
+function openRail(): void {
+  if (reduced) return;
+  rail.style.height = RAIL_LENGTH;
+}
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setClearColor(0x000000, 1);
@@ -73,7 +95,13 @@ function applyCamera(t: number): void {
   camera.position.set(state.position[0], state.position[1], state.position[2]);
   camera.lookAt(state.target[0], state.target[1], state.target[2]);
   field.setRecession(state.near, state.far);
-  poseLabel.textContent = state.pose;
+  // Development scaffolding, off by default.
+  //
+  // Naming the beat on screen tells the visitor what they are supposed to be
+  // feeling instead of testing whether the camera and the structure manage to
+  // communicate it themselves — which is the only question this page exists to
+  // answer. `?poses` brings it back for authoring.
+  if (showPoses) poseLabel.textContent = state.pose;
 }
 
 applyCamera(0);
@@ -300,10 +328,19 @@ skip.addEventListener('click', () => {
 
 canvas.addEventListener('pointerdown', (e) => {
   if (panel.open || left) return;
-  acted = true;
   const node = nodeUnder(e.clientX, e.clientY);
+  // A press on empty black is not an action.
+  //
+  // Setting `acted` before checking meant a single click on the void inside
+  // the first eight seconds cancelled the false first action, and the system
+  // then never demonstrated anything — the visitor sat in front of a still
+  // image having silently disarmed the beat the whole slice is built on. The
+  // timer's claim is "you did nothing, so I acted for you", and a miss is
+  // still doing nothing.
   if (node === null) return;
-  if (disturb(node, 'VISITOR') && invited) {
+  if (!disturb(node, 'VISITOR')) return;
+  acted = true;
+  if (invited) {
     // The invitation has been taken. It does not come back.
     invite.classList.remove('is-open');
   }
@@ -352,6 +389,7 @@ function frame(now: number): void {
     // descent to arrive at the bottom of.
     if (reduced && !descended && record.physical.some((e) => e.source === 'VISITOR')) {
       descended = true;
+      descend.hidden = false;
       descend.classList.add('is-open');
     }
   }
@@ -361,6 +399,9 @@ function frame(now: number): void {
   if (!invited && !manual && record.physical.length > 0 && fission.phase === 'held') {
     invited = true;
     invite.classList.add('is-open');
+    // The way down appears with the invitation: the beat has been shown, and
+    // only now is there something for the descent to be a descent into.
+    openRail();
   }
 
   // Eased toward the scroll position. Frame-rate independent: the coefficient
@@ -413,6 +454,7 @@ requestAnimationFrame(frame);
   descend,
   panel,
   openFloor,
+  openRail,
   poses: POSES,
   applyCamera,
   progressNow: () => eased,

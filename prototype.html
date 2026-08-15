@@ -242,9 +242,11 @@
   <body>
     <canvas id="slice"></canvas>
     <div id="rail"></div>
-    <!-- The reduced-motion path's way to the floor. Hidden on the scrolling
-         path, where the floor is arrived at rather than requested. -->
-    <button id="descend" type="button">Your record</button>
+    <!-- The reduced-motion path's way to the floor. `hidden`, not merely
+         transparent: opacity and pointer-events leave an element in the tab
+         order, and an invisible control that precedes the way out will take
+         the keyboard route to it. -->
+    <button id="descend" type="button" hidden>Your record</button>
     <div id="record" hidden></div>
     <!-- href, not a button: it works with scripting disabled, and the
          destination is a real place rather than an application state. -->
