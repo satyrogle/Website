@@ -30,6 +30,29 @@ export interface FieldLook {
   far: number;
 }
 
+/**
+ * What the fine graph keeps at rest, as a fraction of its authored floor.
+ *
+ * The entity read as feather, silk and hair because at rest it WAS thousands
+ * of bright parallel fibres — the graph was the object, and the mass behind it
+ * was invisible. At an eighth it becomes texture found inside a near-black
+ * body rather than the body itself, and everything the fibres are for still
+ * happens: the visitor's presence brings them back locally, and an event
+ * brings them back violently.
+ */
+export const REST_FRACTION = 0.12;
+
+/**
+ * What a revealed fibre rises to, as a fraction of its floor.
+ *
+ * Not all the way back. The graph is dense enough that lifting two thousand
+ * fibres to full floor inside one screen region saturates additively into a
+ * white blob — which reveals nothing, when the entire point of the reveal is
+ * that the visitor sees PATHS. Held below the point where the overlaps clip,
+ * the same region resolves as legible veining.
+ */
+export const REVEAL_TARGET = 0.55;
+
 export const FIELD_LOOK: FieldLook = {
   // 0.085, not 1.15.
   //
@@ -63,6 +86,7 @@ export class ContainmentField {
   private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.ShaderMaterial;
   private readonly energyAttr: THREE.BufferAttribute;
+  private readonly contactAttr: THREE.BufferAttribute;
 
   constructor(
     private readonly structure: ContainmentStructure,
@@ -85,6 +109,13 @@ export class ContainmentField {
     this.energyAttr = new THREE.BufferAttribute(new Float32Array(n), 1);
     this.energyAttr.setUsage(THREE.DynamicDrawUsage);
     this.geometry.setAttribute('aEnergy', this.energyAttr);
+
+    // Contact travels separately from energy, because the shader has to tell
+    // the visitor's presence apart from the system's own deviation: one
+    // reveals the fibres, the other is cyan.
+    this.contactAttr = new THREE.BufferAttribute(new Float32Array(n), 1);
+    this.contactAttr.setUsage(THREE.DynamicDrawUsage);
+    this.geometry.setAttribute('aContact', this.contactAttr);
 
     // Edge kind has to live per vertex, and a vertex can belong to both an
     // along-edge and a cross-link. Expanding the geometry to make it per-edge
@@ -118,22 +149,25 @@ export class ContainmentField {
         uFar: { value: look.far },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
-        // The resting share of halation. See `Halation`'s header for the rule;
-        // the trajectories and the ridges must carry the SAME fraction and the
-        // body must carry none, or "resting bloom" means three things.
-        uRest: { value: REST_HALATION },
+        // Zero. The fine graph blooms from events and from nothing else — see
+        // `Halation`'s header for the rule and for why.
+        uRest: { value: REST_HALATION.fibres },
+        uRestFraction: { value: REST_FRACTION },
+        uRevealTarget: { value: REVEAL_TARGET },
       },
       vertexShader: /* glsl */ `
         in float aDepth;
         in float aParam;
         in vec3 aNormal;
         in float aEnergy;
+        in float aContact;
         in float aCross;
         in float aFamily;
         out float vDepth;
         out float vParam;
         out float vFacing;
         out float vEnergy;
+        out float vContact;
         out float vCross;
         out float vFamily;
         out float vCam;
@@ -150,6 +184,7 @@ export class ContainmentField {
           vFacing = abs(dot(normalize(mat3(modelMatrix) * aNormal),
                             normalize(cameraPosition - world.xyz)));
           vEnergy = aEnergy;
+          vContact = aContact;
           vCross = aCross;
           vFamily = aFamily;
           vCam = -view.z;
@@ -165,10 +200,13 @@ export class ContainmentField {
         uniform float uExposure;
         uniform float uEmissiveOnly;
         uniform float uRest;
+        uniform float uRestFraction;
+        uniform float uRevealTarget;
         in float vDepth;
         in float vParam;
         in float vFacing;
         in float vEnergy;
+        in float vContact;
         in float vCross;
         in float vFamily;
         in float vCam;
@@ -189,13 +227,19 @@ export class ContainmentField {
           vec3 arrested  = vec3(0.72, 0.42, 1.00);
 
           float e = clamp(vEnergy, 0.0, 2.5);
+          // Presence is not deviation. Contact raises a node's energy exactly
+          // as a cascade does, so colouring straight from energy turned every
+          // hover cyan and spent the grammar's loudest word on someone moving
+          // a mouse. What the visitor's own presence explains is subtracted
+          // before anything is tinted; the rest is the system's.
+          float event = max(e - min(vContact, 1.0), 0.0);
           vec3 colour = rest;
-          colour = mix(colour, deviating, clamp(e, 0.0, 1.0) * 0.85);
+          colour = mix(colour, deviating, clamp(event, 0.0, 1.0) * 0.85);
           // Arrest is everything past the deviation range, and it has to
           // engage over the range the correction actually produces. Ramped to
           // 2.0 it reached a third strength at the levels a real withdrawal
           // reaches, so the one violet moment in the scene came out blue.
-          colour = mix(colour, arrested, clamp((e - 1.0) / 0.55, 0.0, 1.0) * 0.95);
+          colour = mix(colour, arrested, clamp((event - 1.0) / 0.55, 0.0, 1.0) * 0.95);
 
           // Recession. A line at the far side of the structure must not arrive
           // with the same weight as one at the near side, or the form flattens
@@ -225,7 +269,21 @@ export class ContainmentField {
           // file has. Direct, it is 0.06%.
           recede *= mix(1.0, max(vFacing, 0.30), 0.75);
 
-          float level = uFloor * mix(1.0, uCrossDim, vCross);
+          // HIDDEN AT REST, and revealed where the visitor is.
+          //
+          // Thousands of pale fibres, all running one way, were the object at
+          // rest — and an object made of parallel filaments is hair, silk or a
+          // feather whatever shape it is cut into. So at rest the graph drops
+          // to a fraction of its level and becomes texture inside the mass;
+          // the near-black body and a dozen ridges carry the silhouette.
+          //
+          // Contact brings the local fibres back over roughly a third of a
+          // second — the smoothstep does the easing, so no timing anywhere in
+          // the simulation had to move for it. Only the region under the
+          // cursor wakes, which is the point: the body answers where it is
+          // touched, and the visitor learns it is full of paths.
+          float reveal = smoothstep(0.02, 0.35, vContact);
+          float level = uFloor * mix(uRestFraction, uRevealTarget, reveal) * mix(1.0, uCrossDim, vCross);
           level *= recede;
 
           // A disturbance has to overwhelm the resting field, not tint it.
@@ -239,9 +297,20 @@ export class ContainmentField {
           // need to be brighter than the cascade, it needs to be a different
           // colour, and piling level onto it only drives every channel to one
           // and turns the violet white.
-          float deviation = min(e, 1.0);
-          float arrest = max(e - 1.0, 0.0);
-          level += (deviation * 3.4 + arrest * 1.5) * recede;
+          //
+          // 4.3, not 5.4. At 5.4 the peak stopped being a network and became a
+          // luminous slab — the upper lobe went to white and the branching,
+          // which is the entire thing the cascade exists to show, disappeared
+          // inside it. The event still has to be violent; it has to stay
+          // legible as paths, junctions and forks while it is.
+          float deviation = min(event, 1.0);
+          float arrest = max(event - 1.0, 0.0);
+          // The cascade is the moment the body admits how much of it there is,
+          // so it is allowed to be violent against a resting field that is now
+          // nearly dark. The arrest is weighted far closer to it than before:
+          // at 1.5 against 3.4 the correction read as a minor aftereffect of
+          // something beautiful, when it is the thing the site is about.
+          level += (deviation * 4.3 + arrest * 6.2) * recede;
 
           // Additive blending already weights the source by its alpha, so the
           // level goes into the colour and the alpha stays at one. Putting it
@@ -260,7 +329,7 @@ export class ContainmentField {
           // them: a luminous body instead of a tally of curves. Events still
           // overwhelm it by several times, so the escalation survives.
           if (uEmissiveOnly > 0.5) {
-            level = (uRest * uFloor * mix(1.0, uCrossDim, vCross) + deviation * 3.4 + arrest * 1.5) * recede;
+            level = (uRest * uFloor * mix(1.0, uCrossDim, vCross) + deviation * 4.3 + arrest * 6.2) * recede;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);
@@ -278,12 +347,17 @@ export class ContainmentField {
     this.object = group;
   }
 
-  /** Per-node energy from the authoritative simulation. */
-  setEnergy(energy: Float32Array): void {
+  /** Per-node energy and per-node contact from the authoritative simulation. */
+  setEnergy(energy: Float32Array, contact: Float32Array): void {
     const target = this.energyAttr.array as Float32Array;
     target.set(energy.subarray(0, target.length));
     this.energyAttr.needsUpdate = true;
-    this.strands.setEnergy(energy);
+
+    const touch = this.contactAttr.array as Float32Array;
+    touch.set(contact.subarray(0, touch.length));
+    this.contactAttr.needsUpdate = true;
+
+    this.strands.setEnergy(energy, contact);
   }
 
   /** Draw only what an event produced. Used for the halation buffer. */

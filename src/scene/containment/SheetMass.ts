@@ -15,6 +15,7 @@
  */
 
 import * as THREE from 'three';
+import { REST_HALATION } from './Halation';
 export interface MassLook {
   /** How dark the face is. Near zero: this is mass, not a lamp. */
   face: number;
@@ -57,6 +58,7 @@ export class SheetMass {
         uWash: { value: look.wash },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
+        uRimBloom: { value: REST_HALATION.rim },
       },
       vertexShader: /* glsl */ `
         out vec3 vNormal;
@@ -75,25 +77,12 @@ export class SheetMass {
         uniform float uWash;
         uniform float uExposure;
         uniform float uEmissiveOnly;
+        uniform float uRimBloom;
         in vec3 vNormal;
         in vec3 vView;
         out vec4 fragColour;
 
         void main() {
-          // The body produces no light. In the emissive pass it still draws,
-          // because everything behind it must be occluded there exactly as it
-          // is in the scene — but it contributes nothing to what is blurred.
-          //
-          // It had no emissive mode at all, so its grazing rim and its wash
-          // went into the bright buffer at full weight every frame and the
-          // resting silhouette bloomed. Halation's own header says the
-          // approved state contributes literally zero; this is the half of
-          // that claim which was not true.
-          if (uEmissiveOnly > 0.5) {
-            fragColour = vec4(0.0, 0.0, 0.0, 1.0);
-            return;
-          }
-
           vec3 n = normalize(vNormal);
           vec3 v = normalize(vView);
 
@@ -111,6 +100,16 @@ export class SheetMass {
 
           vec3 bone = vec3(0.92, 0.90, 0.84);
           float level = uFace + graze * uRim + wash * wash * uWash;
+
+          // In the emissive pass the body contributes its RIM and nothing
+          // else. The face and the wash stay out of the blurred buffer — a
+          // mass that bloomed off its broad surfaces would be a lamp — but the
+          // silhouette is allowed to breathe, and with the fine graph now dark
+          // at rest it is most of what the resting frame has.
+          if (uEmissiveOnly > 0.5) {
+            level = graze * uRim * uRimBloom;
+          }
+
           fragColour = vec4(bone * level * uExposure, 1.0);
         }
       `,

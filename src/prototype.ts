@@ -506,8 +506,11 @@ function frame(now: number): void {
   if (Math.abs(progress - eased) < 0.0002) eased = progress;
   applyCamera(eased);
 
-  field.setEnergy(fission.energy);
-  ridges.setEnergy(fission.energy);
+  // Contact travels beside energy so the renderers can tell the visitor's
+  // presence apart from the system's deviation: one reveals the hidden fibres
+  // locally, the other is the cyan the grammar reserves for a real event.
+  field.setEnergy(fission.energy, fission.presence);
+  ridges.setEnergy(fission.energy, fission.presence);
 
   // The chrome reports the system's own file, and nothing else.
   //

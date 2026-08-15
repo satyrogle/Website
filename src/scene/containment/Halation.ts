@@ -35,11 +35,25 @@
 import * as THREE from 'three';
 
 /**
- * The share of its resting level a light-producing layer carries into the
- * blurred buffer. One number, imported by every layer that has a resting
- * level, so "resting bloom" cannot drift apart again.
+ * The share of its resting level each layer carries into the blurred buffer.
+ * One table, imported by every layer that has a resting level, so "resting
+ * bloom" cannot drift apart again.
  */
-export const REST_HALATION = 0.15;
+export const REST_HALATION = {
+  /**
+   * The fine graph: NONE.
+   *
+   * Thousands of resting fibres bleeding into one another is what made the
+   * entity read as feather, silk and hair — the bloom joined them into a
+   * single luminous grain running one way. They bloom from event energy and
+   * from nothing else now, which is also what the law always said.
+   */
+  fibres: 0.0,
+  /** The structural ridges: a trace, so the resting body is not pure matte. */
+  ridges: 0.10,
+  /** The body's rim only, never its faces. The silhouette may breathe. */
+  rim: 0.20,
+};
 
 export interface HalationLook {
   /** How much of the wide halo reaches the frame. */

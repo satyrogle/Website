@@ -21,6 +21,8 @@
 
 import * as THREE from 'three';
 import type { ContainmentStructure } from './ContainmentSynth';
+import { REST_HALATION } from './Halation';
+import { REST_FRACTION, REVEAL_TARGET } from './ContainmentField';
 
 export interface StrandLook {
   /** Half-width in world units, at full mass. */
@@ -56,6 +58,7 @@ export class ContainmentStrands {
   private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.ShaderMaterial;
   private readonly energyAttr: THREE.BufferAttribute;
+  private readonly contactAttr: THREE.BufferAttribute;
   /** Node index per ribbon vertex, so simulation energy can be scattered in. */
   private readonly owner: Uint32Array;
 
@@ -128,6 +131,10 @@ export class ContainmentStrands {
     this.energyAttr = new THREE.BufferAttribute(new Float32Array(quads * 4), 1);
     this.energyAttr.setUsage(THREE.DynamicDrawUsage);
     this.geometry.setAttribute('aEnergy', this.energyAttr);
+
+    this.contactAttr = new THREE.BufferAttribute(new Float32Array(quads * 4), 1);
+    this.contactAttr.setUsage(THREE.DynamicDrawUsage);
+    this.geometry.setAttribute('aContact', this.contactAttr);
     this.geometry.setIndex(new THREE.BufferAttribute(index, 1));
 
     this.material = new THREE.ShaderMaterial({
@@ -143,7 +150,9 @@ export class ContainmentStrands {
         uGain: { value: look.gain },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
-        uRest: { value: 0.30 },
+        uRest: { value: REST_HALATION.fibres },
+        uRestFraction: { value: REST_FRACTION },
+        uRevealTarget: { value: REVEAL_TARGET },
       },
       vertexShader: /* glsl */ `
         in vec3 aOther;
@@ -152,6 +161,7 @@ export class ContainmentStrands {
         in float aDepth;
         in float aParam;
         in float aEnergy;
+        in float aContact;
         uniform float uHalfWidth;
         uniform float uNear;
         uniform float uFar;
@@ -160,6 +170,7 @@ export class ContainmentStrands {
         out float vDepth;
         out float vParam;
         out float vEnergy;
+        out float vContact;
 
         void main() {
           vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -183,6 +194,7 @@ export class ContainmentStrands {
           vDepth = aDepth;
           vParam = aParam;
           vEnergy = aEnergy;
+          vContact = aContact;
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }
       `,
@@ -192,11 +204,14 @@ export class ContainmentStrands {
         uniform float uExposure;
         uniform float uEmissiveOnly;
         uniform float uRest;
+        uniform float uRestFraction;
+        uniform float uRevealTarget;
         in float vAcross;
         in float vMass;
         in float vDepth;
         in float vParam;
         in float vEnergy;
+        in float vContact;
         out vec4 fragColour;
 
         void main() {
@@ -225,13 +240,19 @@ export class ContainmentStrands {
           vec3 arrested  = vec3(0.72, 0.42, 1.00);
 
           float e = clamp(vEnergy, 0.0, 2.5);
+          // Presence reveals; only the system deviates. Subtracting contact
+          // before tinting stops a hover reading as cyan.
+          float event = max(e - min(vContact, 1.0), 0.0);
+          float reveal = smoothstep(0.02, 0.35, vContact);
           vec3 colour = rest;
-          colour = mix(colour, deviating, clamp(e, 0.0, 1.0) * 0.85);
-          colour = mix(colour, arrested, clamp((e - 1.0) / 0.55, 0.0, 1.0) * 0.95);
+          colour = mix(colour, deviating, clamp(event, 0.0, 1.0) * 0.85);
+          colour = mix(colour, arrested, clamp((event - 1.0) / 0.55, 0.0, 1.0) * 0.95);
 
-          float deviation = min(e, 1.0);
-          float arrest = max(e - 1.0, 0.0);
-          float level = (0.55 + deviation * 3.4 + arrest * 1.5) * uGain * vMass * girth;
+          float deviation = min(event, 1.0);
+          float arrest = max(event - 1.0, 0.0);
+          // Hidden at rest with the rest of the graph, brought back by
+          // presence over the same third of a second.
+          float level = (0.55 * mix(uRestFraction, uRevealTarget, reveal) + deviation * 4.3 + arrest * 6.2) * uGain * vMass * girth;
 
           // The emissive pass draws only what an event produced, so the
           // resting structure contributes nothing to the halation.
@@ -243,7 +264,7 @@ export class ContainmentStrands {
           // them: a luminous body instead of a tally of curves. Events still
           // overwhelm it by several times, so the escalation survives.
           if (uEmissiveOnly > 0.5) {
-            level = (uRest * 0.55 + deviation * 3.4 + arrest * 1.5) * uGain * vMass * girth;
+            level = (uRest * 0.55 + deviation * 4.3 + arrest * 6.2) * uGain * vMass * girth;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);
@@ -256,10 +277,16 @@ export class ContainmentStrands {
     this.object = mesh;
   }
 
-  setEnergy(energy: Float32Array): void {
+  setEnergy(energy: Float32Array, contact: Float32Array): void {
     const target = this.energyAttr.array as Float32Array;
-    for (let v = 0; v < target.length; v++) target[v] = energy[this.owner[v]];
+    const touch = this.contactAttr.array as Float32Array;
+    for (let v = 0; v < target.length; v++) {
+      const owner = this.owner[v];
+      target[v] = energy[owner];
+      touch[v] = contact[owner];
+    }
     this.energyAttr.needsUpdate = true;
+    this.contactAttr.needsUpdate = true;
   }
 
   setExposure(value: number): void {

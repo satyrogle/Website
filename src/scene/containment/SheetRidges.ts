@@ -22,8 +22,17 @@ import { SHEETS, frameAt, surfacePoint, surfaceNormal, inAperture } from './Shee
 import type { ContainmentStructure } from './ContainmentSynth';
 import { REST_HALATION } from './Halation';
 
-/** Ridges per sheet, and samples along each. */
-const PER_SHEET = 26;
+/**
+ * Ridges per sheet, and samples along each.
+ *
+ * Twelve, not twenty-six. With the fine graph hidden at rest these are the
+ * only structure on the resting body, and twenty-six of them re-created the
+ * fault the graph was just cured of: enough near-parallel lines to read as a
+ * grain, which is fabric again. A dozen reads as structural veining — few
+ * enough to be counted, which is exactly what a vein should be and exactly
+ * what a fibre should not.
+ */
+const PER_SHEET = 12;
 const ALONG = 108;
 
 export interface RidgeLook {
@@ -52,7 +61,7 @@ const SEATS: number[][] = [
     // Irregular by construction, across the one body. An even sweep is a comb
     // and the golden ratio is the least even sequence available.
     const out: number[] = [];
-    for (let i = 0; i < 26; i++) out.push(((i * 0.61803398875) % 1) * 1.94 - 0.97);
+    for (let i = 0; i < PER_SHEET; i++) out.push(((i * 0.61803398875) % 1) * 1.94 - 0.97);
     return out.sort((a, b) => a - b);
   })(),
 ];
@@ -62,6 +71,7 @@ export class SheetRidges {
   private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.ShaderMaterial;
   private readonly energyAttr: THREE.BufferAttribute;
+  private readonly contactAttr: THREE.BufferAttribute;
   private readonly owner: Uint32Array;
 
   constructor(structure: ContainmentStructure, look: RidgeLook = RIDGE_LOOK) {
@@ -193,6 +203,9 @@ export class SheetRidges {
     this.energyAttr = new THREE.BufferAttribute(new Float32Array(owners.length), 1);
     this.energyAttr.setUsage(THREE.DynamicDrawUsage);
     this.geometry.setAttribute('aEnergy', this.energyAttr);
+    this.contactAttr = new THREE.BufferAttribute(new Float32Array(owners.length), 1);
+    this.contactAttr.setUsage(THREE.DynamicDrawUsage);
+    this.geometry.setAttribute('aContact', this.contactAttr);
     this.geometry.setIndex(index);
 
     this.material = new THREE.ShaderMaterial({
@@ -207,7 +220,7 @@ export class SheetRidges {
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
         // Same fraction as the trajectories carry, from the same constant.
-        uRest: { value: REST_HALATION },
+        uRest: { value: REST_HALATION.ridges },
       },
       vertexShader: /* glsl */ `
         in vec3 aOther;
@@ -215,10 +228,12 @@ export class SheetRidges {
         in float aWeight;
         in float aAlong;
         in float aEnergy;
+        in float aContact;
         uniform float uHalfWidth;
         out float vAcross;
         out float vAlong;
         out float vEnergy;
+        out float vContact;
         void main() {
           vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
           vec3 mate = (modelMatrix * vec4(aOther, 1.0)).xyz;
@@ -232,6 +247,7 @@ export class SheetRidges {
           vAcross = aSide;
           vAlong = aAlong;
           vEnergy = aEnergy;
+          vContact = aContact;
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }
       `,
@@ -244,6 +260,7 @@ export class SheetRidges {
         in float vAcross;
         in float vAlong;
         in float vEnergy;
+        in float vContact;
         out vec4 fragColour;
 
         void main() {
@@ -258,15 +275,22 @@ export class SheetRidges {
           vec3 arrested  = vec3(0.72, 0.42, 1.00);
 
           float e = clamp(vEnergy, 0.0, 2.5);
+          // Presence is not deviation here either. Without this the ridges
+          // read a hover as a full-strength event: they tinted cyan and, worse,
+          // carried it into the halation, so resting the pointer on the body
+          // lit a blown white hotspot instead of waking the veins under it.
+          float event = max(e - min(vContact, 1.0), 0.0);
+          float reveal = smoothstep(0.02, 0.35, vContact);
           vec3 colour = rest;
-          colour = mix(colour, deviating, clamp(e, 0.0, 1.0) * 0.85);
-          colour = mix(colour, arrested, clamp((e - 1.0) / 0.55, 0.0, 1.0) * 0.95);
+          colour = mix(colour, deviating, clamp(event, 0.0, 1.0) * 0.85);
+          colour = mix(colour, arrested, clamp((event - 1.0) / 0.55, 0.0, 1.0) * 0.95);
 
-          float deviation = min(e, 1.0);
-          float arrest = max(e - 1.0, 0.0);
-          float level = (uCrest + deviation * 2.6 + arrest * 1.2) * crest * ends;
+          float deviation = min(event, 1.0);
+          float arrest = max(event - 1.0, 0.0);
+          // Presence lifts the veins a little; it does not set them alight.
+          float level = (uCrest * (1.0 + 0.55 * reveal) + deviation * 4.0 + arrest * 4.8) * crest * ends;
           if (uEmissiveOnly > 0.5) {
-            level = (uRest * uCrest + deviation * 2.6 + arrest * 1.2) * crest * ends;
+            level = (uRest * uCrest + deviation * 4.0 + arrest * 4.8) * crest * ends;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);
@@ -279,13 +303,17 @@ export class SheetRidges {
     this.object = mesh;
   }
 
-  setEnergy(energy: Float32Array): void {
+  setEnergy(energy: Float32Array, contact: Float32Array): void {
     const target = this.energyAttr.array as Float32Array;
+    const touch = this.contactAttr.array as Float32Array;
     for (let v = 0; v < target.length; v++) {
       const owner = this.owner[v];
-      target[v] = owner < energy.length ? energy[owner] : 0;
+      const inside = owner < energy.length;
+      target[v] = inside ? energy[owner] : 0;
+      touch[v] = inside ? contact[owner] : 0;
     }
     this.energyAttr.needsUpdate = true;
+    this.contactAttr.needsUpdate = true;
   }
 
   setEmissiveOnly(on: boolean): void {

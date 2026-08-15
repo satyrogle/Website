@@ -87,8 +87,16 @@ const excite = (energy: number): number => 0.62 + 0.38 * Math.min(energy, 1);
 /** Edges a single front may cross in one tick before the step gives up. */
 const MAX_HOPS = 12;
 
-/** How far past the deviation range a correction pushes the node it takes. */
-const ARREST_FLASH = 2.4;
+/**
+ * How far past the deviation range a correction pushes the node it takes.
+ *
+ * Purely visual — `flash` is written here, composed into energy and read by
+ * the renderers, and no decision in this file ever consults it. Raised
+ * because the correction was measuring 0.22% of the frame against the
+ * cascade's 4%, so the sequence read as "something beautiful gets excited"
+ * with a faint afterthought, rather than as a suppression.
+ */
+const ARREST_FLASH = 4.1;
 
 /** How fast being near a trajectory disturbs it, per second of contact. */
 const CONTACT_RISE = 2.4;
@@ -208,6 +216,18 @@ export class Fission {
    * system has a deviation it must answer.
    */
   private readonly contact: Float32Array;
+  /**
+   * Presence INCLUDING what it spills onto neighbouring trajectories.
+   *
+   * Renderer-only, and the reason it has to exist: `compose()` spills a node's
+   * contact into its neighbours' ENERGY, so every neighbour of a hovered node
+   * carried event energy while its own contact stayed zero. A renderer that
+   * subtracts contact to find the event therefore saw a real deviation there,
+   * and a hover lit a blown cyan-white blob of several thousand nodes with
+   * full halation behind it. Nothing about the simulation changes; this is the
+   * same spill, recorded so the renderer can tell whose it is.
+   */
+  private readonly spread: Float32Array;
   private contactAt = -1;
   /**
    * Where on the body the visitor's presence was last answered.
@@ -268,6 +288,7 @@ export class Fission {
     this.scar = new Float32Array(n);
     this.drift = new Float32Array(n);
     this.contact = new Float32Array(n);
+    this.spread = new Float32Array(n);
     this.litSeq = new Int32Array(n).fill(-1);
   }
 
@@ -296,6 +317,19 @@ export class Fission {
     let n = 0;
     for (let i = 0; i < this.lit.length; i++) if (this.lit[i] > SENSOR_THRESHOLD) n++;
     return n;
+  }
+
+  /**
+   * Per-node contact, for the renderers.
+   *
+   * Read-only and identical to what `compose()` already folds into energy —
+   * nothing about the simulation changes by exposing it. The renderers need
+   * it separately because presence and deviation must not look alike: contact
+   * reveals the hidden graph where the visitor is, and cyan is reserved for
+   * something the system actually did.
+   */
+  get presence(): Float32Array {
+    return this.spread;
   }
 
   /** Deviation that is still there and was never above the threshold to see. */
@@ -723,7 +757,11 @@ export class Fission {
     let moving = false;
     for (let i = 0; i < this.flash.length; i++) {
       if (this.flash[i] <= 0.0005) continue;
-      this.flash[i] *= 0.90;
+      // Held a little longer, so the violet frontier is a body of light
+      // sweeping back through the structure rather than a moving edge. The
+      // withdrawal's own timing is untouched; this is how long the mark it
+      // leaves takes to fade.
+      this.flash[i] *= 0.962;
       moving = true;
     }
     if (moving) this.compose();
@@ -755,6 +793,8 @@ export class Fission {
       // Flash is added rather than blended, so a corrected node crosses 1 and
       // the renderer reads it as arrested instead of merely deviating.
       energy[i] = base + flash[i];
+      // Rebuilt each frame from contact; the spill below adds to it.
+      this.spread[i] = contact[i];
     }
 
     // Light spills onto the trajectories a disturbance runs beside.
@@ -769,9 +809,13 @@ export class Fission {
       const v = lit[i] + flash[i] + contact[i];
       if (v <= 0.02) continue;
       const spilled = v * SPILL;
+      // How much of that spill is the visitor standing there rather than the
+      // system doing something. Same arithmetic, attributed.
+      const presence = contact[i] * SPILL;
       for (let k = offsets[i]; k < offsets[i + 1]; k++) {
         const j = neighbours[k];
         if (energy[j] < spilled) energy[j] = spilled;
+        if (this.spread[j] < presence) this.spread[j] = presence;
         // A trajectory the disturbance passed beside, never along. It is
         // nudged, it never crosses the threshold, and so it is never put back.
         if (this.litSeq[j] < 0) {
