@@ -536,18 +536,8 @@ if (process.argv.includes('--record')) {
   const openBeforeDescent = await page.evaluate(() => !document.getElementById('record').hidden);
   console.log(`  floor open after two presses but no descent: ${openBeforeDescent}`);
 
-  // What the simulation says, before the panel is asked anything.
-  const truth = await page.evaluate(() => {
-    const s = window.__slice;
-    return {
-      adjustments: s.heldAgainst(),
-      residual: s.fission.residual,
-      unseen: s.fission.unseen,
-      scars: s.fission.scars,
-      physical: s.record.physical.length,
-      recorded: s.record.recorded.length,
-    };
-  });
+  // Read immediately before opening, not before descending: the field is live
+  // and a cascade begun in between would make the comparison meaningless.
 
   // Does the drift wash the field out? Measured, because it never decays and
   // its coverage only grows.
@@ -570,7 +560,29 @@ if (process.argv.includes('--record')) {
         })
       )
   );
-  console.log(`  field at rest ${frame.meanLuma.toFixed(4)} -> after ${truth.physical} events ${fieldNow.toFixed(4)} (${((fieldNow / frame.meanLuma - 1) * 100).toFixed(0)}% lift)`);
+  const soFar = await page.evaluate(() => window.__slice.record.physical.length);
+  console.log(`  field at rest ${frame.meanLuma.toFixed(4)} -> after ${soFar} events ${fieldNow.toFixed(4)} (${((fieldNow / frame.meanLuma - 1) * 100).toFixed(0)}% lift)`);
+
+  // Parked well away from the structure so nothing further is provoked while
+  // the comparison is taken.
+  // The field is dense enough that there may be no empty pixel to park on, so
+  // the pointer is taken off the canvas entirely rather than moved to a corner.
+  await page.evaluate(() =>
+    document.getElementById('slice').dispatchEvent(new PointerEvent('pointerleave'))
+  );
+  await page.waitForFunction(() => window.__slice.fission.phase === 'held', { timeout: 14000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const truth = await page.evaluate(() => {
+    const s = window.__slice;
+    return {
+      adjustments: s.heldAgainst(),
+      residual: s.fission.residual,
+      unseen: s.fission.unseen,
+      scars: s.fission.scars,
+      physical: s.record.physical.length,
+      recorded: s.record.recorded.length,
+    };
+  });
 
   // Reached by riding the rail to the bottom. The button is the
   // reduced-motion route and is not in the tab order on this path.

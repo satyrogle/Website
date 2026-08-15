@@ -48,7 +48,7 @@ export const STRAND_LOOK: StrandLook = {
   // always had.
   near: 0.4,
   far: 1.9,
-  gain: 0.85,
+  gain: 0.55,
 };
 
 export class ContainmentStrands {
@@ -60,7 +60,7 @@ export class ContainmentStrands {
   private readonly owner: Uint32Array;
 
   constructor(structure: ContainmentStructure, look: StrandLook = STRAND_LOOK) {
-    const { graph, edgeIndex, edgeKind, depth } = structure;
+    const { graph, edgeIndex, edgeKind, depth, param } = structure;
     const p = graph.positions;
 
     // One quad per along-trajectory edge. Cross-links stay undrawn here for
@@ -79,6 +79,7 @@ export class ContainmentStrands {
     const side = new Float32Array(quads * 4);
     const along = new Float32Array(quads * 4);
     const depths = new Float32Array(quads * 4);
+    const params = new Float32Array(quads * 4);
     const owner = new Uint32Array(quads * 4);
     const index = new Uint32Array(quads * 6);
 
@@ -102,6 +103,7 @@ export class ContainmentStrands {
         side[v] = sides[c];
         along[v] = c < 2 ? 0 : 1;
         depths[v] = depth[n];
+        params[v] = param[n];
         owner[v] = n;
       }
 
@@ -122,6 +124,7 @@ export class ContainmentStrands {
     this.geometry.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
     this.geometry.setAttribute('aAlong', new THREE.BufferAttribute(along, 1));
     this.geometry.setAttribute('aDepth', new THREE.BufferAttribute(depths, 1));
+    this.geometry.setAttribute('aParam', new THREE.BufferAttribute(params, 1));
     this.energyAttr = new THREE.BufferAttribute(new Float32Array(quads * 4), 1);
     this.energyAttr.setUsage(THREE.DynamicDrawUsage);
     this.geometry.setAttribute('aEnergy', this.energyAttr);
@@ -140,13 +143,14 @@ export class ContainmentStrands {
         uGain: { value: look.gain },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
-        uRest: { value: 0.5 },
+        uRest: { value: 0.30 },
       },
       vertexShader: /* glsl */ `
         in vec3 aOther;
         in float aSide;
         in float aAlong;
         in float aDepth;
+        in float aParam;
         in float aEnergy;
         uniform float uHalfWidth;
         uniform float uNear;
@@ -154,6 +158,7 @@ export class ContainmentStrands {
         out float vAcross;
         out float vMass;
         out float vDepth;
+        out float vParam;
         out float vEnergy;
 
         void main() {
@@ -176,6 +181,7 @@ export class ContainmentStrands {
           vAcross = aSide;
           vMass = mass;
           vDepth = aDepth;
+          vParam = aParam;
           vEnergy = aEnergy;
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }
@@ -189,6 +195,7 @@ export class ContainmentStrands {
         in float vAcross;
         in float vMass;
         in float vDepth;
+        in float vParam;
         in float vEnergy;
         out vec4 fragColour;
 
@@ -202,6 +209,16 @@ export class ContainmentStrands {
           // as something with a back.
           // Named girth rather than round, which is a built-in.
           float girth = sqrt(max(1.0 - vAcross * vAcross, 0.0));
+
+          // No ends.
+          //
+          // A trajectory that stops has a tip, and a tip is the thing that
+          // makes the eye call it a strand: it can be counted because it can
+          // be traced to where it finishes. Fading each curve in and out along
+          // its own length hides every terminus, so what remains is flow with
+          // no beginning and no end anywhere in it.
+          float ends = smoothstep(0.0, 0.14, vParam) * smoothstep(1.0, 0.86, vParam);
+          girth *= ends;
 
           vec3 rest = mix(vec3(0.82, 0.86, 0.94), vec3(0.68, 0.74, 0.88), vDepth);
           vec3 deviating = vec3(0.30, 0.92, 1.00);

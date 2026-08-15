@@ -58,9 +58,15 @@ export interface ContainmentConfig {
 
 export const DEFAULT_CONTAINMENT: ContainmentConfig = {
   seed: 0x5eed_1a77,
-  // Few and long, not many and short. A trajectory has to run far enough for
-  // the eye to follow it and find the rule it obeys; a short one is a mark.
-  linesPerFamily: 44,
+  // Dense enough that the gaps close.
+  //
+  // At 44 there were 132 trajectories in the whole structure, spaced far
+  // enough apart that the eye could resolve the space between them — so it
+  // counted strands, which is exactly what it did. Coherence is not a property
+  // of any one curve; it is what happens when neighbours stop being
+  // separable and the flow reads as a continuous thing that curves happen to
+  // lie in. Long AND many.
+  linesPerFamily: 240,
   samplesPerLine: 110,
   stride: 0.105,
   radius: 5.0,
@@ -146,10 +152,13 @@ const STALL = 0.55;
 const ENV_SWING = 3.4;
 
 /**
- * Half-thickness of a family's band, as a fraction of its shell radius. A
- * family is a layer, not a surface.
+ * Half-thickness of a family's band, as a fraction of its shell radius.
+ *
+ * Halved along with the density increase. A band wide enough to stop 44 curves
+ * combing is far too wide for 240: they spread into a haze of separate marks
+ * instead of packing into a surface. Tight and crowded is what merges.
  */
-const BAND = 0.085;
+const BAND = 0.042;
 
 /**
  * The flow, tangential to the shell the trajectory lives on.
@@ -388,7 +397,10 @@ export function synthesiseContainment(
         );
         // A curve that reaches the void simply ends. Trajectories of different
         // lengths are what stop a family reading as combed hair.
-        if (rad > config.radius * 1.35 || dVoid < VOID_RADIUS) break;
+        // Tighter than 1.35: a handful of curves used to wander far past the
+        // body and read as stray lines ruled across the whole frame, which is
+        // the opposite of one structure however dense the rest of it is.
+        if (rad > config.radius * 1.12 || dVoid < VOID_RADIUS) break;
 
         const t: Vec = [0, 0, 0];
         const speed = flow(p, twist, t);

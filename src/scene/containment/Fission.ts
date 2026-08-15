@@ -53,7 +53,15 @@ export const DEFAULT_FISSION: FissionConfig = {
   // Above a half, so two children carry more than their parent and the
   // cascade is genuinely supercritical — the frame has to get *brighter*, not
   // merely busier, or nothing about it reads as criticality.
-  split: 0.78,
+  // 0.85 against the denser graph.
+  //
+  // At 0.78 the cascade was spending itself before the arrest window opened —
+  // twenty-eight fronts dying on the energy floor at tick 75 against a
+  // correction that starts at 84, which leaves a beat where nothing is
+  // happening and nothing has been answered. Five times the edges means more
+  // junctions per unit travelled, so each front divides more often and pays
+  // more often.
+  split: 0.85,
   cutoff: 0.12,
   // 84 ticks is 700ms: long enough that the growth is unmistakable, short
   // enough that the arrest feels like an interruption rather than an ending.
@@ -89,6 +97,18 @@ const CONTACT_FALL = 1.6;
 /** Contact past this is a deviation the system has to answer. */
 const CONTACT_IGNITE = 0.72;
 
+/**
+ * Ticks of quiet the system takes after finishing a correction.
+ *
+ * The per-node cooldown stops someone provoking the same trajectory twice, and
+ * it is not enough: the structure is dense enough that a moving pointer crosses
+ * a fresh trajectory every few frames, so a drifting mouse ignited continuously
+ * and the machine strobed. A system that answers, settles, and is then
+ * available again reads as deliberate; one that answers instantly and forever
+ * reads as a toy. Two seconds at 120 Hz.
+ */
+const QUIET_AFTER_CORRECTION = 240;
+
 /** What a neighbouring trajectory catches from an excited node. */
 const SPILL = 0.55;
 
@@ -112,8 +132,12 @@ const SENSOR_THRESHOLD = 0.16;
  * cascade needs was gone. Sub-threshold means barely perceptible by
  * definition: what the visitor should end up with is a structure that is very
  * slightly not what it was, everywhere, and a sensor reporting zero.
+ *
+ * Cut again for the denser structure: at 0.08 across fifty thousand
+ * trajectories the field lifted 136% after three events, which is not
+ * sub-threshold by any reading.
  */
-const DRIFT_KEEP = 0.08;
+const DRIFT_KEEP = 0.03;
 
 /** Arrivals a lineage must travel between divisions. */
 const BRANCH_GAP = 7;
@@ -175,6 +199,21 @@ export class Fission {
    */
   private readonly contact: Float32Array;
   private contactAt = -1;
+  /**
+   * The trajectory that has already been provoked and is waiting for the
+   * visitor to move on.
+   *
+   * Without it, resting the pointer in one place re-ignites the moment each
+   * correction finishes — contact rebuilds in a third of a second, so the
+   * machine fires as fast as it can answer and reads as a strobe rather than
+   * as something responding to a person. Measured: fifty-seven adjustments
+   * from a mouse that was not moving. One place, one event; go somewhere else
+   * for another.
+   */
+  private spentAt = -1;
+  /** Wall-independent clock, so the quiet period is simulation time. */
+  private clock = 0;
+  private quietUntil = 0;
   /**
    * When each node was first lit, as a global sequence number.
    *
@@ -255,6 +294,12 @@ export class Fission {
   /** The visitor is near this trajectory. Raises its deviation while they are. */
   hover(node: number, seconds: number): void {
     if (node < 0 || node >= this.contact.length) return;
+    if (node === this.spentAt) {
+      // Already answered for. Nothing further accumulates here.
+      this.contactAt = node;
+      return;
+    }
+    this.spentAt = -1;
     this.contact[node] = Math.min(1, this.contact[node] + CONTACT_RISE * seconds);
     this.contactAt = node;
   }
@@ -270,6 +315,7 @@ export class Fission {
    */
   get provoked(): number {
     if (this.state !== 'held' || this.contactAt < 0) return -1;
+    if (this.clock < this.quietUntil) return -1;
     return this.contact[this.contactAt] >= CONTACT_IGNITE ? this.contactAt : -1;
   }
 
@@ -310,6 +356,8 @@ export class Fission {
     this.litSeq.fill(-1);
     this.lit.fill(0);
     this.contact.fill(0);
+    // The provocation has been answered; it does not count twice.
+    this.spentAt = node;
     this.contactAt = -1;
 
     this.mark(node);
@@ -458,6 +506,7 @@ export class Fission {
     }
 
     this.tick++;
+    this.clock++;
     const { dt, speed, split, cutoff, maxFronts } = this.config;
     const advance = speed * dt;
     const next: Front[] = [];
@@ -591,8 +640,17 @@ export class Fission {
     }
 
     if (through >= 1) {
+      // A front still travelling when the withdrawal finishes lit its
+      // destination without ever arriving, so that node was never entered in
+      // the causal record and the reverse sweep cannot reach it. It stayed lit
+      // permanently, and the system reported HELD over forty-two trajectories
+      // deviating above its own threshold — not a subtle lie about what it
+      // cannot see, just a failure to finish. A completed correction leaves
+      // nothing above the threshold by definition.
+      this.lit.fill(0);
       this.fronts = [];
       this.state = 'held';
+      this.quietUntil = this.clock + QUIET_AFTER_CORRECTION;
       this.corrections++;
       // The scar is at the ORIGIN, and nowhere else.
       //
@@ -620,6 +678,7 @@ export class Fission {
 
   /** Contact decays everywhere except under the pointer. */
   relax(seconds: number): void {
+    this.clock++;
     const { contact } = this;
     const fall = CONTACT_FALL * seconds;
     for (let i = 0; i < contact.length; i++) {

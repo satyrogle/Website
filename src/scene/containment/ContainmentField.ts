@@ -30,7 +30,13 @@ export interface FieldLook {
 }
 
 export const FIELD_LOOK: FieldLook = {
-  floor: 1.15,
+  // 0.085, not 1.15.
+  //
+  // Fifty-three thousand edges accumulate where nine thousand did, and the
+  // per-curve level has to fall by the same factor or the merge that finally
+  // produced one flowing structure produces one flowing white. Black is scale
+  // here; losing it costs more than the coherence gained.
+  floor: 0.085,
   crossDim: 0.42,
   // Set against the pose, not the object: the near and far sides of the
   // structure must arrive with different weight or the form flattens into a
@@ -64,6 +70,7 @@ export class ContainmentField {
     this.geometry = new THREE.BufferGeometry();
     this.geometry.setAttribute('position', new THREE.BufferAttribute(graph.positions, 3));
     this.geometry.setAttribute('aDepth', new THREE.BufferAttribute(depth, 1));
+    this.geometry.setAttribute('aParam', new THREE.BufferAttribute(structure.param, 1));
 
     const fam = new Float32Array(n);
     for (let i = 0; i < n; i++) fam[i] = family[i];
@@ -106,14 +113,16 @@ export class ContainmentField {
         uFar: { value: look.far },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
-        uRest: { value: 0.5 },
+        uRest: { value: 0.30 },
       },
       vertexShader: /* glsl */ `
         in float aDepth;
+        in float aParam;
         in float aEnergy;
         in float aCross;
         in float aFamily;
         out float vDepth;
+        out float vParam;
         out float vEnergy;
         out float vCross;
         out float vFamily;
@@ -122,6 +131,7 @@ export class ContainmentField {
           vec4 world = modelMatrix * vec4(position, 1.0);
           vec4 view = viewMatrix * world;
           vDepth = aDepth;
+          vParam = aParam;
           vEnergy = aEnergy;
           vCross = aCross;
           vFamily = aFamily;
@@ -139,6 +149,7 @@ export class ContainmentField {
         uniform float uEmissiveOnly;
         uniform float uRest;
         in float vDepth;
+        in float vParam;
         in float vEnergy;
         in float vCross;
         in float vFamily;
@@ -173,6 +184,16 @@ export class ContainmentField {
           // into a screen pattern and its depth is gone.
           float recede = 1.0 - smoothstep(uNear, uFar, vCam);
           recede = 0.14 + 0.86 * recede * recede;
+
+          // No ends.
+          //
+          // A trajectory that stops has a tip, and a tip is the thing that
+          // makes the eye call it a strand: it can be counted because it can
+          // be traced to where it finishes. Fading each curve in and out along
+          // its own length hides every terminus, so what remains is flow with
+          // no beginning and no end anywhere in it.
+          float ends = smoothstep(0.0, 0.14, vParam) * smoothstep(1.0, 0.86, vParam);
+          recede *= ends;
 
           float level = uFloor * mix(1.0, uCrossDim, vCross);
           level *= recede;
