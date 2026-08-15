@@ -132,6 +132,39 @@ float relief_height(vec3 p, float fine, float micro) {
   return h;
 }
 
+/** Authored vein half-widths, in each network's own noise-space units. */
+const float RIFT_WIDTH = 0.055;
+const float CAPILLARY_WIDTH = 0.034;
+
+/**
+ * A crack network drawn at a width the author chose.
+ *
+ * `abs(f)` is not a distance — the level set's thickness in space is that
+ * value divided by the field's gradient, so a flat region of the field draws
+ * a patch where a hairline was intended. Dividing by the gradient makes the
+ * width uniform and the threshold meaningful.
+ *
+ * `footprint` is how far the shading point moves across one pixel, in the
+ * same units. The band never falls below it, and whatever the widening added
+ * is taken straight back out, so a vein too fine to resolve fades instead of
+ * breaking into crawling dots — and carries the same total light either way.
+ * It is passed in rather than taken from `fwidth` here because a derivative
+ * is only defined in uniform control flow, and this is called from inside a
+ * branch.
+ */
+float crack_lines(vec3 q, float width, float footprint) {
+  const float E = 0.07;
+  float f0 = fbm3(q);
+  vec3 grad = (vec3(fbm3(q + vec3(E, 0.0, 0.0)),
+                    fbm3(q + vec3(0.0, E, 0.0)),
+                    fbm3(q + vec3(0.0, 0.0, E))) - f0) / E;
+  float slope = max(length(grad), 1e-3);
+  float dist = abs(f0) / slope;
+
+  float band = max(width, 0.5 * footprint);
+  return (1.0 - smoothstep(0.0, band, dist)) * (width / band);
+}
+
 void main() {
   vec3 n = normalize(vNormal);
   vec3 v = normalize(vView);
@@ -159,6 +192,12 @@ void main() {
   float height = relief_height(vLocal, fine, nearness);
   vec3 dPdx = dFdx(vWorld);
   vec3 dPdy = dFdy(vWorld);
+
+  // How far the shading point travels across one pixel, in the piece's own
+  // frame. Taken here, at the top, because derivatives are only defined in
+  // uniform control flow and the crack networks that need this are computed
+  // inside a branch.
+  float pixelLocal = length(fwidth(vLocal));
 
   // Curvature of the real surface, taken before the procedural bump touches
   // the normal, so what it reports is the terrain the generator built and
@@ -376,12 +415,32 @@ void main() {
   // It also delivers the ember law by construction rather than by remapping —
   // a level set occupies very little area, so most of the wall is burnt mass
   // and the network carries the heat.
-  float rift = fbm3(vLocal * 2.4 + 11.0);
-  float vein = 1.0 - smoothstep(0.0, 0.085, abs(rift));
-  // A finer network the near camera resolves, faded out beyond it so a
-  // distant wall is not differentiating high frequencies into noise.
-  float capillary = 1.0 - smoothstep(0.0, 0.05, abs(fbm3(vLocal * 5.8 + 41.0)));
-  float veinField = clamp(vein + 0.55 * capillary * near, 0.0, 1.0);
+  // And a level set has to be drawn as a DISTANCE, or it is not one.
+  //
+  // Thresholding the field's value looks like a level set and behaves like a
+  // stain. Measured over the wall: `abs(rift) < 0.085` admitted 55% of space
+  // and the capillary threshold 35%, so what was authored as a vein network
+  // was most of the surface — which is why the ember law kept having to be
+  // reasserted downstream against a field that had already lost it. Worse,
+  // the width the threshold produced was its value divided by the local
+  // gradient, so wherever the field flattened a vein swelled into a patch.
+  //
+  // Dividing by that gradient recovers the distance the threshold stood in
+  // for: every vein is then the width it was authored at, wherever it runs.
+  // Three extra taps each, and the two networks are computed together so the
+  // per-pixel footprint below is shared.
+  // Only on faces the event exposed. The gradient costs three taps a network
+  // and the exterior has no veins to draw, so the whole thing sits behind the
+  // same gate that already zeroes it downstream — and break faces are whole
+  // regions, so the branch is coherent and the warp takes it together.
+  float veinField = 0.0;
+  if (heat > 0.002) {
+    veinField = crack_lines(vLocal * 2.4 + 11.0, RIFT_WIDTH, pixelLocal * 2.4);
+    // A finer network the near camera resolves, faded out beyond it so a
+    // distant wall is not differentiating high frequencies into noise.
+    float capillary = crack_lines(vLocal * 5.8 + 41.0, CAPILLARY_WIDTH, pixelLocal * 5.8);
+    veinField = clamp(veinField + 0.55 * capillary * near, 0.0, 1.0);
+  }
 
   // Burnt is the default; incandescence is the exception. The floor is what
   // keeps a cooled wall from going pure black, not a base level of glow.
