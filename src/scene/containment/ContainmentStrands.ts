@@ -140,6 +140,7 @@ export class ContainmentStrands {
         uGain: { value: look.gain },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
+        uRest: { value: 0.5 },
       },
       vertexShader: /* glsl */ `
         in vec3 aOther;
@@ -184,6 +185,7 @@ export class ContainmentStrands {
         uniform float uGain;
         uniform float uExposure;
         uniform float uEmissiveOnly;
+        uniform float uRest;
         in float vAcross;
         in float vMass;
         in float vDepth;
@@ -216,9 +218,15 @@ export class ContainmentStrands {
 
           // The emissive pass draws only what an event produced, so the
           // resting structure contributes nothing to the halation.
+          // The resting field glows too.
+          //
+          // Excluding it entirely kept the opening pale, and pale thin lines
+          // read as separate strokes rather than as one structure — which is
+          // most of why the form was not cohering. Light that bleeds joins
+          // them: a luminous body instead of a tally of curves. Events still
+          // overwhelm it by several times, so the escalation survives.
           if (uEmissiveOnly > 0.5) {
-            level = (deviation * 3.4 + arrest * 1.5) * uGain * vMass * girth;
-            if (e < 0.02) discard;
+            level = (uRest * 0.55 + deviation * 3.4 + arrest * 1.5) * uGain * vMass * girth;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);

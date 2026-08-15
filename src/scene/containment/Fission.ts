@@ -82,6 +82,13 @@ const MAX_HOPS = 12;
 /** How far past the deviation range a correction pushes the node it takes. */
 const ARREST_FLASH = 2.4;
 
+/** How fast being near a trajectory disturbs it, per second of contact. */
+const CONTACT_RISE = 2.4;
+/** How fast that fades once the pointer has moved on. */
+const CONTACT_FALL = 1.6;
+/** Contact past this is a deviation the system has to answer. */
+const CONTACT_IGNITE = 0.72;
+
 /** What a neighbouring trajectory catches from an excited node. */
 const SPILL = 0.55;
 
@@ -158,6 +165,17 @@ export class Fission {
    */
   private readonly drift: Float32Array;
   /**
+   * Deviation the visitor is causing simply by being near.
+   *
+   * Presence disturbs the structure. It does not need a click, and asking for
+   * one made the machine feel like a button: the field is supposed to react to
+   * you, not wait to be operated. Contact rises while the pointer is on a
+   * trajectory and falls when it leaves, and once it passes the threshold the
+   * system has a deviation it must answer.
+   */
+  private readonly contact: Float32Array;
+  private contactAt = -1;
+  /**
    * When each node was first lit, as a global sequence number.
    *
    * This is the causal record, and it is the entire mechanism behind the
@@ -196,6 +214,7 @@ export class Fission {
     this.flash = new Float32Array(n);
     this.scar = new Float32Array(n);
     this.drift = new Float32Array(n);
+    this.contact = new Float32Array(n);
     this.litSeq = new Int32Array(n).fill(-1);
   }
 
@@ -231,6 +250,27 @@ export class Fission {
     let n = 0;
     for (let i = 0; i < this.drift.length; i++) if (this.drift[i] > 0.001) n++;
     return n;
+  }
+
+  /** The visitor is near this trajectory. Raises its deviation while they are. */
+  hover(node: number, seconds: number): void {
+    if (node < 0 || node >= this.contact.length) return;
+    this.contact[node] = Math.min(1, this.contact[node] + CONTACT_RISE * seconds);
+    this.contactAt = node;
+  }
+
+  /** Nothing is under the pointer. Everything relaxes. */
+  release(): void {
+    this.contactAt = -1;
+  }
+
+  /**
+   * A node the visitor has disturbed past the point the system can ignore.
+   * Returns -1 when there is nothing to answer for.
+   */
+  get provoked(): number {
+    if (this.state !== 'held' || this.contactAt < 0) return -1;
+    return this.contact[this.contactAt] >= CONTACT_IGNITE ? this.contactAt : -1;
   }
 
   /** Origins the system has marked. They do not rewind. */
@@ -269,6 +309,8 @@ export class Fission {
 
     this.litSeq.fill(-1);
     this.lit.fill(0);
+    this.contact.fill(0);
+    this.contactAt = -1;
 
     this.mark(node);
     this.lit[node] = 1;
@@ -576,12 +618,25 @@ export class Fission {
     if (moving) this.compose();
   }
 
+  /** Contact decays everywhere except under the pointer. */
+  relax(seconds: number): void {
+    const { contact } = this;
+    const fall = CONTACT_FALL * seconds;
+    for (let i = 0; i < contact.length; i++) {
+      if (i === this.contactAt || contact[i] <= 0) continue;
+      contact[i] = Math.max(0, contact[i] - fall);
+    }
+    this.compose();
+  }
+
   private compose(): void {
     const { energy, lit, flash, scar } = this;
     const drift = this.drift;
+    const contact = this.contact;
     for (let i = 0; i < energy.length; i++) {
       let base = lit[i] > scar[i] ? lit[i] : scar[i];
       if (drift[i] > base) base = drift[i];
+      if (contact[i] > base) base = contact[i];
       // Flash is added rather than blended, so a corrected node crosses 1 and
       // the renderer reads it as arrested instead of merely deviating.
       energy[i] = base + flash[i];
@@ -596,7 +651,7 @@ export class Fission {
     // as a corridor of disturbance rather than a scratch.
     const { offsets, neighbours } = this.structure.graph;
     for (let i = 0; i < energy.length; i++) {
-      const v = lit[i] + flash[i];
+      const v = lit[i] + flash[i] + contact[i];
       if (v <= 0.02) continue;
       const spilled = v * SPILL;
       for (let k = offsets[i]; k < offsets[i + 1]; k++) {

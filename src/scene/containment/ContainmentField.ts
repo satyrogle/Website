@@ -106,6 +106,7 @@ export class ContainmentField {
         uFar: { value: look.far },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
+        uRest: { value: 0.5 },
       },
       vertexShader: /* glsl */ `
         in float aDepth;
@@ -136,6 +137,7 @@ export class ContainmentField {
         uniform float uFar;
         uniform float uExposure;
         uniform float uEmissiveOnly;
+        uniform float uRest;
         in float vDepth;
         in float vEnergy;
         in float vCross;
@@ -199,9 +201,15 @@ export class ContainmentField {
           // thresholding brightness afterwards makes that structural: no
           // amount of accumulated crossings can bloom, because the approved
           // state contributes literally zero to the buffer that gets blurred.
+          // The resting field glows too.
+          //
+          // Excluding it entirely kept the opening pale, and pale thin lines
+          // read as separate strokes rather than as one structure — which is
+          // most of why the form was not cohering. Light that bleeds joins
+          // them: a luminous body instead of a tally of curves. Events still
+          // overwhelm it by several times, so the escalation survives.
           if (uEmissiveOnly > 0.5) {
-            level = (deviation * 3.4 + arrest * 1.5) * recede;
-            if (e < 0.02) discard;
+            level = (uRest * uFloor * mix(1.0, uCrossDim, vCross) + deviation * 3.4 + arrest * 1.5) * recede;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);

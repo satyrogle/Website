@@ -336,6 +336,20 @@ skip.addEventListener('click', () => {
   visit.commit(record.recorded, fission.adjustments, true, record.statement);
 });
 
+/**
+ * Where the pointer is, resolved once a frame rather than per event.
+ *
+ * `nodeUnder` walks every junction, and a mouse can fire pointermove far more
+ * often than the display refreshes.
+ */
+let pointer: { x: number; y: number } | null = null;
+canvas.addEventListener('pointermove', (e) => {
+  pointer = { x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener('pointerleave', () => {
+  pointer = null;
+});
+
 canvas.addEventListener('pointerdown', (e) => {
   if (panel.open || left) return;
   const node = nodeUnder(e.clientX, e.clientY);
@@ -421,6 +435,24 @@ function frame(now: number): void {
   if (!invited && !manual && record.physical.length > 0 && fission.phase === 'held') {
     invited = true;
     invite.classList.add('is-open');
+  }
+
+  // Presence is the input. Being near a trajectory disturbs it, and when that
+  // disturbance passes what the system can ignore, it answers — no press
+  // required. A press still works, and is simply a faster way to the same
+  // place.
+  if (!panel.open && !left && !manual) {
+    const seconds = delta / 1000;
+    const under = pointer ? nodeUnder(pointer.x, pointer.y) : null;
+    if (under === null) fission.release();
+    else fission.hover(under, seconds);
+    fission.relax(seconds);
+
+    const provoked = fission.provoked;
+    if (provoked >= 0 && disturb(provoked, 'VISITOR')) {
+      acted = true;
+      if (invited) invite.classList.remove('is-open');
+    }
   }
 
   // Eased toward the scroll position. Frame-rate independent: the coefficient
