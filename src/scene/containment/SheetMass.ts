@@ -39,7 +39,9 @@ export const MASS_LOOK: MassLook = {
 };
 
 export class SheetMass {
-  readonly object: THREE.Object3D;
+  readonly object: THREE.Mesh;
+  /** Which sheet each vertex belongs to, so a ray hit names a lobe. */
+  private readonly sheetOf: Uint8Array;
   private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.ShaderMaterial;
 
@@ -49,9 +51,11 @@ export class SheetMass {
     const acrossAttr: number[] = [];
     const alongAttr: number[] = [];
     const index: number[] = [];
+    const owners: number[] = [];
 
     let base = 0;
-    for (const sheet of SHEETS) {
+    for (let sheetIndex = 0; sheetIndex < SHEETS.length; sheetIndex++) {
+      const sheet = SHEETS[sheetIndex];
       for (let i = 0; i <= ALONG; i++) {
         const u = i / ALONG;
         const frame = frameAt(sheet, u);
@@ -63,6 +67,7 @@ export class SheetMass {
           normals.push(n[0], n[1], n[2]);
           acrossAttr.push(Math.abs(v));
           alongAttr.push(u);
+          owners.push(sheetIndex);
         }
       }
       const stride = ACROSS + 1;
@@ -78,6 +83,7 @@ export class SheetMass {
       base += (ALONG + 1) * stride;
     }
 
+    this.sheetOf = new Uint8Array(owners);
     this.geometry = new THREE.BufferGeometry();
     this.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
     this.geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
@@ -153,6 +159,17 @@ export class SheetMass {
     // Drawn before the additive layers so they depth-test against it.
     mesh.renderOrder = -1;
     this.object = mesh;
+  }
+
+  /**
+   * Which sheet a ray hit landed on.
+   *
+   * The mass is one mesh so it raycasts in a single pass, and the vertex the
+   * hit belongs to carries its sheet — that is what turns a pixel into a lobe.
+   */
+  sheetAt(hit: THREE.Intersection): number {
+    const face = hit.face;
+    return face ? this.sheetOf[face.a] : -1;
   }
 
   setExposure(value: number): void {

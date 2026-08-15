@@ -203,14 +203,12 @@ export class Fission {
    * The trajectory that has already been provoked and is waiting for the
    * visitor to move on.
    *
-   * Without it, resting the pointer in one place re-ignites the moment each
-   * correction finishes — contact rebuilds in a third of a second, so the
-   * machine fires as fast as it can answer and reads as a strobe rather than
-   * as something responding to a person. Measured: fifty-seven adjustments
-   * from a mouse that was not moving. One place, one event; go somewhere else
-   * for another.
+   * Keyed to the LOBE, not to a node. Contact is now spread across a region of
+   * the surface the visitor is actually looking at, so a spent single node
+   * would be re-armed by the smallest movement. One lobe, one event; move to
+   * another part of the entity for another.
    */
-  private spentAt = -1;
+  private spentSheet = -1;
   /** Wall-independent clock, so the quiet period is simulation time. */
   private clock = 0;
   private quietUntil = 0;
@@ -292,21 +290,41 @@ export class Fission {
   }
 
   /** The visitor is near this trajectory. Raises its deviation while they are. */
-  hover(node: number, seconds: number): void {
-    if (node < 0 || node >= this.contact.length) return;
-    if (node === this.spentAt) {
-      // Already answered for. Nothing further accumulates here.
-      this.contactAt = node;
+  /**
+   * The visitor is over a region of the entity.
+   *
+   * Takes the whole neighbourhood under the cursor rather than one node, and
+   * the node nearest the actual ray hit as the point a cascade would start
+   * from. Interacting with individual microscopic nodes was never going to
+   * feel local: the field is dense enough that the hit test succeeded at every
+   * pixel on screen, and depth rather than proximity decided which of the
+   * dozens under the cursor won — so it answered up to seventy pixels away
+   * from where the visitor was pointing.
+   */
+  hover(region: ArrayLike<number>, lead: number, sheet: number, seconds: number): void {
+    if (lead < 0 || lead >= this.contact.length) return;
+    if (sheet === this.spentSheet) {
+      // This lobe has already been answered for. Wait for them to move on.
+      this.contactAt = lead;
       return;
     }
-    this.spentAt = -1;
-    this.contact[node] = Math.min(1, this.contact[node] + CONTACT_RISE * seconds);
-    this.contactAt = node;
+    this.spentSheet = -1;
+    const rise = CONTACT_RISE * seconds;
+    for (let i = 0; i < region.length; i++) {
+      const n = region[i];
+      this.contact[n] = Math.min(1, this.contact[n] + rise);
+    }
+    this.contactAt = lead;
+    this.contactSheet = sheet;
   }
+
+  /** The lobe under the cursor, or -1. */
+  private contactSheet = -1;
 
   /** Nothing is under the pointer. Everything relaxes. */
   release(): void {
     this.contactAt = -1;
+    this.contactSheet = -1;
   }
 
   /**
@@ -356,8 +374,8 @@ export class Fission {
     this.litSeq.fill(-1);
     this.lit.fill(0);
     this.contact.fill(0);
-    // The provocation has been answered; it does not count twice.
-    this.spentAt = node;
+    // The provocation has been answered; that lobe does not count twice.
+    this.spentSheet = this.contactSheet;
     this.contactAt = -1;
 
     this.mark(node);
@@ -681,8 +699,11 @@ export class Fission {
     this.clock++;
     const { contact } = this;
     const fall = CONTACT_FALL * seconds;
+    // Everything relaxes except what is under the cursor right now. The
+    // region is re-raised each frame, so decaying all of it is correct and
+    // avoids tracking which nodes were touched.
     for (let i = 0; i < contact.length; i++) {
-      if (i === this.contactAt || contact[i] <= 0) continue;
+      if (contact[i] <= 0) continue;
       contact[i] = Math.max(0, contact[i] - fall);
     }
     this.compose();

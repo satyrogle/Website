@@ -144,68 +144,94 @@ window.addEventListener('resize', resize);
 let clock = 0;
 
 /**
- * Nodes a disturbance can start from: real junctions, so a cascade has
- * somewhere to branch. Held as a list once, because picking walks it per press.
+ * Nodes bucketed by position, so a region query is a lookup rather than a scan.
  */
-const ignitable = (() => {
-  const { offsets, nodeCount } = structure.graph;
-  const out: number[] = [];
-  for (let i = 0; i < nodeCount; i++) {
-    if (offsets[i + 1] - offsets[i] >= 3) out.push(i);
+const CELL = 0.55;
+const buckets = new Map<number, number[]>();
+{
+  const p = structure.graph.positions;
+  const key = (x: number, y: number, z: number): number =>
+    ((Math.floor(x / CELL) + 512) * 1024 + (Math.floor(y / CELL) + 512)) * 1024 +
+    (Math.floor(z / CELL) + 512);
+  for (let i = 0; i < structure.graph.nodeCount; i++) {
+    const k = key(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]);
+    const b = buckets.get(k);
+    if (b) b.push(i);
+    else buckets.set(k, [i]);
   }
-  return new Uint32Array(out);
-})();
+}
+
+/** How far around the ray hit the visitor's presence is felt. */
+const TOUCH_RADIUS = 0.75;
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+interface Contact {
+  region: number[];
+  lead: number;
+  sheet: number;
+}
 
 /**
- * The node under the pointer.
+ * What the visitor is pointing at.
  *
- * A press has to disturb the place it landed on, or the gesture is a button
- * that happens to be drawn over a structure. Projected per press rather than
- * cached, because the camera moves in the finished descent; ten thousand
- * projections on a click is nothing, and it happens once per action.
+ * A real ray against the surfaces, not a search among the graph. The old
+ * version took every junction within a 72px radius and resolved ties by depth,
+ * which at this density succeeded at 100% of pixels on screen and could answer
+ * seventy pixels from the cursor with a node seven world units from the one
+ * being aimed at. There was nowhere to miss and no relationship between where
+ * the visitor pointed and what replied.
  *
- * Returns null when the press is nowhere near the structure — a miss is a
- * miss, and inventing a nearest node would make the field feel like it was
- * reaching for the cursor.
+ * The sheets occlude, so the ray lands on the frontmost lobe — which is the
+ * one being looked at. Everything within a short radius of the hit is the
+ * region; the nearest node to it leads.
  */
-function nodeUnder(clientX: number, clientY: number): number | null {
+function contactUnder(clientX: number, clientY: number): Contact | null {
   const rect = canvas.getBoundingClientRect();
-  const px = ((clientX - rect.left) / rect.width) * 2 - 1;
-  const py = -(((clientY - rect.top) / rect.height) * 2 - 1);
+  ndc.set(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -(((clientY - rect.top) / rect.height) * 2 - 1)
+  );
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(mass.object, false);
+  if (!hits.length) return null;
+
+  const hit = hits[0];
+  const sheet = mass.sheetAt(hit);
+  const { x, y, z } = hit.point;
 
   const p = structure.graph.positions;
-  const v = new THREE.Vector3();
-  camera.updateMatrixWorld();
+  const r2 = TOUCH_RADIUS * TOUCH_RADIUS;
+  const region: number[] = [];
+  let lead = -1;
+  let bestD = Infinity;
 
-  // Roughly a tenth of the frame's half-width.
-  const TOLERANCE = 0.1 * 0.1;
-  const eye = camera.position;
-
-  // Nearest to the EYE among everything under the pointer, not nearest to the
-  // pointer. The structure is layered and deep, so a dozen nodes project into
-  // the same few pixels; taking the closest in screen space picks whichever
-  // happens to be centred there, which is often a strand on the far side.
-  // Touching a thing should disturb the thing in front.
-  let best = -1;
-  let bestDepth = Infinity;
-  for (const node of ignitable) {
-    v.set(p[node * 3], p[node * 3 + 1], p[node * 3 + 2]).project(camera);
-    if (v.z > 1) continue;
-    const dx = v.x - px;
-    // Corrected for aspect, or the tolerance is an ellipse on a wide monitor.
-    const dy = (v.y - py) / camera.aspect;
-    if (dx * dx + dy * dy > TOLERANCE) continue;
-
-    const wx = p[node * 3] - eye.x;
-    const wy = p[node * 3 + 1] - eye.y;
-    const wz = p[node * 3 + 2] - eye.z;
-    const depth = wx * wx + wy * wy + wz * wz;
-    if (depth < bestDepth) {
-      bestDepth = depth;
-      best = node;
+  const bx = Math.floor(x / CELL);
+  const by = Math.floor(y / CELL);
+  const bz = Math.floor(z / CELL);
+  const reach = Math.ceil(TOUCH_RADIUS / CELL);
+  for (let i = -reach; i <= reach; i++) {
+    for (let j = -reach; j <= reach; j++) {
+      for (let k = -reach; k <= reach; k++) {
+        const b = buckets.get(((bx + i + 512) * 1024 + (by + j + 512)) * 1024 + (bz + k + 512));
+        if (!b) continue;
+        for (const n of b) {
+          const d = (p[n * 3] - x) ** 2 + (p[n * 3 + 1] - y) ** 2 + (p[n * 3 + 2] - z) ** 2;
+          if (d > r2) continue;
+          region.push(n);
+          // A cascade has to start somewhere it can branch.
+          if (d < bestD && structure.graph.offsets[n + 1] - structure.graph.offsets[n] >= 3) {
+            bestD = d;
+            lead = n;
+          }
+        }
+      }
     }
   }
-  return best >= 0 ? best : null;
+
+  if (lead < 0) return null;
+  return { region, lead, sheet };
 }
 
 /**
@@ -360,7 +386,8 @@ canvas.addEventListener('pointerleave', () => {
 
 canvas.addEventListener('pointerdown', (e) => {
   if (panel.open || left) return;
-  const node = nodeUnder(e.clientX, e.clientY);
+  const hit = contactUnder(e.clientX, e.clientY);
+  const node = hit ? hit.lead : null;
   // A press on empty black is not an action.
   //
   // Setting `acted` before checking meant a single click on the void inside
@@ -451,9 +478,9 @@ function frame(now: number): void {
   // place.
   if (!panel.open && !left && !manual) {
     const seconds = delta / 1000;
-    const under = pointer ? nodeUnder(pointer.x, pointer.y) : null;
+    const under = pointer ? contactUnder(pointer.x, pointer.y) : null;
     if (under === null) fission.release();
-    else fission.hover(under, seconds);
+    else fission.hover(under.region, under.lead, under.sheet, seconds);
     fission.relax(seconds);
 
     const provoked = fission.provoked;
@@ -528,7 +555,8 @@ requestAnimationFrame(frame);
   progressNow: () => eased,
   heldAgainst,
   ignite,
-  nodeUnder,
+  contactUnder,
+  nodeUnder: (x: number, y: number) => contactUnder(x, y)?.lead ?? null,
   disturb,
   invite,
 };
