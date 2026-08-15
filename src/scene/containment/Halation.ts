@@ -1,12 +1,26 @@
 /**
- * Halation — light spreading out of the events, and out of nothing else.
+ * Halation — light spreading out of the events, and almost out of nothing else.
  *
- * The law is that the resting field does not glow, and it is enforced by
- * construction rather than by a brightness threshold. The scene is drawn twice:
- * once whole, and once with the field in emissive-only mode where the approved
- * state contributes literally zero. Only the second buffer is blurred. No
- * amount of accumulated crossings in the pale structure can bloom, because none
- * of it is in the buffer that bleeds.
+ * The scene is drawn twice: once whole, and once in emissive-only mode. Only
+ * the second buffer is blurred, so what may bloom is decided by construction
+ * rather than by a brightness threshold.
+ *
+ * What emissive-only means, in one place, because it used to mean three:
+ *
+ * - **The body contributes nothing.** It is mass. It is understood by what it
+ *   occludes and by its grazing edge, and a rim that bloomed would make it
+ *   glow. It still draws in that pass — everything behind it must be occluded
+ *   there exactly as it is in the scene — but it outputs black. It had no
+ *   emissive mode at all, so its rim and its wash went into the blur at full
+ *   weight and the resting silhouette carried a halo.
+ * - **The trajectories and the ridges contribute `REST_HALATION` of their
+ *   resting level, and both contribute the SAME fraction.** Not zero: a faint
+ *   sacred glow along the structure is the angelic first read, and this file
+ *   previously claimed zero while shipping 0.30. Halved after measuring the
+ *   corrected frame, which leaves an event more headroom to be the thing that
+ *   visibly changes.
+ * - **Everything above the resting floor is event light**, and an event is the
+ *   only thing that can produce it.
  *
  * Two levels, because an event needs both readings at once: a tight core so a
  * junction is a hard point of light, and a wide halo so a cascade throws
@@ -19,6 +33,13 @@
  */
 
 import * as THREE from 'three';
+
+/**
+ * The share of its resting level a light-producing layer carries into the
+ * blurred buffer. One number, imported by every layer that has a resting
+ * level, so "resting bloom" cannot drift apart again.
+ */
+export const REST_HALATION = 0.15;
 
 export interface HalationLook {
   /** How much of the wide halo reaches the frame. */

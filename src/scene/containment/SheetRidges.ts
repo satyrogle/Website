@@ -1,7 +1,7 @@
 /**
  * Level 2 — the structural flow.
  *
- * Thirty-five ridges running the length of the sheets: heavier than the graph
+ * `PER_SHEET` ridges running the length of the body: heavier than the graph
  * fibres, far finer than the mass. They are what stops a sheet reading as a
  * milky pane — a surface with nothing between its silhouette and its finest
  * detail has no material, because there is no scale in between for the eye to
@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { SHEETS, frameAt, surfacePoint, surfaceNormal, inAperture } from './Sheets';
 import type { ContainmentStructure } from './ContainmentSynth';
+import { REST_HALATION } from './Halation';
 
 /** Ridges per sheet, and samples along each. */
 const PER_SHEET = 26;
@@ -92,8 +93,13 @@ export class SheetRidges {
       if (b) b.push(i);
       else buckets.set(k, [i]);
     }
+    // Fails CLOSED. It defaulted to node 0, so a ridge vertex with nothing in
+    // reach was silently owned by whichever node happened to be first — and it
+    // would light from the far side of the body whenever that node lit. An
+    // unowned vertex is marked with a sentinel past the end and stays dark.
+    const UNOWNED = nodeCount;
     const nearestNode = (x: number, y: number, z: number): number => {
-      let best = 0;
+      let best = UNOWNED;
       let bestD = Infinity;
       const bx = Math.floor(x / CELL);
       const by = Math.floor(y / CELL);
@@ -200,7 +206,8 @@ export class SheetRidges {
         uCrest: { value: look.crest },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
-        uRest: { value: 0.3 },
+        // Same fraction as the trajectories carry, from the same constant.
+        uRest: { value: REST_HALATION },
       },
       vertexShader: /* glsl */ `
         in vec3 aOther;
@@ -274,7 +281,10 @@ export class SheetRidges {
 
   setEnergy(energy: Float32Array): void {
     const target = this.energyAttr.array as Float32Array;
-    for (let v = 0; v < target.length; v++) target[v] = energy[this.owner[v]];
+    for (let v = 0; v < target.length; v++) {
+      const owner = this.owner[v];
+      target[v] = owner < energy.length ? energy[owner] : 0;
+    }
     this.energyAttr.needsUpdate = true;
   }
 

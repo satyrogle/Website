@@ -56,6 +56,7 @@ export class SheetMass {
         uRim: { value: look.rim },
         uWash: { value: look.wash },
         uExposure: { value: 1 },
+        uEmissiveOnly: { value: 0 },
       },
       vertexShader: /* glsl */ `
         out vec3 vNormal;
@@ -73,11 +74,26 @@ export class SheetMass {
         uniform float uRim;
         uniform float uWash;
         uniform float uExposure;
+        uniform float uEmissiveOnly;
         in vec3 vNormal;
         in vec3 vView;
         out vec4 fragColour;
 
         void main() {
+          // The body produces no light. In the emissive pass it still draws,
+          // because everything behind it must be occluded there exactly as it
+          // is in the scene — but it contributes nothing to what is blurred.
+          //
+          // It had no emissive mode at all, so its grazing rim and its wash
+          // went into the bright buffer at full weight every frame and the
+          // resting silhouette bloomed. Halation's own header says the
+          // approved state contributes literally zero; this is the half of
+          // that claim which was not true.
+          if (uEmissiveOnly > 0.5) {
+            fragColour = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+          }
+
           vec3 n = normalize(vNormal);
           vec3 v = normalize(vView);
 
@@ -107,9 +123,8 @@ export class SheetMass {
     this.object = mesh;
   }
 
-  /** The whole body is one lobe now, so a hit is simply a hit. */
-  sheetAt(): number {
-    return 0;
+  setEmissiveOnly(on: boolean): void {
+    this.material.uniforms.uEmissiveOnly.value = on ? 1 : 0;
   }
 
   setExposure(value: number): void {

@@ -16,15 +16,17 @@
  * - **No axis-aligned run.** A straight line inward is a tunnel down an axis,
  *   which is how the retired tunnels died. The path weaves — elevation rises
  *   again at DESCEND, and no two consecutive poses share a bearing.
- * Re-authored for the sheets. The poses were placed against a five-unit shell
- * structure and the entity now spans fourteen, so OBSERVE stood inside its own
- * subject and there was no silhouette to read at all.
  *
  * - **The end is the seat.** REVEAL sits just outside the forbidden volume the
  *   structure curves around, looking into it. In Act III that volume holds the
  *   planet; the descent already arrives at exactly the place it will be, and
  *   in this slice the visitor arrives to find it empty.
  */
+
+// The forbidden volume the body curves around, imported rather than restated:
+// the descent aims at it and the synthesis carves around it, and two copies of
+// one place is a divergence waiting to happen.
+import { SEAT } from './Sheets';
 
 export interface Pose {
   name: 'OBSERVE' | 'APPROACH' | 'CROSS' | 'DESCEND' | 'UNDERSTAND' | 'REVEAL';
@@ -46,39 +48,55 @@ export interface Pose {
   fov: number;
 }
 
-/** Centre of the forbidden volume. Must match `ContainmentSynth`'s void. */
-const SEAT: [number, number, number] = [0.42, -0.31, 0.55];
 
 export const POSES: Pose[] = [
   {
     name: 'OBSERVE',
-    // Fourteen out, not twenty. The entity spans fourteen units, so at the
-    // previous distance it sat in the middle of the frame with black on every
-    // side and read as a specimen. It has to crowd the frame to be enormous.
-    // The body spans 12.8 x 9.9 and its centre is near the origin, so this
-    // stands well off it and looks at the middle. Measured from the mesh
-    // bounds rather than guessed.
-    position: [10.5, 4.2, 15.5],
-    target: [-0.2, 0.05, -0.23],
-    near: 6.0,
-    far: 24.0,
-    fov: 40,
+    // Re-framed against the body's CORRECTED orientation.
+    //
+    // The Blender export stopped converting to Y-up, which rotated the mesh
+    // ninety degrees into the space the veins had always been in. The poses
+    // were not touched, so this one carried on looking from where the old
+    // mesh used to be: square on to the broad face of the sheet, far enough
+    // out to contain the whole silhouette with black on all four sides. That
+    // is the specimen read — a thing on a table, photographed.
+    //
+    // Scale comes from the frame NOT containing the form. Measured against
+    // the mesh: the silhouette now runs off the right, top and bottom edges,
+    // fifteen percent of the body is outside the frame, and the void it
+    // curves around is the one piece of black left doing composition work.
+    position: [8.57, 3.42, 5.88],
+    target: [-0.2, 0.23, 0.05],
+    // The recession window is a fade across camera distance, so it has to
+    // bracket the depth the body actually occupies from this seat (5.9 to
+    // 17.2). The old 6..24 against a body sitting at 15.3..24.7 spent the
+    // whole structure in the bottom third of the ramp, which is depth thrown
+    // away — every trajectory arrived at nearly the same weight.
+    near: 5.0,
+    far: 18.0,
+    fov: 44,
   },
   {
     name: 'APPROACH',
-    position: [7.0, 2.7, 7.5],
-    target: [0.1, -0.1, 0.3],
-    near: 4.5,
-    far: 19.0,
-    fov: 46,
+    // Pulled in to stay ahead of the new OBSERVE. At its old distance it was
+    // no closer than the opening frame, so the first move of the descent went
+    // nowhere.
+    position: [6.4, 2.2, 4.6],
+    target: [0.1, 0.0, 0.35],
+    near: 3.0,
+    far: 15.5,
+    fov: 50,
   },
   {
     name: 'CROSS',
-    position: [5.6, 0.7, 4.8],
+    // Elevation keeps falling here so DESCEND can climb again, and it stays
+    // marginally further from the seat than DESCEND does — the rail weaves
+    // rather than running straight in.
+    position: [5.0, 1.0, 3.9],
     target: SEAT,
-    near: 2.6,
-    far: 13.0,
-    fov: 60,
+    near: 1.8,
+    far: 14.0,
+    fov: 58,
   },
   {
     // Elevation climbs again here. A monotonic descent reads as a lift shaft.

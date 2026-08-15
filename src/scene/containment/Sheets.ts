@@ -1,7 +1,7 @@
 /**
- * The entity — five authored surfaces, and nothing derived.
+ * The entity — ONE authored surface, and nothing derived.
  *
- * ONE surface, and the control data comes from `tools/blender/build-entity.py`
+ * The control data comes from `tools/blender/build-entity.py`
  * — the same numbers that produced the mesh, so the veins lie on the body by
  * construction and the two cannot drift.
  *
@@ -24,11 +24,12 @@
  * - **Open, never closed.** Every spine runs from somewhere to somewhere else.
  *   A closed curve wraps a centre, and anything wrapping a centre is a torus
  *   however it is dressed.
- * - **Asymmetric.** No two sheets share a scale, a bearing or a length, and
+ * - **Asymmetric.** No two lobes share a scale, a bearing or a length, and
  *   none is centred on the void.
- * - **Interlocking.** They pass through and behind one another around the same
- *   off-centre absence, so the eye resolves one form rather than five ribbons.
- * - **Silhouette first.** Far away the sheets are the shape; the fibres are
+ * - **Interlocking.** The sheet passes through and behind itself around one
+ *   off-centre absence, so the eye resolves one form rather than several
+ *   ribbons — and there is nothing to count.
+ * - **Silhouette first.** Far away the body is the shape; the fibres are
  *   found on approach, not before.
  */
 
@@ -134,7 +135,11 @@ export function frameAt(sheet: Sheet, u: number): Frame {
     spline(axis(sheet, 1), t),
     spline(axis(sheet, 2), t),
   ];
-  const step = 0.004;
+  // The same step the Blender script differentiates with. The two must agree:
+  // the claim this file makes is that the veins lie on the body BY
+  // CONSTRUCTION, and a different step is a different frame is a different
+  // surface, however slightly.
+  const step = 0.0015;
   const ahead: Vec = [
     spline(axis(sheet, 0), Math.min(1, t + step)),
     spline(axis(sheet, 1), Math.min(1, t + step)),

@@ -45,38 +45,6 @@
         white-space: pre;
       }
 
-      /* The invitation. It arrives after the system has demonstrated the
-         phenomenon once, and it leaves the moment the visitor takes it —
-         an instruction that stays on screen is a button, and this is not a
-         button. */
-      #invite {
-        position: fixed;
-        /* In the void, not on the structure. Centred at the foot of the frame
-           it landed across the trajectories and read as debris; the empty
-           lower right is the one region the eye is not already busy in, and
-           putting it there is the negative space doing work. */
-        right: 13vw;
-        bottom: 27vh;
-        text-align: right;
-        font: 12px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
-        letter-spacing: 0.42em;
-        text-indent: 0.42em;
-        color: rgba(255, 255, 255, 0.72);
-        text-transform: uppercase;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1);
-      }
-      #invite.is-open {
-        opacity: 1;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        #invite {
-          transition: none;
-        }
-      }
-
       /* The way out. Present from the first frame, before anything has
          happened and whether or not anything does — a site arguing that
          records are incomplete must not trap a reader who needs the record.
@@ -258,7 +226,6 @@
          destination is a real place rather than an application state. -->
     <a id="skip" data-skip href="/#premise">Skip to company information</a>
     <div id="pose"></div>
-    <div id="invite" hidden></div>
     <div id="readout" hidden></div>
     <script type="module" src="/src/prototype.ts"></script>
   </body>

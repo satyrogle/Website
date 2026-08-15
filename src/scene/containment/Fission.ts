@@ -109,6 +109,16 @@ const CONTACT_IGNITE = 0.72;
  */
 const QUIET_AFTER_CORRECTION = 240;
 
+/**
+ * How far the visitor must move for a region to be worth answering again.
+ *
+ * About twice the radius the presence path gathers its region over, so the
+ * next provocation comes from somewhere that shares no trajectories with the
+ * last one. Held in world units because that is what the anchor is: the place
+ * on the body that was answered, not an index into anything.
+ */
+const PRESENCE_REARM = 1.5;
+
 /** What a neighbouring trajectory catches from an excited node. */
 const SPILL = 0.55;
 
@@ -200,15 +210,21 @@ export class Fission {
   private readonly contact: Float32Array;
   private contactAt = -1;
   /**
-   * The trajectory that has already been provoked and is waiting for the
-   * visitor to move on.
+   * Where on the body the visitor's presence was last answered.
    *
-   * Keyed to the LOBE, not to a node. Contact is now spread across a region of
-   * the surface the visitor is actually looking at, so a spent single node
-   * would be re-armed by the smallest movement. One lobe, one event; move to
-   * another part of the entity for another.
+   * A PLACE, not an index. It was keyed to a sheet id, and when the five
+   * sheets became one body that id became the constant zero — so the first
+   * answered event marked the only lobe there is and presence never provoked
+   * again for the life of the page. Worse, it was set inside `ignite()`, which
+   * the system's own autonomous event also calls: a visitor whose pointer
+   * happened to rest on the body during that event had their eligibility
+   * consumed by something they did not do.
+   *
+   * So it is a world position, set only by the presence path when a presence
+   * event actually starts, and cleared by moving away or by leaving the body
+   * once the system is quiet again. `ignite()` no longer knows it exists.
    */
-  private spentSheet = -1;
+  private answeredAt: [number, number, number] | null = null;
   /** Wall-independent clock, so the quiet period is simulation time. */
   private clock = 0;
   private quietUntil = 0;
@@ -301,30 +317,47 @@ export class Fission {
    * dozens under the cursor won — so it answered up to seventy pixels away
    * from where the visitor was pointing.
    */
-  hover(region: ArrayLike<number>, lead: number, sheet: number, seconds: number): void {
+  hover(region: ArrayLike<number>, lead: number, at: readonly number[], seconds: number): void {
     if (lead < 0 || lead >= this.contact.length) return;
-    if (sheet === this.spentSheet) {
-      // This lobe has already been answered for. Wait for them to move on.
-      this.contactAt = lead;
-      return;
+    if (this.answeredAt) {
+      const dx = at[0] - this.answeredAt[0];
+      const dy = at[1] - this.answeredAt[1];
+      const dz = at[2] - this.answeredAt[2];
+      if (dx * dx + dy * dy + dz * dz < PRESENCE_REARM * PRESENCE_REARM) {
+        // This part of the body has been answered. Nothing accumulates here
+        // until they go somewhere else with it.
+        this.contactAt = -1;
+        return;
+      }
+      this.answeredAt = null;
     }
-    this.spentSheet = -1;
     const rise = CONTACT_RISE * seconds;
     for (let i = 0; i < region.length; i++) {
       const n = region[i];
       this.contact[n] = Math.min(1, this.contact[n] + rise);
     }
     this.contactAt = lead;
-    this.contactSheet = sheet;
   }
 
-  /** The lobe under the cursor, or -1. */
-  private contactSheet = -1;
+  /**
+   * This presence event has been answered, at this place on the body.
+   *
+   * Called by the presence path and by nothing else. A press, a debug press
+   * and the system's own eight-second event all leave presence eligibility
+   * exactly as they found it — only presence spends presence.
+   */
+  presenceAnswered(at: readonly number[]): void {
+    this.answeredAt = [at[0], at[1], at[2]];
+  }
 
   /** Nothing is under the pointer. Everything relaxes. */
   release(): void {
     this.contactAt = -1;
-    this.contactSheet = -1;
+    // Off the body entirely, and the system has finished answering: the whole
+    // surface is available again. Leaving and coming back is a deliberate act
+    // in a way that a pointer resting in one place is not, and the quiet
+    // period is what stops that becoming a strobe.
+    if (this.clock >= this.quietUntil) this.answeredAt = null;
   }
 
   /**
@@ -373,9 +406,11 @@ export class Fission {
 
     this.litSeq.fill(-1);
     this.lit.fill(0);
+    // The accumulated pressure has been discharged into this event. Not the
+    // same thing as presence eligibility, which this method deliberately does
+    // not touch: `ignite()` is simulation machinery and answers for the system
+    // as readily as for the visitor.
     this.contact.fill(0);
-    // The provocation has been answered; that lobe does not count twice.
-    this.spentSheet = this.contactSheet;
     this.contactAt = -1;
 
     this.mark(node);

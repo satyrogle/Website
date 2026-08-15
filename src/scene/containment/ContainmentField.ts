@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import type { ContainmentStructure } from './ContainmentSynth';
 import { ContainmentStrands } from './ContainmentStrands';
+import { REST_HALATION } from './Halation';
 
 export interface FieldLook {
   /** The resting glow of an undisturbed trajectory. */
@@ -117,7 +118,10 @@ export class ContainmentField {
         uFar: { value: look.far },
         uExposure: { value: 1 },
         uEmissiveOnly: { value: 0 },
-        uRest: { value: 0.30 },
+        // The resting share of halation. See `Halation`'s header for the rule;
+        // the trajectories and the ridges must carry the SAME fraction and the
+        // body must carry none, or "resting bloom" means three things.
+        uRest: { value: REST_HALATION },
       },
       vertexShader: /* glsl */ `
         in float aDepth;
@@ -209,10 +213,17 @@ export class ContainmentField {
           float ends = smoothstep(0.0, 0.14, vParam) * smoothstep(1.0, 0.86, vParam);
           recede *= ends;
 
-          // Compensate for it. Fewer veins per pixel, each carrying more, so
-          // the SURFACE reads at a consistent weight however it is turned.
-          // Capped, or a silhouette edge divides by nothing.
-          recede *= mix(1.0, 1.0 / max(vFacing, 0.30), 0.75);
+          // Compensate for it, by DIMMING where they crowd.
+          //
+          // This was the reciprocal, which multiplied the edge-on regions by
+          // up to 2.75 — brightening precisely where the veins were already
+          // stacking into few pixels, and leaving the face-on regions at 1.0.
+          // It was tuned when the mesh and the veins were ninety degrees
+          // apart, so what it was judged against was two objects. Measured on
+          // the corrected body: it drove 0.64% of the frame to white with no
+          // event running, which is decorative energy by the only law this
+          // file has. Direct, it is 0.06%.
+          recede *= mix(1.0, max(vFacing, 0.30), 0.75);
 
           float level = uFloor * mix(1.0, uCrossDim, vCross);
           level *= recede;

@@ -200,11 +200,15 @@ if (process.argv.includes('--touch')) {
   console.log(`  false first action fired and settled: ${settled}`);
 
   await page.waitForTimeout(1500);
-  const inviteShown = await page.evaluate(() =>
-    window.__slice.invite.classList.contains('is-open')
+  // There is no written invitation any more — presence is the invitation, so
+  // what has to be true here is that the structure is settled and available
+  // to answer, not that a caption appeared. Asserting on the removed element
+  // reported a meaningless `false` on every run.
+  const available = await page.evaluate(
+    () => window.__slice.fission.phase === 'held' && window.__slice.record.physical.length > 0
   );
-  console.log(`  invitation offered: ${inviteShown}`);
-  await writeFile(path.join(OUT, '20-invited.png'), await page.screenshot({ type: 'png' }));
+  console.log(`  settled and available to answer: ${available}`);
+  await writeFile(path.join(OUT, '20-settled.png'), await page.screenshot({ type: 'png' }));
 
   // A press on empty void must do nothing. Inventing a nearest node would make
   // the field feel like it was reaching for the cursor.
@@ -264,9 +268,6 @@ if (process.argv.includes('--touch')) {
   console.log(`  it responded where pressed: ${responded} (node ${hit.node}, ${hit.source})`);
   await writeFile(path.join(OUT, '21-touched.png'), await page.screenshot({ type: 'png' }));
 
-  const gone = await page.evaluate(() => !window.__slice.invite.classList.contains('is-open'));
-  console.log(`  invitation withdrawn once taken: ${gone}`);
-
   await page.waitForTimeout(600);
   await writeFile(path.join(OUT, '22-their-cascade.png'), await page.screenshot({ type: 'png' }));
 
@@ -286,14 +287,24 @@ if (process.argv.includes('--touch')) {
   });
   console.log('');
   console.log('  PHYSICAL                             RECORDED');
-  for (let i = 0; i < ledger.physical.length; i++) {
+  // The two logs are NOT the same length, by design. `COLLAPSED` folds an
+  // event into the entry before it and files nothing new, so a visit can end
+  // with more things having happened than are on file — which is the whole
+  // proposition, and reading them as parallel arrays threw on the missing
+  // counterpart instead of reporting it.
+  const rows = Math.max(ledger.physical.length, ledger.recorded.length);
+  const cell = (e) =>
+    e
+      ? `${e.source.padEnd(7)} node ${String(e.node).padStart(5)} tick ${String(e.tick).padStart(5)}`
+      : '—      collapsed into the entry above  ';
+  for (let i = 0; i < rows; i++) {
     const a = ledger.physical[i];
     const b = ledger.recorded[i];
-    const left = `${a.source.padEnd(7)} node ${String(a.node).padStart(5)} tick ${String(a.tick).padStart(5)}`;
-    const right = `${b.source.padEnd(7)} node ${String(b.node).padStart(5)} tick ${String(b.tick).padStart(5)}`;
-    const flag = a.source !== b.source ? '   <- attributed' : '';
-    console.log(`  ${left}      ${right}${flag}`);
+    const flag = a && b && a.source !== b.source ? '   <- attributed' : '';
+    console.log(`  ${cell(a)}      ${cell(b)}${flag}`);
   }
+  const missing = ledger.physical.length - ledger.recorded.length;
+  if (missing > 0) console.log(`  ${missing} event(s) happened and were never filed separately`);
   console.log('');
   console.log(`  divergences ${ledger.divergences} of ${ledger.physical.length}   unperformed ${ledger.attributed}   adjustments applied ${ledger.adjustments}`);
 }

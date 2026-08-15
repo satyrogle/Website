@@ -22,7 +22,6 @@ import { SheetRidges } from './scene/containment/SheetRidges';
 
 const canvas = document.getElementById('slice') as HTMLCanvasElement;
 const readout = document.getElementById('readout') as HTMLDivElement;
-const invite = document.getElementById('invite') as HTMLDivElement;
 const skip = document.getElementById('skip') as HTMLAnchorElement;
 const descend = document.getElementById('descend') as HTMLButtonElement;
 const panel = new RecordPanel(document.getElementById('record') as HTMLElement);
@@ -187,7 +186,8 @@ const ndc = new THREE.Vector2();
 interface Contact {
   region: number[];
   lead: number;
-  sheet: number;
+  /** Where on the body the ray landed. The presence cooldown is a place. */
+  point: [number, number, number];
 }
 
 /**
@@ -215,7 +215,6 @@ function contactUnder(clientX: number, clientY: number): Contact | null {
   if (!hits.length) return null;
 
   const hit = hits[0];
-  const sheet = mass.sheetAt();
   const { x, y, z } = hit.point;
 
   const p = structure.graph.positions;
@@ -248,7 +247,7 @@ function contactUnder(clientX: number, clientY: number): Contact | null {
   }
 
   if (lead < 0) return null;
-  return { region, lead, sheet };
+  return { region, lead, point: [x, y, z] };
 }
 
 /**
@@ -320,7 +319,6 @@ const ignite = (): boolean => {
 const IDLE_BEFORE_SYSTEM_ACTS = 8000;
 let idle = IDLE_BEFORE_SYSTEM_ACTS;
 let acted = false;
-let invited = false;
 /** Set once the visitor has asked for the work. Nothing further is simulated. */
 let left = false;
 /** Set once the way down has been offered. It is not offered twice. */
@@ -478,12 +476,6 @@ function frame(now: number): void {
     }
   }
 
-  // The invitation waits for the demonstration to finish. Offered while the
-  // first cascade is still running it would read as a control for it.
-  if (!invited && !manual && record.physical.length > 0 && fission.phase === 'held') {
-    invited = true;
-  }
-
   // Presence is the input. Being near a trajectory disturbs it, and when that
   // disturbance passes what the system can ignore, it answers — no press
   // required. A press still works, and is simply a faster way to the same
@@ -492,11 +484,18 @@ function frame(now: number): void {
     const seconds = delta / 1000;
     const under = pointer ? contactUnder(pointer.x, pointer.y) : null;
     if (under === null) fission.release();
-    else fission.hover(under.region, under.lead, under.sheet, seconds);
+    else fission.hover(under.region, under.lead, under.point, seconds);
     fission.relax(seconds);
 
     const provoked = fission.provoked;
-    if (provoked >= 0 && disturb(provoked, 'VISITOR')) acted = true;
+    // The anchor is set HERE, where a presence event actually begins, and
+    // nowhere else. `disturb` is also how the system acts on its own and how a
+    // press acts; neither of those may spend the visitor's eligibility to be
+    // answered for standing somewhere.
+    if (provoked >= 0 && under && disturb(provoked, 'VISITOR')) {
+      fission.presenceAnswered(under.point);
+      acted = true;
+    }
   }
 
   // Eased toward the scroll position. Frame-rate independent: the coefficient
@@ -537,6 +536,9 @@ function frame(now: number): void {
     setEmissiveOnly: (on: boolean) => {
       field.setEmissiveOnly(on);
       ridges.setEmissiveOnly(on);
+      // The body too. It still draws and still occludes in that pass; it
+      // simply stops contributing anything to what gets blurred.
+      mass.setEmissiveOnly(on);
     },
   });
   requestAnimationFrame(frame);
@@ -570,5 +572,4 @@ requestAnimationFrame(frame);
   THREE,
   nodeUnder: (x: number, y: number) => contactUnder(x, y)?.lead ?? null,
   disturb,
-  invite,
 };
