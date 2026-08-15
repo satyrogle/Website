@@ -1,0 +1,54 @@
+name: Assistant Visual Audit
+
+on:
+  push:
+    branches:
+      - assistant/visual-audit-3325214
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Start Vite
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/dl-vite.log 2>&1 &
+          echo $! > /tmp/dl-vite.pid
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/prototype.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/dl-vite.log
+          exit 1
+
+      - name: Capture autonomous event
+        run: xvfb-run -a node tools/slice-capture.mjs --url http://127.0.0.1:4173 --out audit/event --event
+
+      - name: Capture visitor interaction
+        run: xvfb-run -a node tools/slice-capture.mjs --url http://127.0.0.1:4173 --out audit/touch --touch
+
+      - name: Capture record and descent
+        run: xvfb-run -a node tools/slice-capture.mjs --url http://127.0.0.1:4173 --out audit/record --record
+
+      - name: Save server log
+        if: always()
+        run: cp /tmp/dl-vite.log audit/vite.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-audit-3325214
+          path: audit
+          if-no-files-found: warn
+          retention-days: 3
