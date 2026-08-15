@@ -242,7 +242,32 @@ export class PlanetModel {
 
         // Emission is gathered per unit length, so the march's total is not
         // the surface evaluation's; this restores the authored brightness.
-        const float CORE_GAIN = 0.85;
+        // Raised with the cracks: the network went from filling half the
+        // volume to occupying roughly a tenth of it, and a tenth has to carry
+        // the light the half was spreading.
+        const float CORE_GAIN = 4.2;
+
+        // The rift network's base frequency, in units of the core radius. All
+        // the crack maths below works in this space, so it is named once.
+        //
+        // Lowered from 2.6, which put four or five plate widths across the
+        // wound: at that scale the network stopped being seams between plates
+        // and became a tangle — glitter in the wide frame, rope in the
+        // close-up, the visible-primitive fault arriving by a new route. The
+        // interior is thin cooled plates RAFTING on the melt, and a raft is a
+        // large thing.
+        //
+        // Counted in the wide frame rather than guessed at, because that is
+        // the composition and the wound is only about two hundred pixels of
+        // it: at 2.6 there were a dozen seams across the aperture and it read
+        // as a knot of wire, at 2.0 still eight or nine. Three or four is a
+        // broken shell. The one direction this must not go is up.
+        const float RIFT_FREQ = 1.35;
+
+        // Crack half-width, same space — an authored width now, rather than a
+        // threshold on the field's value. About a tenth of a world unit at the
+        // core's scale: a seam between plates, not a river.
+        const float RIFT_WIDTH = 0.040;
 
         // Sin-based, deliberately. A multiply-and-fract hash is cheaper per
         // call and was measured here: it saved nothing outside the noise
@@ -269,10 +294,27 @@ export class PlanetModel {
                      mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
         }
 
+        /**
+         * Three octaves, and the third is the last one that helps.
+         *
+         * A fourth was in here, and all it did was wrinkle the sheets at a
+         * scale finer than a plate — which is what turned the seams into
+         * tangled cord. Its amplitude was a sixteenth of the field's, so it
+         * moved the level set almost not at all, but it contributed as much
+         * gradient as the base octave did, and the gradient is what the crack
+         * width is now divided by. Cheaper and cleaner without it.
+         *
+         * Centred by subtracting the octave sum's mean, so fbm(p) - FBM_MEAN
+         * is the zero level set rather than an off-centre slice of the field.
+         * (No backticks in here: the shader is a template literal, and one
+         * pair of them ends it mid-comment and takes the whole page down.)
+         */
+        const float FBM_MEAN = 0.4375;
+
         float fbm(vec3 p) {
           float sum = 0.0;
           float amp = 0.5;
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < 3; i++) {
             sum += amp * vnoise(p);
             p = p * 2.03 + 11.7;
             amp *= 0.5;
@@ -313,46 +355,178 @@ export class PlanetModel {
           // through the middle would otherwise cost twice a grazing one for
           // light that is absorbed long before it gets there.
           float chord = max(-2.0 * dot(ro, rd), 0.0);
-          float far = min(chord, R * 1.7);
+          // Shorter than the 1.7 radii it was, and finer.
+          //
+          // With the crack width authored rather than inherited from the
+          // noise, the limit on how sharp a seam can be is the sampling: the
+          // band is never allowed below what one step resolves, so the step is
+          // now what sets the width. Spending the march on a shorter chord in
+          // more pieces buys the sharpness directly, and the far quarter it
+          // gives up arrives through a whole body of plate and contributes
+          // almost nothing.
+          float far = min(chord, R * 1.25);
 
-          const int STEPS = 16;
-          float dt = far / float(STEPS);
+          // 26, measured rather than chosen: the four gradient taps make every
+          // step four times what it used to cost, and the march is now most of
+          // this shader's frame time. 32 and 26 are indistinguishable in the
+          // composition — the seams sit at their authored width either way,
+          // because the front-loading puts the fine steps where the eye reads
+          // — and the difference is worth several frames a second.
+          const int STEPS = 26;
+
+          // Where in each segment the sample is taken, varied per pixel.
+          //
+          // The steps are shared by every ray, so any residual under-sampling
+          // lands at the same distance for neighbouring pixels and appears as
+          // the concentric shells that were visible in the smoke. Offsetting
+          // by a hash of the pixel scatters that into grain instead.
+          //
+          // Plain white noise. The interleaved-gradient hash that was here
+          // first is built to be resolved by a temporal filter, and with no
+          // filter to resolve it it laid a regular diagonal hatch across every
+          // lit pixel — a grid, arriving in the one place nothing looks for
+          // one. A function of gl_FragCoord alone either way: no time term, so
+          // it is stable frame to frame rather than a shimmer.
+          float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
 
           vec3 acc = vec3(0.0);
           float trans = 1.0;
           float pressure = uCoreBase + uFlare * uCoreFlare;
+          // The flare parts the cracks — the same widening the crust's vents
+          // do, one layer deeper.
+          float width = RIFT_WIDTH * (1.0 + 0.9 * uFlare);
 
+          float t0 = 0.0;
           for (int i = 0; i < STEPS; i++) {
-            vec3 p = ro + rd * (dt * (float(i) + 0.5));
+            // Front-loaded, not uniform.
+            //
+            // Uniform steps spend as much resolution on the far hemisphere —
+            // which arrives through the whole body's absorption and is dim by
+            // the time it does — as on the near shell, where the cracks the
+            // eye actually reads live and where parallax happens. A power
+            // distribution puts the fine steps at the entry: near cracks come
+            // out at their authored width, deep ones soften, and softening
+            // with depth through a body is what depth looks like.
+            float s = float(i + 1) / float(STEPS);
+            float t1 = far * s * sqrt(s);
+            float dt = t1 - t0;
+            vec3 p = ro + rd * (t0 + dt * dither);
+            t0 = t1;
+
             vec3 u = p / R;
             // 0 at the shell, 1 at the centre.
             float depth = 1.0 - clamp(length(u), 0.0, 1.0);
 
-            // The same level set as before, now sampled in three dimensions
-            // instead of on a surface: the curve where a warped field crosses
-            // zero is a sheet inside a volume, and a sheet seen edge-on is a
-            // crack.
-            float f = fbm(u * 2.6 + 11.0) - 0.5;
-            float crack = 1.0 - smoothstep(0.0, 0.075 + 0.05 * uFlare, abs(f));
+            vec3 q = u * RIFT_FREQ + 11.0;
+            float raw = fbm(q);
+            float f = raw - FBM_MEAN;
 
-            // Pressure lives at the centre, not on the skin, so the deep
-            // cracks are the bright ones and the shell is nearly cold.
-            float heat = crack * (0.30 + 1.70 * depth * depth);
+            // A distance to the sheet, not the field's value — and this is the
+            // whole of why the interior was smoke.
+            //
+            // Thresholding |f| directly looks like a level set and is not one.
+            // The field this replaced had a standard deviation of 0.111, so
+            // its threshold of 0.075 admitted 46% OF THE VOLUME — measured
+            // over the ball, not estimated.
+            // Half a body glowing softly is a cloud, and no grade turns a
+            // cloud into rock under pressure. Worse, the width it did produce
+            // was |f| divided by the local gradient, so wherever the field
+            // went flat the "crack" swelled into a blob — the soft lobes that
+            // filled the wound.
+            //
+            // Dividing by that gradient recovers the distance the threshold
+            // was standing in for. Every crack is then the same width wherever
+            // it runs, flat regions of the field stop swelling, and the width
+            // becomes something authored rather than something the noise
+            // decides. Three extra taps buy it, and they are the cost this
+            // material is worth paying.
+            const float E = 0.08;
+            vec3 grad = (vec3(fbm(q + vec3(E, 0.0, 0.0)),
+                              fbm(q + vec3(0.0, E, 0.0)),
+                              fbm(q + vec3(0.0, 0.0, E))) - raw) / E;
+            float slope = max(length(grad), 1e-3);
+            float dist = abs(f) / slope;
+
+            // Widened to what this step can resolve, and dimmed by exactly
+            // what the widening added.
+            //
+            // A crack this narrow is thinner than the gap between samples, and
+            // a march that simply misses one produces speckle — which is what
+            // the old smoke was hiding rather than solving. So the band never
+            // falls below the distance the ray covers across this segment, and
+            // the energy that widening would have invented is taken straight
+            // back out. Sharp where the sampling can carry it, stable where it
+            // cannot, and the same total light either way.
+            float footprint = (dt * RIFT_FREQ / R) * abs(dot(grad, rd)) / slope;
+            float band = width + 0.5 * footprint;
+            float g = (1.0 - smoothstep(0.0, band, dist)) * (width / band);
+
+            // Thread inside bleed — the grammar the crust's vents already use:
+            // an incandescent line carrying almost no area, inside a dimmer
+            // spill that does the bleeding into the rock beside it.
+            // Hard-shouldered, because a crack has an edge. A gentle falloff
+            // spreads every seam into the plate beside it, and enough of those
+            // shoulders overlapping along a ray is the orange wash the smoke
+            // was made of. Squared for the spill, fourth power for the thread
+            // inside it: the seam ends where the rock begins.
+            float bleed = g * g;
+            float thread = bleed * bleed;
+
+            // Pressure lives at the centre, and the skin is nearly cold.
+            //
+            // With every depth emitting, the march stacked five or six lit
+            // sheets on top of one another and the wound filled with tangled
+            // wire — the spaghetti the direction names, arriving through the
+            // volume instead of through geometry. The cure is not fewer cracks
+            // but a dark outer shell: hold the first third of the way in near
+            // zero and the near plates stop glowing and start OCCLUDING, which
+            // is the only way the eye reads one crack as being in front of
+            // another rather than beside it.
+            // Held at a sixth on the skin rather than at nothing: with the
+            // plate absorption below doing the occluding too, a near-zero
+            // shell and an opaque body multiply, and the wound goes empty —
+            // which is a worse failure than the smoke was, because an empty
+            // frame states nothing at all. One of the two does the ordering;
+            // this one only has to keep the outer sheets from competing.
+            float lit = (bleed * 0.45 + thread * 1.55) * (0.15 + 0.45 * depth + 1.40 * depth * depth);
+
+            // A short, dim glow around each seam, so the heat sits IN rock
+            // rather than hanging in a void. Without it the network is bright
+            // line on pure black, which reads as neon tubing however good the
+            // network is — light needs something to fall on. Four times the
+            // seam's own band and a thirtieth of its strength: a hot margin,
+            // not a return to the fog.
+            float halo = 1.0 - smoothstep(0.0, band * 4.0, dist);
+            lit += halo * halo * 0.05 * (0.15 + 0.85 * depth);
+
             // A dim continuum, so the space between cracks is molten rather
-            // than empty.
-            heat += 0.030 * depth * depth;
+            // than empty. An eighth of what it was: at the old level this term
+            // alone was a fog, filling every gap the cracks left over. It is a
+            // floor under the plates, not a light of its own.
+            lit += 0.004 * depth * depth;
 
-            float energy = heat * pressure;
+            float energy = lit * pressure;
             acc += ramp(energy) * energy * trans * dt;
 
-            // Absorption: crust nearer the eye hides what is behind it, which
-            // is what stops the accumulation reading as a flat sum. Kept low
-            // deliberately — at the first value tried, transmittance halved
-            // every step, only the two samples nearest the shell reached the
-            // eye, and a volume that is opaque one step in is a surface with
-            // extra cost.
-            trans *= exp(-(crack * 0.95 + 0.06) * dt);
-            if (trans < 0.02) break;
+            // Absorption belongs to the PLATE, not to the crack.
+            //
+            // It was the wrong way round — the glowing gap absorbed and the
+            // rock did not — and that is why nothing in here occluded anything
+            // and the march read as a flat sum. A crack is the open seam: it
+            // emits, and it passes what is behind it. The cooled plate between
+            // cracks is the occluder. With it that way round, near plates
+            // stand black against the deep network and the interior has a
+            // front and a back. Raised until it does that job: at a third of
+            // this the plates were translucent, every sheet along the ray
+            // arrived at the eye with equal weight, and the network had no
+            // front or back to read. Capped where the heart still gets out —
+            // a whole body of plate takes it to about a tenth, and past that
+            // the interior is simply a closed door.
+            trans *= exp(-(0.06 + 0.45 * (1.0 - bleed)) * dt);
+            // Cut at a twentieth rather than a fiftieth. What arrives through
+            // the last of that is below the grade's floor and costs four noise
+            // taps a step to compute.
+            if (trans < 0.05) break;
           }
 
           fragColour = vec4(acc * CORE_GAIN * uExposure, 1.0);
