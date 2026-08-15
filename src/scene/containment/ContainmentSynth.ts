@@ -31,11 +31,12 @@
 
 import type { CausalGraph } from '../correction/graph/GraphAsset';
 import { mulberry32 } from '../correction/graph/random';
+import { SHEETS, SEAT, frameAt, surfacePoint, surfaceNormal } from './Sheets';
 
 export interface ContainmentConfig {
   seed: number;
-  /** Streamlines per family. */
-  linesPerFamily: number;
+  /** Trajectories running the length of each authored sheet. */
+  linesPerSheet: number;
   /** Samples along each streamline. */
   samplesPerLine: number;
   /** Integration step, world units. */
@@ -58,16 +59,11 @@ export interface ContainmentConfig {
 
 export const DEFAULT_CONTAINMENT: ContainmentConfig = {
   seed: 0x5eed_1a77,
-  // Dense enough that the gaps close.
-  //
-  // At 44 there were 132 trajectories in the whole structure, spaced far
-  // enough apart that the eye could resolve the space between them — so it
-  // counted strands, which is exactly what it did. Coherence is not a property
-  // of any one curve; it is what happens when neighbours stop being
-  // separable and the flow reads as a continuous thing that curves happen to
-  // lie in. Long AND many.
-  linesPerFamily: 240,
-  samplesPerLine: 110,
+  // Dense enough that the gaps close, and not denser. Five sheets at 110 is
+  // roughly the node count the shell version reached, which Jacob asked to
+  // leave alone.
+  linesPerSheet: 110,
+  samplesPerLine: 90,
   stride: 0.105,
   radius: 5.0,
   // Cross-links are topology only — they are never drawn — so their density
@@ -80,19 +76,6 @@ export const DEFAULT_CONTAINMENT: ContainmentConfig = {
   maxLinksPerNode: 5,
   maxShellLinksPerNode: 2,
 };
-
-/**
- * Family frequencies, in ratios that share no common measure.
- *
- * 1 : φ : φ² — the golden ratio is the worst-approximable irrational, so the
- * three families come closest to never aligning. Alignment is what would let
- * the eye find a beat frequency, and a beat frequency is a repeating unit
- * wearing a disguise.
- */
-const PHI = (1 + Math.sqrt(5)) / 2;
-const FAMILY_RATIO = [1.0, PHI, PHI * PHI];
-/** Each family occupies its own shell, so scale repeats without self-similarity. */
-const FAMILY_SHELL = [1.0, 0.62, 0.38];
 
 export interface ContainmentStructure {
   graph: CausalGraph;
@@ -112,181 +95,6 @@ export interface ContainmentStructure {
 }
 
 type Vec = [number, number, number];
-
-/**
- * Three global rotation modes about unshared axes.
- *
- * A rotation field is the most *ordered* thing a vector field can be: every
- * curve in it obeys one visible rule, which is the first requirement of the
- * opening form. One of them alone is a sphere of latitude lines — a flower,
- * and forbidden. Three about axes that share no plane, weighted by slow
- * non-commensurate envelopes, stay locally coherent while never agreeing
- * globally, so the eye finds system everywhere and symmetry nowhere.
- *
- * Pre-normalised; a module-level const cannot call a helper.
- */
-const MODE_AXES: Vec[] = [
-  [0.5773, 0.5773, 0.5773],
-  [-0.6247, 0.4162, 0.6614],
-  [0.2673, -0.8018, 0.5345],
-];
-const MODE_ENV: Vec[] = [
-  [0.21, 0.13, -0.17],
-  [-0.11, 0.24, 0.19],
-  [0.16, -0.19, 0.12],
-];
-const MODE_PHASE = [0.0, 2.1, 4.3];
-
-/**
- * Below this tangential speed a trajectory is approaching a stagnation point
- * and stops. Tuned by looking: too low and the eyes come back, too high and
- * the shells break into short marks instead of long curves.
- */
-const STALL = 0.55;
-
-/**
- * How far the envelope swings across the unit sphere. Large enough that the
- * three modes visibly trade dominance from one side of the structure to the
- * other; that trade is what stops any region settling into a single rotation.
- */
-const ENV_SWING = 3.4;
-
-/**
- * Half-thickness of a family's band, as a fraction of its shell radius.
- *
- * Halved along with the density increase. A band wide enough to stop 44 curves
- * combing is far too wide for 240: they spread into a haze of separate marks
- * instead of packing into a surface. Tight and crowded is what merges.
- */
-const BAND = 0.042;
-
-/**
- * The flow, tangential to the shell the trajectory lives on.
- *
- * The radial component is projected out every step, so curves wind *around*
- * the structure instead of wandering out of it. That is what produces layers:
- * each family stays on its own surface, the surfaces nest, and the projection
- * of one across another is the interference the direction asks for.
- */
-function flow(p: Vec, twist: number, out: Vec): number {
-  out[0] = 0;
-  out[1] = 0;
-  out[2] = 0;
-
-  const rm = Math.hypot(p[0], p[1], p[2]) || 1;
-  const r: Vec = [p[0] / rm, p[1] / rm, p[2] / rm];
-
-  for (let m = 0; m < 3; m++) {
-    const a = MODE_AXES[m];
-    const e = MODE_ENV[m];
-    // The envelope reads DIRECTION, not position.
-    //
-    // Against raw position it varied by a radian and a half across the outer
-    // shell and barely half of one across the innermost, so the inner shells
-    // saw what was effectively a single rotation mode — and a single rotation
-    // mode is a sphere of latitude lines. That is why the middle of the frame
-    // came back as concentric rings. Against the unit direction every shell
-    // sees the full swing of the envelope, so no shell is more symmetric than
-    // any other.
-    const w =
-      0.55 + 0.45 * Math.sin(ENV_SWING * (e[0] * r[0] + e[1] * r[1] + e[2] * r[2]) + MODE_PHASE[m]);
-    out[0] += w * (a[1] * p[2] - a[2] * p[1]);
-    out[1] += w * (a[2] * p[0] - a[0] * p[2]);
-    out[2] += w * (a[0] * p[1] - a[1] * p[0]);
-  }
-
-  // Tangential only.
-  const radial = out[0] * r[0] + out[1] * r[1] + out[2] * r[2];
-  out[0] -= radial * r[0];
-  out[1] -= radial * r[1];
-  out[2] -= radial * r[2];
-
-  // Precession, across the shell rather than out of it.
-  //
-  // A pure tangential flow closes, and a closed curve is a loop the eye names
-  // instantly — a coil, a spool, a ball of wire. The previous cure added a
-  // RADIAL lean, which did nothing at all: the integrator re-seats every step
-  // onto the shell, so the radial part was removed again immediately. The
-  // drift has to be sideways *within* the surface. `r × flow` is tangential
-  // and perpendicular to the travel, so each pass lands beside the last one
-  // and the trajectory sweeps the whole shell without ever repeating.
-  const sx = r[1] * out[2] - r[2] * out[1];
-  const sy = r[2] * out[0] - r[0] * out[2];
-  const sz = r[0] * out[1] - r[1] * out[0];
-  const lean = twist * (1.35 + Math.sin(1.7 * (r[0] - 0.6 * r[1] + 0.8 * r[2])));
-  out[0] += lean * sx;
-  out[1] += lean * sy;
-  out[2] += lean * sz;
-
-  // The magnitude before normalising, returned so the caller can stop.
-  //
-  // A continuous tangent field on a closed shell must vanish somewhere — the
-  // hairy ball theorem, and not negotiable by tuning. At those points curves
-  // spiral in and the frame grows eyes: whirlpools, locally rotationally
-  // symmetric, exactly the flower this form may not contain. They cannot be
-  // removed, so trajectories are ended before they reach one. The stagnation
-  // point then reads as a void the structure curves around, which is
-  // negative space doing work rather than a defect.
-  const m2 = Math.hypot(out[0], out[1], out[2]);
-  const safe = m2 || 1;
-  out[0] /= safe;
-  out[1] /= safe;
-  out[2] /= safe;
-  return m2;
-}
-
-/**
- * The shell a family lives on: a sphere pushed out of shape on three
- * unshared axes, so no view of it is a circle and no pose down an axis
- * produces a ring.
- */
-function shellRadius(dir: Vec, base: number): number {
-  const a = 0.30 * (dir[0] * dir[1] + dir[1] * dir[2]);
-  const b = 0.24 * (dir[2] * dir[2] - dir[0] * dir[0]);
-  const c = 0.19 * dir[0] * dir[1] * dir[2];
-  return base * (1 + a + b + c);
-}
-
-/**
- * RK4, then snapped back onto the shell.
- *
- * The projection in `flow` removes the radial *velocity*, but integration
- * error still accumulates radially over forty steps and the curve slowly
- * spirals off its surface. Re-seating it each step is what keeps the layers
- * legible as layers.
- */
-function advance(p: Vec, twist: number, h: number, shell: number): Vec {
-  const t: Vec = [0, 0, 0];
-  const a: Vec = [0, 0, 0];
-  const b: Vec = [0, 0, 0];
-  const c: Vec = [0, 0, 0];
-  const d: Vec = [0, 0, 0];
-
-  flow(p, twist, a);
-  t[0] = p[0] + (h / 2) * a[0];
-  t[1] = p[1] + (h / 2) * a[1];
-  t[2] = p[2] + (h / 2) * a[2];
-  flow(t, twist, b);
-  t[0] = p[0] + (h / 2) * b[0];
-  t[1] = p[1] + (h / 2) * b[1];
-  t[2] = p[2] + (h / 2) * b[2];
-  flow(t, twist, c);
-  t[0] = p[0] + h * c[0];
-  t[1] = p[1] + h * c[1];
-  t[2] = p[2] + h * c[2];
-  flow(t, twist, d);
-
-  const q: Vec = [
-    p[0] + (h / 6) * (a[0] + 2 * b[0] + 2 * c[0] + d[0]),
-    p[1] + (h / 6) * (a[1] + 2 * b[1] + 2 * c[1] + d[1]),
-    p[2] + (h / 6) * (a[2] + 2 * b[2] + 2 * c[2] + d[2]),
-  ];
-
-  const m = Math.hypot(q[0], q[1], q[2]) || 1;
-  const dir: Vec = [q[0] / m, q[1] / m, q[2] / m];
-  const target = shellRadius(dir, shell);
-  return [dir[0] * target, dir[1] * target, dir[2] * target];
-}
 
 /** Uniform hash grid, so proximity linking is linear rather than quadratic. */
 class Grid {
@@ -340,89 +148,67 @@ export function synthesiseContainment(
   /** Along-trajectory adjacency, built first; cross-links are added after. */
   const along: Array<[number, number]> = [];
 
-  /**
-   * The forbidden volume. Off-centre and unaligned with every axis, so the
-   * structure has an interior it curves around rather than a hole through it.
-   * The planet occupies this later; in Act I it is simply absent, and its
-   * absence is what gives the form somewhere to be about.
-   */
-  const VOID_CENTRE: Vec = [0.42, -0.31, 0.55];
+  // Trajectories live ON the sheets.
+  //
+  // They used to be integral curves of a rotation field on nested spheres,
+  // which is why raising the density turned strands into fibrous toruses: the
+  // macro-read was the topology, and the topology wrapped a centre. Here the
+  // silhouette is authored in `Sheets` and the fibres only run through it, so
+  // what the eye resolves at distance is the surface and what it finds on
+  // approach is the veining. Entity, then material, then simulation.
+  //
+  // Every line runs from one end of its sheet to the other. Open by
+  // construction: there is no closed curve anywhere in the structure now.
   const VOID_RADIUS = 1.55;
   let lineId = 0;
 
-  for (let f = 0; f < FAMILY_RATIO.length; f++) {
-    // The precession that keeps a curve from closing, scaled per family so
-    // the shells never drift at the same rate and never come into step.
-    const twist = 0.26 * FAMILY_RATIO[f];
-    const shell = FAMILY_SHELL[f] * config.radius;
-    let placed = 0;
+  for (let sheetIndex = 0; sheetIndex < SHEETS.length; sheetIndex++) {
+    const sheet = SHEETS[sheetIndex];
 
-    for (let attempt = 0; attempt < config.linesPerFamily * 40 && placed < config.linesPerFamily; attempt++) {
-      // Low-discrepancy on the sphere, then seated on the deformed shell.
-      // Never a ring: the elevation term is sampled, not swept.
-      const u = random();
-      const v = random();
-      const theta = 2 * Math.PI * u;
-      const z = 2 * v - 1;
-      const r = Math.sqrt(Math.max(0, 1 - z * z));
-      const dir: Vec = [r * Math.cos(theta), r * Math.sin(theta), z];
-
-      // Each trajectory gets its OWN radius inside the family's band.
-      //
-      // Sharing one surface, every curve in a family sweeps it under the same
-      // precession and converges on the same arc family — evenly spaced
-      // parallel lines, which is a comb, and a comb is the fault that killed
-      // the last abstract carrier. Spread across a band they interleave at
-      // different depths instead, and their crossings in projection are the
-      // layered interference the direction actually asks for.
-      const lineShell = shell * (1 + BAND * (random() * 2 - 1));
-      const seat = shellRadius(dir, lineShell);
-      let p: Vec = [dir[0] * seat, dir[1] * seat, dir[2] * seat];
-
-      // Reject seeds inside the void or already outside the structure.
-      const d0 = Math.hypot(p[0] - VOID_CENTRE[0], p[1] - VOID_CENTRE[1], p[2] - VOID_CENTRE[2]);
-      if (d0 < VOID_RADIUS * 1.15) continue;
-      placed++;
+    for (let l = 0; l < config.linesPerSheet; l++) {
+      // Where this line sits across the width, and how it wanders as it
+      // travels. Wander is what stops a sheet reading as combed: neighbours
+      // cross and separate instead of running parallel for their whole length.
+      const seatV = (l / (config.linesPerSheet - 1)) * 2 - 1;
+      const wanderAmp = 0.10 + 0.22 * random();
+      const wanderRate = 1.4 + 3.1 * random();
+      const wanderPhase = random() * Math.PI * 2;
+      // A little off the surface, so the fibres are not co-planar with the
+      // mass and z-fight it.
+      const lift = (random() - 0.5) * 0.09;
 
       const first = positions.length / 3;
       const thisLine = lineId++;
       let previous = -1;
 
-      for (let s = 0; s < config.samplesPerLine; s++) {
-        const rad = Math.hypot(p[0], p[1], p[2]);
-        const dVoid = Math.hypot(
-          p[0] - VOID_CENTRE[0],
-          p[1] - VOID_CENTRE[1],
-          p[2] - VOID_CENTRE[2]
+      for (let s2 = 0; s2 < config.samplesPerLine; s2++) {
+        const u = s2 / (config.samplesPerLine - 1);
+        const v = Math.max(
+          -0.98,
+          Math.min(0.98, seatV + wanderAmp * Math.sin(wanderRate * u * Math.PI * 2 + wanderPhase))
         );
-        // A curve that reaches the void simply ends. Trajectories of different
-        // lengths are what stop a family reading as combed hair.
-        // Tighter than 1.35: a handful of curves used to wander far past the
-        // body and read as stray lines ruled across the whole frame, which is
-        // the opposite of one structure however dense the rest of it is.
-        if (rad > config.radius * 1.12 || dVoid < VOID_RADIUS) break;
 
-        const t: Vec = [0, 0, 0];
-        const speed = flow(p, twist, t);
-        // Ending here is what keeps the eyes out of the frame.
-        if (speed < STALL) break;
+        const frame = frameAt(sheet, u);
+        const surf = surfacePoint(sheet, u, v, frame);
+        const n = surfaceNormal(sheet, u, v);
+        const p: Vec = [surf[0] + n[0] * lift, surf[1] + n[1] * lift, surf[2] + n[2] * lift];
+
+        const dVoid = Math.hypot(p[0] - SEAT[0], p[1] - SEAT[1], p[2] - SEAT[2]);
+        if (dVoid < VOID_RADIUS) break;
 
         const index = positions.length / 3;
         positions.push(p[0], p[1], p[2]);
-        tangents.push([t[0], t[1], t[2]]);
-        family.push(f);
+        tangents.push([frame.tangent[0], frame.tangent[1], frame.tangent[2]]);
+        family.push(sheetIndex);
         line.push(thisLine);
-        depth.push(1 - Math.min(1, rad / config.radius));
-        param.push(s / (config.samplesPerLine - 1));
+        depth.push(1 - Math.min(1, Math.hypot(p[0], p[1], p[2]) / config.radius));
+        param.push(u);
 
         if (previous >= 0) along.push([previous, index]);
         previous = index;
-
-        p = advance(p, twist, config.stride, lineShell);
       }
 
-      // A stub is not a trajectory — and a short one ends in the frame as a
-      // loose tip, which is what makes a field of curves read as hair.
+      // A stub is not a trajectory.
       if (positions.length / 3 - first < 24) {
         const drop = positions.length / 3 - first;
         positions.length -= drop * 3;
@@ -432,7 +218,7 @@ export function synthesiseContainment(
         depth.length -= drop;
         param.length -= drop;
         while (along.length && along[along.length - 1][1] >= first) along.pop();
-        placed--;
+        lineId--;
       }
     }
   }

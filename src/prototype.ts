@@ -15,6 +15,7 @@ import { Visit } from './scene/containment/Visit';
 import { RecordPanel } from './content/RecordPanel';
 import { sampleDescent, POSES } from './scene/containment/Descent';
 import { Halation } from './scene/containment/Halation';
+import { SheetMass } from './scene/containment/SheetMass';
 
 const canvas = document.getElementById('slice') as HTMLCanvasElement;
 const readout = document.getElementById('readout') as HTMLDivElement;
@@ -73,7 +74,10 @@ const fission = new Fission(structure, DEFAULT_FISSION);
 // whatever the system was already holding against them.
 const visit = new Visit(Date.now());
 const record = new Record(structure.graph.positions, structure.seeds, visit.seed, visit.index);
-scene.add(field.object);
+// Level 1 first: the silhouette occludes, and everything else depth-tests
+// against it.
+const mass = new SheetMass();
+scene.add(mass.object, field.object);
 
 /**
  * Where the visitor is on the rail, 0 at OBSERVE and 1 at REVEAL.

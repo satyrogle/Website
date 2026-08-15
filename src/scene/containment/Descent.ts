@@ -16,6 +16,10 @@
  * - **No axis-aligned run.** A straight line inward is a tunnel down an axis,
  *   which is how the retired tunnels died. The path weaves — elevation rises
  *   again at DESCEND, and no two consecutive poses share a bearing.
+ * Re-authored for the sheets. The poses were placed against a five-unit shell
+ * structure and the entity now spans fourteen, so OBSERVE stood inside its own
+ * subject and there was no silhouette to read at all.
+ *
  * - **The end is the seat.** REVEAL sits just outside the forbidden volume the
  *   structure curves around, looking into it. In Act III that volume holds the
  *   planet; the descent already arrives at exactly the place it will be, and
@@ -48,43 +52,43 @@ const SEAT: [number, number, number] = [0.42, -0.31, 0.55];
 export const POSES: Pose[] = [
   {
     name: 'OBSERVE',
-    position: [5.2, 2.3, 6.0],
-    target: [-1.4, 0.3, -0.4],
-    near: 3.0,
-    far: 15.0,
-    fov: 38,
+    position: [12.6, 5.4, 14.5],
+    target: [-0.6, 0.2, 0.1],
+    near: 9.0,
+    far: 34.0,
+    fov: 40,
   },
   {
     name: 'APPROACH',
-    position: [4.6, 1.5, 4.7],
+    position: [9.0, 3.4, 9.6],
     target: [0.0, -0.1, 0.3],
-    near: 2.4,
-    far: 12.0,
-    fov: 44,
+    near: 6.0,
+    far: 24.0,
+    fov: 46,
   },
   {
     name: 'CROSS',
-    position: [3.9, 0.4, 3.2],
+    position: [5.6, 0.7, 4.8],
     target: SEAT,
-    near: 1.6,
-    far: 9.0,
+    near: 2.6,
+    far: 13.0,
     fov: 60,
   },
   {
     // Elevation climbs again here. A monotonic descent reads as a lift shaft.
     name: 'DESCEND',
-    position: [3.4, 1.5, 2.9],
+    position: [4.3, 2.0, 3.7],
     target: SEAT,
-    near: 1.2,
-    far: 7.5,
+    near: 1.8,
+    far: 10.0,
     fov: 62,
   },
   {
     name: 'UNDERSTAND',
-    position: [2.9, 0.5, 2.6],
+    position: [3.3, 0.6, 3.0],
     target: SEAT,
-    near: 1.0,
-    far: 7.0,
+    near: 1.2,
+    far: 8.0,
     fov: 56,
   },
   {

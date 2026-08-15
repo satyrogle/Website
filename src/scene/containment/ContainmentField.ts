@@ -36,7 +36,10 @@ export const FIELD_LOOK: FieldLook = {
   // per-curve level has to fall by the same factor or the merge that finally
   // produced one flowing structure produces one flowing white. Black is scale
   // here; losing it costs more than the coherence gained.
-  floor: 0.085,
+  // Subdued: this is Level 3 now. The sheets carry the silhouette and the
+  // fibres are what the eye finds inside them on approach, so they must not
+  // compete with the mass at distance.
+  floor: 0.055,
   crossDim: 0.42,
   // Set against the pose, not the object: the near and far sides of the
   // structure must arrive with different weight or the form flattens into a
