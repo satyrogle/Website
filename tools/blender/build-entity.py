@@ -213,6 +213,14 @@ def main():
         export_apply=True,
         export_normals=True,
         export_materials="NONE",
+        # Blender is Z-up and glTF is Y-up, and the exporter converts by
+        # default: (x, y, z) becomes (x, z, -y). The veins are placed in
+        # TypeScript from the control data in this file, which is Blender
+        # space, so with the conversion on the body and its veining sat in
+        # different orientations — the same object rendered twice, ninety
+        # degrees apart, which is what the "bare patch" actually was.
+        # One space, no conversion, no transform to remember at the far end.
+        export_yup=False,
     )
 
     lo = [min(v.co[i] for v in obj.data.vertices) for i in range(3)]
