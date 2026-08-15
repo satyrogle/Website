@@ -74,6 +74,7 @@ export class ContainmentField {
     this.geometry.setAttribute('position', new THREE.BufferAttribute(graph.positions, 3));
     this.geometry.setAttribute('aDepth', new THREE.BufferAttribute(depth, 1));
     this.geometry.setAttribute('aParam', new THREE.BufferAttribute(structure.param, 1));
+    this.geometry.setAttribute('aNormal', new THREE.BufferAttribute(structure.normals, 3));
 
     const fam = new Float32Array(n);
     for (let i = 0; i < n; i++) fam[i] = family[i];
@@ -121,11 +122,13 @@ export class ContainmentField {
       vertexShader: /* glsl */ `
         in float aDepth;
         in float aParam;
+        in vec3 aNormal;
         in float aEnergy;
         in float aCross;
         in float aFamily;
         out float vDepth;
         out float vParam;
+        out float vFacing;
         out float vEnergy;
         out float vCross;
         out float vFamily;
@@ -135,6 +138,13 @@ export class ContainmentField {
           vec4 view = viewMatrix * world;
           vDepth = aDepth;
           vParam = aParam;
+          // How square-on the body is here. Veins are spread evenly over the
+          // surface, so where it turns edge-on they crowd into few pixels and
+          // where it faces the camera they spread thin — the bunching on one
+          // side and the bare flat region on the other are the same
+          // foreshortening seen from its two ends.
+          vFacing = abs(dot(normalize(mat3(modelMatrix) * aNormal),
+                            normalize(cameraPosition - world.xyz)));
           vEnergy = aEnergy;
           vCross = aCross;
           vFamily = aFamily;
@@ -153,6 +163,7 @@ export class ContainmentField {
         uniform float uRest;
         in float vDepth;
         in float vParam;
+        in float vFacing;
         in float vEnergy;
         in float vCross;
         in float vFamily;
@@ -197,6 +208,11 @@ export class ContainmentField {
           // no beginning and no end anywhere in it.
           float ends = smoothstep(0.0, 0.14, vParam) * smoothstep(1.0, 0.86, vParam);
           recede *= ends;
+
+          // Compensate for it. Fewer veins per pixel, each carrying more, so
+          // the SURFACE reads at a consistent weight however it is turned.
+          // Capped, or a silhouette edge divides by nothing.
+          recede *= mix(1.0, 1.0 / max(vFacing, 0.30), 0.75);
 
           float level = uFloor * mix(1.0, uCrossDim, vCross);
           level *= recede;

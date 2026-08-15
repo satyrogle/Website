@@ -43,6 +43,8 @@ export interface Sheet {
   billow: number[];
   up: Vec;
   aperture: { u: number; v: number; ru: number; rv: number };
+  /** Shell thickness Blender solidified with. Veins must clear half of it. */
+  thickness: number;
 }
 
 export interface EntityManifest {
@@ -72,6 +74,7 @@ export function loadSheets(manifest: EntityManifest): void {
     billow: manifest.billow,
     up: [manifest.up[0], manifest.up[1], manifest.up[2]],
     aperture: manifest.aperture,
+    thickness: manifest.thickness,
   });
 }
 

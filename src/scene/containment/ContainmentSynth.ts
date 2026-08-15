@@ -89,6 +89,8 @@ export interface ContainmentStructure {
   depth: Float32Array;
   /** Position along its own streamline, 0..1. */
   param: Float32Array;
+  /** Surface normal at each node, for foreshortening compensation. */
+  normals: Float32Array;
   /** Nodes a disturbance may be seeded at: outer shell, well separated. */
   seeds: Uint32Array;
   stats: Record<string, number>;
@@ -145,6 +147,7 @@ export function synthesiseContainment(
   const line: number[] = [];
   const depth: number[] = [];
   const param: number[] = [];
+  const normals: number[] = [];
   /** Along-trajectory adjacency, built first; cross-links are added after. */
   const along: Array<[number, number]> = [];
 
@@ -173,9 +176,21 @@ export function synthesiseContainment(
       const wanderAmp = 0.10 + 0.22 * random();
       const wanderRate = 1.4 + 3.1 * random();
       const wanderPhase = random() * Math.PI * 2;
-      // A little off the surface, so the fibres are not co-planar with the
-      // mass and z-fight it.
-      const lift = (random() - 0.5) * 0.09;
+      // Clear of the shell, on one face or the other.
+      //
+      // Lifted by (random - 0.5) * 0.09 against a shell that spans +/-0.0425
+      // about the surface, NINETY-FOUR PER CENT of the veins were inside the
+      // body and invisible. Which of the survivors showed depended on the
+      // angle the surface presented, so the distribution looked arbitrary:
+      // bunched where the body was edge-on, absent where it faced the camera.
+      // That absence is also why the lower left read as a flat cutout — there
+      // was no internal structure under it to see.
+      //
+      // Both faces are used, so the body is veined front and back rather than
+      // having everything on one side.
+      const clearance = sheet.thickness * 0.5 + 0.012;
+      const face = random() < 0.5 ? -1 : 1;
+      const lift = face * (clearance + random() * 0.05);
 
       const first = positions.length / 3;
       const thisLine = lineId++;
@@ -193,12 +208,24 @@ export function synthesiseContainment(
         const n = surfaceNormal(sheet, u, v);
         const p: Vec = [surf[0] + n[0] * lift, surf[1] + n[1] * lift, surf[2] + n[2] * lift];
 
+        // A vein passes AROUND a hole, it does not end at one.
+        //
+        // `break` on the forbidden volume threw away the entire remainder of
+        // every trajectory that dipped into it, and the widest lobe reaches
+        // inside — so whole tails vanished and the veining came out heavily
+        // uneven, twenty-one thousand nodes in one column of the frame against
+        // nine hundred in another. And the aperture used `continue` without
+        // clearing the previous sample, which drew an edge straight across the
+        // hole that had just been cut.
+        //
+        // Both now break the CHAIN and carry on: the line resumes on the far
+        // side, so the body is veined evenly and nothing spans the negative
+        // space.
         const dVoid = Math.hypot(p[0] - SEAT[0], p[1] - SEAT[1], p[2] - SEAT[2]);
-        if (dVoid < VOID_RADIUS) break;
-        // The body has been cut through here; a vein crossing the aperture
-        // would hang in the negative space that is doing the composition's
-        // work.
-        if (inAperture(sheet, u, v)) continue;
+        if (dVoid < VOID_RADIUS || inAperture(sheet, u, v)) {
+          previous = -1;
+          continue;
+        }
 
         const index = positions.length / 3;
         positions.push(p[0], p[1], p[2]);
@@ -207,6 +234,7 @@ export function synthesiseContainment(
         line.push(thisLine);
         depth.push(1 - Math.min(1, Math.hypot(p[0], p[1], p[2]) / config.radius));
         param.push(u);
+        normals.push(n[0], n[1], n[2]);
 
         if (previous >= 0) along.push([previous, index]);
         previous = index;
@@ -221,6 +249,7 @@ export function synthesiseContainment(
         line.length -= drop;
         depth.length -= drop;
         param.length -= drop;
+        normals.length -= drop * 3;
         while (along.length && along[along.length - 1][1] >= first) along.pop();
         lineId--;
       }
@@ -422,6 +451,7 @@ export function synthesiseContainment(
     family: new Uint16Array(family),
     depth: new Float32Array(depth),
     param: new Float32Array(param),
+    normals: new Float32Array(normals),
     seeds: new Uint32Array(seeds),
     stats: {
       nodeCount,

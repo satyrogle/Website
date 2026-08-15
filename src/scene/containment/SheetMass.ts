@@ -20,8 +20,15 @@ export interface MassLook {
   face: number;
   /** Light at the grazing edge, which is the silhouette. */
   rim: number;
-  /** Extra light at the two long edges of a vane, where it ends. */
-  edge: number;
+  /**
+   * A fixed, directionless response standing in for the void.
+   *
+   * Grazing light alone leaves any surface facing the camera at a dead flat
+   * value, so a broad face-on region becomes a shape cut out of the black with
+   * nothing happening inside it. Far too small to light the body; it exists so
+   * a large area has some modelling across it.
+   */
+  wash: number;
 }
 
 export const MASS_LOOK: MassLook = {
@@ -31,7 +38,7 @@ export const MASS_LOOK: MassLook = {
   // opaque near-black one reads as mass.
   face: 0.008,
   rim: 0.30,
-  edge: 0.0,
+  wash: 0.022,
 };
 
 export class SheetMass {
@@ -47,6 +54,7 @@ export class SheetMass {
       uniforms: {
         uFace: { value: look.face },
         uRim: { value: look.rim },
+        uWash: { value: look.wash },
         uExposure: { value: 1 },
       },
       vertexShader: /* glsl */ `
@@ -63,6 +71,7 @@ export class SheetMass {
         precision highp float;
         uniform float uFace;
         uniform float uRim;
+        uniform float uWash;
         uniform float uExposure;
         in vec3 vNormal;
         in vec3 vView;
@@ -80,8 +89,13 @@ export class SheetMass {
           // Bone, very slightly warm. Not cyan: cyan is reserved for a real
           // deviation, and spending it on the resting state leaves the
           // grammar with nothing to say when something actually happens.
+          // Fixed in world space and off every axis, so no pose flattens it.
+          const vec3 WASH = vec3(0.377, 0.755, 0.538);
+          float wash = max(dot(n, WASH), 0.0);
+
           vec3 bone = vec3(0.92, 0.90, 0.84);
-          fragColour = vec4(bone * (uFace + graze * uRim) * uExposure, 1.0);
+          float level = uFace + graze * uRim + wash * wash * uWash;
+          fragColour = vec4(bone * level * uExposure, 1.0);
         }
       `,
     });
