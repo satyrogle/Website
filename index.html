@@ -93,215 +93,83 @@
         aria-labelledby="hero-title"
         data-hero-reveal
       >
-        <p class="label fade-in">
-          <span class="label__rule" aria-hidden="true"></span>
-          DL / Systems Studio
-        </p>
+        <!-- One viewport of composition, held still inside three viewports of
+             scroll. The section is the scroll extent the camera travel needs;
+             this frame is what the visitor actually looks at, and it does not
+             move while the entity is approached. -->
+        <div class="hero__frame">
+          <p class="label fade-in">
+            <span class="label__rule" aria-hidden="true"></span>
+            DL / Systems Studio
+          </p>
 
-        <h1 class="hero__title display display--xl" id="hero-title">
-          <span class="reveal-line"><span>Dark</span></span>
-          <span class="reveal-line"><span>Lattice</span></span>
-        </h1>
+          <h1 class="hero__title display display--xl" id="hero-title">
+            <span class="reveal-line"><span>Dark</span></span>
+            <span class="reveal-line"><span>Lattice</span></span>
+          </h1>
 
-        <div class="hero__foot">
-          <div>
-            <p class="hero__statement fade-in">
-              Systems that react to each other, not events we hand-placed.
-            </p>
-            <p class="hero__lockup fade-in">
-              Persistent systems <b>·</b> Reactive simulation <b>·</b> Capability that accumulates
-            </p>
-          </div>
-
-          <div class="hero__actions">
+          <div class="hero__foot">
             <!--
-              Ships pointing at the editorial and is UPGRADED to the machine
-              once the scene is confirmed live, rather than the reverse.
+              The hero ends with the wordmark, the entity and space.
 
-              It used to ship as href="#ask" with JavaScript walking it back
-              on failure, which meant the failure case depended on the thing
-              that had failed. With scripting off, the noscript rule hides
-              every `.band` — including #ask — and a fragment link to a
-              display:none target does nothing at all, so the site's most
-              prominent invitation silently died for exactly the visitor with
-              the least ability to recover. It also covered the reduced-motion
-              case for free: that path hides .band--ask too, and nothing was
-              re-aiming this anchor there either.
+              The statement it used to carry — "systems that react to each
+              other, not events we hand-placed" — moved to the thesis, after
+              CROSS. The entity DEMONSTRATES that sentence: it answers presence,
+              a deviation propagates, and the system takes it back. Printing the
+              claim beside the demonstration asked the visitor to read it before
+              they had felt it, which is advertising rather than explaining.
+
+              "Enter the system" went with it. Hover is ambient and scrolling is
+              conventional; the site does not need to instruct anyone to do the
+              obvious thing. What is left is a non-verbal cue at the bottom edge
+              and the skip link, which is an accessibility affordance and stays.
             -->
-            <a
-              class="action fade-in"
-              href="#premise"
-              data-live-href="#ask"
-              data-magnetic
-              data-scroll-to
-            >
-              Enter the system
-              <span class="action__arrow" aria-hidden="true">↓</span>
-            </a>
-
-            <!-- The way out, offered in the first frame rather than buried
-                 after the simulation. Taking it is recorded honestly. -->
-            <a class="action action--quiet fade-in" href="#premise" data-skip data-scroll-to>
-              Skip to company information
-            </a>
+            <div class="hero__actions">
+              <a class="action action--quiet fade-in" href="#thesis" data-skip data-scroll-to>
+                Skip to company information
+              </a>
+            </div>
           </div>
+
+          <div class="hero__cue fade-in" aria-hidden="true"><span></span></div>
         </div>
       </section>
 
-      <!-- ============================================================
-           ASK — one action, and it is the visitor's
 
-           The word is the control. A keyboard user activates it; a pointer
-           or touch user can press the structure anywhere. There is no
-           second affordance, no panel and no instructions, because the
-           point of the beat is that one press is all there is to do.
-           ============================================================ -->
-      <section
-        class="movement band band--ask"
-        id="ask"
-        data-band="ask"
-        data-webgl-only
-        aria-labelledby="ask-title"
-      >
-        <h2 class="band__ask display display--md" id="ask-title">
-          <button class="band__word" type="button" data-inject>Touch it.</button>
-        </h2>
-      </section>
+
+
+
+
+
+
 
       <!-- ============================================================
-           NOTICE — permitted, noticed, forced back
+           02 — THESIS
 
-           Uncaptioned by design. Naming the six stages while they are
-           happening would replace the comprehension with a label, and the
-           whole direction rests on the visitor arriving at it themselves.
-           The heading exists for assistive technology, which cannot see
-           the event at all.
-           ============================================================ -->
-      <section
-        class="movement band band--notice"
-        data-band="notice"
-        data-webgl-only
-        aria-labelledby="notice-title"
-      >
-        <h2 class="sr-only" id="notice-title">
-          The system notices the deviation and forces it back
-        </h2>
+           The first thing after CROSS, and the first words in the site.
 
-        <!-- Reduced motion only, and filled from three stills of one real
-             event rendered at boot. A before-and-after pair would be an
-             unexplained change; the middle frame is the explanation. -->
-        <figure class="triptych" data-triptych hidden>
-          <ol class="triptych__frames">
-            <li class="triptych__frame">
-              <img
-                class="triptych__still"
-                data-triptych-frame="deviation"
-                alt="The structure lifted out of line by a deviation. Nothing is acting on it."
-              />
-              <p class="triptych__caption">
-                <span class="triptych__num">01</span>
-                A deviation exists. The system has not noticed it yet.
-              </p>
-            </li>
-            <li class="triptych__frame">
-              <img
-                class="triptych__still"
-                data-triptych-frame="strain"
-                alt="The same region, now marked in violet where the system has taken hold of it and is pulling against the deviation."
-              />
-              <p class="triptych__caption">
-                <span class="triptych__num">02</span>
-                It has been noticed. The system pulls it back, and the deviation resists.
-              </p>
-            </li>
-            <li class="triptych__frame">
-              <img
-                class="triptych__still"
-                data-triptych-frame="settled"
-                alt="The structure back in line, with a faint violet trace where the correction happened."
-              />
-              <p class="triptych__caption">
-                <span class="triptych__num">03</span>
-                Returned inside the approved state. The mark stays.
-              </p>
-            </li>
-          </ol>
-          <figcaption class="triptych__note">
-            This is what one press does. The calm everywhere else on this page has the same
-            history.
-          </figcaption>
-        </figure>
-      </section>
-
-      <!-- ============================================================
-           GRADIENT — the turn
-
-           Also uncaptioned. Descending raises enforcement gain: near the
-           fringe a deviation lives visibly longer; deeper down it is put
-           back almost before it exists. The calm was never natural.
-           ============================================================ -->
-      <section
-        class="movement band band--gradient"
-        data-band="gradient"
-        data-webgl-only
-        aria-labelledby="gradient-title"
-      >
-        <h2 class="sr-only" id="gradient-title">
-          Deeper in the structure, deviation is corrected faster
-        </h2>
-      </section>
-
-      <!-- ============================================================
-           FLOOR — your record
-           ============================================================ -->
-      <section
-        class="movement band band--floor"
-        data-band="floor"
-        data-webgl-only
-        aria-labelledby="floor-title"
-      >
-        <h2 class="sr-only" id="floor-title">Your record</h2>
-
-        <!-- Hidden until the controller is running: with no JS there are no
-             counters, and a panel of zeros would be a claim rather than a
-             reading. Every figure below is written from the Worker. -->
-        <div class="record" data-record hidden>
-          <p class="record__label">Your record</p>
-          <p class="record__statement">
-            Adjustments applied: <span data-record-adjustments>0</span>.<br />
-            Residual deviation: <span data-record-residual>0</span>.
-          </p>
-          <p class="record__note" data-record-note hidden></p>
-
-          <!-- The weld (P6, picked by Jacob).
-               The site has always contained this rhyme and never said it: the
-               visitor has just been corrected by a system keeping its own
-               account, which is the premise of the game described two screens
-               below. It sits inside the record panel rather than beside it so
-               it appears only when there is a record to refer to — the skip
-               path and the no-WebGL path never reach a floor, and "that
-               record" would be pointing at nothing. -->
-          <p class="record__weld">
-            That record is Desk42&rsquo;s premise, played from the other side: a system that keeps
-            its own account of what happened, and enforces it.
-          </p>
-        </div>
-      </section>
-
-      <!-- ============================================================
-           EDITORIAL 02 — The premise
+           The visitor has just watched the entity answer their presence, a
+           deviation propagate through it and the system take that deviation
+           back. Only now is the claim stated, because now it is a description
+           of something they felt rather than a promise about something they
+           have not seen. Everything from here is type on black: no effects
+           after CROSS.
            ============================================================ -->
       <section
         class="movement movement--washed premise"
         data-movement="premise"
         data-band="editorial"
-        id="premise"
-        aria-labelledby="premise-title"
+        id="thesis"
+        aria-labelledby="thesis-title"
       >
-        <p class="movement__index">02 / Premise</p>
+        <p class="movement__index">02 / Thesis</p>
+
+        <p class="thesis__statement" data-reveal>
+          Systems that react to each other, not events we hand-placed.
+        </p>
 
         <div class="premise__statement" data-reveal>
-          <h2 class="display display--md" id="premise-title">
+          <h2 class="display display--md" id="thesis-title">
             <span class="reveal-line"><span>We do not build</span></span>
             <span class="reveal-line"><span>difficulty from</span></span>
             <span class="reveal-line"><span>more hand-placed</span></span>
@@ -357,7 +225,7 @@
           data-movement="desk42"
           aria-labelledby="desk42-title"
         >
-          <p class="movement__index">03 / State A</p>
+          <p class="movement__index">03 / Desk42</p>
 
           <div class="state__head" data-reveal>
             <h3 class="state__name display" id="desk42-title">
@@ -405,7 +273,7 @@
           data-movement="brawler"
           aria-labelledby="brawler-title"
         >
-          <p class="movement__index">03 / State B</p>
+          <p class="movement__index">04 / Brawler</p>
 
           <div class="state__head" data-reveal>
             <h3 class="state__name display" id="brawler-title">
@@ -461,49 +329,11 @@
         </article>
 
         <!-- State C -->
-        <article
-          class="movement state"
-          data-movement="confluence"
-          aria-labelledby="confluence-title"
-        >
-          <p class="movement__index">03 / State C</p>
+        <!-- Confluence is not a public project in this version of the site.
+             Removed from the lineup, not from history: the markup and copy are
+             recoverable in git and it can return if it becomes an active
+             project. The public work is Desk42 and Brawler. -->
 
-          <div class="state__head" data-reveal>
-            <h3 class="state__name display" id="confluence-title">
-              <span class="reveal-line"><span>Confluence</span></span>
-            </h3>
-            <p class="state__role fade-in">Persistent systems + reactive simulation</p>
-          </div>
-
-          <div class="state__meta">
-            <div class="state__prose">
-              <p class="lede fade-in">
-                A possible third game that runs both systems at once.
-              </p>
-              <p class="body fade-in">
-                A world that remembers what you did, inside an environment that reacts while you are
-                still standing in it.
-              </p>
-              <p class="body fade-in">
-                <strong>It is not committed.</strong> We build it only if the first two games show
-                us it is worth building &mdash; what they cost, how long they took, and whether
-                anyone wants it. We would rather say that plainly than put a third title on a
-                roadmap to make the plan look bigger.
-              </p>
-            </div>
-
-            <dl class="state__facts fade-in">
-              <div class="state__fact"><dt>Status</dt><dd>Roadmap direction</dd></div>
-              <div class="state__fact">
-                <dt>Commitment</dt><dd>Conditional on prior evidence</dd>
-              </div>
-              <div class="state__fact">
-                <dt>Dependency</dt><dd>Not a base-case revenue line</dd>
-              </div>
-              <div class="state__fact"><dt>Name</dt><dd>Provisional</dd></div>
-            </dl>
-          </div>
-        </article>
       </section>
 
       <!-- ============================================================
@@ -515,7 +345,7 @@
         data-band="editorial"
         aria-labelledby="foundation-title"
       >
-        <p class="movement__index">04 / Foundation</p>
+        <p class="movement__index">05 / Technology</p>
 
         <div class="foundation__head" data-reveal>
           <h2 class="display display--md" id="foundation-title">
@@ -721,7 +551,7 @@
         data-band="editorial"
         aria-labelledby="accumulation-title"
       >
-        <p class="movement__index">05 / Accumulation</p>
+        <p class="movement__index">05 / Technology</p>
 
         <div class="foundation__head" data-reveal>
           <h2 class="display display--md" id="accumulation-title">
@@ -782,162 +612,7 @@
         </div>
       </section>
 
-      <!-- ============================================================
-           MOVEMENT 06 — The evidence boundary
-           Deliberately calmer and flatter than every brand movement.
-           ============================================================ -->
-      <section
-        class="movement boundary"
-        data-movement="evidence"
-        data-band="editorial"
-        aria-labelledby="boundary-title"
-      >
-        <p class="movement__index">06 / Evidence</p>
 
-        <div class="boundary__head">
-          <h2 class="boundary__title" id="boundary-title">
-            What we can support<br />
-            What transfers — and what does not
-          </h2>
-          <p class="boundary__note">
-            Everything above is what we are building. This is the part we can prove, and the part we
-            cannot. If a claim is not in the left column, we are not making it. We would rather be
-            checked than believed.
-          </p>
-        </div>
-
-        <div class="boundary__cols">
-          <div class="boundary__col boundary__col--supported">
-            <h3>What the evidence supports</h3>
-            <ul class="claims">
-              <li>
-                <span aria-hidden="true">01</span>
-                <span>
-                  <strong>Systems and specifications carry between engines; code often does
-                  not.</strong>
-                  Rules, state definitions, data structures, equations, edge cases, expected
-                  behaviour, test cases and architecture decisions survive an engine change.
-                  Engine-specific gameplay code is assessed separately and largely rewritten.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">02</span>
-                <span>
-                  <strong>Desk42 is a single-player Windows PC game built in Unity.</strong>
-                  The player operates inside an institutional claims system where evidence, policy,
-                  procedure, adjudication, queues, appeals and precedent create persistent
-                  consequences. Distribution is Steam PC first.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">03</span>
-                <span>
-                  <strong>Brawler is an action roguelite in development in Unreal Engine.</strong>
-                  Its system-level proposition is a spatial simulation whose state is authoritative
-                  for movement, hazards, actor exposure and combat consequences, rather than a
-                  cosmetic effect layer.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">04</span>
-                <span>
-                  <strong>The reaction-diffusion methods are established; the implementation is
-                  ours.</strong>
-                  We claim a gameplay implementation and toolchain built on established
-                  reaction-diffusion methods — not ownership of the underlying mathematics.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">05</span>
-                <span>
-                  <strong>Founder capability is inspectable in public.</strong>
-                  SatyBT is a founder-created behaviour-tree framework published under the MIT
-                  licence. It stands as evidence that we can design, test, document, package and
-                  maintain reusable technical infrastructure.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">06</span>
-                <span>
-                  <strong>The commercial model is deliberately narrow.</strong>
-                  Premium downloadable PC games through digital distribution, beginning with Desk42
-                  and followed by Brawler. Reusable technology is an internal margin and execution
-                  advantage, not a product.
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="boundary__col boundary__col--limits">
-            <h3>What we do not claim</h3>
-            <ul class="claims">
-              <li>
-                <span aria-hidden="true">01</span>
-                <span>
-                  <strong>Not one proprietary engine.</strong>
-                  We do not sell, license or claim a named proprietary game engine. There is no
-                  separate customer, package, price, sales channel or licence revenue in the base
-                  case.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">02</span>
-                <span>
-                  <strong>Not direct code reuse across engines.</strong>
-                  We do not claim that every line of code transfers between Unity and Unreal, and we
-                  do not claim that changing engine is cheap.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">03</span>
-                <span>
-                  <strong>Not a finished product.</strong>
-                  The current Desk42 implementation is a bounded causal slice. It is not described
-                  as near-complete, production-ready or market-validated.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">04</span>
-                <span>
-                  <strong>No performance figures until measured.</strong>
-                  No runtime benchmark, frame budget or simulation-scale figure is published here.
-                  Those follow a frozen build and recorded measurements, not an estimate.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">05</span>
-                <span>
-                  <strong>No market validation yet.</strong>
-                  External playtests, store-page behaviour, wishlist data and purchase-intent work
-                  have not been completed. Comparable titles establish plausible categories and
-                  price bands; they do not evidence our demand.
-                </span>
-              </li>
-              <li>
-                <span aria-hidden="true">06</span>
-                <span>
-                  <strong>No price, date or scale commitments.</strong>
-                  No release date, sales figure, final price, team size, partner, award or press
-                  claim appears on this site, because none is currently supported by inspected
-                  evidence.
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="boundary__pull">
-          <blockquote>
-            Dark Lattice does not depend on copying one engine-specific codebase across every
-            product. Its scalability comes from accumulating reusable technical knowledge, system
-            architecture, proprietary implementations, production infrastructure, IP and market
-            evidence across multiple releases. Where engine-specific code must be rewritten, the
-            underlying problem has already been designed, tested and understood, reducing repeated
-            discovery and development risk.
-          </blockquote>
-          <cite>Scalability position — Dark Lattice</cite>
-        </div>
-      </section>
 
       <!-- ============================================================
            EDITORIAL 07 — Studio and contact
@@ -955,13 +630,47 @@
         id="studio"
         aria-labelledby="studio-title"
       >
-        <p class="movement__index">07 / Studio</p>
+        <p class="movement__index">06 / Company</p>
 
         <div class="studio__head" data-reveal>
           <h2 class="display display--md" id="studio-title">
             <span class="reveal-line"><span>The studio</span></span>
           </h2>
         </div>
+
+        <!-- The claims boundary, compacted.
+
+             It was a full narrative band of its own with ten claims across two
+             columns. The value was never the length: it is the CONTRAST
+             between what the studio can substantiate today and what is still
+             ambition, which says more than any paragraph about being
+             innovative. Held to the load-bearing few and folded in here, where
+             a reader assessing the company is already looking. -->
+        <div class="studio__claims">
+          <div class="claims__col">
+            <h3 class="claims__head">What we can substantiate</h3>
+            <ul class="claimset">
+              <li>Systems, specifications and architecture carry between engines. Engine-specific gameplay code largely does not, and we assess it separately.</li>
+              <li>Desk42 is a single-player Windows PC game in Unity, built around persistent institutional consequence. Steam first.</li>
+              <li>Brawler is an action roguelite in Unreal, built on a spatial simulation that is authoritative for movement, hazards and combat consequence.</li>
+              <li>SatyBT, a founder-built behaviour-tree framework, is public under MIT — inspectable evidence that we design, test, document and maintain reusable infrastructure.</li>
+            </ul>
+          </div>
+          <div class="claims__col">
+            <h3 class="claims__head">What remains ambition</h3>
+            <ul class="claimset">
+              <li>No proprietary engine is sold, licensed or claimed. Reusable technology is an internal advantage, not a product.</li>
+              <li>Changing engine is not cheap, and we do not claim every line of code moves.</li>
+              <li>The current Desk42 implementation is a bounded causal slice, not a near-complete product.</li>
+              <li>No runtime benchmark or simulation-scale figure is published, because none has been measured.</li>
+            </ul>
+          </div>
+        </div>
+
+        <p class="studio__boundary fade-in">
+          If a claim is not in the left column, we are not making it. We would rather be checked
+          than believed.
+        </p>
 
         <div class="studio__body">
           <div class="studio__prose">

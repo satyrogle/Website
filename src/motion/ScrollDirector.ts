@@ -60,12 +60,15 @@ interface Band {
  * machine is off by then and there is nothing left for progress to drive.
  */
 const BANDS: Band[] = [
-  { id: 'open', from: 0.0, to: 0.12 },
-  { id: 'ask', from: 0.12, to: 0.28 },
-  { id: 'notice', from: 0.28, to: 0.46 },
-  { id: 'gradient', from: 0.46, to: 0.68 },
-  { id: 'floor', from: 0.68, to: 0.82 },
-  { id: 'editorial', from: 0.82, to: 1.0 },
+  // The hero is now the whole experiential portion, and it is short: the
+  // visitor arrives at OBSERVE, approaches, and crosses. Everything after
+  // that is editorial and the machine is off, so there is nothing left for
+  // progress to drive.
+  //
+  // It used to be five beats of the machine — open, ask, notice, gradient,
+  // floor — each narrating a mechanism the entity now simply performs.
+  { id: 'open', from: 0.0, to: 1.0 },
+  { id: 'editorial', from: 1.0, to: 1.0 },
 ];
 
 interface MeasuredSection {
