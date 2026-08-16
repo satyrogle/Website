@@ -1,7 +1,20 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-import type { SceneController } from '../scene/SceneController';
+/**
+ * What the director actually needs from a scene.
+ *
+ * Named as an interface rather than imported as a class so the seam does not
+ * pin the site to one visual system: the director maps scroll onto narrative
+ * progress and says which band is live, and that is true of any hero. It was
+ * typed to the retired planet controller, which meant swapping the hero
+ * required editing the scroll layer for no reason.
+ */
+export interface DirectedScene {
+  setMachine(running: boolean): void;
+  setProgress(p: number): void;
+  visitorMoved(): void;
+}
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -62,7 +75,7 @@ interface MeasuredSection {
 }
 
 export class ScrollDirector {
-  private scene: SceneController;
+  private scene: DirectedScene;
   private sections: MeasuredSection[] = [];
   private docProgress = 0;
   private narrative = 0;
@@ -76,7 +89,7 @@ export class ScrollDirector {
   private restY = Number.NaN;
   private moved = false;
 
-  constructor(scene: SceneController, reduced: boolean) {
+  constructor(scene: DirectedScene, reduced: boolean) {
     this.scene = scene;
     this.reduced = reduced;
     this.progressReadout = document.querySelector('[data-progress]');

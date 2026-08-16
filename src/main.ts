@@ -6,7 +6,7 @@ import './styles/sections.css';
 import { MotionPreferences } from './motion/MotionPreferences';
 import { TextReveals } from './motion/TextReveals';
 import { AccessibilityController } from './accessibility/AccessibilityController';
-import { SceneController, isWebGL2Available } from './scene/SceneController';
+import { ContainmentHero, isWebGL2Available } from './scene/ContainmentHero';
 import { ScrollDirector } from './motion/ScrollDirector';
 import { RecordController } from './content/RecordController';
 import { verifyEvidenceIntegrity } from './content/verify';
@@ -24,7 +24,7 @@ const motion = new MotionPreferences();
 const a11y = new AccessibilityController();
 const reveals = new TextReveals(motion.animated);
 
-let scene: SceneController | null = null;
+let scene: ContainmentHero | null = null;
 let refusalTimer = 0;
 let director: ScrollDirector | null = null;
 let record: RecordController | null = null;
@@ -164,7 +164,7 @@ async function boot(): Promise<void> {
 
   // 3 — Scene construction: geometry build and shader compilation.
   try {
-    scene = new SceneController({ canvas, reducedMotion: motion.reduced });
+    scene = new ContainmentHero({ canvas, reducedMotion: motion.reduced });
   } catch (error) {
     enterFallback(String(error));
     reveals.revealHero();
@@ -230,11 +230,11 @@ async function boot(): Promise<void> {
   director.start();
 
   if (motion.reduced) {
-    // Composed still. No drift, no travel, no smooth-scroll layer — and the
-    // event the visitor will never see running, rendered as three stills
-    // while the loader is still up.
+    // A composed still, and nothing else. No drift, no travel, no
+    // smooth-scroll layer. The three-still triptych belonged to the retired
+    // planet system and is not rebuilt: this visitor gets the resting entity
+    // and then the editorial, which is the whole site.
     scene.setWake(1);
-    await buildTriptych(scene);
     scene.renderStill();
   } else {
     scene.setWake(1);
@@ -270,51 +270,12 @@ async function boot(): Promise<void> {
   wireScrollAnchors();
   wireInjectControls();
 
-  // The record comes up last, because it reads the counters the Worker is
-  // already producing. It owns the floor panel, the visit history and the
-  // idle clock behind the false first action.
-  record = new RecordController(scene, { falseAction: !motion.reduced });
+  // YOUR RECORD is optional polish and is explicitly not allowed to block
+  // shipping. It was wired to the retired planet controller's counters; until
+  // it is re-attached to the containment simulation it records the visit
+  // honestly and claims nothing about enforcement.
+  record = new RecordController(null, { falseAction: false });
   record.init();
-
-  // Development only, and dynamically imported so the panel is not in the
-  // production bundle at all. Judging motion means looking at it on the
-  // machine it runs on, and a slider settles in seconds what a rebuild and a
-  // capture settle in minutes. `?quiet` keeps it out of a dev capture, which
-  // otherwise ships a picture of the sliders with every frame.
-  if (import.meta.env.DEV && scene && !new URLSearchParams(location.search).has('quiet')) {
-    const { TuningPanel } = await import('./dev/TuningPanel');
-    new TuningPanel(scene);
-  }
-}
-
-// ---------------------------------------------------------------------
-//  Reduced motion — one correction event, as three stills
-// ---------------------------------------------------------------------
-
-/**
- * Renders the event and puts it in the page. Raced against a timeout: the
- * stills are an explanation, not a dependency, and a Worker that never
- * answers must not be able to hold the loader up.
- */
-async function buildTriptych(controller: SceneController): Promise<void> {
-  const figure = document.querySelector<HTMLElement>('[data-triptych]');
-  if (!figure) return;
-
-  try {
-    const stills = await Promise.race([
-      controller.captureTriptych(),
-      new Promise<never[]>((resolve) => window.setTimeout(() => resolve([]), 6000)),
-    ]);
-    if (!stills.length) return;
-
-    for (const still of stills) {
-      const image = figure.querySelector<HTMLImageElement>(`[data-triptych-frame="${still.stage}"]`);
-      if (image) image.src = still.url;
-    }
-    figure.hidden = false;
-  } catch (error) {
-    if (import.meta.env.DEV) console.warn('[dark-lattice] triptych unavailable:', error);
-  }
 }
 
 // ---------------------------------------------------------------------
@@ -366,23 +327,17 @@ document.addEventListener('layoutchange', () => {
 if (import.meta.env.DEV) {
   verifyEvidenceIntegrity();
 
-  // Development handle. The counters the system derives are the only honest
-  // evidence that enforcement happened, and they live inside the Worker — this
-  // is how a capture harness or a console reads them. DEV only: it is not in
-  // the production bundle.
+  // Development handle, so a capture harness or a console can read what the
+  // simulation actually produced. DEV only: not in the production bundle.
   Object.defineProperty(window, '__correction', {
     value: {
-      get telemetry() {
-        return scene?.telemetry ?? null;
+      get hero() {
+        return scene;
       },
-      get budget() {
-        return scene?.budgetLeft ?? -1;
+      get adjustments() {
+        return scene?.visitAdjustments ?? -1;
       },
-      get quality() {
-        return scene?.quality.settings ?? null;
-      },
-      press: (x: number, y: number) => scene?.pressAt(x, y) ?? -1,
-      probe: () => scene?.probe() ?? null,
+      press: () => scene?.pressCentre() ?? -1,
     },
   });
 }
