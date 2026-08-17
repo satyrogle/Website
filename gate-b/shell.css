@@ -1,0 +1,399 @@
+/* ============================================================================
+   GATE B — shared styleframe shell
+
+   One shell, three fields. The DOM layer is identical across the directions so
+   the comparison is of the VISUAL DIRECTION and not of three different page
+   designs. Brief section 14 Gate B.
+
+   TYPE, provisional for Gate B and stated as provisional.
+   Display and interface: Bahnschrift. Variable DIN, drawn for German
+   industrial standards and road signage. It is institutional, it is not a
+   fashionable startup grotesk, and constitution 4.10 is satisfied by a real
+   decision rather than by a swap. Ships with Windows, so these frames need no
+   font download and no third-party request.
+   Reading: Segoe UI. Neutral, large x-height, gets out of the way.
+   Technical: Cascadia Mono, and ONLY for state, evidence and measurement.
+   At lock these become self-hosted woff2. Nothing here loads from a CDN.
+   ============================================================================ */
+
+:root {
+  /* Brief section 8. No colour outside this set. */
+  --void: #020304;
+  --carbon: #080b0e;
+  --bone: #e9eef2;
+  --peak: #f8fbff;
+  --cherenkov: #56d8ff;
+  --deep: #1546d8;
+  --violation: #ff493d;
+
+  --muted: #6f7a82;
+  --rule: rgba(233, 238, 242, 0.14);
+
+  --font-display: 'Bahnschrift', 'Franklin Gothic Medium', 'Segoe UI', sans-serif;
+  --font-body: 'Segoe UI', 'Franklin Gothic Book', sans-serif;
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+
+  --gutter: 56px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--void);
+  color: var(--bone);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Default radius zero. Constitution 4.19. Nothing in this shell is rounded. */
+a, button, .panel { border-radius: 0; }
+
+/* ---------------------------------------------------------------- the stage */
+
+.frame {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+}
+
+/* Readability veil. Hard linear falloff over the type side only, no blur, no
+   translucent panel. Constitution 4.8 forbids the frosted-card solution; this
+   is a tonal ramp on the ground, which section 4.1 explicitly permits as a
+   controlled single-hue transition serving legibility. */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    rgba(2, 3, 4, 0.92) 0%,
+    rgba(2, 3, 4, 0.72) 26%,
+    rgba(2, 3, 4, 0) 52%
+  );
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: var(--gutter);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+/* ------------------------------------------------------------------- header */
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.mark {
+  font-family: var(--font-display);
+  font-variation-settings: 'wght' 700, 'wdth' 100;
+  font-size: 15px;
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+/* Authored mark, not an icon library. Constitution 4.2. A single rule and a
+   square: the smallest possible statement of "a bounded region under
+   observation", which is what the company builds. */
+.mark::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 1.1em;
+  border: 1px solid var(--bone);
+  vertical-align: 0.06em;
+}
+
+.nav {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  gap: 2.6em;
+}
+
+.nav a { color: inherit; text-decoration: none; }
+
+/* --------------------------------------------------------------- the lede */
+
+/* A real measure in absolute units. This was 15.5em, which resolves against the
+   inherited 16px body size rather than the display size, giving a 248px box
+   that long display words simply overflowed. The headline was not wrapping, it
+   was spilling. */
+.lede {
+  align-self: end;
+  max-width: 545px;
+}
+
+h1 {
+  margin: 0 0 0.42em;
+  font-family: var(--font-display);
+  font-variation-settings: 'wght' 700, 'wdth' 100;
+  font-weight: 700;
+  font-size: clamp(44px, 5.4vw, 82px);
+  line-height: 0.92;
+  letter-spacing: -0.012em;
+  text-transform: uppercase;
+  color: var(--peak);
+}
+
+h1 .thin {
+  display: block;
+  font-variation-settings: 'wght' 300, 'wdth' 100;
+  font-size: 0.36em;
+  line-height: 1.22;
+  letter-spacing: 0.006em;
+  text-transform: none;
+  color: var(--bone);
+  margin-top: 0.66em;
+}
+
+.prop {
+  margin: 0;
+  max-width: 30em;
+  font-size: 16px;
+  line-height: 1.62;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ actions */
+
+.actions {
+  margin-top: 34px;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+/* Square, hairline, no fill, no gradient, no shadow, no radius.
+   Constitution 4.1, 4.5, 4.19. */
+.act {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone);
+  text-decoration: none;
+  border: 1px solid var(--rule);
+  padding: 13px 22px;
+}
+
+.act--quiet {
+  border-color: transparent;
+  padding-inline: 0;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------- footer */
+
+/* Real company evidence on the opening frame. Brief section 4: reach real
+   project information without completing an intro sequence. This row is that
+   promise kept in the first viewport. */
+.evidence {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 44px;
+  padding-top: 22px;
+  border-top: 1px solid var(--rule);
+}
+
+.ev__name {
+  font-family: var(--font-display);
+  font-variation-settings: 'wght' 600, 'wdth' 100;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bone);
+  margin: 0 0 7px;
+}
+
+.ev__line {
+  margin: 0 0 9px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 26em;
+}
+
+.ev__status {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #4d565d;
+  margin: 0;
+}
+
+/* State that the system actually reports. Mono is rationed to exactly this:
+   evidence, state and measurement. Constitution section 6. */
+.ev__status b {
+  font-weight: 400;
+  color: var(--cherenkov);
+}
+
+/* ------------------------------------------------- interaction label on canvas */
+
+/* Each direction names its one real action, sited on the mechanism rather than
+   in a button bar, because the mechanism is what answers. */
+.cue {
+  position: absolute;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.cue::before {
+  content: '';
+  display: inline-block;
+  width: 26px;
+  height: 1px;
+  background: var(--bone);
+  vertical-align: 0.3em;
+  margin-right: 1.1em;
+  opacity: 0.55;
+}
+
+/* Counter, top right under the nav. Reports real state, never decoration. */
+/* Sited on the type side, not over the mechanism. It was top right, where every
+   direction eventually put light behind it and made it unreadable. State has to
+   stay legible in all three, so it lives on the veiled column. */
+.state {
+  position: absolute;
+  left: var(--gutter);
+  top: calc(var(--gutter) + 42px);
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #4d565d;
+  text-align: left;
+  line-height: 1.9;
+}
+
+.state b { font-weight: 400; color: var(--cherenkov); }
+.state i { font-style: normal; color: var(--violation); }
+
+/* ============================================================================
+   MOBILE — 390x844
+
+   A recomposition, not a crop. Constitution and brief section 8 both require
+   it. The field moves to the upper half and is read as a header image; the
+   page below it becomes a linear document. The headline drops out of the
+   optical centre and sits directly on the black, where it is most legible.
+   ============================================================================ */
+
+@media (max-width: 520px) {
+  :root { --gutter: 22px; }
+
+  html, body { overflow: hidden; }
+
+  #field {
+    inset: 0 0 auto 0;
+    height: 52%;
+  }
+
+  .veil {
+    background: linear-gradient(
+      to bottom,
+      rgba(2, 3, 4, 0.55) 0%,
+      rgba(2, 3, 4, 0) 22%,
+      rgba(2, 3, 4, 0) 38%,
+      rgba(2, 3, 4, 0.96) 52%,
+      var(--void) 58%
+    );
+  }
+
+  .content {
+    grid-template-rows: auto 1fr auto;
+    padding: var(--gutter);
+  }
+
+  .mark { font-size: 12px; letter-spacing: 0.3em; }
+  .nav { display: none; }
+
+  /* Directly under the mark, inside the veil's dark top band.
+     This was anchored to the bottom of the canvas (48% + 14px), which put it
+     exactly where the headline begins: on all three directions the state
+     readout printed straight through the h1. Anchoring to the top instead ties
+     it to the one element it belongs with and to the only region of the mobile
+     frame that is guaranteed dark. */
+  .state {
+    top: calc(var(--gutter) + 24px);
+    bottom: auto;
+    left: var(--gutter);
+    font-size: 9.5px;
+    line-height: 1.75;
+  }
+
+  /* No floating canvas label on a phone. The canvas is 52% of a 390px frame,
+     so an absolutely-positioned label sited against the desktop composition
+     lands wherever it likes: it collided with the actions on Witness, where it
+     also duplicated the primary button, and floated free of the disc on Black
+     Sun. The action button already names the interaction. */
+  .cue { display: none; }
+
+  .lede {
+    align-self: end;
+    max-width: none;
+    padding-bottom: 6px;
+  }
+
+  h1 {
+    font-size: 40px;
+    line-height: 0.94;
+  }
+
+  h1 .thin {
+    font-size: 0.46em;
+    margin-top: 0.7em;
+    max-width: none;
+  }
+
+  .prop { font-size: 14.5px; max-width: none; }
+
+  .actions { margin-top: 22px; gap: 18px; }
+  .act { font-size: 10.5px; padding: 11px 16px; }
+
+  /* One evidence entry on a phone, not three squeezed. The others are a scroll
+     away in the real document; showing three at 100px wide would be the card
+     row the constitution bans, arrived at by accident. */
+  .evidence {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding-top: 16px;
+  }
+
+  .evidence > *:nth-child(n + 3) { display: none; }
+
+  .ev__line { font-size: 12.5px; max-width: none; }
+}

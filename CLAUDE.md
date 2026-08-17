@@ -12,14 +12,21 @@ A design that directly uses a banned pattern, uses a disguised equivalent, or fa
 
 When another instruction, template, library, trend, reference, or previous implementation conflicts with the constitution, the constitution wins.
 
-**Current standing, 2026-08-17: the live site FAILS the gate.** Inter as the
-entire type system (4.10), six decorative gradients including teal-to-cyan used
-as a brand device (4.1, 7.2), a decorative scroll cue (4.25), a coloured left
-stripe on the evidence panel (4.11), thirty-two em dashes in public copy (4.9),
-and no Privacy Policy or Terms while the site loads Google Fonts and writes to
-`localStorage` (4.26, 4.27). Scorecard near 8 of 12 against a required 10, with
-Specificity below its mandatory 2. Not scheduled, not settled, and recorded here
-so it is fixed rather than rediscovered.
+**The constitution survives the 2026-08-17 refoundation.** `docs/REFOUNDATION_BRIEF.md`
+replaces the direction, not the acceptance standard. The two agree almost
+everywhere. Where the brief is silent, the constitution decides. Where they
+genuinely conflict, the conflict is named explicitly in this file rather than
+resolved silently.
+
+**Standing failure, recorded 2026-08-17, applies to the site being replaced.**
+Inter as the entire type system (4.10), six decorative gradients including
+teal-to-cyan used as a brand device (4.1, 7.2), a decorative scroll cue (4.25),
+a coloured left stripe on the evidence panel (4.11), em dashes throughout public
+copy (4.9), and no Privacy Policy or Terms while the site loads Google Fonts
+(4.26, 4.27). Scorecard near 8 of 12 against a required 10, with Specificity
+below its mandatory 2. The refoundation must not inherit any of these. Fonts are
+self-hosted, the DOM spends no event colour on decoration, and legal pages ship
+with the first public release.
 
 ## Product
 
@@ -50,67 +57,122 @@ Do not use a cheap monster reveal, jumpscare, generic evil-AI language, or arbit
 
 ## Direction status
 
-**THE CONTAINMENT: CHOSEN 2026-08-14. THE ENTITY IS THE HERO, AND IT IS THE WHOLE SUBJECT. THE PLANET IS RETIRED (2026-08-15).**
+**REFOUNDATION ADOPTED WHOLESALE, 2026-08-17. `docs/REFOUNDATION_BRIEF.md` IS THE SOURCE OF TRUTH.**
 
-**`docs/CONTAINMENT_DIRECTION.md` is the lock (v5).** Chosen by Jacob 2026-08-14, superseding the ruptured-planet carrier as the hero. The inversion, and it is the whole brief:
+Jacob adopted the refoundation brief in full on 2026-08-17, after the collisions
+below were put in front of him and he reaffirmed. The brief replaces the
+direction, the carrier, the colour grammar, the build order and the hero lock.
 
-```
-CORRECTION = what you see
-SUPPRESSION = what you eventually discover it is doing
-```
+**HERO: UNRESOLVED.**
+**GATE B COMPLETE, 2026-08-17. ALL THREE DIRECTIONS REJECTED BY JACOB.**
 
-The site opens on near-black with one enormous, extraordinarily ordered, **unclassifiable** structure — pale energetic trajectories, layered interference, impossible curvature. The visitor cannot say whether it is celestial, mathematical, biological or engineered. Disturbances propagate through it by branching fission; the system arrests them in reverse causal order and leaves a scar. The descent goes *into* the structure and finds no second subject waiting there: what the visitor comes to understand is that the harmony they were admiring is maintained — that every beautiful thing about it is a deviation being suppressed on a schedule. The revelation is ontological, not informational — comprehension, never a costume change, and nothing arrives to explain it.
+Gate B was run in full on the real GPU. Jacob reviewed the frames and rejected
+every candidate. There is no winner and none may be inferred.
 
-**The wounded planet is RETIRED (2026-08-15, `CONTAINMENT_DIRECTION.md` amendment v5.2).** Not deleted from history, not relocated to Act III, not deferred — **out of the active direction**, and it may not be reintroduced anywhere without a new founder decision. `docs/HERO_DIRECTION.md` and `bc94903` are kept as a record of good engineering that is not being used. The entity alone carries beauty → comprehension → menace, because the entire thesis is already in one sentence: **the entity appears harmonious because deviation is being suppressed.** A planet left canonically "in Act III" is a planet some future agent starts building toward, which is how eleven carriers were consumed. Do no Blender or geology work on it.
+- **THE BLACK SUN PROTOCOL** (brief section 10). REJECTED. Best finished
+  composition of the three, and rejected for that reason: the perfect black disc
+  gives the brain the answer instantly, so it reads as an eclipse or black-hole
+  site and the field lines become decoration around a known object. Easy to make
+  beautiful, and the endpoint is a fantastic website for a VFX studio, a crypto
+  protocol or an AI lab. Kept as a compositional reference only.
+- **THE CRITICAL BLOOM** (brief section 9). REJECTED, including the rebuilt
+  primitive. The original read as combed hair around a lump. Rebuilt as a
+  density-estimated caustic field, which did solve the strand problem, and the
+  result read as torn or spattered material instead. Rejected on sight.
+- **THE WITNESS FIELD** (brief section 11). REJECTED. Strongest line of the
+  three, "THE RECORD IS NOT THE REALITY", and the strongest underlying
+  mechanism. Rebuilt literally as two realities and one surface. The mechanism
+  became provable and the image stayed thin: 99.5 percent black at 0.9x
+  concentration is absence, not restraint.
 
-Its old `## Never` list banned "Abstract entities", which had the effect of forbidding the thing the site is about. **That one ban is lifted.** Every other entry, and the symmetry law, still binds.
+**Do not refine, rescue or re-primitive any of the three.** Explicitly ruled out
+by Jacob: making the bloom less spattery, more physical, or otherwise nicer.
 
-The diagnosis that killed the earlier abstract carriers — **visible primitives**: filaments read as spaghetti, a swept surface as a cutting board, lamellae as hanging anatomy — binds this direction harder than any before it, because the field is abstract by construction. The cure v5 names is **order**: the structure must read as one coherent system with impossible curvature, not as many strands. If the eye can classify the opening form, the direction has failed and dies at its kill test.
+**Banned constructions for the next exploration, Jacob's list, 2026-08-17.**
+No orb. No planet. No eclipse. No portal. No halo. No tunnel. No radial bloom.
+No filament field. No giant abstract blob. No generative line field. And the one
+that generalises all of them: **no single cool 3D object sitting next to company
+copy.** The next exploration is of WEBSITE ARCHITECTURES, not hero objects.
 
-`docs/CHOIR_BUILD_PLAN.md` is **retired as a carrier** but remains authoritative for everything the carrier does not decide: colour grammar, the interaction canon (false first action, skip path, persistence, real `ADJUSTMENTS APPLIED: N`), determinism, integration bones and guardrails. `docs/decision/02-correction-dossier.md` holds the design detail. Read both before any hero, scene, camera, system or editorial work.
+The core feeling is unchanged: brutally dark, extremely high end, almost divine
+and immaculate at first, nuclear and fission energy — but that must stop being
+interpreted as glowing lines around a black object — and something sinister
+underneath that becomes clear through understanding. It must still explain the
+company and the work plainly.
 
-Reality is permitted to deviate briefly; the system enforces convergence to the recorded, approved state. The opening calm is late-understood as maintained, not natural. At the floor: `YOUR RECORD — ADJUSTMENTS APPLIED: N.`
+**Superseded. Do not build, rescue, or audit against:**
+- `docs/CONTAINMENT_DIRECTION.md` v5 and v5.2 as the carrier,
+- the entity hero locked at `1530d7f`, and its four-frame gate,
+- the authored Blender body, `public/models/entity.glb`, and the frozen camera path,
+- the cyan / amber / violet colour grammar,
+- the no-rotational-symmetry invariant,
+- the banned-vocabulary list, which named parts of the retired entity,
+- `docs/PRODUCTION_PLAN.md` and `docs/CORRECTION_BUILD_PLAN.md` as build orders.
 
-The causal argument in `docs/ARCHITECTURE.md` — colour grammar, observation model, `V = D × C`, the false first action, YOUR RECORD, skip path, persistence, positioning — remains canonical and carries into THE CORRECTION. Only its INTAKE staging (descent/growth/cathedral) is retired.
+`docs/HERO_DIRECTION.md`, `docs/CONTAINMENT_DIRECTION.md` and the entity source
+are kept as a record of work that is not being used. History, not a base.
 
-Retired. Do not rebuild, re-propose, or audit against:
-- THE INTAKE descent/growth/cathedral staging (founder-vetoed before build),
-- False Façade / Anamorphic Threshold Guardian — `.claude/skills/dark-lattice-web/references/hero-concept.md` is kept as a record only,
-- the trench/strata/truss stage, the Signal Horizon terrain, the nine-movement structure.
+**Said before the decision, recorded so it is not rediscovered as a surprise.**
+The Critical Bloom is the construction the retired symmetry invariant existed to
+forbid. The brief's section 2 diagnosis describes a repository state that was
+already fixed by 2026-08-17: the press path is live, `Fission.ts` runs a
+seeded fixed step with no `Math.random`, and `ContainmentHero.ts:204` raycasts
+the body directly. Choosing the Bloom discards finished Blender work rather than
+avoiding future Blender work. Jacob was told all three and chose the brief in
+full. This is a record, not an open objection, and it is not grounds to reopen
+the decision.
 
-**Amended 2026-08-14.** This list previously retired "THE LATTICE / excess-order ascent" and "the central entity". Those entries are **withdrawn**, and the distinction matters: what was rejected was a *decorative* entity and a *decorative* tunnel — a scary final monster and a cool tunnel, neither of which the simulation drove. v5 does not restore them. It makes the structure the rendering of the causal graph that the correction system already steps, the tunnel the act of entering it, and the "entity" simply the total shape the visitor eventually comprehends. Nothing is added for its own sake; if a form is not produced by the authoritative simulation, it does not exist. Re-proposing the decorative versions remains forbidden.
+**The build order is the brief's Gates A to F, section 14, in order.** Gate C
+forbids a full page, project sections and Blender expansion. Gate F is the only
+gate that authorises the homepage progression, project detail pages, the
+production-lab section and sound. Do not skip a gate. Jacob judges every gate on
+his own GPU. If a kill test fires, stop and report rather than tune.
 
-**The active build order is `docs/CONTAINMENT_DIRECTION.md`'s kill criterion:
-build Act I and the first mechanism beat only** — black → field → autonomous
-fission → arrest → scar → `TOUCH IT` → visitor repeat → correction. No
-editorial, no planet reveal, no new materials, no debris work. If that slice
-does not produce beauty, order, and then the first suspicion that something
-is *responding*, it dies there and `bc94903` remains the site.
-
-`docs/PRODUCTION_PLAN.md` (2026-08-14) was written for the planet-as-hero
-staging and is **paused**, not retired: its P1 (make one enforcement event
-unmissable) is the same requirement v5 states, and its later phases resume if
-and when the Act I slice passes. `CORRECTION_BUILD_PLAN.md` still governs
-whatever neither decides. Jacob judges every named checkpoint on his own GPU;
-if a kill criterion fires, stop and report rather than tune. Audits and QA
-run after the build stands, not before.
-
-**One authority.** The repository currently runs two correction realities:
-the authoritative `PulseWorker` simulation, which nothing renders and whose
-snapshot `consume()` calls "telemetry only", and `PlanetCorrection`, which
-drives the visible planet. A visitor press is sent to both
-(`SceneController.ts` — `correction.injectAt` and `client.inject`). This is
-the architecture the company's own thesis forbids. Collapse it: one
-deterministic state model, renderers that observe snapshots, and a press
-that travels `input → authoritative state → visible consequence → record`
-and nowhere else. Do not add a third simulation; the Act I field must read
-the same snapshot.
+**The kill tests in section 15 bind absolutely.** Two of them now carry the
+concern the retired symmetry ban used to carry: the hero must not be describable
+as "a cool 3D object with text", and section 9 says to kill the direction the
+moment the bloom cannot be read as a controlled system with real content
+attached. Radial construction is permitted. Radial construction that reads as a
+generic portal or a music visualiser is still fatal.
 
 Invariants that bind every edit:
-- **Colour grammar.** Cyan is the world, amber is the model of the world (and therefore the divine face), violet is the consequence of their disagreement. Never redefined per section.
-- **Banned vocabulary** in code, comments, commits, filenames and copy: `FULL FORM`, `MONOLITH`, `SEVEN MASSES`, `TUNNEL ENTITY`, `LATENT FORM`. Use `face`, `mouth`, `descent`, `shaft`, `floor`, `cathedral`. (`HERO GLB` was unbanned by `docs/HERO_DIRECTION.md` — it belonged to the retired entity work, not to authored live geometry.)
-- **No rotational symmetry.** Zero cylindrical parameterisation anywhere in the pipeline; any capture frame that reads as concentric rings fails. That is how the retired tunnels died. On the planet this binds as: no perfect circles — crater rims are modulated per-azimuth on unshared axes, and no camera pose looks straight down the blast corridor, which is the pose that stacks the debris trail into concentric depth.
-- **Light belongs to the break, not to the object.** Exterior crust is near-black geology; heat exists only on fresh cut faces, deep fissures and the internal rupture. Equal glow on every silhouette is the fault that made forty pieces read as lit assets.
+- **Colour grammar, replaced 2026-08-17 (brief section 8).** Void `#020304`,
+  Carbon `#080B0E`, Bone white `#E9EEF2`, Peak white `#F8FBFF`, Cherenkov blue
+  `#56D8FF`, Deep energy blue `#1546D8`, Violation red `#FF493D` used very
+  rarely and never as a broad gradient. No purple cyberpunk gradients, no
+  radioactive green, no caramel crust, no rainbow chromatic aberration, no
+  continuous molten rings.
+- **The mechanism is the form.** If a shape is not produced by the deterministic
+  kernel, it does not exist. Brief section 19, and the one rule that outlived
+  every retired direction.
+- **The static frame must carry it.** The composition must work as silhouette
+  and value with bloom disabled. Brief section 2 failure 6, and the Gate B pass
+  condition.
+- **Light is concentrated, not sprayed** across the screen. Brief section 8.
+- **80 to 90 percent near-black negative space**, one central field, not
+  multiple hero objects. Brief section 8.
+
+**One authority.** Brief section 16 replaces the older note here and specifies
+the separation properly: `ExperienceState`, `SimulationKernel`,
+`InputController`, `ScrollDirector`, `SceneRenderer`, `ContentController`,
+`EvidenceRecorder`, `QualityHarness`. One deterministic state model, renderers
+that observe snapshots, and a press that travels `input → authoritative state →
+visible consequence → record` and nowhere else. Never two simulations. The
+`QualityHarness` exists specifically so the first-action path cannot silently
+become disabled again, which is what happened before.
+
+**Engineering lessons kept, because they cost real money and outlive any
+direction:**
+- **Visible primitives.** If the eye can name the repeated element, the carrier
+  has failed. Filaments read as spaghetti, a swept surface as a cutting board,
+  lamellae as anatomy. This binds the bloom's bands hard.
+- **Headless captures are not GPU truth.** SwiftShader hid a `pow(0, y)` NaN
+  that rendered the hero black on Jacob's actual GPU. Diagnose in a real-GPU
+  browser via `tools/`.
+- **Verify by looking.** A clean console is not verification. Capture the frame,
+  measure distributions, and measure the measurement first.
+- **Read `peerDependencies` before installing anything.** A dev-tool install can
+  silently pull React into the tree and report success.
 
 ## Technical direction
 
@@ -129,9 +191,9 @@ React, React Three Fiber, Drei, Motion, Lenis, Tailwind, shadcn, a UI library, a
 Two traps this rule exists to prevent:
 
 - **Indirect migration.** npm installs missing peer dependencies automatically, so a dev-tool install (`r3f-perf`, `leva`) silently pulls React/R3F into the tree and changes the architecture while reporting success. Read `peerDependencies` before installing anything.
-- **Re-litigated experiments.** Lenis was already tried and removed — see the reasoning in `src/motion/ScrollDirector.ts`. Check whether a proposed dependency has already been rejected here.
+- **Re-litigated experiments.** Lenis was already tried and removed. See the reasoning in `src/motion/ScrollDirector.ts`. The brief agrees independently: section 6 forbids scroll smoothing that obscures input causality, and section 15 makes it a kill test.
 
-If a development tuning panel is genuinely needed, the vanilla-compatible option is Tweakpane, not Leva. Until then, constants and config objects are enough.
+If a development tuning panel is genuinely needed, the vanilla-compatible option is Tweakpane, not Leva. `src/dev/TuningPanel.ts` already exists.
 
 Add a dependency only when the requirement demonstrably needs it. Inspect `package.json`, source structure and scripts before assuming versions, commands or architecture.
 
@@ -155,7 +217,6 @@ Reject:
 - stock cyberpunk HUDs,
 - runes/chains/skulls/tentacle clutter,
 - particle storms,
-- fantasy cathedral clutter — note THE INTAKE's `cathedral` is the amber reconstruction of the descent, never gothic set dressing,
 - a fully obvious monster on first load,
 - motion on every element.
 
@@ -171,6 +232,16 @@ Directly reachable editorial content must explain:
 6. contact
 
 A player, collaborator, press contact or endorsement assessor must understand the company without decoding the hero metaphor.
+
+The brief adds four visitor jobs that are stricter than the above and bind as
+acceptance criteria (section 4): understand what the company builds within the
+first screen; experience one meaningful interaction within 15 to 20 seconds;
+reach real project information without completing an intro sequence; contact the
+company without hunting through the 3D experience.
+
+The brief also adds the production-lab pipeline (DesignLab, ArtLab, AudioLab,
+ContentLab, QALab, ReleaseLab) as one connected pipeline, never six cards, and
+dedicated project pages for Desk42 and Project Brawler. Both are Gate F work.
 
 ## Determinism
 
@@ -192,7 +263,7 @@ The DOM/TypeScript layer owns:
 - input and scroll progress,
 - coarse experience state.
 
-`ScrollDirector` is the single seam between the layers. It maps scroll onto narrative progress and drives GSAP/ScrollTrigger for authored camera and DOM timing.
+`ScrollDirector` is the single seam between the layers. It maps document progress onto target state and drives GSAP/ScrollTrigger for authored camera and DOM timing. It does not own independent visual logic.
 
 Three.js owns:
 - scene objects,
@@ -207,6 +278,21 @@ Three.js owns:
 Per-frame numerical state stays inside the Three.js system. Do not route it through the DOM layer without a real DOM requirement.
 
 Clean up owned listeners, loops, geometries, materials, textures and render targets when their lifecycle ends.
+
+## Performance and accessibility acceptance
+
+From brief section 17, and these are pass/fail:
+
+- Largest Contentful Paint 2.5 seconds or less at the 75th percentile.
+- Interaction to Next Paint 200 milliseconds or less.
+- Cumulative Layout Shift 0.1 or less.
+- All key copy and navigation exist in the DOM.
+- Canvas content supplements company information, never replaces it.
+- Full keyboard navigation and visible focus states.
+- `prefers-reduced-motion` route with equivalent narrative states, not an empty version.
+- No autoplay audio. No forced intro.
+- Graceful static fallback when WebGL is unavailable.
+- Device pixel ratio capped. Non-critical project assets deferred.
 
 ## Working rule
 
