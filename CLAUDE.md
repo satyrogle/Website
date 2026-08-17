@@ -1,5 +1,26 @@
 # Dark Lattice Website
 
+## Design constitution — read first
+
+**`DARK_LATTICE_WEB_DESIGN_CONSTITUTION.md` at the repository root is mandatory
+and outranks this file on anything visual.** Read it before proposing,
+designing, generating or modifying any web interface. Its §18 priority rule is
+explicit: it wins over templates, trends, previous implementations, framework
+defaults and AI recommendations, including recommendations made in this file.
+
+It is acceptance criteria, not guidance. Thirty banned patterns, an equivalence
+rule that closes disguised substitutes, a review gate, a scorecard with a pass
+threshold, and automatic failure conditions. §12.3 forbids presenting work
+already known to fail it. §16 requires Jacob's explicit approval for any
+exception and states that an exception cannot be inferred from silence.
+
+**The live site fails it as of 2026-08-17** — Inter as the type system (4.10),
+teal/cyan brand gradients (4.1 and 7.2), a decorative scroll cue (4.25), a
+coloured left stripe on the evidence panel (4.11), em dashes in copy (4.9), and
+no Privacy Policy or Terms (4.26, 4.27). Scorecard sits near 8 of 12 against a
+required 10, with Specificity below its mandatory 2. Fixing that is real work
+and has not been scheduled yet; do not treat any of it as settled.
+
 ## Product
 
 Dark Lattice is a technology/game studio building systemic products and games around deterministic simulation, state, consequence and emergent behavior.
