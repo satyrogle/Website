@@ -153,6 +153,10 @@ export class ContainmentStrands {
         uRest: { value: REST_HALATION.fibres },
         uRestFraction: { value: REST_FRACTION },
         uRevealTarget: { value: REVEAL_TARGET },
+        // Gated values, promoted to uniforms so the dev panel can reach
+        // them. Defaults are exactly what passed the four-frame test.
+        uDeviationGain: { value: 4.3 },
+        uArrestGain: { value: 6.2 },
       },
       vertexShader: /* glsl */ `
         in vec3 aOther;
@@ -206,6 +210,8 @@ export class ContainmentStrands {
         uniform float uRest;
         uniform float uRestFraction;
         uniform float uRevealTarget;
+        uniform float uDeviationGain;
+        uniform float uArrestGain;
         in float vAcross;
         in float vMass;
         in float vDepth;
@@ -252,7 +258,7 @@ export class ContainmentStrands {
           float arrest = max(event - 1.0, 0.0);
           // Hidden at rest with the rest of the graph, brought back by
           // presence over the same third of a second.
-          float level = (0.55 * mix(uRestFraction, uRevealTarget, reveal) + deviation * 4.3 + arrest * 6.2) * uGain * vMass * girth;
+          float level = (0.55 * mix(uRestFraction, uRevealTarget, reveal) + deviation * uDeviationGain + arrest * uArrestGain) * uGain * vMass * girth;
 
           // The emissive pass draws only what an event produced, so the
           // resting structure contributes nothing to the halation.
@@ -264,7 +270,7 @@ export class ContainmentStrands {
           // them: a luminous body instead of a tally of curves. Events still
           // overwhelm it by several times, so the escalation survives.
           if (uEmissiveOnly > 0.5) {
-            level = (uRest * 0.55 + deviation * 4.3 + arrest * 6.2) * uGain * vMass * girth;
+            level = (uRest * 0.55 + deviation * uDeviationGain + arrest * uArrestGain) * uGain * vMass * girth;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);

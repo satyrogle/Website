@@ -398,6 +398,52 @@ export class ContainmentHero {
     });
   }
 
+  /**
+   * Live uniform access, for the development panel and nothing else.
+   *
+   * Every value here is one the four-frame gate settled, so the DEFAULTS are
+   * the locked ones and this changes nothing at runtime. It exists because
+   * judging a frame by rebuilding and re-capturing costs minutes, and dragging
+   * a slider while watching the viewport costs seconds — which is the entire
+   * difference between tuning a look and guessing at one.
+   *
+   * Nothing writes these back to source. A value found here has to be typed
+   * into the file it came from before it means anything.
+   */
+  tune(patch: Record<string, number>): void {
+    const targets = [
+      (this.field as unknown as { material: THREE.ShaderMaterial }).material,
+      (this.ridges as unknown as { material: THREE.ShaderMaterial }).material,
+      (this.mass as unknown as { material: THREE.ShaderMaterial }).material,
+      (this.field as unknown as { strands: { material: THREE.ShaderMaterial } }).strands?.material,
+    ].filter(Boolean) as THREE.ShaderMaterial[];
+
+    for (const [key, value] of Object.entries(patch)) {
+      if (key === 'progress') { this.progress = value; this.eased = value; this.applyCamera(value); continue; }
+      for (const material of targets) {
+        const uniform = material.uniforms[key];
+        if (uniform) uniform.value = value;
+      }
+    }
+    if (!this.running) this.renderStill();
+  }
+
+  /** What the panel reads to build itself: every live uniform and its value. */
+  get uniforms(): Record<string, number> {
+    const out: Record<string, number> = { progress: this.progress };
+    const materials = [
+      (this.field as unknown as { material: THREE.ShaderMaterial }).material,
+      (this.ridges as unknown as { material: THREE.ShaderMaterial }).material,
+      (this.mass as unknown as { material: THREE.ShaderMaterial }).material,
+    ];
+    for (const material of materials) {
+      for (const [key, uniform] of Object.entries(material.uniforms)) {
+        if (typeof uniform.value === 'number' && !(key in out)) out[key] = uniform.value;
+      }
+    }
+    return out;
+  }
+
   /** One frame, without starting the loop. Used behind the loader. */
   renderStill(): void {
     this.applyCamera(this.eased);

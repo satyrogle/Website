@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Dark Lattice — hero candidates</title>
+<!--
+  A SPREAD, not a guess.
+
+  Twelve carriers died one at a time: each was hand-built in WebGL over hours
+  or days, shown as a single frame, rejected, discarded. The judging was never
+  the problem — the loop was. One guess per week is not a search.
+
+  This is the search. Six genuinely different generative FAMILIES, not six
+  variations of one idea, each with its own parameter space and a seed. Flip
+  through them, or read the contact sheet, and point at anything that has the
+  feeling. Nothing here is precious and nothing here is the answer; this is
+  how we find out what the answer looks like without spending another week to
+  ask one question.
+
+  Deliberately 2D canvas, no dependencies, no WebGL. A candidate that reads at
+  this fidelity will read better in three dimensions; one that needs the third
+  dimension to be interesting was never a strong form.
+
+  Constraints that still bind (company, not carrier):
+    near-black · no rotational symmetry · no concentric rings · no grid
+    ordered and precise before it is strange · unnameable as a common object
+-->
+<style>
+  :root { --ink: #e8ebee; --dim: #6b7176; --line: rgba(232,235,238,0.14); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #050709; color: var(--ink);
+    font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    letter-spacing: 0.02em;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: #050709; z-index: 5;
+  }
+  h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; margin: 0; }
+  .spacer { flex: 1; }
+  button, select {
+    background: transparent; color: var(--ink); border: 1px solid var(--line);
+    padding: 5px 11px; font: inherit; cursor: pointer; letter-spacing: 0.08em;
+  }
+  button:hover { border-color: var(--ink); }
+  button.on { background: var(--ink); color: #050709; }
+  .dim { color: var(--dim); }
+  main { padding: 20px; }
+  #sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  figure { margin: 0; }
+  figure canvas { width: 100%; display: block; background: #000; border: 1px solid var(--line); }
+  figcaption { padding-top: 6px; color: var(--dim); font-size: 11px; letter-spacing: 0.1em; }
+  #single { display: none; }
+  #single canvas { width: 100%; max-width: 1100px; display: block; margin: 0 auto; background: #000; border: 1px solid var(--line); }
+  #meta { text-align: center; padding-top: 10px; color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hero candidates</h1>
+  <span class="dim" id="mode-label">contact sheet — 6 families × 4 seeds</span>
+  <span class="spacer"></span>
+  <button id="sheet-btn" class="on">Sheet</button>
+  <select id="family"></select>
+  <button id="prev">◀ seed</button>
+  <span id="seed" class="dim">1</span>
+  <button id="next">seed ▶</button>
+  <button id="reroll">Random</button>
+</header>
+<main>
+  <div id="sheet"></div>
+  <div id="single"><canvas id="big" width="1440" height="900"></canvas><div id="meta"></div></div>
+</main>
+<script>
+/* ---------------------------------------------------------------------------
+   Seeded RNG. Same seed, same image, every time — a candidate you cannot
+   reproduce is not a candidate, it is an accident.
+--------------------------------------------------------------------------- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+/* Cheap value noise, seeded. Enough for form-finding; nothing here ships. */
+function makeNoise(rnd) {
+  const p = new Uint8Array(512);
+  const perm = [...Array(256).keys()];
+  for (let i = 255; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+  const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+  const lerp = (a, b, t) => a + t * (b - a);
+  const grad = (h, x, y) => ((h & 1) ? -x : x) + ((h & 2) ? -y : y);
+  return function (x, y) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+    x -= Math.floor(x); y -= Math.floor(y);
+    const u = fade(x), v = fade(y);
+    const A = p[X] + Y, B = p[X + 1] + Y;
+    return lerp(lerp(grad(p[A], x, y), grad(p[B], x - 1, y), u),
+                lerp(grad(p[A + 1], x, y - 1), grad(p[B + 1], x - 1, y - 1), u), v) * 0.7;
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   THE FAMILIES
+
+   Six different ANSWERS to "what is the thing", not six looks. Each earns its
+   place by failing differently: if five of these are wrong in the same way,
+   that tells us something the twelve carriers never did.
+--------------------------------------------------------------------------- */
+const FAMILIES = [
+{
+  id: 'interference',
+  name: 'Interference',
+  note: 'Two ordered systems crossing at depth. Structure is what neither one contains alone.',
+  draw(ctx, w, h, seed) {
+    const rnd = mulberry32(seed), n = makeNoise(rnd);
+    const sets = 2 + ((rnd() * 2) | 0);
+    ctx.lineWidth = 1;
+    for (let s = 0; s < sets; s++) {
+      const bearing = rnd() * Math.PI, spacing = 12 + rnd() * 26;
+      const curve = 0.4 + rnd() * 2.2, depth = 0.25 + s / sets * 0.75;
+      ctx.strokeStyle = `rgba(226,234,242,${0.10 + 0.16 * (1 - depth)})`;
+      for (let k = -90; k < 90; k++) {
+        ctx.beginPath();
+        for (let t = 0; t <= 1.001; t += 0.006) {
+          const u = (t - 0.5) * 2200;
+          const v = k * spacing + Math.sin(t * Math.PI * curve + s) * 120 * n(t * 2 + s, k * 0.02);
+          const x = w / 2 + u * Math.cos(bearing) - v * Math.sin(bearing);
+          const y = h / 2 + u * Math.sin(bearing) + v * Math.cos(bearing);
+          t === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+  }
+},
+{
+  id: 'subdivision',
+  name: 'Recursive cut',
+  note: 'Space divided by rule, nested three scales deep. Order you can read but not predict.',
+  draw(ctx, w, h, seed) {
+    const rnd = mulberry32(seed);
+    const minSide = 8 + rnd() * 26;
+    ctx.lineWidth = 1;
+    (function cut(x, y, ww, hh, d) {
+      if (d > 7 || (ww < minSide && hh < minSide)) {
+        if (rnd() < 0.10) { ctx.fillStyle = `rgba(226,234,242,${0.03 + rnd() * 0.12})`; ctx.fillRect(x, y, ww, hh); }
+        return;
+      }
+      const vertical = ww > hh ? rnd() < 0.82 : rnd() < 0.18;
+      const bias = 0.28 + rnd() * 0.44;
+      ctx.strokeStyle = `rgba(226,234,242,${Math.max(0.05, 0.42 - d * 0.05)})`;
+      ctx.beginPath();
+      if (vertical) { const cx = x + ww * bias; ctx.moveTo(cx, y); ctx.lineTo(cx, y + hh); ctx.stroke();
+        cut(x, y, ww * bias, hh, d + 1); cut(x + ww * bias, y, ww * (1 - bias), hh, d + 1); }
+      else { const cy = y + hh * bias; ctx.moveTo(x, cy); ctx.lineTo(x + ww, cy); ctx.stroke();
+        cut(x, y, ww, hh * bias, d + 1); cut(x, y + hh * bias, ww, hh * (1 - bias), d + 1); }
+    })(w * 0.08, h * 0.08, w * 0.84, h * 0.84, 0);
+  }
+},
+{
+  id: 'strain',
+  name: 'Strain',
+  note: 'A regular lattice under invisible force. Only the deformation is drawn.',
+  draw(ctx, w, h, seed) {
+    const rnd = mulberry32(seed), n = makeNoise(rnd);
+    const cols = 46, rows = 30, amp = 30 + rnd() * 130, scale = 0.6 + rnd() * 2.4;
+    const wells = [];
+    for (let i = 0; i < 2 + ((rnd() * 3) | 0); i++)
+      wells.push({ x: rnd() * w, y: rnd() * h, k: (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd()) * 60000 });
+    const P = (i, j) => {
+      let x = w * 0.06 + i / cols * w * 0.88, y = h * 0.08 + j / rows * h * 0.84;
+      for (const wl of wells) {
+        const dx = x - wl.x, dy = y - wl.y, d2 = dx * dx + dy * dy + 9000;
+        x += (dx / d2) * wl.k; y += (dy / d2) * wl.k;
+      }
+      x += n(i * 0.09 * scale, j * 0.09 * scale) * amp;
+      y += n(i * 0.09 * scale + 40, j * 0.09 * scale + 40) * amp;
+      return [x, y];
+    };
+    ctx.lineWidth = 1;
+    for (let j = 0; j <= rows; j++) { ctx.beginPath();
+      for (let i = 0; i <= cols; i++) { const [x, y] = P(i, j); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.strokeStyle = `rgba(226,234,242,${0.10 + 0.22 * (j / rows)})`; ctx.stroke(); }
+    for (let i = 0; i <= cols; i += 2) { ctx.beginPath();
+      for (let j = 0; j <= rows; j++) { const [x, y] = P(i, j); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.strokeStyle = 'rgba(226,234,242,0.07)'; ctx.stroke(); }
+  }
+},
+{
+  id: 'projection',
+  name: 'Projection',
+  note: 'The shadow of something with more dimensions than the screen. Edges cross impossibly.',
+  draw(ctx, w, h, seed) {
+    const rnd = mulberry32(seed);
+    const D = 5, N = 1 << D;
+    const ang = Array.from({ length: 10 }, () => rnd() * Math.PI * 2);
+    const verts = [];
+    for (let i = 0; i < N; i++) {
+      const b = []; for (let d = 0; d < D; d++) b.push((i >> d & 1) ? 1 : -1);
+      let x = 0, y = 0;
+      for (let d = 0; d < D; d++) {
+        const a = ang[d] + d * 0.7;
+        x += b[d] * Math.cos(a) * (1 - d * 0.09);
+        y += b[d] * Math.sin(a) * (1 - d * 0.09);
+      }
+      verts.push([w / 2 + x * (w * 0.13), h / 2 + y * (w * 0.13)]);
+    }
+    ctx.lineWidth = 1;
+    for (let i = 0; i < N; i++) for (let d = 0; d < D; d++) {
+      const j = i ^ (1 << d); if (j < i) continue;
+      ctx.strokeStyle = `rgba(226,234,242,${0.30 - d * 0.045})`;
+      ctx.beginPath(); ctx.moveTo(...verts[i]); ctx.lineTo(...verts[j]); ctx.stroke();
+    }
+  }
+},
+{
+  id: 'accretion',
+  name: 'Accretion',
+  note: 'Random arrivals settling into an ordered body. The order is the residue of the process.',
+  draw(ctx, w, h, seed) {
+    const rnd = mulberry32(seed);
+    const pts = [[w / 2, h / 2]];
+    const stick = 5 + rnd() * 12, tries = 5200, bias = rnd() * Math.PI * 2, elong = 0.35 + rnd() * 0.9;
+    for (let t = 0; t < tries; t++) {
+      const a = rnd() * Math.PI * 2, r = 120 + rnd() * Math.min(w, h) * 0.55;
+      let x = w / 2 + Math.cos(a) * r * (1 + elong * Math.cos(a - bias));
+      let y = h / 2 + Math.sin(a) * r * 0.62;
+      for (let s = 0; s < 190; s++) {
+        let best = 1e9, bx = 0, by = 0;
+        for (const p of pts) { const d = (p[0] - x) ** 2 + (p[1] - y) ** 2; if (d < best) { best = d; bx = p[0]; by = p[1]; } }
+        if (best < stick * stick) { pts.push([x, y]); break; }
+        const dx = bx - x, dy = by - y, m = Math.hypot(dx, dy) || 1;
+        x += (dx / m) * 6 + (rnd() - 0.5) * 7; y += (dy / m) * 6 + (rnd() - 0.5) * 7;
+      }
+    }
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(226,234,242,0.30)';
+    for (const p of pts) {
+      let best = 1e9, bx = p[0], by = p[1];
+      for (const q of pts) { if (q === p) continue; const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < best) { best = d; bx = q[0]; by = q[1]; } }
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(bx, by); ctx.stroke();
+    }
+  }
+},
+{
+  id: 'fault',
+  name: 'Fault',
+  note: 'A perfect order with one propagating defect. The eye finds the flaw before the rule.',
+  draw(ctx, w, h, seed) {
+    const rnd = mulberry32(seed), n = makeNoise(rnd);
+    const step = 15 + rnd() * 16, slipAmt = 8 + rnd() * 40, fx = 0.25 + rnd() * 0.5;
+    const faultAt = y => w * fx + n(y * 0.004, 7) * 260 + Math.sin(y * 0.004) * 70;
+    ctx.lineWidth = 1;
+    for (let y = h * 0.06; y < h * 0.94; y += step) {
+      const cut = faultAt(y), slip = slipAmt * (1 + n(y * 0.01, 3));
+      ctx.strokeStyle = 'rgba(226,234,242,0.26)';
+      ctx.beginPath(); ctx.moveTo(w * 0.05, y); ctx.lineTo(cut, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cut, y + slip); ctx.lineTo(w * 0.95, y + slip); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(226,234,242,0.5)'; ctx.beginPath();
+    for (let y = h * 0.06; y < h * 0.94; y += 4) { const x = faultAt(y); y === h * 0.06 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+}];
+
+/* ------------------------------------------------------------------------ */
+const sheet = document.getElementById('sheet');
+const single = document.getElementById('single');
+const familySel = document.getElementById('family');
+const seedEl = document.getElementById('seed');
+const sheetBtn = document.getElementById('sheet-btn');
+let seed = 1, current = 0, sheetMode = true;
+
+FAMILIES.forEach((f, i) => familySel.add(new Option(f.name, String(i))));
+
+function render(ctx, fam, w, h, s) {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  ctx.save(); FAMILIES[fam].draw(ctx, w, h, s); ctx.restore();
+}
+function buildSheet() {
+  sheet.innerHTML = '';
+  FAMILIES.forEach((f, fi) => {
+    for (let k = 0; k < 4; k++) {
+      const fig = document.createElement('figure');
+      const cv = document.createElement('canvas'); cv.width = 720; cv.height = 450;
+      render(cv.getContext('2d'), fi, 720, 450, seed + k * 37);
+      const cap = document.createElement('figcaption');
+      cap.textContent = `${String(fi + 1).padStart(2, '0')} ${f.name.toUpperCase()} · seed ${seed + k * 37}`;
+      fig.append(cv, cap);
+      fig.onclick = () => { current = fi; seed = seed + k * 37; familySel.value = String(fi); setMode(false); };
+      sheet.append(fig);
+    }
+  });
+}
+function buildSingle() {
+  const cv = document.getElementById('big');
+  render(cv.getContext('2d'), current, cv.width, cv.height, seed);
+  document.getElementById('meta').textContent =
+    `${FAMILIES[current].name.toUpperCase()} · seed ${seed} — ${FAMILIES[current].note}`;
+}
+function setMode(toSheet) {
+  sheetMode = toSheet;
+  sheet.style.display = toSheet ? 'grid' : 'none';
+  single.style.display = toSheet ? 'none' : 'block';
+  sheetBtn.classList.toggle('on', toSheet);
+  document.getElementById('mode-label').textContent =
+    toSheet ? 'contact sheet — 6 families × 4 seeds' : 'single — click Sheet to return';
+  seedEl.textContent = String(seed);
+  toSheet ? buildSheet() : buildSingle();
+}
+sheetBtn.onclick = () => setMode(true);
+familySel.onchange = () => { current = +familySel.value; setMode(false); };
+document.getElementById('prev').onclick = () => { seed = Math.max(1, seed - 1); setMode(sheetMode); };
+document.getElementById('next').onclick = () => { seed++; setMode(sheetMode); };
+document.getElementById('reroll').onclick = () => { seed = 1 + ((Math.random() * 9999) | 0); setMode(sheetMode); };
+setMode(true);
+window.__explorer = { render, FAMILIES, setSeed: s => { seed = s; setMode(sheetMode); } };
+</script>
+</body>
+</html>

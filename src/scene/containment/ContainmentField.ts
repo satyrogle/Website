@@ -154,6 +154,10 @@ export class ContainmentField {
         uRest: { value: REST_HALATION.fibres },
         uRestFraction: { value: REST_FRACTION },
         uRevealTarget: { value: REVEAL_TARGET },
+        // Gated values, promoted to uniforms so the dev panel can reach
+        // them. Defaults are exactly what passed the four-frame test.
+        uDeviationGain: { value: 4.3 },
+        uArrestGain: { value: 6.2 },
       },
       vertexShader: /* glsl */ `
         in float aDepth;
@@ -202,6 +206,8 @@ export class ContainmentField {
         uniform float uRest;
         uniform float uRestFraction;
         uniform float uRevealTarget;
+        uniform float uDeviationGain;
+        uniform float uArrestGain;
         in float vDepth;
         in float vParam;
         in float vFacing;
@@ -310,7 +316,7 @@ export class ContainmentField {
           // nearly dark. The arrest is weighted far closer to it than before:
           // at 1.5 against 3.4 the correction read as a minor aftereffect of
           // something beautiful, when it is the thing the site is about.
-          level += (deviation * 4.3 + arrest * 6.2) * recede;
+          level += (deviation * uDeviationGain + arrest * uArrestGain) * recede;
 
           // Additive blending already weights the source by its alpha, so the
           // level goes into the colour and the alpha stays at one. Putting it
@@ -329,7 +335,7 @@ export class ContainmentField {
           // them: a luminous body instead of a tally of curves. Events still
           // overwhelm it by several times, so the escalation survives.
           if (uEmissiveOnly > 0.5) {
-            level = (uRest * uFloor * mix(1.0, uCrossDim, vCross) + deviation * 4.3 + arrest * 6.2) * recede;
+            level = (uRest * uFloor * mix(1.0, uCrossDim, vCross) + deviation * uDeviationGain + arrest * uArrestGain) * recede;
           }
 
           fragColour = vec4(colour * level * uExposure, 1.0);

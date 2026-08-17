@@ -233,6 +233,16 @@ async function boot(): Promise<void> {
     repeatVisit ? 0 : 260
   );
 
+  // Development only, and dynamically imported so Tweakpane is not in the
+  // production bundle at all. Judging a look means looking at it on the
+  // machine it runs on, and a slider settles in seconds what a rebuild and a
+  // GPU capture settle in minutes. `?quiet` keeps it out of a capture, which
+  // would otherwise ship a photograph of the sliders with every frame.
+  if (import.meta.env.DEV && scene && !new URLSearchParams(location.search).has('quiet')) {
+    const { TuningPanel } = await import('./dev/TuningPanel');
+    void new TuningPanel(scene).mount();
+  }
+
   wireScrollAnchors();
 
 }
