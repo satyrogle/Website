@@ -33,17 +33,7 @@ p {
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: var(--muted);
-}
-
-.label--accent {
-  color: var(--teal);
-}
-
-.label--amber {
-  color: var(--amber);
-}
-
-.label__rule {
+}.label__rule {
   display: block;
   width: clamp(1.5rem, 4vw, 3.5rem);
   height: 1px;
@@ -263,12 +253,6 @@ a {
 .action--quiet:focus-visible {
   color: var(--text);
   border-color: transparent;
-}
-
-.action__arrow {
-  transition: transform 520ms var(--ease-out-expo);
-}
-
-.action:hover .action__arrow {
+}.action:hover .action__arrow {
   transform: translateY(0.25em);
 }

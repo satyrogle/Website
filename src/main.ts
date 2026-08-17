@@ -8,8 +8,6 @@ import { TextReveals } from './motion/TextReveals';
 import { AccessibilityController } from './accessibility/AccessibilityController';
 import { ContainmentHero, isWebGL2Available } from './scene/ContainmentHero';
 import { ScrollDirector } from './motion/ScrollDirector';
-import { RecordController } from './content/RecordController';
-import { verifyEvidenceIntegrity } from './content/verify';
 
 /**
  * Boot sequence.
@@ -27,7 +25,6 @@ const reveals = new TextReveals(motion.animated);
 let scene: ContainmentHero | null = null;
 let refusalTimer = 0;
 let director: ScrollDirector | null = null;
-let record: RecordController | null = null;
 
 // ---------------------------------------------------------------------
 //  Loader — genuine progress against real initialisation milestones
@@ -40,14 +37,13 @@ const loaderLabel = document.getElementById('loader-label');
 
 /**
  * What the bar is actually waiting for. Each label is a real stage of
- * initialisation reported by the Worker, so the loader describes work
- * rather than decorating a timer.
+ * initialisation the hero reports, so the loader describes work rather than
+ * decorating a timer.
  */
 const LOADER_LABELS: Record<string, string> = {
   fonts: 'Loading type',
   synth: 'Synthesising the structure',
-  warmup: 'Running it unsupervised',
-  record: 'Recording the approved state',
+  warmup: 'Placing the veins on the body',
   frame: 'Composing the first frame',
 };
 
@@ -100,25 +96,10 @@ function enterFallback(reason: string): void {
   // Controls that only affect the 3D object are removed, not disabled:
   // a dead control is worse than an absent one.
   document.querySelectorAll('[data-webgl-only]').forEach((el) => el.remove());
-  // Nothing needs re-aiming here any more, and that is the point.
-  //
-  // This used to walk `[data-fallback-href]` anchors back to the editorial
-  // after the fact, which put the recovery in the hands of the layer that had
-  // just failed — and it never ran at all with scripting off, where the
-  // noscript rule hides the machine's bands and left the hero's invitation
-  // pointing into a display:none section. Controls now ship aimed at the
-  // editorial and are upgraded to the machine only once it is confirmed live,
-  // so every failure path inherits a working link instead of repairing one.
   dismissLoader();
 
-  // The visit still happened, and it did not enter the simulation. Recording
-  // that is the honest thing to do: a later visit on a working context reads a
-  // history that says so rather than an empty one.
-  record = new RecordController(null, { falseAction: false });
-  record.init();
-
-  // Anchors are wired on this path too: the hero's entry control was just
-  // re-aimed at the editorial, and it has to carry focus with it.
+  // The editorial is the site. Without the hero it simply starts at the
+  // thesis, and every anchor still has to carry focus with it.
   wireScrollAnchors();
 
   if (import.meta.env.DEV) console.warn(`[dark-lattice] 3D disabled: ${reason}`);
@@ -130,10 +111,6 @@ function enterFallback(reason: string): void {
 
 async function boot(): Promise<void> {
   // 1 — DOM narrative and controls. Always runs, never blocks on 3D.
-  //
-  // The foundation tablist no longer echoes into the scene: layer focus
-  // belonged to the retired lattice. The tabs themselves are unaffected —
-  // they switch panels as before — so nothing on screen is dead.
   a11y.init();
   reveals.init();
   setLoaderProgress(0.1);
@@ -187,12 +164,9 @@ async function boot(): Promise<void> {
 
   setLoaderProgress(0.55);
 
-  // 4 — Synthesise the structure, run it unsupervised, and take the
-  //     record from the result. This is the bulk of the real
-  //     initialisation work and the main thing the loader is measuring.
-  //     It is also the one stretch of the run in which nothing is
-  //     enforcing anything, which is why the record can be derived from
-  //     it rather than authored.
+  // 4 — Load the authored body and synthesise the graph that runs through
+  //     it. This is the bulk of the real initialisation work and the main
+  //     thing the loader is measuring.
   try {
     await scene.warmUp((fraction, stage) => {
       setLoaderProgress(0.55 + fraction * 0.32);
@@ -240,14 +214,6 @@ async function boot(): Promise<void> {
     scene.setWake(1);
     scene.start();
 
-    // The machine is live and its bands exist, so the invitation can point at
-    // them. Upgrading here rather than shipping the machine as the default
-    // means every way this can fail — no scripting, no WebGL, reduced motion,
-    // a thrown error before this line — leaves the control aimed at the
-    // editorial, which is always there.
-    document.querySelectorAll<HTMLAnchorElement>('[data-live-href]').forEach((anchor) => {
-      anchor.href = anchor.dataset.liveHref ?? anchor.href;
-    });
   }
 
   setLoaderProgress(1);
@@ -268,26 +234,7 @@ async function boot(): Promise<void> {
   );
 
   wireScrollAnchors();
-  wireInjectControls();
 
-  // YOUR RECORD is optional polish and is explicitly not allowed to block
-  // shipping. It was wired to the retired planet controller's counters; until
-  // it is re-attached to the containment simulation it records the visit
-  // honestly and claims nothing about enforcement.
-  record = new RecordController(null, { falseAction: false });
-  record.init();
-}
-
-// ---------------------------------------------------------------------
-//  The one action, for people not using a pointer
-// ---------------------------------------------------------------------
-
-function wireInjectControls(): void {
-  document.querySelectorAll<HTMLButtonElement>('[data-inject]').forEach((button) => {
-    button.addEventListener('click', () => {
-      scene?.pressCentre();
-    });
-  });
 }
 
 // ---------------------------------------------------------------------
@@ -325,8 +272,6 @@ document.addEventListener('layoutchange', () => {
 });
 
 if (import.meta.env.DEV) {
-  verifyEvidenceIntegrity();
-
   // Development handle, so a capture harness or a console can read what the
   // simulation actually produced. DEV only: not in the production bundle.
   Object.defineProperty(window, '__correction', {

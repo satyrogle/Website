@@ -29,8 +29,8 @@
  *   `ContainmentField`.
  */
 
-import type { CausalGraph } from '../correction/graph/GraphAsset';
-import { mulberry32 } from '../correction/graph/random';
+import type { CausalGraph } from './GraphAsset';
+import { mulberry32 } from './random';
 import { SHEETS, SEAT, frameAt, surfacePoint, surfaceNormal, inAperture } from './Sheets';
 
 export interface ContainmentConfig {

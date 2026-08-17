@@ -21,7 +21,7 @@
  */
 
 import type { ContainmentStructure } from './ContainmentSynth';
-import { mulberry32 } from '../correction/graph/random';
+import { mulberry32 } from './random';
 
 export interface FissionConfig {
   /** Fixed timestep. Simulation time, never frame time. */
