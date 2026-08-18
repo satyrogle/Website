@@ -99,11 +99,12 @@ const CLAD_FRAG = /* glsl */ `
     float diff = clamp(dot(n, L), 0.0, 1.0);
     // moonlit stone, not a lightbox: dark grey-blue mass whose holiness
     // is contrast, carried by the burning crown and the lit edges
-    vec3 base = mix(vec3(0.34, 0.375, 0.43), vec3(0.40, 0.385, 0.36), vSeed * 0.5);
-    base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.45);
+    vec3 base = mix(vec3(0.42, 0.39, 0.345), vec3(0.46, 0.425, 0.365), vSeed * 0.5);
+    base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.75);
     vec3 col = base * (0.42 + 0.55 * diff) * mix(0.55, 1.45, vHeight * vHeight);
     // the crown burns near-white: the monument's own lamp
-    col += vec3(0.92, 0.95, 1.0) * smoothstep(0.93, 1.0, vHeight) * 1.5 * (1.0 - uSeverity * 0.5);
+    vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
+    col += crownCol * smoothstep(0.93, 1.0, vHeight) * 1.5 * (1.0 - uSeverity * 0.5);
     // mortar: the joints hold shadow
     vec2 eUv = min(vUv, 1.0 - vUv);
     float edge = min(eUv.x, eUv.y);
@@ -215,9 +216,10 @@ const SEA_FRAG = /* glsl */ `
     // the monument's standing light on the water, dying as it strips
     float r = length(vWorld.xz);
     float pool = exp(-r * 0.016);
-    col += vec3(0.14, 0.155, 0.18) * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4);
+    vec3 poolCol = mix(vec3(0.185, 0.155, 0.115), vec3(0.10, 0.12, 0.15), uSeverity);
+    col += poolCol * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4);
     float haze = 1.0 - exp(-dist * dist * 0.000004);
-    col = mix(col, vec3(0.013, 0.018, 0.026), haze);
+    col = mix(col, mix(vec3(0.022, 0.017, 0.012), vec3(0.010, 0.014, 0.020), uSeverity), haze);
     outColor = vec4(col, 0.72);
   }
 `;
@@ -239,8 +241,8 @@ const SKY_FRAG = /* glsl */ `
   void main() {
     vec3 d = normalize(vDir);
     float band = exp(-abs(d.y + 0.03) * 8.0);
-    vec3 base = mix(vec3(0.004, 0.006, 0.009), vec3(0.002, 0.003, 0.005), uSeverity);
-    vec3 glow = mix(vec3(0.042, 0.052, 0.07), vec3(0.014, 0.02, 0.028), uSeverity);
+    vec3 base = mix(vec3(0.012, 0.009, 0.006), vec3(0.002, 0.003, 0.005), uSeverity);
+    vec3 glow = mix(vec3(0.085, 0.06, 0.035), vec3(0.014, 0.02, 0.028), uSeverity);
     vec3 col = base + glow * band;
     outColor = vec4(col, 1.0);
   }
@@ -265,6 +267,7 @@ export class JourneyRenderer {
   private readonly markBorn = new Float32Array(12);
   private readonly scree: THREE.InstancedMesh;
   private readonly screeTotal: number;
+  private innerLight!: THREE.PointLight;
   private readonly halo: THREE.Sprite;
   private readonly crownHalo: THREE.Sprite;
   private readonly maxDpr: number;
@@ -437,11 +440,16 @@ export class JourneyRenderer {
     this.scene.add(keyLight);
     this.scene.add(new THREE.AmbientLight(0x1a2129, 1.1));
 
+    // the traveller's light: alive only inside the wall, so the cavity
+    // reads as darkness with structure rather than a void
+    this.innerLight = new THREE.PointLight(0xbfd4e8, 0, 55, 1.6);
+    this.scene.add(this.innerLight);
+
     // --- atmosphere ---
-    this.halo = makeHalo('#7e93ad', 240);
+    this.halo = makeHalo('#c9a071', 240);
     this.halo.position.set(0, TOWER_TOP * 0.45, 0);
     this.scene.add(this.halo);
-    this.crownHalo = makeHalo('#c3d2e4', 175);
+    this.crownHalo = makeHalo('#ecd0a0', 175);
     this.crownHalo.position.set(0, TOWER_TOP * 0.92, 0);
     this.scene.add(this.crownHalo);
 
@@ -488,7 +496,7 @@ export class JourneyRenderer {
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
 
     const fogDensity = 0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7);
-    const fogColor = lerpColor('#060a0f', '#020407', sev);
+    const fogColor = lerpColor('#0c0906', '#020407', sev);
 
     // the lamp follows attention; it wakes and settles smoothly
     let hoverTargetAmt = 0;
@@ -526,6 +534,11 @@ export class JourneyRenderer {
     // holiness dims as the monument strips
     this.halo.material.opacity = 0.45 * (1 - decay * 0.85);
     this.crownHalo.material.opacity = 0.5 * (1 - decay);
+
+    // the traveller's light burns only inside the wall
+    const inside = smooth01(progress, 0.55, 0.6) * (1 - smooth01(progress, 0.71, 0.76));
+    this.innerLight.intensity = 90 * inside;
+    this.innerLight.position.copy(this.camera.position);
 
     // the fallen accumulate
     this.scree.count = Math.floor(this.screeTotal * Math.min(1, decay * 1.15));

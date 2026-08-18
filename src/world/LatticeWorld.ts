@@ -94,7 +94,13 @@ export class LatticeWorld {
           // blight, not dissolve
           const heightT = level / LEVELS; // 0 base, 1 crown
           const cluster = 0.5 + 0.5 * Math.sin(x * 0.21 + z * 0.17 + level * 0.11 + s * 9.0);
-          const th = 0.2 + 0.78 * (1 - heightT) + 0.28 * (cluster - 0.5) + (s - 0.5) * 0.12;
+          let th = 0.2 + 0.78 * (1 - heightT) + 0.28 * (cluster - 0.5) + (s - 0.5) * 0.12;
+          // the wounds: two seeded breaches on the travelled face, opened
+          // early by the decay. The journey enters through one and leaves
+          // through the other.
+          const dEntry = Math.hypot(x - 5, y - 140, z - 20);
+          const dExit = Math.hypot(x + 5, y - 65, z - 20);
+          if (dEntry < 5.5 || dExit < 5.5) th *= 0.42;
           thresholds.push(Math.min(0.985, Math.max(0.06, th)));
 
           // the law runs on the face the camera passes (front, mid-heights)

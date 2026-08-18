@@ -23,16 +23,46 @@ interface PathKey {
  * breach onto the maintenance side, and the service run along the
  * sockets to the end.
  */
+/**
+ * The score: dwell where a panel is read, travel between. The approach
+ * orbits so the mass reads in three dimensions; the climb hugs the
+ * face so the cells sweep past; the breach enters the upper wound,
+ * Brawler is read from inside the wall among the frame's beams, the
+ * lower wound exits onto the stripped face, and the journey ends at
+ * the foot, looking up at the true form.
+ */
 const KEYS: PathKey[] = [
+  // ENTER: the approved opening frame, held
   { p: 0.0, pos: [0, 14, 300], look: [0, 96, 0], fov: 40, sev: 0.0 },
-  { p: 0.1, pos: [16, 16, 225], look: [0, 92, 0], fov: 41, sev: 0.0 },
-  { p: 0.22, pos: [30, 26, 90], look: [0, 88, 0], fov: 44, sev: 0.06 },
-  { p: 0.34, pos: [34, 48, 56], look: [6, 92, 0], fov: 46, sev: 0.18 },
-  { p: 0.46, pos: [28, 68, 36], look: [0, 96, -6], fov: 48, sev: 0.4 },
-  { p: 0.58, pos: [25, 88, 30], look: [-4, 104, -10], fov: 48, sev: 0.6 },
-  { p: 0.7, pos: [22, 106, 34], look: [-2, 120, -8], fov: 46, sev: 0.78 },
-  { p: 0.84, pos: [14, 58, 52], look: [0, 90, 0], fov: 44, sev: 0.9 },
-  { p: 0.92, pos: [2, 12, 92], look: [0, 86, 0], fov: 44, sev: 0.9 },
+  { p: 0.07, pos: [3, 14, 282], look: [0, 95, 0], fov: 40, sev: 0.0 },
+  // travel: the orbit in
+  { p: 0.15, pos: [42, 20, 148], look: [0, 80, 0], fov: 42, sev: 0.03 },
+  // SYSTEM: dwell low at the face
+  { p: 0.21, pos: [29, 29, 42], look: [4, 58, 2], fov: 46, sev: 0.06 },
+  { p: 0.27, pos: [27, 32, 38], look: [2, 64, 0], fov: 46, sev: 0.08 },
+  // DESK42: dwell mid-face
+  { p: 0.32, pos: [17, 50, 32], look: [0, 84, 4], fov: 47, sev: 0.14 },
+  { p: 0.39, pos: [15, 55, 30], look: [0, 90, 5], fov: 47, sev: 0.18 },
+  // travel: the climb, cells sweeping past
+  { p: 0.44, pos: [11, 82, 27], look: [0, 116, 8], fov: 50, sev: 0.32 },
+  // RULE: dwell close on the law face, decay working overhead
+  { p: 0.48, pos: [9, 106, 26], look: [2, 134, 10], fov: 50, sev: 0.5 },
+  { p: 0.53, pos: [8, 116, 25], look: [4, 138, 12], fov: 50, sev: 0.58 },
+  // travel: through the upper wound
+  { p: 0.575, pos: [6, 138, 19], look: [3, 132, 2], fov: 52, sev: 0.68 },
+  // BRAWLER: dwell inside the wall, among the beams
+  { p: 0.61, pos: [3, 122, 9], look: [-3, 94, 3], fov: 52, sev: 0.74 },
+  { p: 0.66, pos: [1, 112, 8], look: [-4, 84, 5], fov: 52, sev: 0.78 },
+  // travel: descend the cavity toward the lower wound
+  { p: 0.71, pos: [-3, 84, 9], look: [-4, 64, 14], fov: 50, sev: 0.82 },
+  // TECHNOLOGY: emerged through the exit wound, the stripped face
+  { p: 0.75, pos: [-8, 58, 40], look: [0, 76, 0], fov: 47, sev: 0.88 },
+  { p: 0.8, pos: [-9, 52, 46], look: [0, 72, 0], fov: 47, sev: 0.9 },
+  // STUDIO: dwell at the foot among the scree
+  { p: 0.85, pos: [-4, 16, 64], look: [0, 62, 0], fov: 46, sev: 0.88 },
+  { p: 0.9, pos: [-2, 12, 70], look: [0, 66, 0], fov: 46, sev: 0.87 },
+  // CONTACT: the true form, held
+  { p: 0.96, pos: [0, 7.5, 78], look: [0, 96, 0], fov: 46, sev: 0.85 },
   { p: 1.0, pos: [0, 7, 78], look: [0, 98, 0], fov: 46, sev: 0.85 }
 ];
 
