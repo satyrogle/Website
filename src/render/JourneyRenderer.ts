@@ -103,6 +103,32 @@ const CLAD_FRAG = /* glsl */ `
     vec2 eUv = min(vUv, 1.0 - vUv);
     float edge = min(eUv.x, eUv.y);
     col *= 0.76 + 0.24 * smoothstep(0.0, 0.1, edge);
+
+    // the engravings: every cell inscribed with its own recursive
+    // pattern, records carved in light. A slow pulse climbs the
+    // monument through them: the tower reading itself.
+    if (vFall <= 0.0) {
+      float eng = 0.0;
+      vec2 p = vUv;
+      float amp = 1.0;
+      for (int i = 0; i < 4; i++) {
+        p = fract(p * 2.0 + vSeed * 13.17 + float(i) * 0.31);
+        vec2 dd = abs(p - 0.5);
+        float frame = smoothstep(0.5, 0.44, max(dd.x, dd.y)) *
+                      smoothstep(0.3, 0.36, max(dd.x, dd.y));
+        float keep = step(0.45, fract(vSeed * (7.0 + float(i) * 3.7) + float(i) * 0.37));
+        eng = max(eng, frame * keep * amp);
+        amp *= 0.72;
+      }
+      eng *= smoothstep(0.02, 0.09, edge);
+      // carved: the grooves hold shadow at all times
+      col *= 1.0 - eng * 0.38;
+      // the reading light: a slow pulse climbs the tower and fills the
+      // engravings as it passes
+      float py = mod(uTime * mix(7.0, 3.0, uCalm), 260.0) - 30.0;
+      float band = exp(-abs(vWorldY - py) * 0.07) * (1.0 - uCalm);
+      col += base * eng * band * 0.85 * (1.0 - uSeverity * 0.45) * mix(1.0, 0.5, vDying);
+    }
     // the waterline keeps its dark
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorldY));
     #ifdef MIRROR
@@ -290,6 +316,7 @@ export class JourneyRenderer {
     cladGeom.index = box.index;
     cladGeom.attributes.position = box.attributes.position!;
     cladGeom.attributes.normal = box.attributes.normal!;
+    cladGeom.attributes.uv = box.attributes.uv!;
     cladGeom.instanceCount = world.nodeCount;
     cladGeom.setAttribute('aOffset', new THREE.InstancedBufferAttribute(world.positions, 3));
     cladGeom.setAttribute('aSeed', new THREE.InstancedBufferAttribute(world.nodeSeeds, 1));
