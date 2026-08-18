@@ -16,23 +16,24 @@ interface PathKey {
 }
 
 /**
- * The mass sits around z 20, the core at z -48. The path runs from far
- * exterior straight through the body of the lattice to the core
- * chamber. The entry leg runs parallel to a lattice axis on purpose:
- * looking down an axis, the aligned nodes form nested receding frames.
- * That is the tunnel, made of nothing but the lattice itself.
+ * THE FALSE HEAVEN. The sea lies at y 0, the light layer at y 26, the
+ * rows run toward -z and agree at the vanishing point. The journey:
+ * beneath the firmament (the approved frame), the rise, the passage
+ * between the rows (the tunnel, made of the rows themselves), the
+ * breach onto the maintenance side, and the service run along the
+ * sockets to the end.
  */
 const KEYS: PathKey[] = [
-  { p: 0.0, pos: [0, 8, 175], look: [0, 0, 10], fov: 40, sev: 0.0 },
-  { p: 0.1, pos: [4, 6, 140], look: [0, 0, 8], fov: 42, sev: 0.0 },
-  { p: 0.2, pos: [10, 3, 100], look: [0, -1, 8], fov: 44, sev: 0.05 },
-  { p: 0.32, pos: [3, 1, 62], look: [0, -1, -10], fov: 48, sev: 0.12 },
-  { p: 0.44, pos: [1.2, -0.5, 34], look: [1.2, -0.5, -30], fov: 52, sev: 0.35 },
-  { p: 0.56, pos: [1.2, -1, 8], look: [1.2, -1, -46], fov: 54, sev: 0.6 },
-  { p: 0.68, pos: [-4, -2, -14], look: [0, 0, -46], fov: 52, sev: 0.78 },
-  { p: 0.8, pos: [-3, 2.5, -27], look: [0, 0, -48], fov: 48, sev: 0.9 },
-  { p: 0.92, pos: [-0.5, 1.8, -30], look: [0, 0, -48], fov: 46, sev: 0.9 },
-  { p: 1.0, pos: [0, 2.2, -31.5], look: [0, -0.3, -48], fov: 44, sev: 0.85 }
+  { p: 0.0, pos: [0, 4.5, 55], look: [0, 15, -260], fov: 44, sev: 0.0 },
+  { p: 0.1, pos: [0, 5.5, 42], look: [0, 16, -250], fov: 44, sev: 0.0 },
+  { p: 0.22, pos: [2, 9, 18], look: [0, 20, -240], fov: 46, sev: 0.06 },
+  { p: 0.34, pos: [1.5, 16, -12], look: [1.5, 24.2, -200], fov: 48, sev: 0.18 },
+  { p: 0.46, pos: [1.5, 24.6, -55], look: [1.5, 25.6, -260], fov: 52, sev: 0.4 },
+  { p: 0.58, pos: [1.5, 27.5, -105], look: [1.5, 27, -300], fov: 52, sev: 0.6 },
+  { p: 0.7, pos: [0, 30, -150], look: [0, 27.5, -320], fov: 50, sev: 0.78 },
+  { p: 0.84, pos: [1.2, 29.5, -205], look: [0, 27, -360], fov: 48, sev: 0.9 },
+  { p: 0.92, pos: [0, 29, -240], look: [0, 26.8, -380], fov: 46, sev: 0.9 },
+  { p: 1.0, pos: [0, 28.6, -258], look: [0, 26.2, -400], fov: 44, sev: 0.85 }
 ];
 
 export interface CameraState {

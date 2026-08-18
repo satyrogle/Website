@@ -1,64 +1,59 @@
 import * as THREE from 'three';
-import { LatticeWorld, CORE_CENTER } from '../world/LatticeWorld';
+import { LatticeWorld, SEA_Y } from '../world/LatticeWorld';
 import { CameraPath } from './CameraPath';
 
 /**
- * The observation of the world. One scene, one camera journey:
- * exterior mass, entry, descent through the strata, the core chamber.
- * Everything luminous is a node of the one lattice; the renderer owns
- * no authoritative state.
+ * The observation of THE FALSE HEAVEN, built to match the approved
+ * image: a manufactured firmament of lamps in rows above a dark still
+ * sea, pale shelves at the edges, haze toward the vanishing point.
+ * The journey rises into the light layer, through it, and along the
+ * maintenance side. The renderer owns no authoritative state.
  */
 
-const CLOUD_VERT = /* glsl */ `
+const LAMP_VERT = /* glsl */ `
   in float aSeed;
   in float aDead;
   uniform float uTime;
   uniform float uScale;
-  uniform float uSeverity;
+  uniform float uSizeMul;
+  uniform float uFogDensity;
   out float vSeed;
   out float vDead;
   out float vFog;
-  uniform float uFogDensity;
   void main() {
     vSeed = aSeed;
     vDead = aDead;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     float dist = max(1.0, -mv.z);
-    // gentle breath: each node drifts a fraction of its spacing
-    float b = sin(uTime * 0.35 + aSeed * 41.0) * 0.22 * (1.0 - uSeverity * 0.7);
-    mv.xyz += vec3(sin(aSeed * 91.0), cos(aSeed * 57.0), sin(aSeed * 23.0)) * b;
     gl_Position = projectionMatrix * mv;
-    float size = uScale * (0.75 + 0.5 * aSeed) / dist;
-    gl_PointSize = clamp(size, 1.5, 42.0);
+    float size = uScale * uSizeMul * (0.8 + 0.45 * aSeed) / dist;
+    gl_PointSize = clamp(size, 1.25, 26.0);
     vFog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
   }
 `;
 
-const CLOUD_FRAG = /* glsl */ `
+const LAMP_FRAG = /* glsl */ `
   precision highp float;
   in float vSeed;
   in float vDead;
   in float vFog;
   uniform float uTime;
   uniform float uSeverity;
-  uniform vec3 uFogColor;
+  uniform float uDim;
   out vec4 outColor;
   void main() {
+    if (vDead > 0.5 && vDead < 1.5) discard; // culled: the gap is the mark
     vec2 d = gl_PointCoord - 0.5;
     float r2 = dot(d, d);
     if (r2 > 0.25) discard;
-    float fall = exp(-r2 * 14.0);
-    // alive: bone light, cooled by severity. dead: a faint dying ember.
-    vec3 alive = mix(vec3(0.93, 0.95, 0.97), vec3(0.62, 0.78, 0.92), uSeverity * 0.6);
-    vec3 dead = vec3(0.16, 0.2, 0.27);
-    // deep in, the failing nodes stutter
+    float fall = exp(-r2 * 13.0);
+    vec3 warmth = mix(vec3(0.95, 0.96, 0.99), vec3(0.99, 0.97, 0.93), vSeed * 0.6);
+    vec3 col = mix(warmth, vec3(0.68, 0.8, 0.93), uSeverity * 0.45);
     float flicker = 1.0;
-    if (vDead > 0.5) {
-      flicker = 0.55 + 0.45 * step(0.5, fract(uTime * (1.5 + vSeed * 6.0) + vSeed * 7.0));
+    if (vDead > 1.5) {
+      flicker = 0.35 + 0.65 * step(0.45, fract(uTime * (2.0 + vSeed * 7.0) + vSeed * 13.0));
     }
-    vec3 col = mix(alive, dead * flicker, vDead);
-    float amp = mix(0.85, 0.28 + 0.25 * uSeverity, vDead);
-    col *= fall * amp;
+    col *= fall * flicker * uDim;
     col = mix(col, vec3(0.0), vFog);
     outColor = vec4(col, 1.0);
   }
@@ -75,8 +70,8 @@ const MARK_VERT = /* glsl */ `
     float dist = max(1.0, -mv.z);
     gl_Position = projectionMatrix * mv;
     float ignite = clamp((uTime - aBorn) * 1.4, 0.0, 1.0);
-    float swell = 1.0 + (1.0 - ignite) * 2.2;
-    gl_PointSize = clamp(uScale * 1.35 * swell / dist, 2.0, 64.0);
+    float swell = 1.0 + (1.0 - ignite) * 2.4;
+    gl_PointSize = clamp(uScale * 1.5 * swell / dist, 2.0, 64.0);
   }
 `;
 
@@ -89,9 +84,37 @@ const MARK_FRAG = /* glsl */ `
     vec2 d = gl_PointCoord - 0.5;
     float r2 = dot(d, d);
     if (r2 > 0.25) discard;
-    float fall = exp(-r2 * 12.0);
+    float fall = exp(-r2 * 11.0);
     float ignite = clamp((uTime - vBorn) * 1.4, 0.0, 1.0);
-    vec3 col = mix(vec3(1.0), vec3(0.55, 0.87, 1.0), 0.35) * fall * (0.8 + 1.6 * (1.0 - ignite));
+    vec3 col = mix(vec3(1.0), vec3(0.55, 0.87, 1.0), 0.3) * fall * (0.9 + 1.7 * (1.0 - ignite));
+    outColor = vec4(col, 1.0);
+  }
+`;
+
+const SEA_VERT = /* glsl */ `
+  out vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const SEA_FRAG = /* glsl */ `
+  precision highp float;
+  in vec3 vWorld;
+  uniform vec3 uCam;
+  uniform float uSeverity;
+  out vec4 outColor;
+  void main() {
+    float dist = length(vWorld - uCam);
+    // black water, a breath of haze with distance, one soft path of
+    // light running toward the vanishing point
+    vec3 col = vec3(0.006, 0.009, 0.013);
+    float toward = exp(-abs(vWorld.x) * 0.012) * smoothstep(30.0, 260.0, -vWorld.z);
+    col += vec3(0.05, 0.065, 0.085) * toward * (1.0 - uSeverity * 0.6);
+    float haze = 1.0 - exp(-dist * dist * 0.000004);
+    col = mix(col, vec3(0.03, 0.04, 0.055), haze);
     outColor = vec4(col, 1.0);
   }
 `;
@@ -108,18 +131,15 @@ const SKY_VERT = /* glsl */ `
 const SKY_FRAG = /* glsl */ `
   precision highp float;
   in vec3 vDir;
-  uniform vec3 uZenith;
-  uniform vec3 uHorizon;
   uniform float uSeverity;
   out vec4 outColor;
   void main() {
     vec3 d = normalize(vDir);
-    float h = smoothstep(-0.4, 0.55, d.y);
-    vec3 col = mix(uHorizon, uZenith, h);
-    // the faint promise of the mass, straight ahead
-    vec2 gd = d.xy - vec2(0.0, 0.02);
-    float glow = exp(-dot(gd, gd) * 4.0) * max(0.0, -d.z);
-    col += vec3(0.16, 0.2, 0.3) * glow * (1.0 - uSeverity * 0.8) * 0.8;
+    // the haze band where sea meets the far rows, dimming with truth
+    float band = exp(-abs(d.y + 0.02) * 9.0);
+    vec3 base = mix(vec3(0.008, 0.012, 0.018), vec3(0.004, 0.006, 0.009), uSeverity);
+    vec3 glow = mix(vec3(0.10, 0.12, 0.16), vec3(0.03, 0.045, 0.06), uSeverity);
+    vec3 col = base + glow * band * max(0.0, -d.z * 0.5 + 0.5);
     outColor = vec4(col, 1.0);
   }
 `;
@@ -130,18 +150,17 @@ export class JourneyRenderer {
   readonly path = new CameraPath();
 
   private readonly scene = new THREE.Scene();
-  private readonly cloudMat: THREE.ShaderMaterial;
+  private readonly lampMat: THREE.ShaderMaterial;
+  private readonly mirrorMat: THREE.ShaderMaterial;
   private readonly markMat: THREE.ShaderMaterial;
+  private readonly seaMat: THREE.ShaderMaterial;
   private readonly skyMat: THREE.ShaderMaterial;
+  private readonly deadAttr: THREE.BufferAttribute;
+  private readonly mirrorDeadAttr: THREE.BufferAttribute;
   private readonly markGeom: THREE.BufferGeometry;
   private readonly markPos = new Float32Array(12 * 3);
   private readonly markBorn = new Float32Array(12);
-  private readonly coreMesh: THREE.InstancedMesh;
-  private readonly coreMat: THREE.MeshLambertMaterial;
-  private readonly cage: THREE.LineSegments;
-  private readonly halo: THREE.Sprite;
-  private readonly massHalo: THREE.Sprite;
-  private readonly dummy = new THREE.Object3D();
+  private readonly glow: THREE.Sprite;
   private readonly maxDpr: number;
   private time = 0;
 
@@ -154,48 +173,127 @@ export class JourneyRenderer {
       powerPreference: 'high-performance'
     });
     this.renderer.setClearColor(0x020304, 1);
-    this.camera = new THREE.PerspectiveCamera(40, 1, 0.5, 600);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.3, 900);
 
-    // --- sky ---
+    // --- sky haze ---
     this.skyMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
-      uniforms: {
-        uZenith: { value: new THREE.Color('#04070c') },
-        uHorizon: { value: new THREE.Color('#101b2a') },
-        uSeverity: { value: 0 }
-      },
+      uniforms: { uSeverity: { value: 0 } },
       side: THREE.BackSide,
       depthWrite: false
     });
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 16), this.skyMat);
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(700, 24, 16), this.skyMat);
     sky.frustumCulled = false;
     this.scene.add(sky);
 
-    // --- the cloud: every star is a node ---
-    const cloudGeom = new THREE.BufferGeometry();
-    cloudGeom.setAttribute('position', new THREE.BufferAttribute(world.positions, 3));
-    cloudGeom.setAttribute('aSeed', new THREE.BufferAttribute(world.nodeSeeds, 1));
-    cloudGeom.setAttribute('aDead', new THREE.BufferAttribute(world.deadness, 1));
-    this.cloudMat = new THREE.ShaderMaterial({
+    // --- the sea ---
+    this.seaMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
-      vertexShader: CLOUD_VERT,
-      fragmentShader: CLOUD_FRAG,
-      uniforms: {
-        uTime: { value: 0 },
-        uScale: { value: 900 },
-        uSeverity: { value: 0 },
-        uFogColor: { value: new THREE.Color('#04070c') },
-        uFogDensity: { value: 0.005 }
-      },
+      vertexShader: SEA_VERT,
+      fragmentShader: SEA_FRAG,
+      uniforms: { uCam: { value: new THREE.Vector3() }, uSeverity: { value: 0 } }
+    });
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), this.seaMat);
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.y = SEA_Y;
+    this.scene.add(sea);
+
+    // --- the firmament ---
+    const lampGeom = new THREE.BufferGeometry();
+    lampGeom.setAttribute('position', new THREE.BufferAttribute(world.positions, 3));
+    lampGeom.setAttribute('aSeed', new THREE.BufferAttribute(world.nodeSeeds, 1));
+    this.deadAttr = new THREE.BufferAttribute(world.deadness, 1);
+    lampGeom.setAttribute('aDead', this.deadAttr);
+
+    const lampUniforms = (dim: number, sizeMul: number): Record<string, THREE.IUniform> => ({
+      uTime: { value: 0 },
+      uScale: { value: 900 },
+      uSizeMul: { value: sizeMul },
+      uSeverity: { value: 0 },
+      uDim: { value: dim },
+      uFogDensity: { value: 0.0035 }
+    });
+    this.lampMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: LAMP_VERT,
+      fragmentShader: LAMP_FRAG,
+      uniforms: lampUniforms(1.0, 1.0),
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       transparent: true
     });
-    const cloud = new THREE.Points(cloudGeom, this.cloudMat);
-    cloud.frustumCulled = false;
-    this.scene.add(cloud);
+    const lamps = new THREE.Points(lampGeom, this.lampMat);
+    lamps.frustumCulled = false;
+    this.scene.add(lamps);
+
+    // --- the reflection: the same heaven, drowned ---
+    const mirrorGeom = new THREE.BufferGeometry();
+    const mirrored = new Float32Array(world.positions.length);
+    for (let i = 0; i < world.nodeCount; i++) {
+      mirrored[i * 3] = world.positions[i * 3]!;
+      mirrored[i * 3 + 1] = 2 * SEA_Y - world.positions[i * 3 + 1]!;
+      mirrored[i * 3 + 2] = world.positions[i * 3 + 2]!;
+    }
+    mirrorGeom.setAttribute('position', new THREE.BufferAttribute(mirrored, 3));
+    mirrorGeom.setAttribute('aSeed', new THREE.BufferAttribute(world.nodeSeeds, 1));
+    this.mirrorDeadAttr = new THREE.BufferAttribute(world.deadness, 1);
+    mirrorGeom.setAttribute('aDead', this.mirrorDeadAttr);
+    this.mirrorMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: LAMP_VERT,
+      fragmentShader: LAMP_FRAG,
+      uniforms: lampUniforms(0.13, 1.7),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true
+    });
+    const mirror = new THREE.Points(mirrorGeom, this.mirrorMat);
+    mirror.frustumCulled = false;
+    this.scene.add(mirror);
+
+    // --- the fittings: sockets above every travelled lamp ---
+    const socketPositions: THREE.Vector3[] = [];
+    for (let i = 0; i < world.nodeCount; i++) {
+      const x = world.positions[i * 3]!;
+      const z = world.positions[i * 3 + 2]!;
+      if (Math.abs(x) < 30 && z < -30 && z > -345) {
+        socketPositions.push(new THREE.Vector3(x, world.positions[i * 3 + 1]! + 0.42, z));
+      }
+    }
+    const socketMat = new THREE.MeshLambertMaterial({ color: 0x10151b });
+    const sockets = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.55, 0.5, 0.55),
+      socketMat,
+      socketPositions.length
+    );
+    const dummy = new THREE.Object3D();
+    socketPositions.forEach((p, i) => {
+      dummy.position.copy(p);
+      dummy.updateMatrix();
+      sockets.setMatrixAt(i, dummy.matrix);
+    });
+    this.scene.add(sockets);
+
+    // --- pale shelves at the edges of the sea ---
+    const shelfMat = new THREE.MeshLambertMaterial({ color: 0x9aa6b0 });
+    for (const [sx, sz, w, d2] of [
+      [-150, -10, 130, 90],
+      [165, -35, 150, 110],
+      [120, 55, 120, 70],
+      [-190, 60, 110, 60]
+    ] as Array<[number, number, number, number]>) {
+      const shelf = new THREE.Mesh(new THREE.BoxGeometry(w, 0.7, d2), shelfMat);
+      shelf.position.set(sx, SEA_Y + 0.35, sz);
+      this.scene.add(shelf);
+    }
+
+    const key = new THREE.DirectionalLight(0xe8eef5, 0.9);
+    key.position.set(0.2, 1, 0.15);
+    this.scene.add(key);
+    this.scene.add(new THREE.AmbientLight(0x1a2129, 1.0));
+    this.scene.fog = new THREE.FogExp2(0x0a1016, 0.0035);
 
     // --- visitor marks ---
     this.markGeom = new THREE.BufferGeometry();
@@ -215,47 +313,10 @@ export class JourneyRenderer {
     marks.frustumCulled = false;
     this.scene.add(marks);
 
-    // --- the core: the frame, visible at last ---
-    const coreGroup = new THREE.Group();
-    const key = new THREE.DirectionalLight(0xdfe8f2, 1.35);
-    key.position.set(0.5, 1, 0.35);
-    coreGroup.add(key);
-    coreGroup.add(new THREE.AmbientLight(0x232b36, 1.0));
-    this.coreMat = new THREE.MeshLambertMaterial({ color: 0xe9eef2 });
-    this.coreMesh = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(0.26, 14, 12),
-      this.coreMat,
-      world.coreNodes.length
-    );
-    this.coreMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    coreGroup.add(this.coreMesh);
-
-    const cagePts: number[] = [];
-    for (const n of this.world.coreNodes) {
-      for (const m of this.world.coreNodes) {
-        const manhattan =
-          Math.abs(n.ix - m.ix) + Math.abs(n.iy - m.iy) + Math.abs(n.iz - m.iz);
-        const before = m.ix > n.ix || m.iy > n.iy || m.iz > n.iz;
-        if (manhattan === 1 && before) cagePts.push(n.x, n.y, n.z, m.x, m.y, m.z);
-      }
-    }
-    const cageGeom = new THREE.BufferGeometry();
-    cageGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cagePts), 3));
-    this.cage = new THREE.LineSegments(
-      cageGeom,
-      new THREE.LineBasicMaterial({ color: 0xe9eef2, transparent: true, opacity: 0.14 })
-    );
-    coreGroup.add(this.cage);
-
-    this.halo = makeHalo('#9fc4e6', 46);
-    this.halo.position.set(CORE_CENTER.x, CORE_CENTER.y, CORE_CENTER.z);
-    coreGroup.add(this.halo);
-    this.scene.add(coreGroup);
-
-    // --- the exterior atmosphere of the mass ---
-    this.massHalo = makeHalo('#8fa8c8', 190);
-    this.massHalo.position.set(0, 0, 15);
-    this.scene.add(this.massHalo);
+    // --- the vanishing point, where all rows agree ---
+    this.glow = makeHalo('#8fa5c2', 260);
+    this.glow.position.set(0, 14, -380);
+    this.scene.add(this.glow);
 
     this.resize();
     window.addEventListener('resize', this.resize);
@@ -266,44 +327,30 @@ export class JourneyRenderer {
     this.path.update(this.camera, progress, dt, reduced);
     const sev = this.path.state.severity;
 
-    // grade: pale sacred exterior, cold corrective interior
-    const fogColor = lerpColor('#0a1420', '#030609', sev);
-    const fogDensity = 0.005 + 0.009 * smooth01(progress, 0.3, 0.6) - 0.006 * smooth01(progress, 0.78, 0.95);
-    const cu = this.cloudMat.uniforms;
-    cu.uTime!.value = reduced ? 0 : this.time;
-    cu.uSeverity!.value = sev;
-    cu.uFogColor!.value.copy(fogColor);
-    cu.uFogDensity!.value = fogDensity;
-    this.markMat.uniforms.uTime!.value = this.time;
+    const fogDensity =
+      0.0035 + 0.005 * smooth01(progress, 0.34, 0.6) - 0.0025 * smooth01(progress, 0.8, 0.95);
+    (this.scene.fog as THREE.FogExp2).density = fogDensity;
+    (this.scene.fog as THREE.FogExp2).color.copy(lerpColor('#0a1016', '#04070a', sev));
 
-    const su = this.skyMat.uniforms;
-    su.uSeverity!.value = sev;
-    (su.uZenith!.value as THREE.Color).copy(lerpColor('#05080e', '#020304', sev));
-    (su.uHorizon!.value as THREE.Color).copy(lerpColor('#13202f', '#050a10', sev));
-
-    this.massHalo.material.opacity = 0.5 * (1 - smooth01(progress, 0.25, 0.45));
-    this.halo.material.opacity = 0.55 * smooth01(progress, 0.55, 0.85);
-    (this.cage.material as THREE.LineBasicMaterial).opacity =
-      0.02 + 0.2 * smooth01(progress, 0.6, 0.88);
-
-    // core instances: health dims a node, the cull removes it
-    let i = 0;
-    for (const n of this.world.coreNodes) {
-      let s = 1;
-      if (!n.alive) {
-        const since = (this.world.tick - n.cullTick) / 60;
-        s = Math.max(0, 1 - since * 1.6);
-      } else if (n.health < 0.15) {
-        s = 0.75 + 0.25 * Math.sin(this.time * (6 + n.ix) + n.iy);
-      }
-      this.dummy.position.set(n.x, n.y, n.z);
-      this.dummy.scale.setScalar(Math.max(0.0001, s));
-      this.dummy.updateMatrix();
-      this.coreMesh.setMatrixAt(i++, this.dummy.matrix);
+    for (const mat of [this.lampMat, this.mirrorMat]) {
+      mat.uniforms.uTime!.value = reduced ? 0 : this.time;
+      mat.uniforms.uSeverity!.value = sev;
+      mat.uniforms.uFogDensity!.value = fogDensity;
     }
-    this.coreMesh.instanceMatrix.needsUpdate = true;
+    // the drowned heaven fades once you are above the light layer
+    this.mirrorMat.uniforms.uDim!.value = 0.13 * (1 - smooth01(progress, 0.5, 0.66));
+    this.markMat.uniforms.uTime!.value = this.time;
+    this.skyMat.uniforms.uSeverity!.value = sev;
+    this.seaMat.uniforms.uSeverity!.value = sev;
+    (this.seaMat.uniforms.uCam!.value as THREE.Vector3).copy(this.camera.position);
+    this.glow.material.opacity = 0.5 * (1 - sev * 0.55);
 
-    // marks buffer
+    if (this.world.deadnessDirty) {
+      this.deadAttr.needsUpdate = true;
+      this.mirrorDeadAttr.needsUpdate = true;
+      this.world.deadnessDirty = false;
+    }
+
     const marks = this.world.marks;
     for (let m = 0; m < marks.length; m++) {
       const mk = marks[m]!;
@@ -325,8 +372,9 @@ export class JourneyRenderer {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    const scale = window.innerHeight * pr * 0.85;
-    this.cloudMat.uniforms.uScale!.value = scale;
+    const scale = window.innerHeight * pr * 0.8;
+    this.lampMat.uniforms.uScale!.value = scale;
+    this.mirrorMat.uniforms.uScale!.value = scale;
     this.markMat.uniforms.uScale!.value = scale;
   };
 
@@ -343,7 +391,7 @@ function makeHalo(color: string, scale: number): THREE.Sprite {
   const ctx = c.getContext('2d')!;
   const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
   g.addColorStop(0, color);
-  g.addColorStop(0.4, colorWithAlpha(color, 0.25));
+  g.addColorStop(0.4, colorWithAlpha(color, 0.22));
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
