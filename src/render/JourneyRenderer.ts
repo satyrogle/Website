@@ -30,6 +30,7 @@ const CLAD_VERT = /* glsl */ `
   out float vHeight;
   out vec2 vUv;
   out float vWorldY;
+  out vec3 vWorld;
   void main() {
     vSeed = aSeed;
     // scroll decay: past the threshold the cell detaches and falls.
@@ -64,6 +65,7 @@ const CLAD_VERT = /* glsl */ `
     #endif
     vUv = uv;
     vWorldY = wp.y;
+    vWorld = wp;
     vHeight = clamp(aOffset.y / 195.0, 0.0, 1.0);
     vNormalV = normalize(normalMatrix * normal);
     vec4 mv = viewMatrix * vec4(wp, 1.0);
@@ -83,9 +85,12 @@ const CLAD_FRAG = /* glsl */ `
   in float vHeight;
   in vec2 vUv;
   in float vWorldY;
+  in vec3 vWorld;
   uniform float uTime;
   uniform float uSeverity;
   uniform float uCalm;
+  uniform vec3 uHover;
+  uniform float uHoverAmt;
   uniform vec3 uFogColor;
   out vec4 outColor;
   void main() {
@@ -121,13 +126,17 @@ const CLAD_FRAG = /* glsl */ `
         amp *= 0.72;
       }
       eng *= smoothstep(0.02, 0.09, edge);
-      // carved: the grooves hold shadow at all times
-      col *= 1.0 - eng * 0.38;
-      // the reading light: a slow pulse climbs the tower and fills the
-      // engravings as it passes
-      float py = mod(uTime * mix(3.8, 2.0, uCalm), 280.0) - 40.0;
-      float band = exp(-abs(vWorldY - py) * 0.045) * (1.0 - uCalm);
-      col += base * eng * band * 0.6 * (1.0 - uSeverity * 0.45) * mix(1.0, 0.5, vDying);
+      // carved: the grooves hold quiet shadow, dormant until attended
+      col *= 1.0 - eng * 0.2;
+      // the visitor's lamp: where you point, the records wake. Warm
+      // light early; the same touch turns cold as the truth arrives.
+      float hd = distance(vWorld, uHover);
+      float lamp = exp(-hd * hd / 260.0) * uHoverAmt;
+      float breathe = 1.0 - (1.0 - uCalm) * 0.08 * (0.5 + 0.5 * sin(uTime * 1.1));
+      vec3 lampCol = mix(vec3(1.0, 0.88, 0.68), vec3(0.5, 0.78, 1.0), uSeverity);
+      // the stone itself takes the colour of the attention it is given
+      col = mix(col, col * lampCol * 1.35, lamp * 0.6);
+      col += lampCol * eng * lamp * breathe * 1.4 * mix(1.0, 0.5, vDying);
     }
     // the waterline keeps its dark
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorldY));
@@ -257,6 +266,15 @@ export class JourneyRenderer {
   private readonly maxDpr: number;
   private time = 0;
 
+  private readonly towerBox = new THREE.Box3(
+    new THREE.Vector3(-HALF - 0.6, 0, -HALF - 0.6),
+    new THREE.Vector3(HALF + 0.6, TOWER_TOP, HALF + 0.6)
+  );
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly hoverPoint = new THREE.Vector3(0, -999, 0);
+  private pointerNdc: { x: number; y: number } | null = null;
+  private hoverAmt = 0;
+
   constructor(canvas: HTMLCanvasElement, private readonly world: LatticeWorld, maxDpr: number) {
     this.maxDpr = maxDpr;
     this.renderer = new THREE.WebGLRenderer({
@@ -333,6 +351,8 @@ export class JourneyRenderer {
         uTime: { value: 0 },
         uSeverity: { value: 0 },
         uCalm: { value: 0 },
+        uHover: { value: new THREE.Vector3(0, -999, 0) },
+        uHoverAmt: { value: 0 },
         uFogColor: { value: new THREE.Color('#0a1016') },
         uFogDensity: { value: 0.0035 }
       }
@@ -443,6 +463,15 @@ export class JourneyRenderer {
     window.addEventListener('resize', this.resize);
   }
 
+  /** The visitor's attention: where they point at the monument. */
+  setPointer(ndcX: number, ndcY: number): void {
+    this.pointerNdc = { x: ndcX, y: ndcY };
+  }
+
+  clearPointer(): void {
+    this.pointerNdc = null;
+  }
+
   update(progress: number, dt: number, reduced: boolean): void {
     this.time += dt;
     this.path.update(this.camera, progress, dt, reduced);
@@ -457,12 +486,30 @@ export class JourneyRenderer {
     const fogDensity = 0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7);
     const fogColor = lerpColor('#060a0f', '#020407', sev);
 
+    // the lamp follows attention; it wakes and settles smoothly
+    let hoverTargetAmt = 0;
+    if (this.pointerNdc) {
+      this.raycaster.setFromCamera(
+        new THREE.Vector2(this.pointerNdc.x, this.pointerNdc.y),
+        this.camera
+      );
+      const hit = this.raycaster.ray.intersectBox(this.towerBox, new THREE.Vector3());
+      if (hit) {
+        const k = 1 - Math.exp(-dt * 7);
+        this.hoverPoint.lerp(hit, this.hoverAmt < 0.02 ? 1 : k);
+        hoverTargetAmt = 1;
+      }
+    }
+    this.hoverAmt += (hoverTargetAmt - this.hoverAmt) * (1 - Math.exp(-dt * 5));
+
     for (const mat of [this.cladMat, this.mirrorMat]) {
       const cu = mat.uniforms;
       cu.uDecay!.value = decay;
       cu.uTime!.value = this.time;
       cu.uSeverity!.value = sev;
       cu.uCalm!.value = reduced ? 1 : 0;
+      (cu.uHover!.value as THREE.Vector3).copy(this.hoverPoint);
+      cu.uHoverAmt!.value = this.hoverAmt;
       cu.uFogDensity!.value = fogDensity;
       (cu.uFogColor!.value as THREE.Color).copy(fogColor);
     }

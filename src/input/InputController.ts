@@ -14,11 +14,24 @@ export class InputController {
     private readonly onRefused: () => void
   ) {
     window.addEventListener('pointerdown', this.onPointerDown);
+    window.addEventListener('pointermove', this.onPointerMove);
+    window.addEventListener('pointerleave', this.onPointerLeave);
+    document.addEventListener('mouseleave', this.onPointerLeave);
     const button = document.querySelector<HTMLButtonElement>('[data-place-mark]');
     button?.addEventListener('click', () => {
       this.place(0, 0);
     });
   }
+
+  private readonly onPointerMove = (e: PointerEvent): void => {
+    const ndcX = (e.clientX / window.innerWidth) * 2 - 1;
+    const ndcY = -((e.clientY / window.innerHeight) * 2 - 1);
+    this.renderer.setPointer(ndcX, ndcY);
+  };
+
+  private readonly onPointerLeave = (): void => {
+    this.renderer.clearPointer();
+  };
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     if (e.button !== 0) return;
@@ -38,5 +51,8 @@ export class InputController {
 
   dispose(): void {
     window.removeEventListener('pointerdown', this.onPointerDown);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('pointerleave', this.onPointerLeave);
+    document.removeEventListener('mouseleave', this.onPointerLeave);
   }
 }
