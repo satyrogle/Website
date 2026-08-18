@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
 import { CameraPath } from './CameraPath';
 
@@ -24,6 +28,8 @@ const CLAD_VERT = /* glsl */ `
   out float vDying;
   out float vFall;
   out float vHeight;
+  out vec2 vUv;
+  out float vWorldY;
   void main() {
     vSeed = aSeed;
     // scroll decay: past the threshold the cell detaches and falls.
@@ -34,15 +40,30 @@ const CLAD_VERT = /* glsl */ `
     vFall = fallT;
     vDying = smoothstep(0.06, 0.0, aThresh - uDecay) * step(uDecay, aThresh);
 
-    vec3 wp = position * (fallT > 0.0 ? clamp(1.0 - fallT * 0.45, 0.05, 1.0) : 1.0) + aOffset;
+    // masonry: no two cells cut quite alike
+    float sizeVar = 0.93 + 0.1 * fract(aSeed * 7.31);
+    vec3 wp = position * sizeVar * (fallT > 0.0 ? clamp(1.0 - fallT * 0.45, 0.05, 1.0) : 1.0) + aOffset;
     if (fallT > 0.0) {
+      float ang = fallT * (aSeed * 8.0 - 4.0);
+      float ca = cos(ang);
+      float sa = sin(ang);
+      vec3 lp = wp - aOffset;
+      lp.xy = mat2(ca, -sa, sa, ca) * lp.xy;
+      lp.xz = mat2(ca, -sa, sa, ca) * lp.xz;
+      wp = lp + aOffset;
       wp.y -= fallT * fallT * 34.0;
       wp.x += sin(aSeed * 43.0) * fallT * 6.0;
       wp.z += cos(aSeed * 91.0) * fallT * 6.0;
+      if (wp.y < -2.0) wp = vec3(0.0, -9999.0, 0.0);
     }
-    // drowned cells vanish
-    if (wp.y < -2.0) wp = vec3(0.0, -9999.0, 0.0);
-
+    #ifdef MIRROR
+    if (wp.y > -100.0) {
+      wp.y = -wp.y - 0.12;
+      wp.x += sin(wp.y * 0.32 + uTime * 0.7 + wp.z * 0.11) * 0.4;
+    }
+    #endif
+    vUv = uv;
+    vWorldY = wp.y;
     vHeight = clamp(aOffset.y / 195.0, 0.0, 1.0);
     vNormalV = normalize(normalMatrix * normal);
     vec4 mv = viewMatrix * vec4(wp, 1.0);
@@ -60,6 +81,8 @@ const CLAD_FRAG = /* glsl */ `
   in float vDying;
   in float vFall;
   in float vHeight;
+  in vec2 vUv;
+  in float vWorldY;
   uniform float uTime;
   uniform float uSeverity;
   uniform vec3 uFogColor;
@@ -75,6 +98,15 @@ const CLAD_FRAG = /* glsl */ `
     vec3 col = base * (0.48 + 0.5 * diff) * mix(0.62, 1.5, vHeight * vHeight);
     // the crown burns: the monument's own lamp
     col += base * smoothstep(0.93, 1.0, vHeight) * 1.6 * (1.0 - uSeverity * 0.5);
+    // mortar: the joints hold shadow
+    vec2 eUv = min(vUv, 1.0 - vUv);
+    float edge = min(eUv.x, eUv.y);
+    col *= 0.76 + 0.24 * smoothstep(0.0, 0.1, edge);
+    // the waterline keeps its dark
+    col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorldY));
+    #ifdef MIRROR
+    col *= 0.24;
+    #endif
     if (vDying > 0.0) {
       float fl = 0.45 + 0.55 * step(0.5, fract(uTime * (2.0 + vSeed * 6.0) + vSeed * 17.0));
       col *= mix(1.0, fl * 0.6, vDying);
@@ -143,8 +175,8 @@ const SEA_FRAG = /* glsl */ `
     float pool = exp(-r * 0.016);
     col += vec3(0.14, 0.155, 0.18) * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4);
     float haze = 1.0 - exp(-dist * dist * 0.000004);
-    col = mix(col, vec3(0.028, 0.038, 0.052), haze);
-    outColor = vec4(col, 1.0);
+    col = mix(col, vec3(0.013, 0.018, 0.026), haze);
+    outColor = vec4(col, 0.72);
   }
 `;
 
@@ -165,8 +197,8 @@ const SKY_FRAG = /* glsl */ `
   void main() {
     vec3 d = normalize(vDir);
     float band = exp(-abs(d.y + 0.03) * 8.0);
-    vec3 base = mix(vec3(0.010, 0.014, 0.02), vec3(0.004, 0.006, 0.009), uSeverity);
-    vec3 glow = mix(vec3(0.09, 0.105, 0.135), vec3(0.028, 0.04, 0.055), uSeverity);
+    vec3 base = mix(vec3(0.004, 0.006, 0.009), vec3(0.002, 0.003, 0.005), uSeverity);
+    vec3 glow = mix(vec3(0.042, 0.052, 0.07), vec3(0.014, 0.02, 0.028), uSeverity);
     vec3 col = base + glow * band;
     outColor = vec4(col, 1.0);
   }
@@ -178,6 +210,9 @@ export class JourneyRenderer {
   readonly path = new CameraPath();
 
   private readonly scene = new THREE.Scene();
+  private readonly composer: EffectComposer;
+  private readonly bloom: UnrealBloomPass;
+  private mirrorMat!: THREE.ShaderMaterial;
   private readonly cladMat: THREE.ShaderMaterial;
   private readonly markMat: THREE.ShaderMaterial;
   private readonly seaMat: THREE.ShaderMaterial;
@@ -202,7 +237,19 @@ export class JourneyRenderer {
       powerPreference: 'high-performance'
     });
     this.renderer.setClearColor(0x020304, 1);
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.1;
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.3, 900);
+
+    const rt = new THREE.WebGLRenderTarget(2, 2, {
+      samples: 4,
+      type: THREE.HalfFloatType
+    });
+    this.composer = new EffectComposer(this.renderer, rt);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(2, 2), 0.38, 0.5, 0.78);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
 
     // --- sky ---
     this.skyMat = new THREE.ShaderMaterial({
@@ -228,6 +275,7 @@ export class JourneyRenderer {
         uDecay: { value: 0 }
       }
     });
+    this.seaMat.transparent = true;
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), this.seaMat);
     sea.rotation.x = -Math.PI / 2;
     sea.position.y = SEA_Y;
@@ -261,6 +309,13 @@ export class JourneyRenderer {
     const clad = new THREE.Mesh(cladGeom, this.cladMat);
     clad.frustumCulled = false;
     this.scene.add(clad);
+
+    // the monument drowned: a true reflection, shivered by the water
+    this.mirrorMat = this.cladMat.clone();
+    this.mirrorMat.defines = { MIRROR: '' };
+    const mirror = new THREE.Mesh(cladGeom, this.mirrorMat);
+    mirror.frustumCulled = false;
+    this.scene.add(mirror);
 
     // --- the true form: the dark frame inside ---
     const frameMat = new THREE.MeshStandardMaterial({
@@ -328,7 +383,7 @@ export class JourneyRenderer {
     this.scene.add(new THREE.AmbientLight(0x1a2129, 1.1));
 
     // --- atmosphere ---
-    this.halo = makeHalo('#a7b8cf', 240);
+    this.halo = makeHalo('#7e93ad', 240);
     this.halo.position.set(0, TOWER_TOP * 0.45, 0);
     this.scene.add(this.halo);
     this.crownHalo = makeHalo('#c3d2e4', 175);
@@ -360,18 +415,25 @@ export class JourneyRenderer {
   update(progress: number, dt: number, reduced: boolean): void {
     this.time += dt;
     this.path.update(this.camera, progress, dt, reduced);
+    if (!reduced) {
+      // the sea breathes under the viewpoint
+      this.camera.position.x += Math.sin(this.time * 0.13) * 0.45;
+      this.camera.position.y += Math.sin(this.time * 0.09 + 2.0) * 0.3;
+    }
     const sev = this.path.state.severity;
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
 
     const fogDensity = 0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7);
-    const fogColor = lerpColor('#0a1016', '#04070a', sev);
+    const fogColor = lerpColor('#060a0f', '#020407', sev);
 
-    const cu = this.cladMat.uniforms;
-    cu.uDecay!.value = decay;
-    cu.uTime!.value = this.world.tick / 60;
-    cu.uSeverity!.value = sev;
-    cu.uFogDensity!.value = fogDensity;
-    (cu.uFogColor!.value as THREE.Color).copy(fogColor);
+    for (const mat of [this.cladMat, this.mirrorMat]) {
+      const cu = mat.uniforms;
+      cu.uDecay!.value = decay;
+      cu.uTime!.value = this.world.tick / 60;
+      cu.uSeverity!.value = sev;
+      cu.uFogDensity!.value = fogDensity;
+      (cu.uFogColor!.value as THREE.Color).copy(fogColor);
+    }
 
     this.skyMat.uniforms.uSeverity!.value = sev;
     this.seaMat.uniforms.uSeverity!.value = sev;
@@ -403,13 +465,15 @@ export class JourneyRenderer {
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;
 
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
   }
 
   private readonly resize = (): void => {
     const pr = Math.min(window.devicePixelRatio, this.maxDpr);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer.setPixelRatio(pr);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.markMat.uniforms.uScale!.value = window.innerHeight * pr * 0.8;
