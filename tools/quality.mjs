@@ -143,7 +143,56 @@ async function harnessPage(context) {
   await ctx.close();
 }
 
-// --- 5. console ---
+// --- 5. temporal calm: nothing may strobe (the flicker regression guard) ---
+{
+  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(3000);
+  await page.evaluate(() => document.getElementById('rule').scrollIntoView({ block: 'start' }));
+  await page.waitForTimeout(2500);
+  const diff = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const src = document.getElementById('world');
+        const grab = () => {
+          const c = document.createElement('canvas');
+          c.width = 320;
+          c.height = 180;
+          const x = c.getContext('2d');
+          x.drawImage(src, 0, 0, 320, 180);
+          return x.getImageData(0, 0, 320, 180).data;
+        };
+        requestAnimationFrame(() => {
+          const a = grab();
+          setTimeout(
+            () =>
+              requestAnimationFrame(() => {
+                const b = grab();
+                let sum = 0;
+                const n = 320 * 180;
+                for (let i = 0; i < n; i++) {
+                  sum +=
+                    Math.abs(a[i * 4] - b[i * 4]) +
+                    Math.abs(a[i * 4 + 1] - b[i * 4 + 1]) +
+                    Math.abs(a[i * 4 + 2] - b[i * 4 + 2]);
+                }
+                resolve(sum / (n * 3 * 255));
+              }),
+            500
+          );
+        });
+      })
+  );
+  check(
+    'temporal calm: mean frame change under 1% over half a second',
+    diff < 0.01,
+    'diff=' + diff.toFixed(5)
+  );
+  await ctx.close();
+}
+
+// --- 6. console ---
 check('console: zero errors across all runs', consoleErrors.length === 0, consoleErrors.join(' | '));
 
 await browser.close();

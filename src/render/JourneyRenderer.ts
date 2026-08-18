@@ -38,7 +38,7 @@ const CLAD_VERT = /* glsl */ `
     float sinceStrike = aStrike < 0.0 ? -1.0 : max(0.0, uTime - aStrike);
     float fallT = max(over * 3.0, sinceStrike > 0.0 ? sinceStrike * 0.9 : 0.0);
     vFall = fallT;
-    vDying = smoothstep(0.06, 0.0, aThresh - uDecay) * step(uDecay, aThresh);
+    vDying = smoothstep(0.035, 0.0, aThresh - uDecay) * step(uDecay, aThresh);
 
     // masonry: no two cells cut quite alike
     float sizeVar = 0.93 + 0.1 * fract(aSeed * 7.31);
@@ -85,6 +85,7 @@ const CLAD_FRAG = /* glsl */ `
   in float vWorldY;
   uniform float uTime;
   uniform float uSeverity;
+  uniform float uCalm;
   uniform vec3 uFogColor;
   out vec4 outColor;
   void main() {
@@ -108,8 +109,10 @@ const CLAD_FRAG = /* glsl */ `
     col *= 0.24;
     #endif
     if (vDying > 0.0) {
-      float fl = 0.45 + 0.55 * step(0.5, fract(uTime * (2.0 + vSeed * 6.0) + vSeed * 17.0));
-      col *= mix(1.0, fl * 0.6, vDying);
+      // a slow gutter, never a strobe: shallow, smooth, and still under
+      // reduced motion
+      float g = 0.72 + 0.22 * sin(uTime * (1.0 + vSeed * 1.4) + vSeed * 40.0);
+      col *= mix(1.0, mix(g, 0.8, uCalm), vDying);
     }
     if (vFall > 0.0) {
       col *= clamp(1.0 - vFall * 1.1, 0.08, 1.0);
@@ -247,7 +250,7 @@ export class JourneyRenderer {
     });
     this.composer = new EffectComposer(this.renderer, rt);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(2, 2), 0.38, 0.5, 0.78);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(2, 2), 0.34, 0.5, 1.0);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -302,6 +305,7 @@ export class JourneyRenderer {
         uDecay: { value: 0 },
         uTime: { value: 0 },
         uSeverity: { value: 0 },
+        uCalm: { value: 0 },
         uFogColor: { value: new THREE.Color('#0a1016') },
         uFogDensity: { value: 0.0035 }
       }
@@ -429,8 +433,9 @@ export class JourneyRenderer {
     for (const mat of [this.cladMat, this.mirrorMat]) {
       const cu = mat.uniforms;
       cu.uDecay!.value = decay;
-      cu.uTime!.value = this.world.tick / 60;
+      cu.uTime!.value = this.time;
       cu.uSeverity!.value = sev;
+      cu.uCalm!.value = reduced ? 1 : 0;
       cu.uFogDensity!.value = fogDensity;
       (cu.uFogColor!.value as THREE.Color).copy(fogColor);
     }
