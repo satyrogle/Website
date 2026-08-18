@@ -1,10 +1,20 @@
 # APPROVED VISUAL JOURNEY
 
 ```
-STATUS:   NOT APPROVED
-AS OF:    2026-08-18
-APPROVED IMAGE: none
-APPROVED JOURNEY: none
+STATUS:   APPROVED
+AS OF:    2026-08-18 (end of night)
+APPROVED JOURNEY: THE MONUMENT (claude/genesis, commit f3b48e7)
+JACOB'S APPROVAL, VERBATIM: "this works keep the monument now polish it
+                            make it feel expensive"
+WHAT IS APPROVED: one colossal white stele of light cells standing in a
+    dark sea, crown burning; scroll strips it crown-down, cells fall and
+    drown, scree piles at the foot; the true form revealed is the dark
+    structural frame. Closing line: "Beneath the light there was always
+    the lattice." Strike law live into the ledger; a press seats a cell
+    into the face. The eighteenth carrier of the night, and the first
+    survivor of the whole project.
+SCOPE: the journey and both anchor frames as built at f3b48e7. Polish is
+    authorised ("make it feel expensive"). Direction changes are not.
 ```
 
 **This file is a gate, not a plan.** While the status line above reads anything
@@ -71,14 +81,58 @@ camera move. Approving a direction does not approve a full page.
 
 ## 3. THE APPROVAL RECORD
 
-Empty. Filled only by Jacob's decision, never by inference.
-
 ```
-SELECTED DIRECTION:      —
-NAMED BY IMAGE:          —
-JACOB'S APPROVAL, VERBATIM:
-                         —
-DATE:                    —
+SELECTED DIRECTION:      THE MONUMENT (dealer's choice, Jacob's explicit
+                         delegation after killing the false heaven)
+JACOB'S BRIEF, VERBATIM (2026-08-18): "do a redesign dealers choice
+    something mighty something holy but decays as we scroll then true
+    sinister form"
+THE CHOICE: one colossal white stele of light-cells rising from the dark
+    sea (the h2 environment register survives; nothing hangs). Scroll
+    drives decay: cells fail and fall in waves, crown first. The true
+    form revealed beneath is the dark structural lattice that was always
+    holding it. The strike law runs live into the ledger; a press seats
+    a new cell into the face.
+KILLED THE SAME NIGHT: H2 THE FALSE HEAVEN as built. Jacob: "nope its a
+    chandelier wtf". The named precedent failure (hanging lights) recurred
+    when the h2 image was built literally as a ceiling of lamps. The h2
+    IMAGE register (sea, haze, immensity, order) is retained as
+    environment; the hanging-light construction is dead permanently.
+
+SUPERSEDED EARLIER THE SAME NIGHT:
+SELECTED DIRECTION:      H2, THE FALSE HEAVEN
+NAMED BY IMAGE:          captures/hybrids/openings-krea/h2/h2-krea.png
+                         (generated in Jacob's own Krea/Comfy pipeline; his
+                         commit bbcc812 already recorded "krea 2 finds the
+                         register, after six methods that found nothing")
+JACOB'S SELECTION:       2026-08-18, in session, from the three krea openings:
+                         "H2, the false heaven". Drives the rebuild of the
+                         opening and the end form on claude/genesis, carried
+                         by the igloo.inc journey architecture he named the
+                         same night (below). Built frames still go to his eye.
+DATE:                    2026-08-18
+
+SUPERSEDED THE SAME NIGHT, built frames rejected ("entity sucks, the end
+form sucks even more"):
+SELECTED DIRECTION:      THE LATTICE ENTITY (Igloo architecture, Dark Lattice read)
+NAMED BY IMAGE:          https://www.igloo.inc/ (a living reference, chosen by
+                         Jacob in place of a generated still; captures of its
+                         beats archived in dark-lattice-genesis/captures/igloo/)
+JACOB'S DIRECTION, VERBATIM (2026-08-18, after killing the genesis field):
+    "https://www.igloo.inc/ this with an entity that represents dark lattice,
+    same architecture, same travel, same tunnel, same final entity but it
+    should follow the surface read [beautiful, sacred, immense, cosmic, soft,
+    elegant, almost spiritual; galaxy, nebula, celestial bloom, holy particle
+    field, luminous living system] ... underneath, as we move through it, the
+    truth changes: the beauty was only the outer layer, the deeper system is
+    damaged / unstable / dying / predatory / corrective / concealed ... a
+    dying planet, a wounded core, a correction engine, a system that filters
+    truth, a beautiful shell hiding decay or violence."
+DATE:                    2026-08-18
+NOTE: This direction was named by Jacob against a living reference, overriding
+the earlier "no tunnel / no entity" bans for this build. It is a DIRECTION
+record, not a frame approval: the built frames still go to Jacob's eye, and
+his verdict on them is what fills the frame table below.
 ```
 
 | Frame | Role | Approved image | Board section | Approved |
