@@ -97,13 +97,13 @@ const CLAD_FRAG = /* glsl */ `
     vec3 n = normalize(vNormalV);
     vec3 L = normalize(vec3(0.35, 0.75, 0.55));
     float diff = clamp(dot(n, L), 0.0, 1.0);
-    // the stone of light: near-white, faintly warm, cooled by severity;
-    // holiness gathers at the crown, the waterline stays stone
-    vec3 base = mix(vec3(0.93, 0.95, 0.975), vec3(0.99, 0.975, 0.95), vSeed * 0.5);
-    base = mix(base, vec3(0.62, 0.74, 0.88), uSeverity * 0.35);
-    vec3 col = base * (0.48 + 0.5 * diff) * mix(0.62, 1.5, vHeight * vHeight);
-    // the crown burns: the monument's own lamp
-    col += base * smoothstep(0.93, 1.0, vHeight) * 1.6 * (1.0 - uSeverity * 0.5);
+    // moonlit stone, not a lightbox: dark grey-blue mass whose holiness
+    // is contrast, carried by the burning crown and the lit edges
+    vec3 base = mix(vec3(0.34, 0.375, 0.43), vec3(0.40, 0.385, 0.36), vSeed * 0.5);
+    base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.45);
+    vec3 col = base * (0.42 + 0.55 * diff) * mix(0.55, 1.45, vHeight * vHeight);
+    // the crown burns near-white: the monument's own lamp
+    col += vec3(0.92, 0.95, 1.0) * smoothstep(0.93, 1.0, vHeight) * 1.5 * (1.0 - uSeverity * 0.5);
     // mortar: the joints hold shadow
     vec2 eUv = min(vUv, 1.0 - vUv);
     float edge = min(eUv.x, eUv.y);
@@ -131,12 +131,16 @@ const CLAD_FRAG = /* glsl */ `
       // the visitor's lamp: where you point, the records wake. Warm
       // light early; the same touch turns cold as the truth arrives.
       float hd = distance(vWorld, uHover);
-      float lamp = exp(-hd * hd / 260.0) * uHoverAmt;
+      // the pool of attention stays hand-sized on screen: its reach
+      // shrinks as the camera closes
+      float camD = distance(cameraPosition, uHover);
+      float sigma = clamp(camD * 0.16, 2.5, 15.0);
+      float lamp = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
       float breathe = 1.0 - (1.0 - uCalm) * 0.08 * (0.5 + 0.5 * sin(uTime * 1.1));
       vec3 lampCol = mix(vec3(1.0, 0.88, 0.68), vec3(0.5, 0.78, 1.0), uSeverity);
       // the stone itself takes the colour of the attention it is given
-      col = mix(col, col * lampCol * 1.35, lamp * 0.6);
-      col += lampCol * eng * lamp * breathe * 1.4 * mix(1.0, 0.5, vDying);
+      col = mix(col, col * lampCol * 1.3, lamp * 0.45);
+      col += lampCol * eng * lamp * breathe * 0.7 * mix(1.0, 0.5, vDying);
     }
     // the waterline keeps its dark
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorldY));
