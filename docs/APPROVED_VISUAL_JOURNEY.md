@@ -17,6 +17,33 @@ SCOPE: the journey and both anchor frames as built at f3b48e7. Polish is
     authorised ("make it feel expensive"). Direction changes are not.
 ```
 
+## Jacob's reference list, given 2026-08-18 during journey refinement
+
+Verbatim: "https://lusion.co/ https://www.ilabsolutions.it/
+https://www.thedigitalpanda.com/ https://asmobius.co.jp/ https://dala.ai/
+and this https://www.blueyard.com/ this is something im fond of honestly
+and these are god like mentions for journey https://ferrumpipe.com/
+https://www.utsubo.com/ https://immersive-g.com/ https://resn.co.nz/"
+
+Captured to dark-lattice-genesis/captures/refs/. Extractions applied the
+same night, per the references-name-qualities law:
+
+- **Blueyard (the fondness): TAKE the warmth.** Golden luminous
+  atmosphere, soft radiant light. Applied as the monument's temperature
+  arc: the holy phase is warm gold (sky, stone, crown, halos, sea pool,
+  fog), draining to the existing cold steel as severity rises. REJECT
+  the orb, the peach pastel field, the lightness of tone.
+- **Utsubo: TAKE** absolute restraint, one soft luminous form on true
+  black. REJECT the entry gate (no forced intro, constitution).
+- **Journey mentions (resn, immersive-g, lusion): TAKE** the
+  dwell-travel rhythm: stillness where content is read, decisive motion
+  between, varied shot grammar (orbit, close sweep, passage-through).
+  Applied as the re-authored camera score with the breach passage.
+- **ferrumpipe.com was DEAD at capture time** (cPanel error page).
+  Nothing extracted; revisit if it returns.
+- ilabsolutions, thedigitalpanda, asmobius, dala.ai: logged, not yet
+  mined; captures on disk.
+
 **This file is a gate, not a plan.** While the status line above reads anything
 other than `APPROVED`, no new or changed visual direction may be built. Nothing
 in any other document, board, brief or previous implementation overrides that,
