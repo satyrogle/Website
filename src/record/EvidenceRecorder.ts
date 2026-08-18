@@ -1,4 +1,4 @@
-import type { WorldEvent } from '../sim/SimulationKernel';
+import type { WorldEvent } from './events';
 
 /**
  * The record, rendered as an institutional ledger: tick, event, status.

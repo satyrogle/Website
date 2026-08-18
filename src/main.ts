@@ -1,148 +1,114 @@
 import { detectCapabilities, prefersReducedMotion } from './core/capabilities';
 import { ExperienceState, seedFromLocation } from './core/ExperienceState';
-import { SimulationKernel } from './sim/SimulationKernel';
-import { ObservationModel } from './render/ObservationModel';
-import { SceneRenderer } from './render/SceneRenderer';
+import { LatticeWorld } from './world/LatticeWorld';
+import { JourneyRenderer } from './render/JourneyRenderer';
 import { ScrollDirector } from './motion/ScrollDirector';
 import { InputController } from './input/InputController';
 import { EvidenceRecorder } from './record/EvidenceRecorder';
 import { ContentController } from './content/ContentController';
 
 /**
- * Boot. One deterministic state model, one simulation, renderers that
- * observe snapshots. Hero copy paints before any of this runs; the
- * world warms up in the background and fades in once it has formed,
- * which is the loading state, stated honestly.
+ * Boot. One deterministic state model, one world, one camera journey:
+ * the exterior mass, the descent through the strata, the core where the
+ * frame and its law are visible. Hero copy paints before any of this
+ * runs; the world fades in once the first frame exists.
  *
  * ?seed=N     replaces the default seed
- * ?flat=1     disables glow, atmosphere, grain and pulse (static-frame audit)
- * ?harness=1  disables auto-stepping and exposes window.__dl for the
- *             quality harness (replay and first-action tests)
+ * ?harness=1  disables auto-stepping and exposes window.__dl
+ * ?bare=1     hides the DOM for world-only captures
  */
 
-const MAX_CATCHUP_STEPS = 3;
+const FIXED_STEP = 1 / 60;
+const MAX_CATCHUP_STEPS = 4;
 const REDUCED_STEP_EVERY = 8;
-const WARMUP_TICKS = 420;
-const WARMUP_CHUNK = 42;
 
 function boot(): void {
   const params = new URLSearchParams(window.location.search);
   const harness = params.has('harness');
-  const flat = params.has('flat');
 
   const caps = detectCapabilities();
   const recorder = new EvidenceRecorder();
-  // one seeded world, identical on every device; weaker hardware runs
-  // the same world at half rate and lower resolution, never a smaller one
-  const agentDim = 512;
-  const FIXED_STEP = caps.lowTier ? 1 / 30 : 1 / 60;
-
-  if (!caps.webgl) {
-    new ContentController(false, agentDim * agentDim);
-    recorder.noWorld();
-    return;
-  }
 
   const canvas = document.querySelector<HTMLCanvasElement>('#world');
-  if (!canvas) {
-    new ContentController(false, agentDim * agentDim);
+  if (!caps.webgl || !canvas) {
+    document.body.classList.add('no-webgl');
+    new ContentController(false, 0);
     recorder.noWorld();
     return;
   }
 
-  let sceneRenderer: SceneRenderer;
-  let kernel: SimulationKernel;
-  let observation: ObservationModel;
   const state = new ExperienceState(seedFromLocation());
   state.reducedMotion = prefersReducedMotion();
 
+  let world: LatticeWorld;
+  let renderer: JourneyRenderer;
   try {
-    sceneRenderer = new SceneRenderer(canvas, caps.lowTier ? 1.25 : 1.75, flat);
-    kernel = new SimulationKernel(sceneRenderer.renderer, {
-      seed: state.seed,
-      agentDim,
-      onEvent: (e) => {
-        recorder.add(e);
-        if (e.kind === 'placed' && e.x !== undefined && e.y !== undefined) {
-          sceneRenderer.pulseAt(e.x, e.y, observation.view.time);
-        }
-      }
-    });
-    sceneRenderer.attachKernel(kernel);
+    world = new LatticeWorld(state.seed, (e) => recorder.add(e));
+    renderer = new JourneyRenderer(canvas, world, caps.lowTier ? 1.25 : 1.75);
   } catch (err) {
     console.error('World failed to start; the still page stands.', err);
     document.body.classList.add('no-webgl');
-    new ContentController(false, agentDim * agentDim);
+    new ContentController(false, 0);
     recorder.noWorld();
     return;
   }
 
-  new ContentController(true, kernel.agentCount);
-  observation = new ObservationModel(state, () => kernel.focusPoint());
+  new ContentController(true, world.nodeCount);
   new ScrollDirector(state);
-  new InputController(kernel, observation, () => {
+  new InputController(world, renderer, () => {
     recorder.notice(
-      'T+' + String(kernel.tick).padStart(6, '0') + ' · STILL TAKING THE LAST MARK'
+      'T+' + String(world.tick).padStart(6, '0') + ' · STILL TAKING THE LAST MARK'
     );
   });
 
   const telemetry = document.querySelector<HTMLElement>('#telemetry');
 
-  // if the GPU goes away mid-session, say so and stand on the still page
   canvas.addEventListener('webglcontextlost', () => {
     document.body.classList.add('no-webgl');
     document.body.classList.remove('world-ready');
     recorder.add({
       kind: 'removed',
-      tick: kernel.tick,
+      tick: world.tick,
       text: 'WEBGL CONTEXT LOST',
       status: 'OFFLINE'
     });
   });
 
-  const announceOnline = (): void => {
-    recorder.add({
-      kind: 'seed',
-      tick: kernel.tick,
-      text:
-        'SEED ' +
-        state.seed +
-        ' · ' +
-        kernel.agentCount.toLocaleString('en-GB') +
-        ' AGENTS · FIXED STEP 60 HZ',
-      status: 'ONLINE'
-    });
-  };
+  recorder.add({
+    kind: 'seed',
+    tick: 0,
+    text:
+      'SEED ' +
+      state.seed +
+      ' · ' +
+      world.nodeCount.toLocaleString('en-GB') +
+      ' NODES · FIXED STEP 60 HZ',
+    status: 'ONLINE'
+  });
 
   if (harness) {
-    // deterministic control surface: nothing steps unless the harness says so
     document.body.classList.add('world-ready');
-    announceOnline();
     (window as unknown as Record<string, unknown>).__dl = {
       seed: state.seed,
-      stepTo: (n: number): number => {
-        while (kernel.tick < n) kernel.step();
-        return kernel.tick;
-      },
+      stepTo: (n: number): number => world.stepTo(n),
       snapshot: (): { tick: number; sum: number } => ({
-        tick: kernel.tick,
-        sum: kernel.healthChecksum()
+        tick: world.tick,
+        sum: world.checksum()
       }),
-      placeMark: (x: number, y: number): boolean => kernel.placeMark(x, y),
+      placeMark: (ndcX: number, ndcY: number): boolean => {
+        const p = renderer.path.markPoint(renderer.camera, ndcX, ndcY);
+        return world.placeMark(p.x, p.y, p.z);
+      },
       records: (): number => document.querySelectorAll('#record-list li').length
     };
     const renderOnly = (): void => {
       requestAnimationFrame(renderOnly);
-      observation.update(1 / 60);
-      sceneRenderer.render(kernel, observation.view);
+      renderer.update(state.progress, 1 / 60, false);
     };
     requestAnimationFrame(renderOnly);
     return;
   }
 
-  recorder.notice('SEED ' + state.seed + ' · FORMING');
-
-  let warmed = 0;
   let accumulator = 0;
   let last = performance.now();
   let frame = 0;
@@ -155,38 +121,25 @@ function boot(): void {
     if (!running) return;
     frame++;
 
-    if (warmed < WARMUP_TICKS) {
-      // staged warm-up: the world forms before it is shown
-      for (let i = 0; i < WARMUP_CHUNK && warmed < WARMUP_TICKS; i++) {
-        kernel.step();
-        warmed++;
-      }
-      if (warmed >= WARMUP_TICKS) {
-        document.body.classList.add('world-ready');
-        announceOnline();
-      }
-      return;
-    }
-
     if (state.reducedMotion) {
-      if (frame % REDUCED_STEP_EVERY === 0) kernel.step();
+      if (frame % REDUCED_STEP_EVERY === 0) world.step();
     } else {
       accumulator += dt;
       let steps = 0;
       while (accumulator >= FIXED_STEP && steps < MAX_CATCHUP_STEPS) {
-        kernel.step();
+        world.step();
         accumulator -= FIXED_STEP;
         steps++;
       }
       if (accumulator > FIXED_STEP) accumulator = FIXED_STEP;
     }
 
-    observation.update(dt);
-    sceneRenderer.render(kernel, observation.view);
+    renderer.update(state.progress, dt, state.reducedMotion);
 
+    if (frame === 1) document.body.classList.add('world-ready');
     if (telemetry && frame % 20 === 0) {
       telemetry.textContent =
-        'SEED ' + state.seed + ' · T+' + String(kernel.tick).padStart(6, '0');
+        'SEED ' + state.seed + ' · T+' + String(world.tick).padStart(6, '0');
     }
   };
 

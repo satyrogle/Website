@@ -2,10 +2,15 @@
 
 ```
 FIELD KILLED 2026-08-18. Jacob: "looks like human sperms on the screen."
-The world's RENDERING is dead and may not be retuned. Everything else on
-this branch (editorial, type, ledger, legal, kernel, harness) survives
-and waits for an approved opening image to be re-skinned against. See
-docs/APPROVED_VISUAL_JOURNEY.md in the main repo, section 4.
+The transport-trail rendering is dead and may not be revived.
+
+DIRECTION NAMED BY JACOB, SAME DAY: igloo.inc's architecture (entity,
+travel, tunnel, final entity) with the Dark Lattice surface read: holy
+outside, corrective underneath. Rebuilt as THE LATTICE ENTITY: an
+immense celestial mass of nodes; travel inward reveals alignments, then
+failures, then the frame itself at the core, where the culling law runs
+live into the record. See docs/APPROVED_VISUAL_JOURNEY.md section 3 in
+the main repo for Jacob's verbatim direction.
 ```
 
 One seeded world behind the whole page. Built 2026-08-18 on the orphan

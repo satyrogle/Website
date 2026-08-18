@@ -9,8 +9,8 @@ export class ContentController {
   constructor(webgl: boolean, agentCount: number) {
     document.body.classList.toggle('no-webgl', !webgl);
 
-    // honest agent count in the copy
-    for (const el of document.querySelectorAll('[data-agent-count]')) {
+    // honest node count in the copy
+    for (const el of document.querySelectorAll('[data-node-count]')) {
       el.textContent = agentCount.toLocaleString('en-GB');
     }
     for (const el of document.querySelectorAll<HTMLElement>('[data-webgl-only]')) {
