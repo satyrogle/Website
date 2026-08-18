@@ -204,6 +204,43 @@ const MARK_FRAG = /* glsl */ `
   }
 `;
 
+
+const MOTE_VERT = /* glsl */ `
+  in float aSeed;
+  uniform float uTime;
+  uniform float uScale;
+  out float vSeed;
+  void main() {
+    vSeed = aSeed;
+    vec3 p = position;
+    // slow rise and drift: the air made visible
+    p.y = mod(p.y + uTime * (0.3 + aSeed * 0.5), 34.0);
+    p.x += sin(uTime * 0.05 + aSeed * 40.0) * 2.0;
+    p.z += cos(uTime * 0.04 + aSeed * 70.0) * 2.0;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float dist = max(1.0, -mv.z);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = clamp(uScale * 0.055 * (0.5 + aSeed) / dist, 0.75, 3.5);
+  }
+`;
+
+const MOTE_FRAG = /* glsl */ `
+  precision highp float;
+  in float vSeed;
+  uniform float uSeverity;
+  uniform float uAmt;
+  out vec4 outColor;
+  void main() {
+    vec2 d = gl_PointCoord - 0.5;
+    float r2 = dot(d, d);
+    if (r2 > 0.25) discard;
+    float fall = exp(-r2 * 12.0);
+    vec3 warm = vec3(0.62, 0.5, 0.34);
+    vec3 cold = vec3(0.3, 0.38, 0.5);
+    outColor = vec4(mix(warm, cold, uSeverity) * fall * 0.4 * uAmt, 1.0);
+  }
+`;
+
 const SEA_VERT = /* glsl */ `
   out vec3 vWorld;
   void main() {
@@ -219,6 +256,7 @@ const SEA_FRAG = /* glsl */ `
   uniform vec3 uCam;
   uniform float uSeverity;
   uniform float uDecay;
+  uniform float uTime;
   out vec4 outColor;
   void main() {
     float dist = length(vWorld - uCam);
@@ -227,7 +265,8 @@ const SEA_FRAG = /* glsl */ `
     float r = length(vWorld.xz);
     float pool = exp(-r * 0.016);
     vec3 poolCol = mix(vec3(0.185, 0.155, 0.115), vec3(0.10, 0.12, 0.15), uSeverity);
-    col += poolCol * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4);
+    col += poolCol * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4)
+        * (0.92 + 0.08 * sin(uTime * 0.3 + vWorld.x * 0.02 + vWorld.z * 0.013));
     float haze = 1.0 - exp(-dist * dist * 0.000004);
     col = mix(col, mix(vec3(0.022, 0.017, 0.012), vec3(0.010, 0.014, 0.020), uSeverity), haze);
     outColor = vec4(col, 0.72);
@@ -279,6 +318,7 @@ export class JourneyRenderer {
   private readonly screeTotal: number;
   private innerLight!: THREE.PointLight;
   private rimLight!: THREE.DirectionalLight;
+  private moteMat!: THREE.ShaderMaterial;
   private readonly halo: THREE.Sprite;
   private readonly crownHalo: THREE.Sprite;
   private readonly maxDpr: number;
@@ -337,7 +377,8 @@ export class JourneyRenderer {
       uniforms: {
         uCam: { value: new THREE.Vector3() },
         uSeverity: { value: 0 },
-        uDecay: { value: 0 }
+        uDecay: { value: 0 },
+        uTime: { value: 0 }
       }
     });
     this.seaMat.transparent = true;
@@ -473,6 +514,42 @@ export class JourneyRenderer {
     this.crownHalo.position.set(0, TOWER_TOP * 0.92, 0);
     this.scene.add(this.crownHalo);
 
+    // --- the air: dust motes over the water, rising slowly ---
+    {
+      const N = 260;
+      const rngM = mulberry32ish(world.seed ^ 0x5150);
+      const mp = new Float32Array(N * 3);
+      const ms = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const ang = rngM() * Math.PI * 2;
+        const rad = 20 + rngM() * 130;
+        mp[i * 3] = Math.cos(ang) * rad;
+        mp[i * 3 + 1] = rngM() * 34;
+        mp[i * 3 + 2] = Math.sin(ang) * rad;
+        ms[i] = rngM();
+      }
+      const mg = new THREE.BufferGeometry();
+      mg.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+      mg.setAttribute('aSeed', new THREE.BufferAttribute(ms, 1));
+      this.moteMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: MOTE_VERT,
+        fragmentShader: MOTE_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uScale: { value: 900 },
+          uSeverity: { value: 0 },
+          uAmt: { value: 1 }
+        },
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true
+      });
+      const motes = new THREE.Points(mg, this.moteMat);
+      motes.frustumCulled = false;
+      this.scene.add(motes);
+    }
+
     // --- visitor marks ---
     this.markGeom = new THREE.BufferGeometry();
     this.markGeom.setAttribute('position', new THREE.BufferAttribute(this.markPos, 3));
@@ -553,13 +630,15 @@ export class JourneyRenderer {
     this.skyMat.uniforms.uSeverity!.value = sev;
     this.seaMat.uniforms.uSeverity!.value = sev;
     this.seaMat.uniforms.uDecay!.value = decay;
+    this.seaMat.uniforms.uTime!.value = reduced ? 0 : this.time;
     (this.seaMat.uniforms.uCam!.value as THREE.Vector3).copy(this.camera.position);
 
     // holiness dims as the monument strips, and never smears the lens
     const haloFade = smooth01(this.camera.position.distanceTo(this.halo.position), 40, 95);
     const crownFade = smooth01(this.camera.position.distanceTo(this.crownHalo.position), 40, 95);
-    this.halo.material.opacity = 0.45 * (1 - decay * 0.85) * haloFade;
-    this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade;
+    const breath = reduced ? 1 : 0.93 + 0.07 * Math.sin(this.time * 0.22);
+    this.halo.material.opacity = 0.45 * (1 - decay * 0.85) * haloFade * breath;
+    this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade * (2 - breath) * 0.5;
 
     // the traveller's light burns only inside the wall
     this.innerLight.intensity = 90 * inside;
@@ -575,6 +654,9 @@ export class JourneyRenderer {
     }
 
     this.markMat.uniforms.uTime!.value = this.world.tick / 60;
+    this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    this.moteMat.uniforms.uSeverity!.value = sev;
+    this.moteMat.uniforms.uAmt!.value = 1 - smooth01(progress, 0.45, 0.62) * (1 - smooth01(progress, 0.64, 0.72));
     const marks = this.world.marks;
     for (let m = 0; m < marks.length; m++) {
       const mk = marks[m]!;
@@ -599,6 +681,7 @@ export class JourneyRenderer {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.markMat.uniforms.uScale!.value = window.innerHeight * pr * 0.8;
+    if (this.moteMat) this.moteMat.uniforms.uScale!.value = window.innerHeight * pr * 0.8;
   };
 
   dispose(): void {
