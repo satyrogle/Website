@@ -22,6 +22,7 @@ const CLAD_VERT = /* glsl */ `
   uniform float uDecay;
   uniform float uTime;
   uniform float uFogDensity;
+  uniform float uCalmV;
   out vec3 vNormalV;
   out float vSeed;
   out float vFog;
@@ -37,7 +38,7 @@ const CLAD_VERT = /* glsl */ `
     float over = max(0.0, uDecay - aThresh);
     // a live strike fells the cell regardless of scroll
     float sinceStrike = aStrike < 0.0 ? -1.0 : max(0.0, uTime - aStrike);
-    float fallT = max(over * 3.0, sinceStrike > 0.0 ? sinceStrike * 0.9 : 0.0);
+    float fallT = max(over * 10.0, sinceStrike > 0.0 ? sinceStrike * 0.9 : 0.0);
     vFall = fallT;
     vDying = smoothstep(0.035, 0.0, aThresh - uDecay) * step(uDecay, aThresh);
 
@@ -45,7 +46,7 @@ const CLAD_VERT = /* glsl */ `
     float sizeVar = 0.93 + 0.1 * fract(aSeed * 7.31);
     vec3 wp = position * sizeVar * (fallT > 0.0 ? clamp(1.0 - fallT * 0.45, 0.05, 1.0) : 1.0) + aOffset;
     if (fallT > 0.0) {
-      float ang = fallT * (aSeed * 8.0 - 4.0);
+      float ang = fallT * (aSeed * 8.0 - 4.0) + uTime * 0.22 * (aSeed - 0.5) * (1.0 - uCalmV);
       float ca = cos(ang);
       float sa = sin(ang);
       vec3 lp = wp - aOffset;
@@ -91,6 +92,8 @@ const CLAD_FRAG = /* glsl */ `
   uniform float uCalm;
   uniform vec3 uHover;
   uniform float uHoverAmt;
+  uniform vec3 uInner;
+  uniform float uInnerAmt;
   uniform vec3 uFogColor;
   out vec4 outColor;
   void main() {
@@ -101,7 +104,7 @@ const CLAD_FRAG = /* glsl */ `
     // is contrast, carried by the burning crown and the lit edges
     vec3 base = mix(vec3(0.42, 0.39, 0.345), vec3(0.46, 0.425, 0.365), vSeed * 0.5);
     base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.75);
-    vec3 col = base * (0.42 + 0.55 * diff) * mix(0.55, 1.45, vHeight * vHeight);
+    vec3 col = base * (0.38 + 0.5 * diff) * mix(0.5, 1.15, vHeight * vHeight);
     // the crown burns near-white: the monument's own lamp
     vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
     col += crownCol * smoothstep(0.93, 1.0, vHeight) * 1.5 * (1.0 - uSeverity * 0.5);
@@ -128,7 +131,7 @@ const CLAD_FRAG = /* glsl */ `
       }
       eng *= smoothstep(0.02, 0.09, edge);
       // carved: the grooves hold quiet shadow, dormant until attended
-      col *= 1.0 - eng * 0.2;
+      col *= 1.0 - eng * 0.24;
       // the visitor's lamp: where you point, the records wake. Warm
       // light early; the same touch turns cold as the truth arrives.
       float hd = distance(vWorld, uHover);
@@ -142,6 +145,13 @@ const CLAD_FRAG = /* glsl */ `
       // the stone itself takes the colour of the attention it is given
       col = mix(col, col * lampCol * 1.3, lamp * 0.45);
       col += lampCol * eng * lamp * breathe * 0.7 * mix(1.0, 0.5, vDying);
+    }
+    // the traveller's light, inside the wall
+    if (uInnerAmt > 0.001) {
+      vec3 iv = uInner - vWorld;
+      float id2 = dot(iv, iv);
+      float il = uInnerAmt / (1.0 + id2 * 0.02);
+      col += vec3(0.5, 0.55, 0.65) * il * (0.3 + 0.7 * max(dot(n, normalize(iv)), 0.0));
     }
     // the waterline keeps its dark
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorldY));
@@ -241,8 +251,8 @@ const SKY_FRAG = /* glsl */ `
   void main() {
     vec3 d = normalize(vDir);
     float band = exp(-abs(d.y + 0.03) * 8.0);
-    vec3 base = mix(vec3(0.012, 0.009, 0.006), vec3(0.002, 0.003, 0.005), uSeverity);
-    vec3 glow = mix(vec3(0.085, 0.06, 0.035), vec3(0.014, 0.02, 0.028), uSeverity);
+    vec3 base = mix(vec3(0.006, 0.0045, 0.003), vec3(0.002, 0.003, 0.005), uSeverity);
+    vec3 glow = mix(vec3(0.055, 0.038, 0.02), vec3(0.014, 0.02, 0.028), uSeverity);
     vec3 col = base + glow * band;
     outColor = vec4(col, 1.0);
   }
@@ -268,6 +278,7 @@ export class JourneyRenderer {
   private readonly scree: THREE.InstancedMesh;
   private readonly screeTotal: number;
   private innerLight!: THREE.PointLight;
+  private rimLight!: THREE.DirectionalLight;
   private readonly halo: THREE.Sprite;
   private readonly crownHalo: THREE.Sprite;
   private readonly maxDpr: number;
@@ -358,8 +369,11 @@ export class JourneyRenderer {
         uTime: { value: 0 },
         uSeverity: { value: 0 },
         uCalm: { value: 0 },
+        uCalmV: { value: 0 },
         uHover: { value: new THREE.Vector3(0, -999, 0) },
         uHoverAmt: { value: 0 },
+        uInner: { value: new THREE.Vector3(0, -999, 0) },
+        uInnerAmt: { value: 0 },
         uFogColor: { value: new THREE.Color('#0a1016') },
         uFogDensity: { value: 0.0035 }
       }
@@ -406,7 +420,7 @@ export class JourneyRenderer {
     this.scene.add(frame);
 
     // --- the scree of the struck ---
-    this.screeTotal = 2200;
+    this.screeTotal = 1500;
     const screeMat = new THREE.MeshStandardMaterial({
       color: 0x1a1f26,
       roughness: 0.9,
@@ -421,7 +435,7 @@ export class JourneyRenderer {
     const rng = mulberry32ish(world.seed ^ 0x77aa11);
     for (let i = 0; i < this.screeTotal; i++) {
       const ang = rng() * Math.PI * 2;
-      const rad = HALF + 2 + Math.sqrt(rng()) * 26;
+      const rad = HALF + 1.5 + Math.sqrt(rng()) * 15;
       dummy.position.set(
         Math.cos(ang) * rad,
         SEA_Y + 0.2 + rng() * 1.6 * Math.exp(-(rad - HALF) * 0.08),
@@ -444,6 +458,12 @@ export class JourneyRenderer {
     // reads as darkness with structure rather than a void
     this.innerLight = new THREE.PointLight(0xbfd4e8, 0, 55, 1.6);
     this.scene.add(this.innerLight);
+
+    // the rim of the true form: cold light from behind and above that
+    // rises with severity, so the frame's edges survive the night
+    this.rimLight = new THREE.DirectionalLight(0x7fa8d0, 0);
+    this.rimLight.position.set(-0.25, 0.9, -0.6);
+    this.scene.add(this.rimLight);
 
     // --- atmosphere ---
     this.halo = makeHalo('#c9a071', 240);
@@ -494,9 +514,10 @@ export class JourneyRenderer {
     }
     const sev = this.path.state.severity;
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
+    const inside = smooth01(progress, 0.49, 0.53) * (1 - smooth01(progress, 0.65, 0.69));
 
     const fogDensity = 0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7);
-    const fogColor = lerpColor('#0c0906', '#020407', sev);
+    const fogColor = lerpColor('#080603', '#020407', sev);
 
     // the lamp follows attention; it wakes and settles smoothly
     let hoverTargetAmt = 0;
@@ -520,8 +541,11 @@ export class JourneyRenderer {
       cu.uTime!.value = this.time;
       cu.uSeverity!.value = sev;
       cu.uCalm!.value = reduced ? 1 : 0;
+      cu.uCalmV!.value = reduced ? 1 : 0;
       (cu.uHover!.value as THREE.Vector3).copy(this.hoverPoint);
       cu.uHoverAmt!.value = this.hoverAmt;
+      (cu.uInner!.value as THREE.Vector3).copy(this.camera.position);
+      cu.uInnerAmt!.value = inside * 0.55;
       cu.uFogDensity!.value = fogDensity;
       (cu.uFogColor!.value as THREE.Color).copy(fogColor);
     }
@@ -531,14 +555,16 @@ export class JourneyRenderer {
     this.seaMat.uniforms.uDecay!.value = decay;
     (this.seaMat.uniforms.uCam!.value as THREE.Vector3).copy(this.camera.position);
 
-    // holiness dims as the monument strips
-    this.halo.material.opacity = 0.45 * (1 - decay * 0.85);
-    this.crownHalo.material.opacity = 0.5 * (1 - decay);
+    // holiness dims as the monument strips, and never smears the lens
+    const haloFade = smooth01(this.camera.position.distanceTo(this.halo.position), 40, 95);
+    const crownFade = smooth01(this.camera.position.distanceTo(this.crownHalo.position), 40, 95);
+    this.halo.material.opacity = 0.45 * (1 - decay * 0.85) * haloFade;
+    this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade;
 
     // the traveller's light burns only inside the wall
-    const inside = smooth01(progress, 0.55, 0.6) * (1 - smooth01(progress, 0.71, 0.76));
     this.innerLight.intensity = 90 * inside;
     this.innerLight.position.copy(this.camera.position);
+    this.rimLight.intensity = 2.4 * smooth01(sev, 0.6, 0.9);
 
     // the fallen accumulate
     this.scree.count = Math.floor(this.screeTotal * Math.min(1, decay * 1.15));

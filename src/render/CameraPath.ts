@@ -16,14 +16,6 @@ interface PathKey {
 }
 
 /**
- * THE FALSE HEAVEN. The sea lies at y 0, the light layer at y 26, the
- * rows run toward -z and agree at the vanishing point. The journey:
- * beneath the firmament (the approved frame), the rise, the passage
- * between the rows (the tunnel, made of the rows themselves), the
- * breach onto the maintenance side, and the service run along the
- * sockets to the end.
- */
-/**
  * The score: dwell where a panel is read, travel between. The approach
  * orbits so the mass reads in three dimensions; the climb hugs the
  * face so the cells sweep past; the breach enters the upper wound,
@@ -34,36 +26,34 @@ interface PathKey {
 const KEYS: PathKey[] = [
   // ENTER: the approved opening frame, held
   { p: 0.0, pos: [0, 14, 300], look: [0, 96, 0], fov: 40, sev: 0.0 },
-  { p: 0.07, pos: [3, 14, 282], look: [0, 95, 0], fov: 40, sev: 0.0 },
+  { p: 0.045, pos: [2, 14, 288], look: [0, 95, 0], fov: 40, sev: 0.0 },
   // travel: the orbit in
-  { p: 0.15, pos: [42, 20, 148], look: [0, 80, 0], fov: 42, sev: 0.03 },
+  { p: 0.115, pos: [30, 22, 120], look: [0, 74, 0], fov: 43, sev: 0.03 },
   // SYSTEM: dwell low at the face
-  { p: 0.21, pos: [29, 29, 42], look: [4, 58, 2], fov: 46, sev: 0.06 },
-  { p: 0.27, pos: [27, 32, 38], look: [2, 64, 0], fov: 46, sev: 0.08 },
-  // DESK42: dwell mid-face
-  { p: 0.32, pos: [17, 50, 32], look: [0, 84, 4], fov: 47, sev: 0.14 },
-  { p: 0.39, pos: [15, 55, 30], look: [0, 90, 5], fov: 47, sev: 0.18 },
-  // travel: the climb, cells sweeping past
-  { p: 0.44, pos: [11, 82, 27], look: [0, 116, 8], fov: 50, sev: 0.32 },
-  // RULE: dwell close on the law face, decay working overhead
-  { p: 0.48, pos: [9, 106, 26], look: [2, 134, 10], fov: 50, sev: 0.5 },
-  { p: 0.53, pos: [8, 116, 25], look: [4, 138, 12], fov: 50, sev: 0.58 },
+  { p: 0.15, pos: [26, 28, 52], look: [2, 60, 0], fov: 46, sev: 0.06 },
+  { p: 0.185, pos: [24, 30, 46], look: [2, 64, 0], fov: 46, sev: 0.08 },
+  // DESK42: dwell wide, the monument entire above its sea
+  { p: 0.255, pos: [44, 58, 86], look: [0, 84, 0], fov: 44, sev: 0.12 },
+  { p: 0.325, pos: [40, 60, 80], look: [0, 88, 0], fov: 44, sev: 0.16 },
+  // RULE: dwell close on the law face, the climb behind it
+  { p: 0.395, pos: [10, 98, 26], look: [2, 126, 10], fov: 50, sev: 0.42 },
+  { p: 0.462, pos: [8, 112, 25], look: [4, 136, 12], fov: 50, sev: 0.55 },
   // travel: through the upper wound
-  { p: 0.575, pos: [6, 138, 19], look: [3, 132, 2], fov: 52, sev: 0.68 },
-  // BRAWLER: dwell inside the wall, among the beams
-  { p: 0.61, pos: [3, 122, 9], look: [-3, 94, 3], fov: 52, sev: 0.74 },
-  { p: 0.66, pos: [1, 112, 8], look: [-4, 84, 5], fov: 52, sev: 0.78 },
+  { p: 0.5, pos: [6, 136, 20], look: [4, 134, 4], fov: 52, sev: 0.66 },
+  // BRAWLER: dwell inside the wall, gaze along the cavity
+  { p: 0.53, pos: [3, 124, 10], look: [-2, 106, 2], fov: 52, sev: 0.72 },
+  { p: 0.6, pos: [0, 108, 8], look: [-4, 86, 4], fov: 52, sev: 0.78 },
   // travel: descend the cavity toward the lower wound
-  { p: 0.71, pos: [-3, 84, 9], look: [-4, 64, 14], fov: 50, sev: 0.82 },
+  { p: 0.64, pos: [-3, 84, 10], look: [-4, 68, 16], fov: 50, sev: 0.82 },
   // TECHNOLOGY: emerged through the exit wound, the stripped face
-  { p: 0.75, pos: [-8, 58, 40], look: [0, 76, 0], fov: 47, sev: 0.88 },
-  { p: 0.8, pos: [-9, 52, 46], look: [0, 72, 0], fov: 47, sev: 0.9 },
-  // STUDIO: dwell at the foot among the scree
-  { p: 0.85, pos: [-4, 16, 64], look: [0, 62, 0], fov: 46, sev: 0.88 },
-  { p: 0.9, pos: [-2, 12, 70], look: [0, 66, 0], fov: 46, sev: 0.87 },
-  // CONTACT: the true form, held
-  { p: 0.96, pos: [0, 7.5, 78], look: [0, 96, 0], fov: 46, sev: 0.85 },
-  { p: 1.0, pos: [0, 7, 78], look: [0, 98, 0], fov: 46, sev: 0.85 }
+  { p: 0.67, pos: [-14, 60, 46], look: [0, 78, -2], fov: 47, sev: 0.87 },
+  { p: 0.74, pos: [-17, 52, 58], look: [0, 72, 0], fov: 47, sev: 0.9 },
+  // STUDIO: dwell at the foot, above the scree line
+  { p: 0.81, pos: [-4, 20, 62], look: [0, 66, 0], fov: 46, sev: 0.88 },
+  { p: 0.875, pos: [-2, 14, 70], look: [0, 72, 0], fov: 46, sev: 0.87 },
+  // CONTACT: the true form, whole, held
+  { p: 0.945, pos: [0, 11, 92], look: [0, 88, 0], fov: 45, sev: 0.85 },
+  { p: 1.0, pos: [0, 10.5, 95], look: [0, 92, 0], fov: 45, sev: 0.85 }
 ];
 
 export interface CameraState {
@@ -138,8 +128,9 @@ function segment(p: number): { a: PathKey; b: PathKey; t: number } {
     const a = KEYS[i]!;
     const b = KEYS[i + 1]!;
     if (p >= a.p && p <= b.p) {
-      const raw = (p - a.p) / (b.p - a.p);
-      return { a, b, t: raw * raw * (3 - 2 * raw) };
+      // linear between keys: the pursuit filter provides the smoothing,
+      // so velocity never dies at a key and the travel cannot lurch
+      return { a, b, t: (p - a.p) / (b.p - a.p) };
     }
   }
   return { a: last, b: last, t: 0 };
