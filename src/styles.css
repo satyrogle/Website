@@ -1,0 +1,448 @@
+/* ============================================================
+   DARK LATTICE — one seeded world, observed at three scales
+   Palette: void, carbon, bone, peak, cherenkov, deep, violation
+   Type: system grotesk for voice, system mono for data
+   ============================================================ */
+
+:root {
+  --void: #020304;
+  --carbon: #080b0e;
+  --bone: #e9eef2;
+  --peak: #f8fbff;
+  --cherenkov: #56d8ff;
+  --deep: #1546d8;
+  --violation: #ff493d;
+
+  --bone-70: rgba(233, 238, 242, 0.7);
+  --bone-55: rgba(233, 238, 242, 0.55);
+  --bone-35: rgba(233, 238, 242, 0.35);
+  --bone-12: rgba(233, 238, 242, 0.12);
+  --bone-07: rgba(233, 238, 242, 0.07);
+
+  --sans: "Segoe UI", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "Cascadia Mono", ui-monospace, Consolas, "SF Mono", Menlo, monospace;
+
+  --measure: 34rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--void);
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(86, 216, 255, 0.28);
+  color: var(--peak);
+}
+
+/* ---------- the world canvas ---------- */
+
+#world {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+}
+
+/* Static composition when WebGL2 is unavailable. */
+.static-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: none;
+  background:
+    radial-gradient(90rem 60rem at 50% 18%, rgba(21, 70, 216, 0.16), transparent 60%),
+    radial-gradient(40rem 50rem at 50% 62%, rgba(233, 238, 242, 0.08), transparent 65%),
+    radial-gradient(16rem 22rem at 50% 74%, rgba(86, 216, 255, 0.10), transparent 70%),
+    var(--void);
+}
+body.no-webgl #world { display: none; }
+body.no-webgl .static-field { display: block; }
+
+/* Everything above the world */
+.site-head, main, .site-foot, .chip { position: relative; z-index: 1; }
+
+/* Let presses in empty space reach the world; interactive
+   and readable elements re-enable their own hit areas. */
+main { pointer-events: none; }
+main a, main button, main p, main h1, main h2, main h3, main ol, main .block {
+  pointer-events: auto;
+}
+body.no-webgl main { pointer-events: auto; }
+
+/* ---------- type ---------- */
+
+.mono { font-family: var(--mono); }
+
+.label {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone-55);
+  margin-bottom: 1.75rem;
+}
+
+.display {
+  font-size: clamp(2.75rem, 8vw, 5.75rem);
+  font-weight: 250;
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+  color: var(--peak);
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--peak);
+  margin-bottom: 1.5rem;
+  max-width: 40rem;
+}
+
+.title--project {
+  font-size: clamp(2.4rem, 5.5vw, 4rem);
+  text-transform: uppercase;
+  font-weight: 250;
+}
+
+.lede {
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--bone);
+  max-width: var(--measure);
+  margin-bottom: 1.25rem;
+}
+
+.body {
+  color: var(--bone-70);
+  max-width: var(--measure);
+  margin-bottom: 1.25rem;
+}
+
+.body a, .lede a {
+  color: var(--bone);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-color: var(--bone-35);
+}
+.body a:hover, .lede a:hover {
+  color: var(--peak);
+  text-decoration-color: var(--cherenkov);
+}
+
+.small {
+  font-size: 0.875rem;
+  color: var(--bone-55);
+  max-width: var(--measure);
+  margin-bottom: 1rem;
+}
+
+.role {
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone-35);
+  margin-bottom: 0.75rem;
+}
+
+.status {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-55);
+  border-top: 1px solid var(--bone-12);
+  padding-top: 1rem;
+  margin-top: 1.5rem;
+  max-width: var(--measure);
+}
+
+.boundary {
+  color: var(--bone);
+  border-left: 1px solid var(--bone-12);
+  padding-left: 1.25rem;
+}
+
+.wt {
+  text-transform: none;
+  letter-spacing: 0.08em;
+  color: var(--bone-35);
+}
+
+/* ---------- header ---------- */
+
+.site-head {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.4rem clamp(1.25rem, 4vw, 3rem);
+  background: linear-gradient(to bottom, rgba(2, 3, 4, 0.85), transparent);
+}
+
+.wordmark {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.3em;
+}
+.wordmark a {
+  color: var(--peak);
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.site-nav a {
+  color: var(--bone-55);
+  text-decoration: none;
+  padding: 0.2rem 0;
+}
+.site-nav a:hover { color: var(--peak); }
+.site-nav a[aria-current="true"] {
+  color: var(--peak);
+  border-bottom: 1px solid var(--cherenkov);
+}
+
+/* ---------- journey stops ---------- */
+
+.stop {
+  min-height: 125vh;
+  display: grid;
+  align-items: center;
+  padding: 20vh clamp(1.25rem, 6vw, 6rem) 10vh;
+}
+
+.stop--hero {
+  min-height: 100vh;
+  padding-top: 0;
+  align-items: center;
+  /* soft protection for the opening copy; the field stays the subject */
+  background: linear-gradient(
+    100deg,
+    rgba(2, 3, 4, 0.78) 0%,
+    rgba(2, 3, 4, 0.42) 42%,
+    transparent 68%
+  );
+}
+
+.stop--right { justify-items: end; }
+.stop--right .stop__inner { text-align: left; }
+
+.stop__inner { max-width: 44rem; }
+
+.block {
+  background: rgba(2, 3, 4, 0.7);
+  border: 1px solid var(--bone-07);
+  padding: clamp(1.75rem, 4vw, 3rem);
+}
+
+.stop--hero .stop__inner {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.fieldnote {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-35);
+  max-width: 30rem;
+  line-height: 2;
+}
+
+.scrollcue {
+  margin-top: 4rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--bone-35);
+}
+
+/* ---------- the mark button ---------- */
+
+.mark-button {
+  margin-top: 0.75rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone);
+  background: none;
+  border: 1px solid var(--bone-12);
+  padding: 0.9rem 1.6rem;
+  cursor: pointer;
+}
+.mark-button:hover {
+  border-color: var(--cherenkov);
+  color: var(--peak);
+}
+
+/* ---------- the record ---------- */
+
+.record {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--bone-12);
+  padding-top: 1.5rem;
+}
+
+.record__list {
+  list-style: none;
+  font-size: 0.75rem;
+  line-height: 2;
+  letter-spacing: 0.06em;
+  max-height: 16rem;
+  overflow-y: auto;
+  color: var(--bone-55);
+}
+
+.record__list li { white-space: nowrap; }
+.record__list li.entry--placed { color: var(--cherenkov); }
+.record__list li.entry--removed { color: var(--violation); }
+.record__list li.entry--seed { color: var(--bone-70); }
+
+/* ---------- contact / footer ---------- */
+
+.contact {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--bone-12);
+  padding-top: 1.5rem;
+}
+
+.contact__line { margin-bottom: 0.5rem; }
+
+.contact__mail {
+  font-family: var(--mono);
+  font-size: clamp(1rem, 2.6vw, 1.4rem);
+  letter-spacing: 0.04em;
+  color: var(--peak);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  text-decoration-color: var(--bone-35);
+}
+.contact__mail:hover { text-decoration-color: var(--cherenkov); }
+
+.site-foot {
+  padding: 2rem clamp(1.25rem, 4vw, 3rem) 2.5rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-35);
+}
+
+/* ---------- record chip ---------- */
+
+.chip {
+  position: fixed;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vw, 2rem);
+  z-index: 10;
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-55);
+  background: rgba(2, 3, 4, 0.8);
+  border: 1px solid var(--bone-07);
+  padding: 0.6rem 0.9rem;
+  max-width: min(80vw, 30rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip.chip--event { color: var(--cherenkov); border-color: rgba(86, 216, 255, 0.25); }
+.chip.chip--removed { color: var(--violation); border-color: rgba(255, 73, 61, 0.3); }
+
+/* ---------- reveal (progressive enhancement) ---------- */
+
+html.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.9s ease, transform 0.9s ease;
+}
+html.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- focus / a11y ---------- */
+
+:focus-visible {
+  outline: 1px solid var(--cherenkov);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: -4rem;
+  left: 1rem;
+  z-index: 20;
+  background: var(--carbon);
+  color: var(--peak);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--bone-12);
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+.skip-link:focus { top: 1rem; }
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  html.js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .skip-link { transition: none; }
+}
+
+/* ---------- small screens ---------- */
+
+@media (max-width: 720px) {
+  .site-head {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+  }
+  .site-nav { gap: 0.9rem; }
+  .stop { padding: 16vh 1.25rem 8vh; min-height: 110vh; }
+  .stop--right { justify-items: stretch; }
+  .block { padding: 1.5rem 1.25rem; }
+  .record__list li { white-space: normal; }
+}
