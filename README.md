@@ -1,5 +1,13 @@
 # Dark Lattice — site (genesis build)
 
+```
+FIELD KILLED 2026-08-18. Jacob: "looks like human sperms on the screen."
+The world's RENDERING is dead and may not be retuned. Everything else on
+this branch (editorial, type, ledger, legal, kernel, harness) survives
+and waits for an approved opening image to be re-skinned against. See
+docs/APPROVED_VISUAL_JOURNEY.md in the main repo, section 4.
+```
+
 One seeded world behind the whole page. Built 2026-08-18 on the orphan
 branch `claude/genesis`, then brought under the design constitution the
 same day: documented type system, lit material rendering, institutional
