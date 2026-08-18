@@ -1,8 +1,10 @@
 # Dark Lattice — site (genesis build)
 
 One seeded world behind the whole page. Built 2026-08-18 on the orphan
-branch `claude/genesis`, from the brief alone, isolated from all prior
-site work.
+branch `claude/genesis`, then brought under the design constitution the
+same day: documented type system, lit material rendering, institutional
+ledger, legal pages, quality harness. `docs/DECISION_FRAME.md` is the
+constitution 12.1 frame; `docs/SECTION_13_AUDIT.md` is the gate run.
 
 ## What it is
 
@@ -29,7 +31,10 @@ trail texture.
 
 Vite + TypeScript + Three.js (WebGL2, GLSL ES 3.00) + GSAP
 ScrollTrigger. No React, no smoothing library, no UI framework, no
-external requests of any kind (system fonts only).
+external requests of any kind. Type system (documented in
+docs/DECISION_FRAME.md): Archivo Variable for display, reading and
+interface; Fragment Mono for the ledger, labels and telemetry. Both
+self-hosted from npm assets and preloaded.
 
 ## Run
 
@@ -39,7 +44,18 @@ npm run dev        # http://localhost:5180
 npm run build      # type-check + production build
 ```
 
-`?seed=N` on the URL replaces the default seed (20260818).
+URL switches: `?seed=N` replaces the default seed (20260818),
+`?flat=1` disables bloom/atmosphere/grain for static-frame review,
+`?bare=1` hides the DOM for world-only captures, `?harness=1` exposes
+`window.__dl` and stops auto-stepping for deterministic tests.
+
+## Tooling (run from a checkout that has playwright, e.g. ../dark-lattice)
+
+```
+node ../dark-lattice-genesis/tools/capture.mjs      # full frame suite + fallback still
+node ../dark-lattice-genesis/tools/quality.mjs      # replay, first-action, a11y, reduced motion
+node ../dark-lattice-genesis/tools/seed-sweep.mjs 7 1187   # bare frames per seed
+```
 
 ## Architecture
 
@@ -59,5 +75,7 @@ tested environment. Nothing stronger is claimed anywhere on the page.
 All company content is plain DOM and readable without the canvas.
 Keyboard: skip link, visible focus, a Place-a-mark button equivalent to
 the pointer press. `prefers-reduced-motion` slows the world to a drift
-and removes reveal/scroll animation. Without WebGL2 the page swaps to a
-static composition and states so in the record.
+and removes reveal/scroll animation. Without WebGL2 the page stands on
+a real capture of the same world (public/still/world.jpg) and says so
+in the ledger. Privacy and terms pages ship with the site and describe
+actual behaviour: no cookies, no analytics, no third-party requests.

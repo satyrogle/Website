@@ -10,12 +10,13 @@ import type { ObservationModel } from '../render/ObservationModel';
 export class InputController {
   constructor(
     private readonly kernel: SimulationKernel,
-    private readonly observation: ObservationModel
+    private readonly observation: ObservationModel,
+    private readonly onRefused: () => void
   ) {
     window.addEventListener('pointerdown', this.onPointerDown);
     const button = document.querySelector<HTMLButtonElement>('[data-place-mark]');
     button?.addEventListener('click', () => {
-      this.kernel.placeMarkAuto();
+      if (!this.kernel.placeMarkAuto()) this.onRefused();
     });
   }
 
@@ -31,7 +32,7 @@ export class InputController {
     const x = v.centerX + (sx - 0.5) * v.winX;
     const y = v.centerY + (sy - 0.5) * v.winY;
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
-    this.kernel.placeMark(x, y);
+    if (!this.kernel.placeMark(x, y)) this.onRefused();
   };
 
   dispose(): void {

@@ -1,9 +1,10 @@
 import type { WorldEvent } from '../sim/SimulationKernel';
 
 /**
- * The record. Everything the world does that matters is written here,
- * in the DOM, readable without the canvas. The site holds itself to the
- * same standard the studio claims.
+ * The record, rendered as an institutional ledger: tick, event, status.
+ * Everything the world does that matters is written here, in the DOM,
+ * readable without the canvas. The site holds itself to the same
+ * standard the studio claims.
  */
 export class EvidenceRecorder {
   private readonly list: HTMLOListElement | null;
@@ -16,33 +17,49 @@ export class EvidenceRecorder {
   }
 
   add(e: WorldEvent): void {
-    const text = 'T+' + String(e.tick).padStart(6, '0') + ' · ' + e.text;
+    const tickLabel = 'T+' + String(e.tick).padStart(6, '0');
 
     if (this.list) {
       const li = document.createElement('li');
-      li.textContent = text;
-      li.className = 'entry--' + e.kind;
+      li.className = 'entry--' + e.kind + ' is-new';
+      for (const part of [tickLabel, e.text, e.status]) {
+        const span = document.createElement('span');
+        span.textContent = part;
+        li.appendChild(span);
+      }
       this.list.prepend(li);
       while (this.list.children.length > this.maxEntries) {
         this.list.lastElementChild?.remove();
       }
     }
 
-    if (this.chip) {
-      this.chip.hidden = false;
-      this.chip.textContent = text;
-      this.chip.classList.remove('chip--event', 'chip--removed');
-      if (e.kind === 'placed') this.chip.classList.add('chip--event');
-      if (e.kind === 'removed') this.chip.classList.add('chip--removed');
-    }
+    this.setChip(tickLabel + ' · ' + e.text + ' · ' + e.status, e.kind);
+  }
+
+  /** Transient chip text with no ledger row (warm-up, notices). */
+  notice(text: string): void {
+    this.setChip(text, 'seed');
   }
 
   noWorld(): void {
     if (this.list) {
       const li = document.createElement('li');
-      li.textContent = 'WEBGL UNAVAILABLE · STATIC RECORD ONLY';
       li.className = 'entry--seed';
+      for (const part of ['T+000000', 'WEBGL UNAVAILABLE', 'STILL PAGE']) {
+        const span = document.createElement('span');
+        span.textContent = part;
+        li.appendChild(span);
+      }
       this.list.prepend(li);
     }
+  }
+
+  private setChip(text: string, kind: WorldEvent['kind']): void {
+    if (!this.chip) return;
+    this.chip.hidden = false;
+    this.chip.textContent = text;
+    this.chip.classList.remove('chip--event', 'chip--removed');
+    if (kind === 'placed') this.chip.classList.add('chip--event');
+    if (kind === 'removed') this.chip.classList.add('chip--removed');
   }
 }

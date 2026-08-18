@@ -29,6 +29,9 @@ export interface WorldEvent {
   kind: 'seed' | 'placed' | 'removed';
   tick: number;
   text: string;
+  status: string;
+  x?: number;
+  y?: number;
 }
 
 interface Beacon {
@@ -49,7 +52,7 @@ export interface KernelOptions {
 
 const WORLD_SIZE = 1024;
 const HEALTH_SIZE = 64;
-const MAX_BEACONS = 16;
+const MAX_BEACONS = 24;
 const STARVE_INTERVAL = 600; // ticks between audits (10 s at 60 Hz)
 const STARVE_GRACE = 1800; // ticks a region is safe after birth
 const MIN_ALIVE = 3;
@@ -105,7 +108,7 @@ export class SimulationKernel {
       const t = i / 8;
       const halfw = 0.3 * (1.0 - 0.72 * t);
       this.beacons.push({
-        label: 'REGION 0' + String(i + 1),
+        label: 'REGION ' + String(i + 1).padStart(2, '0'),
         x: 0.5 + (rng() * 2 - 1) * halfw,
         y: 0.18 + 0.62 * t,
         strength: 1.0 + rng() * 0.5,
@@ -303,7 +306,8 @@ export class SimulationKernel {
         this.onEvent({
           kind: 'removed',
           tick: this.tick,
-          text: oldest.label + ' DISPLACED BY A NEWER MARK · REMOVED'
+          text: oldest.label + ' DISPLACED BY A NEWER MARK',
+          status: 'REMOVED'
         });
       }
     }
@@ -335,12 +339,10 @@ export class SimulationKernel {
       kind: 'placed',
       tick: this.tick,
       text:
-        label +
-        ' PLACED AT ' +
-        Math.round(px * 100) +
-        ',' +
-        Math.round(py * 100) +
-        ' · RETAINED'
+        label + ' PLACED AT ' + Math.round(px * 100) + ',' + Math.round(py * 100),
+      status: 'RETAINED',
+      x: px,
+      y: py
     });
     return true;
   }
@@ -461,9 +463,20 @@ export class SimulationKernel {
       this.onEvent({
         kind: 'removed',
         tick: this.tick,
-        text: weakest.b.label + ' STARVED · REMOVED'
+        text: weakest.b.label + ' STARVED',
+        status: 'REMOVED'
       });
     }
+  }
+
+  /** Harness hook: a deterministic scalar summary of the world's density. */
+  healthChecksum(): number {
+    this.readHealth();
+    let sum = 0;
+    for (let i = 0; i < this.healthBuffer.length; i += 4) {
+      sum += this.healthBuffer[i] ?? 0;
+    }
+    return sum;
   }
 
   private healthAt(x: number, y: number): number {

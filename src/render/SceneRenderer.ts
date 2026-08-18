@@ -18,7 +18,7 @@ export class SceneRenderer {
   private agentPoints: THREE.Points | null = null;
   private readonly maxDpr: number;
 
-  constructor(canvas: HTMLCanvasElement, maxDpr: number) {
+  constructor(canvas: HTMLCanvasElement, maxDpr: number, flat = false) {
     this.maxDpr = maxDpr;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -40,7 +40,10 @@ export class SceneRenderer {
         uSeverity: { value: 0 },
         uExposure: { value: 0.3 },
         uGlow: { value: 0.9 },
-        uTime: { value: 0 }
+        uTime: { value: 0 },
+        uPulse: { value: new THREE.Vector4(0, 0, -10, 0) },
+        uFlat: { value: flat ? 1 : 0 },
+        uZoom: { value: 1 }
       },
       depthTest: false,
       depthWrite: false
@@ -80,6 +83,11 @@ export class SceneRenderer {
     window.addEventListener('resize', this.resize);
   }
 
+  /** Input causality: a brief swell of light where the visitor pressed. */
+  pulseAt(x: number, y: number, time: number): void {
+    (this.presentMat.uniforms.uPulse!.value as THREE.Vector4).set(x, y, time, 1);
+  }
+
   /** The agent overlay shares the kernel's reference geometry. */
   attachKernel(kernel: SimulationKernel): void {
     this.agentPoints = new THREE.Points(kernel.refGeometry, this.agentsMat);
@@ -98,6 +106,7 @@ export class SceneRenderer {
     pu.uExposure!.value = view.exposure;
     pu.uGlow!.value = view.glow;
     pu.uTime!.value = view.time;
+    pu.uZoom!.value = view.zoom;
 
     if (this.agentPoints) {
       const show = view.agentOpacity > 0.004;

@@ -1,20 +1,24 @@
 // Smoke capture of the genesis build (localhost:5180), headed Chrome on
 // the real GPU: headless is not GPU truth. Playwright is not a dependency
-// of this repo; run it from a checkout that has it, e.g.
+// of this repo; run it from a checkout that has it:
 //   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/capture.mjs
-// or: npm i -D playwright, then: node tools/capture.mjs
-import { chromium } from 'playwright';
+//
+// Produces: desktop frames for every stop, a flat static-frame audit,
+// a mobile pass, and the real still used by the WebGL fallback.
+import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
+// playwright lives in the main dark-lattice checkout, not here
+const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
+const { chromium } = require('playwright');
 
+const BASE = 'http://localhost:5180';
 const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures';
+const STILL = 'C:/Users/jacob/dark-lattice-genesis/public/still/world.jpg';
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-await page.goto('http://localhost:5180', { waitUntil: 'networkidle' });
-await page.waitForTimeout(4000);
 
-async function stats(label) {
+async function stats(page, label) {
   const s = await page.evaluate(
     () =>
       new Promise((resolve) => {
@@ -51,37 +55,79 @@ async function stats(label) {
   console.log(label, JSON.stringify(s));
 }
 
-await stats('OPENING');
-await page.screenshot({ path: OUT + '/01-opening.png' });
+// ---------- desktop journey ----------
+{
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(4500);
 
-// a visitor press in empty dark, off to the left
-await page.mouse.click(320, 620);
-await page.waitForTimeout(900);
-console.log(
-  'CHIP',
-  await page.evaluate(() => (document.getElementById('record-chip') || {}).textContent || 'EMPTY')
-);
-await page.screenshot({ path: OUT + '/02-mark.png' });
+  await stats(page, 'OPENING');
+  await page.screenshot({ path: OUT + '/01-opening.png' });
 
-for (const [id, name, wait] of [
-  ['desk42', '03-desk42', 2500],
-  ['rule', '04-rule', 2500],
-  ['technology', '05-micro', 3000],
-  ['contact', '06-return', 3500]
-]) {
-  await page.evaluate((sel) => document.getElementById(sel).scrollIntoView({ block: 'start' }), id);
-  await page.waitForTimeout(wait);
-  await stats(name.toUpperCase());
-  await page.screenshot({ path: OUT + '/' + name + '.png' });
+  await page.mouse.click(1100, 620);
+  await page.waitForTimeout(900);
+  console.log(
+    'CHIP',
+    await page.evaluate(() => (document.getElementById('record-chip') || {}).textContent || 'EMPTY')
+  );
+  await page.screenshot({ path: OUT + '/02-mark.png' });
+
+  for (const [id, name, wait] of [
+    ['system', '03-system', 2200],
+    ['desk42', '04-desk42', 2200],
+    ['rule', '05-rule', 2500],
+    ['brawler', '06-brawler', 2200],
+    ['technology', '07-micro', 3000],
+    ['studio', '08-studio', 2200],
+    ['contact', '09-return', 3200]
+  ]) {
+    await page.evaluate((sel) => document.getElementById(sel).scrollIntoView({ block: 'start' }), id);
+    await page.waitForTimeout(wait);
+    await stats(page, name.toUpperCase());
+    await page.screenshot({ path: OUT + '/' + name + '.png' });
+  }
+
+  console.log(
+    'LEDGER',
+    await page.evaluate(() =>
+      Array.from(document.querySelectorAll('#record-list li')).map((li) => li.textContent)
+    )
+  );
+  await page.close();
 }
 
-console.log(
-  'RECORD',
-  await page.evaluate(() =>
-    Array.from(document.querySelectorAll('#record-list li')).map((li) => li.textContent)
-  )
-);
-console.log(
-  'CONSOLE_ERRORS_CHECKED_VIA_LISTENER_BELOW'
-);
+// ---------- flat static-frame audit (bloom, atmosphere, grain off) ----------
+{
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  await page.goto(BASE + '/?flat=1', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(4500);
+  await stats(page, 'FLAT-OPENING');
+  await page.screenshot({ path: OUT + '/10-flat-opening.png' });
+  await page.close();
+}
+
+// ---------- the fallback still: the world alone ----------
+{
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  await page.goto(BASE + '/?bare=1', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(5000);
+  await page.screenshot({ path: STILL, type: 'jpeg', quality: 62 });
+  console.log('STILL exported to public/still/world.jpg');
+  await page.close();
+}
+
+// ---------- mobile recomposition ----------
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(4000);
+  await stats(page, 'MOBILE-OPENING');
+  await page.screenshot({ path: OUT + '/11-mobile-opening.png' });
+  await page.evaluate(() => document.getElementById('technology').scrollIntoView({ block: 'start' }));
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: OUT + '/12-mobile-ledger.png' });
+  await page.close();
+}
+
 await browser.close();
+console.log('DONE');

@@ -3,13 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dark Lattice — a systems studio</title>
+  <title>Dark Lattice: a systems studio</title>
   <meta name="description" content="Dark Lattice is a UK systems studio building deterministic games: Desk42 and Brawler. Rules are explicit, consequences are computed, nothing is forgotten." />
-  <meta property="og:title" content="Dark Lattice — a systems studio" />
+  <meta property="og:title" content="Dark Lattice: a systems studio" />
   <meta property="og:description" content="Deterministic games where the simulation is the truth. Currently building Desk42 and Brawler." />
+  <meta property="og:image" content="/still/world.jpg" />
   <meta name="theme-color" content="#020304" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20fill='%23020304'/%3E%3Cg%20fill='%23E9EEF2'%3E%3Ccircle%20cx='16'%20cy='16'%20r='4'/%3E%3Ccircle%20cx='32'%20cy='16'%20r='4'/%3E%3Ccircle%20cx='48'%20cy='16'%20r='4'/%3E%3Ccircle%20cx='16'%20cy='32'%20r='4'/%3E%3Ccircle%20cx='32'%20cy='32'%20r='4'/%3E%3Ccircle%20cx='48'%20cy='32'%20r='4'/%3E%3Ccircle%20cx='16'%20cy='48'%20r='4'/%3E%3Ccircle%20cx='32'%20cy='48'%20r='4'/%3E%3C/g%3E%3Ccircle%20cx='48'%20cy='48'%20r='4'%20fill='%23111a20'/%3E%3C/svg%3E" />
-  <script>document.documentElement.classList.add('js');</script>
+  <link rel="preload" href="/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/fragment-mono.woff2" as="font" type="font/woff2" crossorigin />
+  <script>
+    document.documentElement.classList.add('js');
+    if (location.search.indexOf('bare') !== -1) document.documentElement.classList.add('bare');
+  </script>
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body data-phase="enter">
@@ -21,7 +27,7 @@
   <div class="static-field" aria-hidden="true"></div>
 
   <header class="site-head">
-    <p class="wordmark"><a href="#top" aria-label="Dark Lattice, back to top">DARK&nbsp;LATTICE</a></p>
+    <p class="wordmark"><a href="#top" aria-label="Dark Lattice, back to top">Dark&nbsp;Lattice</a></p>
     <nav class="site-nav" aria-label="Site">
       <a href="#system">System</a>
       <a href="#desk42">Desk42</a>
@@ -30,32 +36,41 @@
       <a href="#studio">Studio</a>
       <a href="#contact">Contact</a>
     </nav>
+    <p class="telemetry" id="telemetry" aria-hidden="true"></p>
   </header>
 
   <main id="top">
 
     <!-- ENTER -->
     <section class="stop stop--hero" id="enter" aria-labelledby="hero-title">
-      <div class="stop__inner">
+      <div class="hero-rule">
         <p class="label">Dark Lattice · Systems studio · United Kingdom</p>
-        <h1 class="display" id="hero-title">Everything here<br />is earned.</h1>
+        <span class="rule" aria-hidden="true"></span>
+      </div>
+      <h1 class="display" id="hero-title">Everything here<br />is earned.</h1>
+      <div class="hero-copy">
         <p class="lede">
           We build games where the simulation is the truth. Rules are explicit,
           consequences are computed, and nothing that happens is forgotten.
           Two are in development: <a href="#desk42">Desk42</a> and <a href="#brawler">Brawler</a>.
         </p>
-        <p class="fieldnote mono" data-live-note hidden>
+      </div>
+      <div class="hero-side">
+        <p class="fieldnote" data-live-note hidden>
           The field behind this page is live. One seeded world,
           sixty fixed steps a second, running since the page loaded.
         </p>
-        <p class="scrollcue mono" aria-hidden="true">Scroll</p>
+        <p class="scrollcue" aria-hidden="true">Scroll</p>
       </div>
     </section>
 
     <!-- TRAVEL / THE SYSTEM -->
     <section class="stop" id="system" aria-labelledby="system-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">01 · The system you are looking at</p>
+      <div class="stop__inner panel" data-reveal>
+        <div class="stop-head">
+          <p class="label">01 · The system you are looking at</p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
         <h2 class="title" id="system-title">
           <span data-agent-count>262,144</span> agents. Three rules. One seed.
         </h2>
@@ -72,10 +87,10 @@
         </p>
         <p class="body" data-no-webgl hidden>
           Your browser could not provide WebGL2, so you are reading the still
-          version of this page. Everything the site says remains true without
-          the picture.
+          version of this page: a true capture of the same seeded world.
+          Everything the site says remains true without the motion.
         </p>
-        <button class="mark-button mono" type="button" data-place-mark data-webgl-only>
+        <button class="mark-button" type="button" data-place-mark data-webgl-only>
           Place a mark
         </button>
       </div>
@@ -83,9 +98,12 @@
 
     <!-- ENCOUNTER INFORMATION: DESK42 -->
     <section class="stop stop--right" id="desk42" aria-labelledby="desk42-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">02 · Desk42</p>
-        <p class="role mono">Single player · Unity · Windows PC · Steam first</p>
+      <div class="stop__inner panel" data-reveal>
+        <div class="stop-head">
+          <p class="label">02 · Desk42</p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
+        <p class="role">Single player · Unity · Windows PC · Steam first</p>
         <h2 class="title title--project" id="desk42-title">Desk42</h2>
         <p class="lede">You work a desk inside a bureaucracy, deciding people&rsquo;s claims.</p>
         <p class="body">
@@ -95,7 +113,7 @@
           institution does to them. You are not fighting the machine. You are
           the part of it that signs.
         </p>
-        <p class="status mono">
+        <p class="status">
           In development. The current build is a bounded causal slice, not a
           near-complete product.
         </p>
@@ -103,9 +121,12 @@
     </section>
 
     <!-- WORLD TRANSFORMS: THE RULE -->
-    <section class="stop" id="rule" aria-labelledby="rule-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">03 · The rule you could not see</p>
+    <section class="stop stop--turn" id="rule" aria-labelledby="rule-title">
+      <div class="stop__inner" data-reveal>
+        <div class="stop-head">
+          <p class="label">03 · The rule you could not see</p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
         <h2 class="title" id="rule-title">
           The lattice looks immaculate because everything that failed is
           already gone.
@@ -128,25 +149,31 @@
 
     <!-- TRAVEL DEEPER: BRAWLER -->
     <section class="stop stop--right" id="brawler" aria-labelledby="brawler-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">04 · Brawler <span class="wt">(working title)</span></p>
-        <p class="role mono">Action roguelite · Unreal Engine</p>
+      <div class="stop__inner panel" data-reveal>
+        <div class="stop-head">
+          <p class="label">04 · Brawler <span class="wt">(working title)</span></p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
+        <p class="role">Action roguelite · Unreal Engine</p>
         <h2 class="title title--project" id="brawler-title">Brawler</h2>
         <p class="lede">An action roguelite where the ground itself is alive.</p>
         <p class="body">
           One spatial simulation is authoritative for movement, hazards and
-          combat consequence. When the arena burns, floods or gives way, that is
-          state, not spectacle. It propagates, it persists through the fight,
-          and it does not care whose turn it is. You do not play on the level.
-          You play inside it.
+          combat consequence. When the arena burns, floods or gives way, the
+          change is state. It propagates, it persists through the fight, and it
+          does not care whose turn it is. You do not play on the level. You
+          play inside it.
         </p>
       </div>
     </section>
 
     <!-- NEW INFORMATION: TECHNOLOGY + THE RECORD -->
     <section class="stop" id="technology" aria-labelledby="technology-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">05 · How we build</p>
+      <div class="stop__inner panel" data-reveal>
+        <div class="stop-head">
+          <p class="label">05 · How we build</p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
         <h2 class="title" id="technology-title">
           Rules first. Tools that prove the rules behave. Games on top.
         </h2>
@@ -162,29 +189,37 @@
           MIT. No benchmark or simulation-scale figure appears on this page,
           because none has been measured.
         </p>
-        <div class="record" aria-labelledby="record-title">
-          <p class="label" id="record-title">The record</p>
-          <p class="small">
+        <div class="ledger" aria-labelledby="record-title">
+          <div class="stop-head" style="margin-bottom: 0; border: 0;">
+            <p class="label" id="record-title">The record</p>
+          </div>
+          <p class="small" style="margin-top: 0.75rem;">
             This page holds itself to the same standard. Below is the live
             record of the world behind this site, including everything you did
             to it.
           </p>
-          <ol class="record__list mono" id="record-list" reversed></ol>
+          <div class="ledger__head label" aria-hidden="true">
+            <span>Tick</span><span>Event</span><span>Status</span>
+          </div>
+          <ol class="ledger__list" id="record-list" reversed></ol>
         </div>
       </div>
     </section>
 
     <!-- STUDIO -->
     <section class="stop stop--right" id="studio" aria-labelledby="studio-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">06 · The studio</p>
+      <div class="stop__inner panel" data-reveal>
+        <div class="stop-head">
+          <p class="label">06 · The studio</p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
         <h2 class="title" id="studio-title">
           A founder-led systems studio in the United Kingdom.
         </h2>
         <p class="body">
           We sell paid PC games, downloaded, starting with Desk42 on Steam and
           then Brawler. That is the whole business model. The reusable
-          technology keeps our own costs down. It is not a product, nothing is
+          technology keeps our own costs down and stays internal: nothing is
           licensed, and no engine is for sale.
         </p>
         <p class="body boundary">
@@ -195,9 +230,12 @@
     </section>
 
     <!-- RETURN / UNDERSTAND THE WHOLE + CONTACT -->
-    <section class="stop stop--return" id="contact" aria-labelledby="return-title">
-      <div class="stop__inner block" data-reveal>
-        <p class="label">07 · The whole</p>
+    <section class="stop stop--centre" id="contact" aria-labelledby="return-title">
+      <div class="stop__inner panel" data-reveal>
+        <div class="stop-head">
+          <p class="label">07 · The whole</p>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
         <h2 class="title" id="return-title">
           This is the same world you arrived at. Nothing changed except what
           you know.
@@ -220,12 +258,31 @@
 
   </main>
 
-  <footer class="site-foot mono">
-    <p>&copy; 2026 Dark Lattice &middot; No cookies &middot; No analytics &middot; No third-party requests &middot; This page runs entirely in your browser</p>
+  <footer class="site-foot">
+    <div>
+      <p class="wordmark">Dark&nbsp;Lattice</p>
+      <p class="foot-claim">
+        Deterministic games where the simulation is the truth.
+        Desk42 and Brawler are in development.
+      </p>
+    </div>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="#desk42">Desk42</a>
+      <a href="#brawler">Brawler</a>
+      <a href="#studio">Studio</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="/terms.html">Terms</a>
+      <a href="mailto:contact@darklattice.co.uk">Contact</a>
+    </nav>
+    <p class="foot-legal">
+      &copy; 2026 Dark Lattice &middot; No cookies &middot; No analytics
+      &middot; No third-party requests &middot; This page runs entirely in
+      your browser &middot; Brawler is a working title
+    </p>
   </footer>
 
   <!-- Live record chip -->
-  <aside class="chip mono" id="record-chip" aria-live="polite" aria-label="World record" hidden></aside>
+  <aside class="chip" id="record-chip" aria-live="polite" aria-label="World record" hidden></aside>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

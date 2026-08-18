@@ -4,7 +4,8 @@
  *
  * Rules observed throughout:
  * - textureLod everywhere a specific mip is meant; no implicit lod.
- * - no pow() with a base that can reach zero (exp/log shaped instead).
+ * - no pow() anywhere; specular lobes are exp-shaped so a zero base can
+ *   never produce NaN (the SwiftShader lesson).
  * - all per-agent randomness is an integer hash of (id, tick, seed):
  *   seeded, replayable in the tested environment.
  */
@@ -39,15 +40,16 @@ export const COPY_FRAG = /* glsl */ '\n' +
 
 /**
  * Agent update. One texel per agent: xy position in world uv,
- * z heading, w spare. Classic transport-network dynamics: sense three
- * points ahead, turn toward strength, move, wrap.
+ * z heading, w spare. Transport-network dynamics: sense three points
+ * ahead, turn toward strength, move, wrap.
+ * Beacon w carries the gaussian falloff coefficient; 0 means removed.
  */
 export const AGENT_UPDATE_FRAG = /* glsl */ '\n' +
   'precision highp float;\n' +
   'precision highp sampler2D;\n' +
   'uniform sampler2D uAgents;\n' +
   'uniform sampler2D uTrail;\n' +
-  'uniform vec4 uBeacons[16];\n' +
+  'uniform vec4 uBeacons[24];\n' +
   'uniform int uBeaconCount;\n' +
   'uniform int uTick;\n' +
   'uniform int uSeed;\n' +
@@ -58,10 +60,9 @@ export const AGENT_UPDATE_FRAG = /* glsl */ '\n' +
   'in vec2 vUv;\n' +
   'out vec4 outAgent;\n' +
   HASH +
-  // b.w carries the falloff coefficient; 0 means removed.\n
   'float attract(vec2 p) {\n' +
   '  float a = 0.0;\n' +
-  '  for (int i = 0; i < 16; i++) {\n' +
+  '  for (int i = 0; i < 24; i++) {\n' +
   '    if (i >= uBeaconCount) break;\n' +
   '    vec4 b = uBeacons[i];\n' +
   '    if (b.w < 1.0) continue;\n' +
@@ -172,10 +173,15 @@ export const HEALTH_FRAG = /* glsl */ '\n' +
   '}\n';
 
 /**
- * Present: the observation of the world. One trail texture, three
- * readings of it (near, behind, glow) plus scattered atmosphere so the
- * dark is rich rather than empty. Severity regrades the same data:
- * the world never changes for the camera, only the reading does.
+ * Present: the observation of the world.
+ *
+ * The trail is treated as a height field and lit: one cool key light,
+ * exp-shaped specular, valleys occluded. Two parallax layers sit behind
+ * the main reading, biased toward the world centre so travel produces
+ * true depth. Bloom is a weighted stack of four mips. Severity regrades
+ * the same data: the world never changes for the camera, only the
+ * reading does. uFlat kills glow, atmosphere, grain and pulse so the
+ * static frame can be judged on silhouette and value alone.
  */
 export const PRESENT_FRAG = /* glsl */ '\n' +
   'precision highp float;\n' +
@@ -187,6 +193,9 @@ export const PRESENT_FRAG = /* glsl */ '\n' +
   'uniform float uExposure;\n' +
   'uniform float uGlow;\n' +
   'uniform float uTime;\n' +
+  'uniform vec4 uPulse;\n' +
+  'uniform float uFlat;\n' +
+  'uniform float uZoom;\n' +
   'in vec2 vUv;\n' +
   'out vec4 outColor;\n' +
   HASH +
@@ -212,6 +221,13 @@ export const PRESENT_FRAG = /* glsl */ '\n' +
   '  }\n' +
   '  return v;\n' +
   '}\n' +
+  'float tone(float d, float e) { return 1.0 - exp(-d * e); }\n' +
+  '// close in, sample the height field from softer mips so the texel\n' +
+  '// grid never reaches the lighting\n' +
+  'float gZt = 0.0;\n' +
+  'float hs(vec2 q) {\n' +
+  '  return log2(1.0 + textureLod(uTrail, clamp(q, 0.0, 1.0), 1.0 + gZt * 1.6).r);\n' +
+  '}\n' +
   'vec3 ramp(float x, float sev) {\n' +
   '  vec3 cVoid = vec3(0.008, 0.012, 0.016);\n' +
   '  vec3 cDeepA = vec3(0.075, 0.13, 0.30);\n' +
@@ -227,29 +243,82 @@ export const PRESENT_FRAG = /* glsl */ '\n' +
   '  return col;\n' +
   '}\n' +
   'void main() {\n' +
-  '  vec2 uvw = uCenter + (vUv - 0.5) * uWin;\n' +
-  '  vec2 uvb = uCenter + (vUv - 0.5) * uWin * 1.55;\n' +
-  '  float d = textureLod(uTrail, clamp(uvw, 0.0, 1.0), 0.0).r;\n' +
-  '  float db = textureLod(uTrail, clamp(uvb, 0.0, 1.0), 2.0).r;\n' +
-  '  float dg = textureLod(uTrail, clamp(uvw, 0.0, 1.0), 3.0).r;\n' +
-  '  float x = 1.0 - exp(-d * uExposure);\n' +
-  '  float xb = 1.0 - exp(-db * uExposure * 0.65);\n' +
-  '  float xg = 1.0 - exp(-dg * uExposure * 0.85);\n' +
-  '  vec3 col = ramp(x, uSeverity);\n' +
-  '  col += ramp(xb, uSeverity) * 0.26 * (1.0 - x);\n' +
-  '  vec3 glowTint = mix(vec3(0.55, 0.72, 0.95), vec3(0.337, 0.847, 1.0), uSeverity);\n' +
-  '  col += glowTint * xg * uGlow * 0.22;\n' +
-  '  float atm = fbm(uvw * 3.0 + vec2(fbm(uvw * 6.0 + uTime * 0.008)) * 0.7);\n' +
-  '  col += vec3(0.10, 0.16, 0.32) * atm * mix(0.17, 0.055, uSeverity) * (1.0 - x);\n' +
+  '  gZt = smoothstep(3.0, 8.0, uZoom);\n' +
+  '  vec2 uvw = clamp(uCenter + (vUv - 0.5) * uWin, 0.0, 1.0);\n' +
+  '  float d = textureLod(uTrail, uvw, 0.0).r;\n' +
+  '  float x = tone(d, uExposure);\n' +
+  '\n' +
+  '  // material: the trail lit as a height field\n' +
+  '  float e = 1.5 / 1024.0;\n' +
+  '  float hL = hs(uvw - vec2(e, 0.0));\n' +
+  '  float hR = hs(uvw + vec2(e, 0.0));\n' +
+  '  float hD = hs(uvw - vec2(0.0, e));\n' +
+  '  float hU = hs(uvw + vec2(0.0, e));\n' +
+  '  vec3 n = normalize(vec3(hL - hR, hD - hU, e * (46.0 + gZt * 60.0)));\n' +
+  '  vec3 L = normalize(vec3(-0.30, 0.62, 0.72));\n' +
+  '  float diff = clamp(dot(n, L), 0.0, 1.0);\n' +
+  '  vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));\n' +
+  '  float sdot = clamp(dot(n, H), 0.0, 1.0);\n' +
+  '  float spec = exp((sdot - 1.0) * 26.0);\n' +
+  '\n' +
+  '  vec3 col = ramp(x, uSeverity) * (0.46 + 0.72 * diff);\n' +
+  '  col += vec3(0.95, 0.985, 1.0) * spec * x * (0.75 - 0.35 * uSeverity);\n' +
+  '\n' +
+  '  // depth: two readings behind the main one, parallax toward centre\n' +
+  '  vec2 cB1 = mix(vec2(0.5), uCenter, 0.82);\n' +
+  '  vec2 cB2 = mix(vec2(0.5), uCenter, 0.62);\n' +
+  '  float db1 = textureLod(uTrail, clamp(cB1 + (vUv - 0.5) * uWin * 1.45, 0.0, 1.0), 1.5).r;\n' +
+  '  float db2 = textureLod(uTrail, clamp(cB2 + (vUv - 0.5) * uWin * 2.1, 0.0, 1.0), 3.0).r;\n' +
+  '  float xb1 = tone(db1, uExposure * 0.6);\n' +
+  '  float xb2 = tone(db2, uExposure * 0.45);\n' +
+  '  float bw = 1.0 - 0.6 * gZt;\n' +
+  '  col += ramp(xb1, uSeverity) * vec3(0.62, 0.70, 0.86) * 0.22 * bw * (1.0 - x);\n' +
+  '  col += ramp(xb2, uSeverity) * vec3(0.45, 0.55, 0.80) * 0.12 * bw * (1.0 - x);\n' +
+  '\n' +
+  '  if (uFlat < 0.5) {\n' +
+  '    // bloom: weighted mip stack over the main window\n' +
+  '    float g2 = tone(textureLod(uTrail, uvw, 2.0).r, uExposure * 0.85);\n' +
+  '    float g3 = tone(textureLod(uTrail, uvw, 3.0).r, uExposure * 0.85);\n' +
+  '    float g4 = tone(textureLod(uTrail, uvw, 4.0).r, uExposure * 0.85);\n' +
+  '    float g5 = tone(textureLod(uTrail, uvw, 5.0).r, uExposure * 0.85);\n' +
+  '    float glow = mix(\n' +
+  '      0.32 * g2 + 0.30 * g3 + 0.24 * g4 + 0.14 * g5,\n' +
+  '      0.30 * g2 + 0.25 * g3,\n' +
+  '      gZt\n' +
+  '    );\n' +
+  '    vec3 glowTint = mix(vec3(0.55, 0.72, 0.95), vec3(0.337, 0.847, 1.0), uSeverity);\n' +
+  '    col += glowTint * glow * uGlow * 0.30;\n' +
+  '\n' +
+  '    // scattered light: the dark is rich, not empty\n' +
+  '    float atm = fbm(uvw * 3.0 + vec2(fbm(uvw * 6.0 + uTime * 0.008)) * 0.7);\n' +
+  '    col += vec3(0.10, 0.16, 0.32) * atm * mix(0.17, 0.055, uSeverity) * (1.0 - x);\n' +
+  '\n' +
+  '    // input causality: a brief swell of light where the visitor pressed\n' +
+  '    float age = uTime - uPulse.z;\n' +
+  '    if (uPulse.w > 0.0 && age >= 0.0 && age < 1.4) {\n' +
+  '      vec2 dp = uvw - uPulse.xy;\n' +
+  '      float swell = exp(-dot(dp, dp) * 900.0) * exp(-age * 2.6) * uPulse.w;\n' +
+  '      col += vec3(0.91, 0.94, 0.97) * swell * 0.8;\n' +
+  '    }\n' +
+  '  }\n' +
+  '\n' +
   '  float vig = 1.0 - 0.32 * smoothstep(0.45, 1.05, length(vUv - 0.5) * 1.45);\n' +
   '  col *= vig;\n' +
-  '  float g = rnd(uint(gl_FragCoord.x), uint(gl_FragCoord.y), uint(uTime * 60.0)) - 0.5;\n' +
-  '  col += g * 0.014;\n' +
+  '\n' +
+  '  if (uFlat < 0.5) {\n' +
+  '    float g = rnd(uint(gl_FragCoord.x), uint(gl_FragCoord.y), uint(uTime * 60.0)) - 0.5;\n' +
+  '    col += g * 0.013;\n' +
+  '  }\n' +
+  '\n' +
   '  col = col / (1.0 + col * 0.22);\n' +
   '  outColor = vec4(max(col, 0.0), 1.0);\n' +
   '}\n';
 
-/** Micro revelation: the agents themselves, visible only close in. */
+/**
+ * Micro revelation: the agents themselves, visible only close in.
+ * Each is an oriented streak along its own heading: grains in transit,
+ * not decoration.
+ */
 export const AGENT_POINTS_VERT = /* glsl */ '\n' +
   'precision highp float;\n' +
   'precision highp sampler2D;\n' +
@@ -258,23 +327,28 @@ export const AGENT_POINTS_VERT = /* glsl */ '\n' +
   'uniform vec2 uCenter;\n' +
   'uniform vec2 uWin;\n' +
   'uniform float uPointSize;\n' +
+  'out vec2 vDir;\n' +
   'void main() {\n' +
   '  vec4 a = texture(uAgents, ref);\n' +
   '  vec2 w = (a.xy - uCenter) / uWin;\n' +
   '  gl_Position = vec4(w * 2.0, 0.0, 1.0);\n' +
   '  gl_PointSize = uPointSize;\n' +
+  '  vDir = vec2(cos(a.z), sin(a.z));\n' +
   '}\n';
 
 export const AGENT_POINTS_FRAG = /* glsl */ '\n' +
   'precision highp float;\n' +
   'uniform float uOpacity;\n' +
   'uniform float uSeverity;\n' +
+  'in vec2 vDir;\n' +
   'out vec4 outColor;\n' +
   'void main() {\n' +
-  '  vec2 d = gl_PointCoord - 0.5;\n' +
-  '  float r2 = dot(d, d);\n' +
-  '  if (r2 > 0.25) discard;\n' +
-  '  float fall = exp(-r2 * 10.0);\n' +
+  '  vec2 p = gl_PointCoord - 0.5;\n' +
+  '  p.y = -p.y;\n' +
+  '  float along = dot(p, vDir);\n' +
+  '  float across = dot(p, vec2(-vDir.y, vDir.x));\n' +
+  '  float fall = exp(-(along * along * 14.0 + across * across * 90.0));\n' +
+  '  if (fall < 0.01) discard;\n' +
   '  vec3 col = mix(vec3(0.914, 0.933, 0.949), vec3(0.337, 0.847, 1.0), uSeverity * 0.4);\n' +
   '  outColor = vec4(col * fall * uOpacity, 1.0);\n' +
   '}\n';

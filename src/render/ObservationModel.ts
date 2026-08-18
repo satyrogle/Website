@@ -23,19 +23,25 @@ interface Key {
   p: number;
   zoom: number;
   sev: number;
+  cx: number;
+  cy: number;
 }
 
-/** The journey: enter, travel, stops, descent, and the return. */
+/**
+ * The journey: enter, travel, stops, descent, and the return.
+ * The centre path descends the funnel axis so travel reads as movement
+ * through the structure, not a zoom into a flat picture.
+ */
 const KEYS: Key[] = [
-  { p: 0.0, zoom: 1.0, sev: 0.0 },
-  { p: 0.1, zoom: 1.35, sev: 0.0 },
-  { p: 0.22, zoom: 2.6, sev: 0.06 },
-  { p: 0.35, zoom: 3.4, sev: 0.12 },
-  { p: 0.48, zoom: 4.6, sev: 0.55 },
-  { p: 0.61, zoom: 6.0, sev: 0.72 },
-  { p: 0.75, zoom: 8.0, sev: 0.9 },
-  { p: 0.87, zoom: 3.0, sev: 0.62 },
-  { p: 1.0, zoom: 1.0, sev: 0.5 }
+  { p: 0.0, zoom: 1.0, sev: 0.0, cx: 0.5, cy: 0.52 },
+  { p: 0.1, zoom: 1.45, sev: 0.0, cx: 0.5, cy: 0.54 },
+  { p: 0.22, zoom: 2.4, sev: 0.06, cx: 0.5, cy: 0.58 },
+  { p: 0.35, zoom: 3.2, sev: 0.12, cx: 0.48, cy: 0.62 },
+  { p: 0.48, zoom: 4.4, sev: 0.55, cx: 0.5, cy: 0.66 },
+  { p: 0.61, zoom: 6.2, sev: 0.72, cx: 0.51, cy: 0.7 },
+  { p: 0.75, zoom: 8.5, sev: 0.9, cx: 0.5, cy: 0.74 },
+  { p: 0.87, zoom: 2.8, sev: 0.62, cx: 0.5, cy: 0.6 },
+  { p: 1.0, zoom: 1.0, sev: 0.5, cx: 0.5, cy: 0.52 }
 ];
 
 export class ObservationModel {
@@ -79,11 +85,12 @@ export class ObservationModel {
     const winX = w0 / zoom;
     const winY = h0 / zoom;
 
-    // the camera is pulled toward the retained event as scale falls
+    // the camera follows the authored path, pulled toward the retained
+    // event as scale falls
     const focus = this.focusProvider();
-    const pull = smoothstep(2.0, 6.0, zoom);
-    const tx = 0.5 + (focus.x - 0.5) * pull;
-    const ty = 0.5 + (focus.y - 0.5) * pull;
+    const pull = smoothstep(2.5, 6.5, zoom) * 0.85;
+    const tx = t.cx + (focus.x - t.cx) * pull;
+    const ty = t.cy + (focus.y - t.cy) * pull;
     this.cx += (tx - this.cx) * k;
     this.cy += (ty - this.cy) * k;
 
@@ -101,11 +108,11 @@ export class ObservationModel {
   }
 }
 
-function evaluate(p: number): { zoom: number; sev: number } {
+function evaluate(p: number): { zoom: number; sev: number; cx: number; cy: number } {
   const first = KEYS[0]!;
   const last = KEYS[KEYS.length - 1]!;
-  if (p <= first.p) return { zoom: first.zoom, sev: first.sev };
-  if (p >= last.p) return { zoom: last.zoom, sev: last.sev };
+  if (p <= first.p) return { zoom: first.zoom, sev: first.sev, cx: first.cx, cy: first.cy };
+  if (p >= last.p) return { zoom: last.zoom, sev: last.sev, cx: last.cx, cy: last.cy };
   for (let i = 0; i < KEYS.length - 1; i++) {
     const a = KEYS[i]!;
     const b = KEYS[i + 1]!;
@@ -113,10 +120,15 @@ function evaluate(p: number): { zoom: number; sev: number } {
       const t = smoothstep(a.p, b.p, p);
       // zoom interpolates in log space so travel feels constant
       const zoom = Math.exp(Math.log(a.zoom) + (Math.log(b.zoom) - Math.log(a.zoom)) * t);
-      return { zoom, sev: a.sev + (b.sev - a.sev) * t };
+      return {
+        zoom,
+        sev: a.sev + (b.sev - a.sev) * t,
+        cx: a.cx + (b.cx - a.cx) * t,
+        cy: a.cy + (b.cy - a.cy) * t
+      };
     }
   }
-  return { zoom: last.zoom, sev: last.sev };
+  return { zoom: last.zoom, sev: last.sev, cx: last.cx, cy: last.cy };
 }
 
 function smoothstep(a: number, b: number, x: number): number {
