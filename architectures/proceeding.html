@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture 1 — The Proceeding</title>
+    <link rel="stylesheet" href="./shell.css" />
+    <style>
+      /* The file sits as a single column in an enormous black field. The luxury
+         is the margin, not an effect: roughly two thirds of this frame carries
+         nothing, and the column never moves off its measure. */
+      .content {
+        height: 100%;
+        padding: 56px 64px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .sheet {
+        align-self: center;
+        display: grid;
+        grid-template-columns: 300px minmax(0, 1fr);
+        column-gap: 88px;
+        max-width: 1180px;
+      }
+
+      /* Left: the file's own identity. Right: what is in it. */
+      /* Clear of the mark. The identity block sat directly under it and the two
+         mono registers ran together into one unreadable stack. */
+      .ident { padding-top: 4px; }
+
+      .ident dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 20px;
+        row-gap: 11px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .ident dt { color: var(--dim); }
+      .ident dd { margin: 0; color: var(--bone); }
+      .ident dd.state { color: var(--cherenkov); }
+      .ident dd.flag { color: var(--violation); }
+
+      .ident .stamp {
+        margin: 34px 0 0;
+        font-family: var(--font-display);
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-size: 13px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--bone);
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+        padding: 13px 0;
+      }
+
+      h1.title {
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-size: 48px;
+        line-height: 0.9;
+        letter-spacing: -0.014em;
+        text-transform: uppercase;
+        color: var(--peak);
+        margin: 0 0 16px;
+      }
+
+      .purpose { margin: 0 0 30px; font-size: 19px; }
+
+      /* The contents of the file. Numbered, ruled, no cards, no boxes. */
+      .contents { border-top: 1px solid var(--rule); }
+
+      .entry {
+        display: grid;
+        grid-template-columns: 54px minmax(0, 1fr) 210px;
+        column-gap: 28px;
+        align-items: baseline;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--rule-faint);
+      }
+
+      .entry__no {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        color: var(--dim);
+      }
+
+      .entry__name {
+        font-family: var(--font-display);
+        font-variation-settings: 'wght' 600, 'wdth' 100;
+        font-size: 15px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--bone);
+      }
+
+      .entry__note {
+        margin: 4px 0 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #8d979e;
+        max-width: 52ch;
+      }
+
+      .entry__log {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--dim);
+        text-align: right;
+      }
+
+      /* The three entries the visitor did not make. Stated in the same register
+         as everything else, because an institution does not flag its own
+         amendments. */
+      .entry__log.amended { color: var(--violation); }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="content">
+        <header class="top">
+          <p class="mark">Dark Lattice</p>
+          <nav class="nav">
+            <a href="#">File</a>
+            <a href="#">Exhibits</a>
+            <a href="#">Registration</a>
+            <a href="#">Respond</a>
+          </nav>
+        </header>
+
+        <div class="sheet">
+          <div class="ident">
+            <dl>
+              <dt>Reference</dt><dd>DL&#8201;/&#8201;2026&#8201;/&#8201;08&#8201;/&#8201;4471</dd>
+              <dt>Opened</dt><dd>17 Aug 2026, 14:22:06</dd>
+              <dt>Subject</dt><dd>Visitor</dd>
+              <dt>Stage</dt><dd class="state">Received</dd>
+              <dt>Entries</dt><dd class="flag">3</dd>
+              <dt>By you</dt><dd>0</dd>
+            </dl>
+            <p class="stamp">Determination pending</p>
+          </div>
+
+          <div>
+            <h1 class="title">Dark&nbsp;Lattice</h1>
+            <p class="lede purpose">
+              Games and software where rules, evidence, and consequence shape the
+              experience.
+            </p>
+
+            <div class="contents">
+              <div class="entry">
+                <span class="entry__no">01</span>
+                <div>
+                  <span class="entry__name">Statement of purpose</span>
+                  <p class="entry__note">
+                    We write the rules and let them run. The hard moments come out of those
+                    rules colliding, and every outcome traces back to a decision.
+                  </p>
+                </div>
+                <span class="entry__log">Read 14:22:09</span>
+              </div>
+
+              <div class="entry">
+                <span class="entry__no">02</span>
+                <div>
+                  <span class="entry__name">Exhibit A &middot; Desk42</span>
+                  <p class="entry__note">
+                    You work a desk inside a bureaucracy, deciding people&rsquo;s claims. What
+                    you rule in your first week decides what lands on your desk in your sixth.
+                  </p>
+                </div>
+                <span class="entry__log">Unity &middot; not yet validated</span>
+              </div>
+
+              <div class="entry">
+                <span class="entry__no">03</span>
+                <div>
+                  <span class="entry__name">Exhibit B &middot; Brawler</span>
+                  <p class="entry__note">
+                    An action roguelite where the ground itself is alive. Spread something
+                    across the floor and it keeps spreading, into enemies, into you, into the
+                    next room.
+                  </p>
+                </div>
+                <span class="entry__log">Unreal &middot; name provisional</span>
+              </div>
+
+              <div class="entry">
+                <span class="entry__no">04</span>
+                <div>
+                  <span class="entry__name">Processing chain</span>
+                  <p class="entry__note">
+                    Design, Art, Audio, Content, QA, Release. Six stages. Each one may add,
+                    remove or rewrite an entry before the next receives it.
+                  </p>
+                </div>
+                <span class="entry__log amended">Amended 14:21:58</span>
+              </div>
+
+              <div class="entry">
+                <span class="entry__no">05</span>
+                <div>
+                  <span class="entry__name">Registration</span>
+                  <p class="entry__note">
+                    Dark Lattice Ltd. Studio, founder roles, location and company status.
+                  </p>
+                </div>
+                <span class="entry__log">Current</span>
+              </div>
+
+              <div class="entry">
+                <span class="entry__no">06</span>
+                <div>
+                  <span class="entry__name">Response</span>
+                  <p class="entry__note">
+                    contact@darklattice.co.uk. You may dispute any entry in this file.
+                  </p>
+                </div>
+                <span class="entry__log amended">2 disputes withdrawn</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer class="top">
+          <p class="mono">
+            Architecture 01 &nbsp;&middot;&nbsp; The Proceeding &nbsp;&middot;&nbsp; opening state
+          </p>
+          <p class="mono">
+            File amended <i>3 times</i> before you arrived
+          </p>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture 3 — The Claim and the Run</title>
+    <link rel="stylesheet" href="./shell.css" />
+    <style>
+      /* An immaculate editorial page, caught mid-displacement. The frame shows
+         three states of the same gesture at once, which a still cannot do
+         sequentially: closed, held half open, and open onto nothing. */
+      .content {
+        height: 100%;
+        padding: 56px 64px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .page {
+        align-self: center;
+        display: grid;
+        grid-template-columns: 380px minmax(0, 1fr);
+        column-gap: 96px;
+        max-width: 1240px;
+      }
+
+      h1.title {
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-size: 58px;
+        line-height: 0.9;
+        letter-spacing: -0.014em;
+        text-transform: uppercase;
+        color: var(--peak);
+        margin: 0 0 22px;
+      }
+
+      /* A claim is a slab of published prose that can slide. The run beneath it
+         is real output, not a picture of output. */
+      .claim {
+        position: relative;
+        border-top: 1px solid var(--rule);
+        padding: 20px 0 22px;
+        overflow: hidden;
+      }
+
+      .claim__label {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin: 0 0 10px;
+      }
+
+      .claim__text {
+        margin: 0;
+        font-family: var(--font-display);
+        font-variation-settings: 'wght' 600, 'wdth' 100;
+        font-size: 19px;
+        line-height: 1.44;
+        color: var(--bone);
+        max-width: 34ch;
+        background: var(--void);
+        position: relative;
+        z-index: 2;
+        padding-right: 22px;
+      }
+
+      /* The run: what is underneath. Revealed by displacement, so it sits
+         behind the published text and is exposed as that text slides. */
+      .run {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 1;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        line-height: 1.85;
+        letter-spacing: 0.04em;
+        color: var(--cherenkov);
+        white-space: pre;
+      }
+
+      .run s { text-decoration: none; color: var(--dim); }
+      .run b { font-weight: 400; color: var(--peak); }
+      .run i { font-style: normal; color: var(--violation); }
+
+      /* State one: closed. The published layer covers everything. */
+      .claim--closed .claim__text { transform: translateX(0); }
+
+      /* State two: held half open. Both layers readable at once, which is the
+         position the whole architecture lives or dies in.
+
+         The run is clipped to the exposed strip. Without the width bound it
+         spanned the full column and ran underneath the displaced prose, so the
+         overlap region carried mono and display type on top of each other and
+         neither could be read. The revealed layer must end exactly where the
+         published layer begins. */
+      .claim--open .claim__text { transform: translateX(46%); }
+      .claim--open .run { top: 52px; width: 45%; overflow: hidden; }
+
+      /* State three: open onto nothing. The emptiness is rendered as carefully
+         as the evidence, because it is the honest answer. */
+      .claim--void .claim__text { transform: translateX(46%); }
+      .claim--void .run { top: 52px; width: 45%; overflow: hidden; color: var(--dim); }
+
+      .grip {
+        position: absolute;
+        top: 20px;
+        bottom: 22px;
+        width: 1px;
+        background: var(--rule);
+        z-index: 3;
+      }
+
+      .claim--open .grip,
+      .claim--void .grip { background: var(--cherenkov); opacity: 0.55; }
+
+      .side dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 18px;
+        row-gap: 11px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .side dt { color: var(--dim); }
+      .side dd { margin: 0; color: var(--bone); }
+      .side dd.ok { color: var(--cherenkov); }
+      .side dd.no { color: var(--violation); }
+
+      .side__head {
+        margin: 34px 0 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--rule);
+        font-family: var(--font-display);
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-size: 12px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--bone);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="content">
+        <header class="top">
+          <p class="mark">Dark Lattice</p>
+          <nav class="nav">
+            <a href="#">Work</a>
+            <a href="#">Method</a>
+            <a href="#">Studio</a>
+            <a href="#">Contact</a>
+          </nav>
+        </header>
+
+        <div class="page">
+          <div class="side">
+            <h1 class="title">Dark&nbsp;Lattice</h1>
+            <p class="lede">
+              Games and software where rules, evidence, and consequence shape the
+              experience.
+            </p>
+
+            <p class="side__head">Displace any claim</p>
+            <dl>
+              <dt>Claims</dt><dd>28</dd>
+              <dt>Backed by a run</dt><dd class="ok">19</dd>
+              <dt>Nothing beneath</dt><dd class="no">9</dd>
+              <dt>Run amended</dt><dd class="no">1</dd>
+            </dl>
+            <p class="caption" style="margin-top: 22px">
+              Press and hold on any statement to slide the published
+              layer aside.
+            </p>
+          </div>
+
+          <div>
+            <!-- Closed. This is how the whole page looks at rest. -->
+            <div class="claim claim--closed">
+              <span class="grip" style="left: 0"></span>
+              <p class="claim__label">Method</p>
+              <p class="claim__text">
+                Every outcome follows from rules we wrote, so we can test it, repeat it,
+                and show you exactly why it happened.
+              </p>
+            </div>
+
+            <!-- Held half open. The run underneath is real output. -->
+            <div class="claim claim--open">
+              <span class="grip" style="left: 46%"></span>
+              <p class="claim__label">Desk42</p>
+              <p class="claim__text">
+                A ruling you make in your first week decides what lands on your desk in
+                your sixth.
+              </p>
+              <pre class="run">  <s>seed</s>  0x51c3        <s>step</s>  fixed, 60 Hz
+  <b>tick 412</b>     decision D-118 accepted
+  <b>tick 9340</b>    case C-2207 routed to desk 42
+                 cause D-118, depth 3
+  <s>replay</s>  same seed, same trace, same result</pre>
+            </div>
+
+            <!-- Open onto nothing. Rendered as carefully as the evidence. -->
+            <div class="claim claim--void">
+              <span class="grip" style="left: 46%"></span>
+              <p class="claim__label">Brawler</p>
+              <p class="claim__text">
+                A deterministic reactive field. The ground itself is alive, and it
+                decides where you can stand.
+              </p>
+              <pre class="run">  no run recorded
+
+  the implementation exists
+  the trace has never been exported
+  nothing is being claimed here that we can show you</pre>
+            </div>
+          </div>
+        </div>
+
+        <footer class="top">
+          <p class="mono">
+            Architecture 03 &nbsp;&middot;&nbsp; The Claim and the Run &nbsp;&middot;&nbsp;
+            closed, half open, and open onto nothing
+          </p>
+          <p class="mono">One run has itself been <i>amended</i></p>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

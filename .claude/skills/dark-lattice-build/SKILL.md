@@ -8,6 +8,40 @@ disable-model-invocation: true
 
 This is implementation, not open-ended ideation.
 
+## STOP — the approval gate
+
+**This skill is closed until a visual journey is approved.**
+
+Read `docs/APPROVED_VISUAL_JOURNEY.md` first. While its status line reads
+anything other than `APPROVED`, do not touch:
+
+```text
+src/
+proofs/src/
+gate-b/src/
+architectures/
+tools/blender/
+public/models/
+```
+
+Approval is not inferred from positive language, enthusiasm, or a frame that
+looks good. It exists only when Jacob's exact phrase is written into that file:
+
+```text
+DARK LATTICE <H1/H2/H3> VISUAL JOURNEY APPROVED
+```
+
+Open while the gate is closed: bug fixes, accessibility, performance, editorial
+content, legal pages, tooling, capture harnesses.
+
+**Do not build a small proof to illustrate a proposal.** Thirteen carriers died
+because code preceded an approved picture, and a proof is the same move at a
+smaller size. Art direction belongs to `dark-lattice-web`.
+
+When the gate opens, technology is chosen at Gate 6 of the execution kit by the
+cheapest method that preserves the approved image, and recorded in
+`docs/TECHNICAL_FIDELITY_DECISION.md`. Never chosen for prestige.
+
 ## Gate 0 — establish truth
 
 Read:
@@ -51,9 +85,19 @@ Acceptance:
 Non-goals:
 ```
 
-The direction is not yours to pick. **THE INTAKE is locked** — `docs/ARCHITECTURE.md` is the specification, and its build order says which step is next.
+The direction is not yours to pick. It comes from the approved frames recorded in
+`docs/APPROVED_VISUAL_JOURNEY.md`, and the build order is the execution kit's
+Gates 6 to 9 in `docs/DARK_LATTICE_THREE_HYBRIDS_EXECUTION_KIT.md`.
 
-Locked does not mean implemented. `src/` predates the direction. Do not demolish the current implementation unasked, and do not start a later build step because an earlier one looks boring.
+`docs/ARCHITECTURE.md` is authority for the **stack only** — Vite, TypeScript,
+Three.js, GSAP, and the layer boundary. It is not the visual direction. THE
+INTAKE staging it describes was retired, and so were `docs/CONTAINMENT_DIRECTION.md`,
+`docs/PRODUCTION_PLAN.md` and `docs/CORRECTION_BUILD_PLAN.md` as build orders.
+Do not build toward any of them.
+
+Approved does not mean implemented. `src/` predates every current direction. Do
+not demolish the existing implementation unasked, and do not start a later gate
+because an earlier one looks boring.
 
 ## Gate 2 — YAGNI
 

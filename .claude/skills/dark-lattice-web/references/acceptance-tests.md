@@ -68,20 +68,28 @@ Inspect representative:
 
 For scroll-driven hero work, capture the meaningful narrative phases.
 
-Once THE INTAKE is implemented, capture its five beats: the face, the ask, the descent, the floor, look up.
+Which phases those are comes from the approved journey. There is no approved
+journey: `docs/APPROVED_VISUAL_JOURNEY.md` reads `NOT APPROVED`, and H1, H2 and
+H3 stand equal. Until one is approved, audit the site that exists on its own
+terms. The current `src/` predates every current candidate and is not a failed
+attempt at any of them.
 
-Then verify:
-- opening = calm, near-symmetric, holy; amber rising from a wound in a black plain,
-- descent = one growth system whose parameters slide from ordered to root-like; no set pieces,
-- aperture = the opening above is smaller at each scripted look-up, and nothing says so,
-- the record assembles above and behind, always later and always simpler,
-- floor = a file about the visitor that is wrong, not a creature,
-- look up = the amber cathedral is recognisably the divinity from beat one,
-- final dread = comprehension, not spectacle.
+### RETIRED — THE INTAKE capture spec
 
-Fail the capture if any frame reads as concentric rings.
+Kept as a graveyard record so it is not reinvented, in the same way as
+`hero-concept.md`. THE INTAKE was retired by the 2026-08-17 refoundation. Do not
+capture against it and do not audit against it. Its amber-and-cathedral
+vocabulary is separately banned by `CLAUDE.md`.
 
-Until then, audit the site that exists on its own terms. The current `src/` predates the locked direction and is not a failed attempt at it.
+> Capture five beats: the face, the ask, the descent, the floor, look up. Then
+> verify: opening = calm, near-symmetric, holy, amber rising from a wound in a
+> black plain; descent = one growth system whose parameters slide from ordered
+> to root-like, no set pieces; aperture = the opening above is smaller at each
+> scripted look-up, and nothing says so; the record assembles above and behind,
+> always later and always simpler; floor = a file about the visitor that is
+> wrong, not a creature; look up = the amber cathedral is recognisably the
+> divinity from beat one; final dread = comprehension, not spectacle. Fail the
+> capture if any frame reads as concentric rings.
 
 ## Pass
 

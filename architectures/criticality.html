@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture 2 — Criticality</title>
+    <link rel="stylesheet" href="./shell.css" />
+    <style>
+      /* Almost the whole frame is empty and still. That emptiness is the
+         mechanism, not restraint for its own sake: the page is being held
+         below a threshold, and the calm is what the holding buys. */
+      .content {
+        height: 100%;
+        padding: 56px 64px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .statement {
+        align-self: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 260px;
+        column-gap: 110px;
+        align-items: end;
+        max-width: 1240px;
+      }
+
+      /* Four lines, not five. At 104px over an 11ch measure the headline was
+         447px tall, overflowed its grid row upward, and printed through the
+         mark. Scale is not lost by fixing that: 88px over 13ch still crops the
+         frame and still reads brutally. */
+      h1.huge {
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-size: 88px;
+        line-height: 0.88;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+        color: var(--peak);
+        margin: 0 0 30px;
+        max-width: 13ch;
+      }
+
+      .sub { margin: 0 0 40px; }
+
+      /* The readout. The only moving thing on the site, and it is a
+         measurement rather than an effect. No bar, no dial, no gauge: a gauge
+         is interface theatre and a number is a fact. */
+      .gauge dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 18px;
+        row-gap: 12px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .gauge dt { color: var(--dim); }
+      .gauge dd { margin: 0; text-align: right; color: var(--bone); }
+      .gauge dd.near { color: var(--cherenkov); }
+      .gauge dd.over { color: var(--violation); }
+
+      .gauge__head {
+        margin: 0 0 18px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--rule);
+        font-family: var(--font-display);
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-size: 12px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--bone);
+      }
+
+      /* The ledger of what the page has already shut down to stay calm. This is
+         the whole architecture visible at rest: the site is not merely dark, it
+         is dark because it withdrew things. */
+      .withdrawn {
+        margin-top: 40px;
+        border-top: 1px solid var(--rule);
+        padding-top: 16px;
+      }
+
+      .withdrawn p {
+        margin: 0 0 9px;
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--dim);
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .withdrawn p span:last-child { color: #343d43; }
+
+      /* The sections, most of them currently damped. A damped section still
+         states what it is and still says what it would cost: access is never
+         removed, only depth. */
+      .sections {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0;
+        border-top: 1px solid var(--rule);
+      }
+
+      .sec {
+        padding: 20px 30px 0 0;
+        border-right: 1px solid var(--rule-faint);
+      }
+
+      .sec:last-child { border-right: 0; }
+
+      .sec__name {
+        font-family: var(--font-display);
+        font-variation-settings: 'wght' 600, 'wdth' 100;
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--bone);
+        margin: 0 0 8px;
+      }
+
+      .sec__body {
+        margin: 0 0 12px;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: #8d979e;
+        max-width: 40ch;
+      }
+
+      .sec--damped .sec__name { color: var(--dim); }
+      .sec--damped .sec__body { color: #3d464c; }
+
+      .sec__cost {
+        margin: 0;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+
+      .sec--damped .sec__cost { color: var(--cherenkov); }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="content">
+        <header class="top">
+          <p class="mark">Dark Lattice</p>
+          <nav class="nav">
+            <a href="#">Work</a>
+            <a href="#">Method</a>
+            <a href="#">Studio</a>
+            <a href="#">Contact</a>
+          </nav>
+        </header>
+
+        <div class="statement">
+          <div>
+            <h1 class="huge">Systems that remember what you did.</h1>
+            <p class="lede sub">
+              Games and software where rules, evidence, and consequence shape the
+              experience.
+            </p>
+            <a class="act" href="#">Read the method</a>
+            <a class="act act--quiet" href="#" style="margin-left: 28px">View work</a>
+          </div>
+
+          <div class="gauge">
+            <p class="gauge__head">Field</p>
+            <dl>
+              <dt>Level</dt><dd class="near">0.61</dd>
+              <dt>Threshold</dt><dd>1.00</dd>
+              <dt>Held for</dt><dd>04:12</dd>
+              <dt>Withdrawn</dt><dd class="over">3</dd>
+            </dl>
+
+            <div class="withdrawn">
+              <p><span>Benchmarks</span><span>&minus;0.14</span></p>
+              <p><span>Known limitations</span><span>&minus;0.09</span></p>
+              <p><span>Unfinished work</span><span>&minus;0.07</span></p>
+            </div>
+          </div>
+        </div>
+
+        <footer>
+          <div class="sections">
+            <div class="sec">
+              <p class="sec__name">Desk42</p>
+              <p class="sec__body">
+                You work a desk inside a bureaucracy, deciding people&rsquo;s claims. What you
+                rule in your first week decides what lands on your desk in your sixth.
+              </p>
+              <p class="sec__cost">Active &middot; costs 0.18</p>
+            </div>
+            <div class="sec sec--damped">
+              <p class="sec__name">Brawler</p>
+              <p class="sec__body">
+                An action roguelite where the ground itself is alive. Detail withdrawn to hold
+                the field.
+              </p>
+              <p class="sec__cost">Damped &middot; opening costs 0.22</p>
+            </div>
+            <div class="sec sec--damped">
+              <p class="sec__name">Production chain</p>
+              <p class="sec__body">
+                Six stages, each removing energy from the document. Detail withdrawn to hold
+                the field.
+              </p>
+              <p class="sec__cost">Damped &middot; opening costs 0.31</p>
+            </div>
+          </div>
+          <p class="mono" style="margin-top: 22px">
+            Architecture 02 &nbsp;&middot;&nbsp; Criticality &nbsp;&middot;&nbsp; opening state
+            &nbsp;&middot;&nbsp; suppression costs depth, never access
+          </p>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

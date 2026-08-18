@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Congregation — Frame 1</title>
+    <style>
+      /* Type sits on void and is the only perfectly regular thing in the
+         composition. Frame board: nothing over the field. */
+      html, body { margin: 0; height: 100%; background: #020304; overflow: hidden; }
+      #field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      .ui { position: absolute; z-index: 2; color: #E9EEF2;
+            font-family: Bahnschrift, 'DIN Alternate', 'Segoe UI', sans-serif; }
+      .mark { left: 56px; bottom: 150px; font-size: 15px; letter-spacing: .38em;
+              text-transform: uppercase; font-variation-settings: 'wght' 700; }
+      .mark::before { content: ''; display: inline-block; width: 7px; height: 7px;
+              margin-right: 1.1em; border: 1px solid #E9EEF2; vertical-align: .06em; }
+      .prop { left: 56px; bottom: 96px; font-size: 17px; line-height: 1.5;
+              color: #8C959C; max-width: 27em; font-family: 'Segoe UI', sans-serif; }
+      .nav { right: 56px; top: 52px; font-family: 'Cascadia Mono', Consolas, monospace;
+             font-size: 11px; letter-spacing: .24em; text-transform: uppercase;
+             color: #6F7A82; display: flex; gap: 2.6em; }
+      #sim-state { position: absolute; left: 56px; bottom: 40px; z-index: 2; margin: 0;
+             font-family: 'Cascadia Mono', Consolas, monospace; font-size: 10px;
+             letter-spacing: .16em; color: #3E464C; }
+    </style>
+  </head>
+  <body>
+    <canvas id="field"></canvas>
+    <p class="ui mark">Dark Lattice</p>
+    <p class="ui prop">Games and software shaped by rules, evidence, and consequence.</p>
+    <div class="ui nav"><span>Work</span><span>Method</span><span>Studio</span><span>Contact</span></div>
+    <p id="sim-state"></p>
+    <script type="module" src="./src/frame1.ts"></script>
+  </body>
+</html>

@@ -69,9 +69,13 @@ Do not cover the world in biomechanical tubing or creature decoration.
 
 ## Color and material
 
-Start from the site's existing palette.
+Colour law is set by `CLAUDE.md` and it currently reads: black, bone, and at most
+one event colour until a journey is approved.
 
-Deep violet may be used as a rare signal/internal-state accent.
+Do not re-lock cyan, amber or violet out of habit. Each belonged to a retired
+direction — violet and cyan to the entity grammar, amber to THE INTAKE — and
+none of them is current. Do not start from the existing site's palette either;
+that site is being replaced.
 
 Do not make purple atmosphere the identity.
 

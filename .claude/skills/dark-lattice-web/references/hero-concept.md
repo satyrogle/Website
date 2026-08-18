@@ -2,7 +2,10 @@
 
 ## Status
 
-**RETIRED 2026-08-11.** Superseded by THE INTAKE, locked in `docs/ARCHITECTURE.md`.
+**RETIRED 2026-08-11.** Superseded by THE INTAKE, which was itself retired by the
+2026-08-17 refoundation. There is no locked visual direction: see `CLAUDE.md` and
+`docs/APPROVED_VISUAL_JOURNEY.md`. `docs/ARCHITECTURE.md` is stack authority
+only and never named the direction.
 
 This file is a graveyard record, kept so the direction is not accidentally reinvented. It is not a specification. Do not build it, propose it, or audit against it.
 

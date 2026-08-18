@@ -29,8 +29,7 @@ const OUT = path.resolve(argValue('out', 'captures/gate-b'));
 const ONLY = argValue('only', null);
 
 const DIRECTIONS = [
-  { key: "bloom2", page: "bloom2.html", label: "A THE CRITICAL BLOOM (rebuilt primitive)" },
-  { key: "witness2", page: "witness2.html", label: "B THE WITNESS FIELD (rebuilt mechanism)" },
+  { key: "ca-within", page: "ca.html?view=within", label: "PROOF within" },
 ];
 
 const VIEWPORTS = [

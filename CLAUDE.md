@@ -28,6 +28,74 @@ below its mandatory 2. The refoundation must not inherit any of these. Fonts are
 self-hosted, the DOM spends no event colour on decoration, and legal pages ship
 with the first public release.
 
+## Mandatory art-direction gate
+
+Before editing `src/`, `public/models/`, `gate-b/src/`, `proofs/src/`,
+`architectures/` or `tools/blender/` for a new or changed visual direction,
+read:
+
+`docs/APPROVED_VISUAL_JOURNEY.md`
+
+While that file's status line reads anything other than `APPROVED`, those paths
+are closed to new-direction work. Bug fixes, accessibility, performance,
+editorial content, legal pages and tooling stay open. That file defines the
+boundary precisely; it is the authority on what is gated.
+
+The gate exists because thirteen carriers were built from written descriptions
+and rejected on sight. Code is no longer allowed to precede an approved picture.
+Do not build a small proof to illustrate a proposal. That is the same move at a
+smaller size.
+
+Nothing may be inferred as approved. A direction is approved when Jacob's
+approval is written into that file alongside the image it was given for.
+
+### References define qualities to extract, never technologies to implement
+
+A reference names a quality. It never names a build method, and it is never
+copied.
+
+- A **particle image** may mean density, scale, layered depth, collective
+  motion. It does not mean build a particle system.
+- A **cellular-automaton image** may mean emergence, irregular structure,
+  macro/micro contrast. It does not mean write a cellular automaton.
+- **Igloo** may mean spatial journey, depth, content embedded in movement, and
+  the measured material stack that makes it look expensive. It does not mean
+  ice, crystals or its tunnel geometry.
+
+This is the medium-first stop of 2026-08-18 stated as a general rule, and it is
+why `docs/REFERENCE_LIBRARY.md` records Steal and Slop-if-copied for every
+entry. The technology that produces an approved frame is chosen last.
+
+### Jacob's judgement outranks every measurement
+
+Measurements diagnose an implementation. They cannot overrule "this looks
+shit", and a frame is never defended with a number.
+
+Percentage near-black, light concentration, p99 over mean, agent or particle
+count, shader complexity and GPU frame time are diagnostics. They are not
+acceptance.
+
+This is the negative-space failure written as law. The 80-to-90-percent
+near-black rule passed frames that measured 1 percent of pixels above 5 percent
+luminance — literally invisible on a monitor in a lit room — and Igloo, the
+reference Jacob chose, fails that same rule outright at 99.7 percent of pixels
+above 20 percent luminance. A metric that disagrees with his eye is the metric
+that is wrong. Retire it and say so; do not argue the frame back.
+
+### Kill words, and the only legal response to them
+
+If Jacob's review names a frame as any of the following, the frame is dead:
+
+spaghetti, hair, fur, dust, structureless smoke, particle demo, starfield, blob,
+orb, eclipse, portal, wireframe, graph visualisation, ShaderToy, AI concept-art
+mush, chandelier, a cool 3D object beside company copy.
+
+Do not answer a kill word by raising counts, moving a threshold, adding bloom,
+darkening the grade or re-tuning. Those produce the same frame with new numbers,
+which is how the Critical Bloom died twice. Return to the frame's visual
+premise, or to the image the frame was built from. If neither survives contact,
+report that the premise is dead rather than tuning it.
+
 ## Product
 
 Dark Lattice is a technology/game studio building systemic products and games around deterministic simulation, state, consequence and emergent behavior.
@@ -87,6 +155,148 @@ every candidate. There is no winner and none may be inferred.
 
 **Do not refine, rescue or re-primitive any of the three.** Explicitly ruled out
 by Jacob: making the bloom less spattery, more physical, or otherwise nicer.
+
+**THE DIRECTION UNDER TEST, 2026-08-18: ONE SYSTEM, THREE SCALES.**
+
+Jacob's direction statement, recorded verbatim:
+
+> Dark Lattice will be explored as one persistent, seeded emergent world viewed
+> across macro, meso and micro scales. The opening aggregate appears immense,
+> coherent and almost divine. A visitor-created event is retained and followed
+> inward. At local scale, the visitor discovers the rule that produced the
+> beauty. The same world then returns to its opening form with a darker meaning.
+
+```
+JOURNEY CHOSEN 2026-08-18: A - THE CONGREGATION
+WORKFLOW: ART DIRECTION FIRST, IMPLEMENTATION LAST
+NEXT: REFERENCE BOARD -> SIX FRAME BOARDS -> ONLY THEN TECHNIQUE
+```
+
+**WORKFLOW CORRECTED AGAIN, 2026-08-18: IMAGES BEFORE PROSE.** Jacob has been
+choosing premises from written descriptions all session and cannot judge text;
+every direction picked from prose collapsed on first render. THE CONGREGATION
+IS UNLOCKED and is now one candidate among six in
+`docs/IMAGE_PROMPT_PACK.md`. Jacob generates opening-frame images in a
+still-image tool, picks the picture he wants, and THAT names the direction.
+Only then is a frame board written FROM the approved image, and only then does
+code start, as a matching problem rather than an inventing one.
+
+**Also recorded: the negative-space metric was wrong and did real damage.**
+Brief section 8's "80 to 90 percent near-black" measures the share of pixels
+below 4% and says nothing about whether the lit part is lit. Frames passing it
+measured 1% of pixels above 5% luminance: literally invisible on a monitor in a
+lit room. Igloo, the reference Jacob chose, would FAIL that rule outright at
+99.7% of pixels above 20%. Replacement acceptance: near-black in MOOD, not in
+pixels. At least 25% of the frame above 5% luminance, real highlights above
+80%, and dark regions rich with scattered light rather than empty. Atmosphere
+is the missing physical term in every frame this project has produced.
+
+**Jacob's compositional note, kept whatever premise wins:** the glow and the
+sources must share one geometry. A top-down funnel, everything converging on a
+single axis, is what makes a field coherent instead of scattered.
+
+**The Congregation, retained as candidate 4 (docs/VISUAL_JOURNEYS.md).**
+Jacob's reasoning, recorded: it is the one that feels like a SYSTEM instead of
+a scene. The hidden logic is merciless curation: every light is placed, held,
+and removed when it fails. That maps directly onto Desk42, Brawler, the labs
+and the beauty-becomes-sinister-through-understanding requirement. THE SLOW
+FIRE was ranked the bigger spectacle and rejected for generic space-art risk;
+THE STILL SEA was rejected as too static to carry the homepage. Both stay in
+the doc as record.
+
+**Vocabulary refinement, Jacob's instruction.** The words candle, cathedral,
+choir-imagery, votive, altar and their visual equivalents are banned from this
+direction's design language, copy, prompts and reference boards. The emotional
+effect stays; the literalness goes. Approved language: suspended pale sources,
+hanging bone-white lights, stratified field of held luminosity.
+
+**Named failure modes to guard in every frame:** a hanging-lights art
+installation (PRECEDENT: an early lattice was killed for reading as "a
+chandelier"), a sci-fi cathedral, pretty strings. The tether-to-armature
+reveal is THE load-bearing element that makes it Dark Lattice rather than
+merely beautiful, and it must stay subtle and severe, never theatrical.
+
+**WORKFLOW CORRECTION, Jacob, 2026-08-18, later the same day. The medium-first
+track is STOPPED.** The site will not literally be a cellular automaton,
+Physarum simulation or particle system, and no mathematical medium may become
+the identity. Those references are ART DIRECTION ONLY: mimic the density
+variation, the huge empty voids, the self-organising luminous structure, the
+feeling of millions of tiny things forming one divine whole, the macro-to-micro
+scale change, the irregularity and depth. The technology that eventually
+produces the approved frames is chosen LAST and may be authored geometry,
+sculpted meshes, volumetric shaders, raymarched fields, procedural textures,
+layered fog, point clouds, displacement, image sequences, selective particles,
+compositing, or any combination. Generating the hero from mathematical
+primitives is the diagnosed cause of every hair/dust/blob/noise failure. The
+NCA and self-organised-criticality proofs are CANCELLED. The Physarum proof
+(`proofs/`, `captures/proofs/physarum/`) is kept as a technique study only.
+
+**The locked emotional structure (this part is the identity):**
+
+1. OPENING: something overwhelmingly beautiful, holy, celestial. Awe from
+   beauty and scale.
+2. APPROACH: scroll pulls toward one region. Detail grows. No portal, no ring.
+3. DESCENT: travelling through the thing seen from outside. The tunnel
+   sensation comes from scale, depth and occlusion; there is no tunnel object.
+   Company and project information appears at spatial stops.
+4. FIRST DISCREPANCY: something is subtly wrong. Growth reads as collapse,
+   pristine light comes from damage. Never horror.
+5. HIDDEN REVEAL: a real surprise deeper inside. It recontextualises; it never
+   introduces a monster.
+6. RETURN: distance regained. The opening image again, now understood
+   differently. One visible change at most.
+
+The galaxy-to-dying-planet example is the emotional structure, not the literal
+content.
+
+**The hero-object requirement is retired and replaced:**
+
+- one persistent hero sculpture → one persistent simulation state
+- one silhouette carrying meaning → one seeded world carrying meaning
+- surface effects on an asset → behaviour generated by local rules
+- camera travelling around an object → camera changing OBSERVATIONAL SCALE
+- object transforming into later states → the same state reinterpreted
+- Blender asset as identity → runtime system as identity
+
+The tunnelling sensation comes from travelling through increasing density and
+changing scale. There is no pipe, ring, corridor, repeated frame or tunnel mesh.
+The 2026-08-17 banned-construction list continues to bind the renders: no
+central sphere, no uniform radial arrangement, no object beside copy.
+
+**Kill-test amendment, recorded at Jacob's instruction, 2026-08-18.** The
+brief's section 15 line "the design needs particles ... to feel alive" is
+narrowed to:
+
+> Reject decorative particle effects added to rescue a weak simulation or
+> composition. A particle or cellular simulation is permitted when it is the
+> authoritative system and its behaviour drives the experience.
+
+**Architecture addition: `ObservationModel`.** Sits between `SimulationKernel`
+and `SceneRenderer`. It derives macro density, meso transport, and micro agent
+views from ONE authoritative state. Scale travel never swaps assets and never
+fakes a transformation. `ScrollDirector` changes observational scale and phase;
+it never invents simulation behaviour.
+
+**Determinism language.** Claim only: seeded, fixed-step, replayable in the
+tested environment. Never claim bitwise cross-hardware determinism without
+cross-device evidence. Physarum-family methods are probabilistic by
+construction; a fixed seed and controlled stream makes a session replayable,
+which is the honest claim.
+
+**The design deliverable is frames, not code.** Three complete six-frame visual
+journeys are designed as an art director would: what the visitor SEES, frame by
+frame, no implementation discussion. Jacob chooses one. Only then is the
+question asked: how are these approved frames recreated in Three.js. Live in
+`docs/VISUAL_JOURNEYS.md`. Do not code, render, or simulate ahead of his
+choice.
+
+**Colour:** black, bone, and at most one event colour until a journey is
+chosen. Do not re-lock cyan/amber/violet out of habit.
+
+**Macro conceals, micro reveals.** At macro scale render density topology,
+never individual trails, strands or agents. Agents become visible only in the
+close-range revelation. This is the visible-primitives lesson applied to the
+new medium.
 
 **Banned constructions for the next exploration, Jacob's list, 2026-08-17.**
 No orb. No planet. No eclipse. No portal. No halo. No tunnel. No radial bloom.
@@ -196,6 +406,59 @@ Two traps this rule exists to prevent:
 If a development tuning panel is genuinely needed, the vanilla-compatible option is Tweakpane, not Leva. `src/dev/TuningPanel.ts` already exists.
 
 Add a dependency only when the requirement demonstrably needs it. Inspect `package.json`, source structure and scripts before assuming versions, commands or architecture.
+
+### Diagnostic tools, and the stage each is allowed at
+
+Recorded so the decision is not re-argued, and so nothing gets installed during
+art direction that belongs in implementation.
+
+**Already present. Use these first.**
+
+- **Playwright**, `playwright@^1.62.1` in `devDependencies`, driving twelve
+  scripts in `tools/`. Headed Chrome on the real card, always. Headless
+  SwiftShader has already hidden a `pow(0, y)` NaN that rendered the hero black
+  on Jacob's GPU. Any browser-capture need is a script in `tools/`, not a new
+  dependency.
+- **Tweakpane** and `src/dev/TuningPanel.ts` for live parameter tuning.
+- **Figma MCP**, connected as `plugin:marketing:figma` but **not authorised**.
+  Authorise it in claude.ai connector settings or `/mcp` from an interactive
+  terminal. Its job is frame comparison, continuity across the six frames,
+  mobile recomposition and capturing the running localhost back for diffing
+  against an approved board. It does not generate the opening image and it does
+  not decide the direction.
+- **`frontend-design` skill**, already at `.claude/skills/frontend-design/`. It
+  translates an approved direction into DOM, type, spacing and responsive
+  layout. It has no authority over the hero, the world, the reveal or the
+  build technology, and `dark-lattice-web` plus this file outrank it.
+
+**Allowed once code is rendering something, not before.**
+
+- **Chrome DevTools MCP** — performance traces, long main-thread tasks, layout
+  shift, load waterfall, shader compilation stalls, frame pacing, throttled
+  mobile CPU. `claude plugin install chrome-devtools-mcp@claude-plugins-official`
+- **Spector.js** — WebGL frame capture: which passes ran, which uniforms were
+  actually sent, whether a texture is empty, whether the wrong framebuffer is
+  sampled, whether bloom or postprocessing is hiding the base image. Start with
+  the browser extension. Add its MCP only if repeated shader debugging earns it.
+
+Division of labour, so tools are not alternated at random: **Playwright** for
+repeatable flows, screenshots, regression and video. **Chrome DevTools** for
+performance, network and runtime diagnosis. **Spector** for what the GPU
+actually did.
+
+**Allowed only if approved frames turn out to need authored 3D assets:**
+`@gltf-transform/cli` and the Khronos glTF Validator.
+
+**Rejected.** Theatre.js: its Studio is AGPL-3.0, 1.0 development moved to a
+private repository, and camera timing has never been the failure — every
+rejection so far has been of a still frame. Tweakpane already covers live
+tuning. Also rejected: designer mega-packs, a second browser MCP, Wix, Lovable,
+Base44, Spline as the experience, and prebuilt WebGL hero templates.
+
+**Before installing any plugin**, inspect its repository, `plugin.json`,
+`.mcp.json`, any `hooks/`, its install scripts and its requested environment
+variables. Install one at a time and smoke-test it. A plugin that adds
+unexplained hooks or fails silently is removed. This is the Caveman lesson.
 
 ## Design invariants
 

@@ -1,0 +1,184 @@
+/* ============================================================================
+   WEBSITE ARCHITECTURES — shared shell
+
+   Three opening frames for docs/WEBSITE_ARCHITECTURES.md. Options, not a
+   decision. No canvas, no WebGL, no hero object: that is the entire point of
+   this exploration, so nothing here draws anything. All beauty available to
+   these frames has to come from type, scale, alignment and negative space.
+
+   TYPE, provisional and stated as provisional.
+   Display and interface: Bahnschrift. Variable DIN, drawn for German industrial
+   standards and road signage. Institutional rather than startup, satisfies
+   constitution 4.10 by a real decision, and ships with Windows so these frames
+   need no font download and make no third-party request.
+   Reading: Segoe UI. Technical: Cascadia Mono, and ONLY for state, evidence and
+   measurement. At lock these become self-hosted woff2.
+   ============================================================================ */
+
+:root {
+  /* Brief section 8. No colour outside this set. */
+  --void: #020304;
+  --carbon: #080b0e;
+  --bone: #e9eef2;
+  --peak: #f8fbff;
+  --cherenkov: #56d8ff;
+  --deep: #1546d8;
+  --violation: #ff493d;
+
+  --muted: #6f7a82;
+  --dim: #454f56;
+  --rule: rgba(233, 238, 242, 0.13);
+  --rule-faint: rgba(233, 238, 242, 0.07);
+
+  --font-display: 'Bahnschrift', 'Franklin Gothic Medium', 'Segoe UI', sans-serif;
+  --font-body: 'Segoe UI', 'Franklin Gothic Book', sans-serif;
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--void);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Default radius zero. Constitution 4.19. Nothing here is rounded, filled,
+   shadowed or gradiented. */
+a, button, section, div { border-radius: 0; }
+
+a { color: inherit; }
+
+.frame {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------ shared marks */
+
+.mark {
+  font-family: var(--font-display);
+  font-variation-settings: 'wght' 700, 'wdth' 100;
+  font-size: 15px;
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: var(--bone);
+  margin: 0;
+}
+
+/* Authored mark, not an icon library. Constitution 4.2. A bounded square: the
+   smallest possible statement of "a region under observation". */
+.mark::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 1.1em;
+  border: 1px solid var(--bone);
+  vertical-align: 0.06em;
+}
+
+.nav {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  gap: 2.6em;
+}
+
+.nav a { text-decoration: none; }
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* Technical register. Rationed to state, evidence and measurement only. */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.mono b { font-weight: 400; color: var(--cherenkov); }
+.mono i { font-style: normal; color: var(--violation); }
+.mono s { text-decoration: none; color: var(--muted); }
+
+.rule {
+  height: 1px;
+  background: var(--rule);
+  border: 0;
+  margin: 0;
+}
+
+.rule--faint { background: var(--rule-faint); }
+
+/* Body copy. One measure, generous leading, never full width. */
+.body {
+  font-size: 15.5px;
+  line-height: 1.72;
+  color: #aab3ba;
+  max-width: 62ch;
+  margin: 0;
+}
+
+.body strong { color: var(--bone); font-weight: 600; }
+
+.lede {
+  font-family: var(--font-display);
+  font-variation-settings: 'wght' 600, 'wdth' 100;
+  font-size: 21px;
+  line-height: 1.42;
+  color: var(--bone);
+  max-width: 30ch;
+  margin: 0;
+}
+
+h1, h2, h3 { margin: 0; font-family: var(--font-display); }
+
+.display {
+  font-variation-settings: 'wght' 700, 'wdth' 100;
+  text-transform: uppercase;
+  line-height: 0.92;
+  letter-spacing: -0.012em;
+  color: var(--peak);
+}
+
+.caption {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin: 0;
+}
+
+/* Square, hairline, no fill. Constitution 4.1, 4.5, 4.19. */
+.act {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone);
+  text-decoration: none;
+  border: 1px solid var(--rule);
+  padding: 13px 22px;
+}
+
+.act--quiet { border-color: transparent; padding-inline: 0; color: var(--muted); }
