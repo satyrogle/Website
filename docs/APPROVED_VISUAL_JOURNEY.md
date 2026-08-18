@@ -109,6 +109,27 @@ or re-primitived.**
 | The Critical Bloom | Combed hair around a lump. Rebuilt as a density-estimated caustic field and then read as torn or spattered material. Rejected on sight, twice. |
 | The Witness Field | Strongest line and strongest mechanism of the three. The image stayed thin: 99.5 percent black is absence, not restraint. |
 
+### The Genesis field, rejected 2026-08-18
+
+Built on branch `claude/genesis` (worktree `../dark-lattice-genesis`) under
+Jacob's explicit one-night waiver, then brought under the constitution at his
+instruction. The rendered world was a GPU transport-network simulation whose
+trails were lit directly as smooth specular ribbons with bright knots at the
+served regions. Jacob's verdict, verbatim: **"looks like human sperms on the
+screen."** Killed as a nameable organic primitive, the fifteenth death in the
+hair/spaghetti/filament family, and confirmation of the standing diagnosis:
+rendering a simulation's raw trails as the hero image produces a nameable
+biological read. Two independent reviewers had already flagged the same frame
+("glowing smoke / generic ShaderToy"; "glossy tubes").
+
+What survives on that branch, direction-independent: the editorial page and
+copy, the Archivo/Fragment Mono type system, the ledger, legal pages, the
+deterministic kernel with the starvation law, the mark-to-record loop, the
+quality harness (replay determinism proven), accessibility and fallback
+states. The dead part is specifically the picture: how the world is rendered.
+The mechanism may still drive a future approved image; the trails themselves
+may never again be the image.
+
 ### Journeys, 2026-08-18
 
 | Journey | Status |
