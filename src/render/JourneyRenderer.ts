@@ -125,9 +125,9 @@ const CLAD_FRAG = /* glsl */ `
       col *= 1.0 - eng * 0.38;
       // the reading light: a slow pulse climbs the tower and fills the
       // engravings as it passes
-      float py = mod(uTime * mix(7.0, 3.0, uCalm), 260.0) - 30.0;
-      float band = exp(-abs(vWorldY - py) * 0.07) * (1.0 - uCalm);
-      col += base * eng * band * 0.85 * (1.0 - uSeverity * 0.45) * mix(1.0, 0.5, vDying);
+      float py = mod(uTime * mix(3.8, 2.0, uCalm), 280.0) - 40.0;
+      float band = exp(-abs(vWorldY - py) * 0.045) * (1.0 - uCalm);
+      col += base * eng * band * 0.6 * (1.0 - uSeverity * 0.45) * mix(1.0, 0.5, vDying);
     }
     // the waterline keeps its dark
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorldY));
@@ -447,9 +447,9 @@ export class JourneyRenderer {
     this.time += dt;
     this.path.update(this.camera, progress, dt, reduced);
     if (!reduced) {
-      // the sea breathes under the viewpoint
-      this.camera.position.x += Math.sin(this.time * 0.13) * 0.45;
-      this.camera.position.y += Math.sin(this.time * 0.09 + 2.0) * 0.3;
+      // the sea breathes under the viewpoint, barely
+      this.camera.position.x += Math.sin(this.time * 0.09) * 0.16;
+      this.camera.position.y += Math.sin(this.time * 0.06 + 2.0) * 0.11;
     }
     const sev = this.path.state.severity;
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
