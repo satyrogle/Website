@@ -17,6 +17,34 @@ SCOPE: the journey and both anchor frames as built at f3b48e7. Polish is
     authorised ("make it feel expensive"). Direction changes are not.
 ```
 
+## Material verdict, 2026-08-19, Jacob, verbatim register
+
+"the cubes at the end are exposing the pillars and it sucks big time ...
+everything is the same and the website feels so static no awe no holy
+nothing sinister about cubes"
+
+Ruling recorded: the monument PREMISE stands (approved above); the CUBE
+material language is dead. Instanced boxes cannot carry holy or sinister
+at any lighting quality. The correction is authored geometry through the
+sanctioned Blender-to-glTF path (Blender 4.5 and 5.1 are installed on
+Jacob's machine). A first authored monolith with strata displacement and
+the two journey wounds was generated headless the same night:
+dark-lattice-genesis/public/models/monument.glb via
+tools/blender/monument.py. Next implementation session: the glb becomes
+the monument's body (engraving shader applied on its surface, decay as
+erosion against it), and cubes survive only as falling debris and scree.
+Also ruled: near-total stillness reads as static, not calm. Slow ambient
+life (halo breath, sea shimmer, rising motes) restored within the
+temporal-calm harness ceiling.
+
+Tool list Jacob supplied the same night, with verdicts: threlte (Svelte
+migration, no visual gain, locked out), theatre.js (already rejected,
+reasons re-validated), spline.design (legitimate only as glTF authoring,
+never as the site), anime.js/motion.dev (duplicate GSAP), vengeance
+ui/animaster/skipper (React+Tailwind SaaS component packs, the exact
+banned register), peachweb.io (unknown, unevaluated), GSAP (already in
+the stack).
+
 ## Jacob's reference list, given 2026-08-18 during journey refinement
 
 Verbatim: "https://lusion.co/ https://www.ilabsolutions.it/
