@@ -49,7 +49,7 @@ PROFILE = [
     (2.0, -4.0),
     (8.0, -3.2),
 ]
-TIP_T = (1.0, 0.94)
+TIP_T = (1.0, 0.76)
 COURSE_H = 2.1
 
 
@@ -77,10 +77,12 @@ def radius_at(t):
     return 3.4 + 26.0 * smoothstep(0.05, 0.74, t) - 5.0 * (smoothstep(0.80, 1.0, t) ** 1.3)
 
 
-def hook_at(t):
+def hook_at(t, side=0):
     # a little out-of-plane lean for dimension. Large values hid the
-    # whole arc behind foreshortening, which is what killed the last one
-    return 2.2 * (smoothstep(0.55, 1.0, t) ** 1.4)
+    # whole arc behind foreshortening, which is what killed the last one.
+    # Per-side factor: the two horns must never mirror, or the gap
+    # between them reads as an eye
+    return 2.2 * (smoothstep(0.55, 1.0, t) ** 1.4) * (1.0 if side == 0 else 0.5)
 
 
 def scale_at(t):
@@ -95,7 +97,7 @@ def wobble_at(t, side):
 def ring_centre(t, side):
     a = twist_at(t) + side * math.pi
     r = radius_at(t)
-    hk = hook_at(t)
+    hk = hook_at(t, side)
     ca, sa = math.cos(a), math.sin(a)
     wx, wz = wobble_at(t, side)
     return r * ca - hk * sa + wx, r * sa + hk * ca + wz, ca, sa

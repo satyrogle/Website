@@ -42,7 +42,7 @@ const FRAG_MAP = `#include <map_fragment>
   float sideS = q.x >= 0.0 ? 1.0 : -1.0;
   float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
   float formR = 3.4 + 26.0 * smoothstep(0.05, 0.74, heightT) - 5.0 * pow(smoothstep(0.8, 1.0, heightT), 1.3);
-  float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4);
+  float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4) * (sideS > 0.0 ? 1.0 : 0.5);
   vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
   float ang = atan(lp.y, lp.x);
 
@@ -463,7 +463,7 @@ const MONO_FRAG = /* glsl */ `
     float sideS = q.x >= 0.0 ? 1.0 : -1.0;
     float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
     float formR = 3.4 + 26.0 * smoothstep(0.05, 0.74, heightT) - 5.0 * pow(smoothstep(0.8, 1.0, heightT), 1.3);
-    float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4);
+    float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4) * (sideS > 0.0 ? 1.0 : 0.5);
     vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
     float angP = atan(lp.y, lp.x);
     float rowH = 1.05;
@@ -916,11 +916,16 @@ export class JourneyRenderer {
     // it, so the far horn washed out to a ghost while the near one
     // stayed black. Behind the form it backlights the silhouette,
     // which is what a halo was always meant to do.
-    this.halo = makeHalo('#c9a071', 240);
-    this.halo.position.set(0, TOWER_TOP * 0.45, -HALO_DEPTH);
+    // Second law, learned when the frame read as the Eye of Sauron:
+    // the glow NEVER sits in the gap between the horns. A lit void
+    // framed by two curved forms is an eye. It lives off-axis and low.
+    this.halo = makeHalo('#c9a071', 210);
+    this.halo.position.set(-104, TOWER_TOP * 0.18, -HALO_DEPTH);
     this.scene.add(this.halo);
-    this.crownHalo = makeHalo('#ecd0a0', 110);
-    this.crownHalo.position.set(0, TOWER_TOP + 8, -HALO_DEPTH);
+    // the crown light belongs to the tall horn alone, never centred
+    const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
+    this.crownHalo = makeHalo('#ecd0a0', 72);
+    this.crownHalo.position.set(tallTip.x * 1.2, tallTip.y + 2, tallTip.z - 30);
     this.scene.add(this.crownHalo);
 
     // --- the air: dust motes over the water, rising slowly ---

@@ -36,7 +36,7 @@ export const PROFILE: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /** blade B stops short of the crown: the tips must not mirror */
-export const TIP_T: readonly [number, number] = [1.0, 0.94];
+export const TIP_T: readonly [number, number] = [1.0, 0.76];
 
 function smoothstep01(e0: number, e1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -56,9 +56,13 @@ export function radiusAt(t: number): number {
   return 3.4 + 26.0 * smoothstep01(0.05, 0.74, t) - 5.0 * Math.pow(smoothstep01(0.8, 1.0, t), 1.3);
 }
 
-/** the curl: the tip leans out of plane so the horn turns in 3D */
-export function hookAt(t: number): number {
-  return 2.2 * Math.pow(smoothstep01(0.55, 1.0, t), 1.4);
+/**
+ * the curl: the tip leans out of plane so the horn turns in 3D. The
+ * per-side factor keeps the pair from mirroring; two mirrored horns
+ * around a lit gap read as an eye.
+ */
+export function hookAt(t: number, side: 0 | 1 = 0): number {
+  return 2.2 * Math.pow(smoothstep01(0.55, 1.0, t), 1.4) * (side === 0 ? 1 : 0.5);
 }
 
 /** cross-section scale: thick at the base, drawn to a point */
@@ -81,7 +85,7 @@ export interface FormPoint {
 export function prongCentre(t: number, side: 0 | 1): FormPoint {
   const a = twistAt(t) + side * Math.PI;
   const r = radiusAt(t);
-  const hk = hookAt(t);
+  const hk = hookAt(t, side);
   const ca = Math.cos(a);
   const sa = Math.sin(a);
   const [wx, wz] = wobbleAt(t, side);
