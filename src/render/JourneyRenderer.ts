@@ -716,6 +716,8 @@ export class JourneyRenderer {
   };
   private fissureMat!: THREE.ShaderMaterial;
   private hazeMat!: THREE.ShaderMaterial;
+  private fieldMat!: THREE.ShaderMaterial;
+  private mistMat!: THREE.ShaderMaterial;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
@@ -1032,6 +1034,158 @@ export class JourneyRenderer {
       haze.position.set(0, 58, -3.5);
       haze.frustumCulled = false;
       this.scene.add(haze);
+    }
+
+    // --- THE FIELD ---
+    // Other monuments, further out. This one is not the only one: the
+    // system has built these before and is building them still. Each
+    // carries its own fissure on its own phase, and some have already
+    // gone dark, which is the law running where the visitor is not.
+    {
+      const N = 26;
+      const rng = mulberry32ish(world.seed ^ 0x5f1e);
+      const pos: number[] = [];
+      const phase: number[] = [];
+      const kind: number[] = [];
+      const idx: number[] = [];
+      const push = (
+        x: number, z: number, w: number, h: number, ph: number, k: number
+      ): void => {
+        const base = pos.length / 3;
+        // a wedge silhouette: two halves either side of a thin gap
+        const gap = w * 0.06;
+        for (const sgn of [-1, 1]) {
+          const inner = sgn * gap;
+          const outer = sgn * w;
+          pos.push(x + inner, 0, z, x + outer, 0, z, x + inner * 0.25, h, z);
+          phase.push(ph, ph, ph);
+          kind.push(k, k, k);
+        }
+        idx.push(base, base + 1, base + 2, base + 3, base + 4, base + 5);
+        // the fissure itself
+        const f = pos.length / 3;
+        pos.push(x - gap, 0, z, x + gap, 0, z, x + gap, h * 0.92, z, x - gap, h * 0.92, z);
+        for (let q = 0; q < 4; q++) {
+          phase.push(ph);
+          kind.push(k + 10);
+        }
+        idx.push(f, f + 1, f + 2, f, f + 2, f + 3);
+      };
+      for (let i = 0; i < N; i++) {
+        const a = rng() * Math.PI * 2;
+        const d = 380 + rng() * 780;
+        const h = 26 + rng() * 96;
+        // most are still lit; a third of them have already failed
+        push(Math.cos(a) * d, Math.sin(a) * d, h * 0.13, h, rng(), rng() > 0.34 ? 1 : 0);
+      }
+      const fg = new THREE.BufferGeometry();
+      fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      fg.setAttribute('aPhase', new THREE.Float32BufferAttribute(phase, 1));
+      fg.setAttribute('aKind', new THREE.Float32BufferAttribute(kind, 1));
+      fg.setIndex(idx);
+      this.fieldMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `
+          in float aPhase;
+          in float aKind;
+          out float vPhase;
+          out float vKind;
+          out float vDist;
+          void main() {
+            vPhase = aPhase;
+            vKind = aKind;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vDist = -mv.z;
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          precision highp float;
+          in float vPhase;
+          in float vKind;
+          in float vDist;
+          uniform float uTime;
+          uniform float uSeverity;
+          uniform vec3 uFog;
+          out vec4 outColor;
+          void main() {
+            bool isCore = vKind > 5.0;
+            bool alive = mod(vKind, 10.0) > 0.5;
+            vec3 col = vec3(0.012, 0.013, 0.016);
+            if (isCore) {
+              // each one keeps its own slow rhythm, and the dead ones
+              // never light at all
+              float beat = 0.5 + 0.5 * sin(uTime * (0.30 + vPhase * 0.45) + vPhase * 6.283);
+              float slow = 0.62 + 0.38 * sin(uTime * (0.11 + vPhase * 0.07) + vPhase * 12.0);
+              float lit = alive ? (0.35 + 0.65 * beat * slow) : 0.0;
+              vec3 tint = mix(vec3(1.0, 0.99, 0.97), vec3(0.78, 0.87, 1.0), uSeverity);
+              col = tint * lit * 0.5;
+            }
+            // the haze takes them with distance, so the field recedes
+            float fog = 1.0 - exp(-vDist * vDist * 0.0000016);
+            outColor = vec4(mix(col, uFog, clamp(fog, 0.0, 1.0)), 1.0);
+          }`,
+        uniforms: {
+          uTime: { value: 0 },
+          uSeverity: { value: 0 },
+          uFog: { value: new THREE.Color('#07080a') }
+        },
+        side: THREE.DoubleSide
+      });
+      const field = new THREE.Mesh(fg, this.fieldMat);
+      field.frustumCulled = false;
+      this.scene.add(field);
+    }
+
+    // --- DRIFTING MIST ---
+    // Low banks crossing the field. Movement across the frame, which
+    // is what a still background was missing; slow enough that nothing
+    // in it can be watched.
+    {
+      this.mistMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `
+          out vec3 vM;
+          void main() {
+            vM = position;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          precision highp float;
+          in vec3 vM;
+          uniform float uTime;
+          uniform vec3 uFog;
+          out vec4 outColor;
+          float mh(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
+          float bank(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mh(i), mh(i + vec2(1, 0)), f.x),
+                       mix(mh(i + vec2(0, 1)), mh(i + vec2(1, 1)), f.x), f.y);
+          }
+          void main() {
+            vec2 q = vec2(vM.x * 0.0032, vM.z * 0.0032);
+            float d = bank(q + vec2(uTime * 0.0065, uTime * 0.0022));
+            d *= bank(q * 2.1 - vec2(uTime * 0.004, 0.0));
+            float body = smoothstep(0.22, 0.75, d);
+            float fade = smoothstep(0.0, 1.0, clamp(vM.y / 34.0, 0.0, 1.0));
+            outColor = vec4(uFog * 2.6 * body * (1.0 - fade) * 0.5, 1.0);
+          }`,
+        uniforms: { uTime: { value: 0 }, uFog: { value: new THREE.Color('#07080a') } },
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      for (let layer = 0; layer < 3; layer++) {
+        const g = new THREE.PlaneGeometry(2600, 2600);
+        const m = new THREE.Mesh(g, this.mistMat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.y = 6 + layer * 11;
+        m.frustumCulled = false;
+        this.scene.add(m);
+      }
     }
 
     // --- DISTANT RIDGES ---
@@ -1405,6 +1559,11 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     this.fissureMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uDecay!.value = decay;
     this.fissureMat.uniforms.uNear!.value = inside;
+    this.fieldMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    this.mistMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    (this.mistMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
+    this.fieldMat.uniforms.uSeverity!.value = sev;
+    (this.fieldMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.hazeMat.uniforms.uSeverity!.value = sev;
     this.hazeMat.uniforms.uDecay!.value = decay;
     this.groundU.uGSeverity!.value = sev;
