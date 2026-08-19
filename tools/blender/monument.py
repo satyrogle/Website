@@ -109,14 +109,14 @@ def build_half(side, name, rings, edge_div, chisel):
     apex = len(verts)
     k = section_at(t_top)
     cx = cut_plane_x(t_top, side)
-    verts.append((cx + s * -0.5 * BASE_W * k, 0.0, t_top * H + 7.0))
+    verts.append((cx + s * 0.5 * BASE_W * k, 0.0, t_top * H + 7.0))
     last = (rings - 1) * n
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))
     faces.append((last + n - 1, last, apex))
     # base cap, buried
     base = len(verts)
-    verts.append((cut_plane_x(0.0, side) + s * -0.4 * BASE_W, 0.0, -3.0))
+    verts.append((cut_plane_x(0.0, side) + s * 0.4 * BASE_W, 0.0, -3.0))
     for j in range(n - 1):
         faces.append((j + 1, j, base))
     faces.append((0, n - 1, base))
