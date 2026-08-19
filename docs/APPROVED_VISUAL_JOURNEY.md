@@ -45,6 +45,53 @@ ui/animaster/skipper (React+Tailwind SaaS component packs, the exact
 banned register), peachweb.io (unknown, unevaluated), GSAP (already in
 the stack).
 
+## Second material verdict, 2026-08-19, Jacob, verbatim
+
+"i have to ask how is it mimicking igloo site and the last 15% scroll sucks
+more than anything in this build and also if you're making a monument can
+you atleast make it look like marker from dead space series the texture
+the material and the especially the shape"
+
+Three rulings recorded:
+
+1. **The Igloo claim is challenged and the challenge is upheld.** What the
+   build took from igloo.inc is the skeleton: one continuous camera
+   journey, content at spatial stops, survey annotations. The flesh is
+   absent: material fidelity per frame, an environment that transforms
+   across the journey, transition craft. Worse, the annotations shipped
+   dead: `annos[].el` is never assigned, so the "world, light, annotation"
+   commit closed one third of the gap it named. The Igloo gap is OPEN and
+   the record must say so.
+
+2. **The last 15 percent is DEAD.** The fall through the sea surface, the
+   flash-and-crack DOM effect, and the drowned inverted monument (commit
+   5967586, "lusion's ending beat") are removed, not tuned. This beat was
+   never approved: the approved journey ends by returning to the opening
+   frame with the dark frame revealed, "Beneath the light there was always
+   the lattice." A reference's literal ending was copied over the approved
+   ending, which is the exact move the references law forbids. Correction:
+   restore the approved return.
+
+3. **The monument body takes Dead Space Marker qualities.** Per the
+   references-name-qualities law, extraction and not replication:
+   - **TAKE (shape, "especially"):** two tapering prongs rising from one
+     base, twisting around each other, converging near the tip without
+     touching; a cleft of negative space between them; hard-edged keel
+     facets, not extruded box faces.
+   - **TAKE (texture):** dense horizontal bands of carved glyph-like
+     channels wrapping the form, machined-organic, reading as script from
+     mid distance. In this world the glyphs ARE the ledger: every band a
+     course of records.
+   - **TAKE (material):** dark igneous stone, near-basalt, faint metallic
+     sheen, light living on ridges and in grooves rather than on faces.
+   - **REJECT:** the literal Marker (a copyrighted EA design), its exact
+     proportions and glyph script, red organic veining, Necromorph
+     anything, and any horror-prop read. The severity arc stays warm gold
+     draining to cold steel; violation red stays reserved.
+   - **FRAME:** the monument body across all beats; the cleft becomes the
+     breach passage; the true form becomes the dark lattice of ties
+     binding the two prongs, discovered from inside the cleft.
+
 ## Jacob's reference list, given 2026-08-18 during journey refinement
 
 Verbatim: "https://lusion.co/ https://www.ilabsolutions.it/
