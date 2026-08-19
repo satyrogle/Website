@@ -24,6 +24,8 @@ uniform vec3 uHover;
 uniform float uHoverAmt;
 uniform vec3 uInner;
 uniform float uInnerAmt;
+uniform float uSignal;
+uniform float uAlign;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
@@ -32,119 +34,146 @@ const FRAG_MAP = `#include <map_fragment>
 {
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
 
-  // THE SPLIT SPIRE has no twist to unwrap: each half is a wedge, so
-  // the courses run across its outer face by depth, then wrap round
-  // the flank. Constants mirror monumentForm.ts
+  // THE SPLIT SPIRE is a wedge: no twist to unwrap. Courses run across
+  // the outer face by depth, then wrap the flank
   float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
-  float formS = 1.0 - 0.95 * pow(max(heightT, 1e-4), 1.35);
+  float formS = 1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0);
   float cutX = sideS * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
-  float outward = abs(vMonoW.x - cutX) / max(31.0 * formS, 0.001);
+  float fromFissure = abs(vMonoW.x - cutX);
+  float outward = fromFissure / max(31.0 * formS, 0.001);
   float across = clamp(vMonoW.z / max(17.0 * formS, 0.001), -1.0, 1.0);
   float ang = across * 1.5 + sign(vMonoW.z) * smoothstep(0.5, 1.0, outward) * 1.2;
 
-  // the decay eats course-aligned slabs of masonry, never voxels: the
-  // bites follow the same courses the records are carved in
-  float courseD = floor(vMonoW.y / 2.1);
-  float colsD = max(10.0, floor(18.0 * formS));
-  float slabId = floor((ang / 6.2831853 + 0.5) * colsD);
-  float h = monoHash(vec3(courseD, slabId, sideS));
-  float cluster = 0.5 + 0.5 * sin(courseD * 0.51 + slabId * 0.83 + sideS + h * 9.0);
+  // decay eats plates, and a plate is bounded by the macro cracks
+  float plateId = floor(vMonoW.y / 9.5) * 7.0 + floor((ang + 3.0) * 1.6);
+  float h = monoHash(vec3(plateId, sideS, 3.0));
+  float cluster = 0.5 + 0.5 * sin(plateId * 0.61 + sideS + h * 9.0);
   float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
   if (uDecay > th) discard;
   float dying = smoothstep(0.035, 0.0, th - uDecay);
 
-  // the inside of the shell holds no records and no light
   if (!gl_FrontFacing) {
     diffuseColor.rgb = vec3(0.02, 0.023, 0.028);
     vMonoEng = 0.0;
+    vMonoRough = 0.62;
   } else {
 
-  // the inscription: dense courses of carved channel script, dash runs
-  // of varying length. Every course a run of records; the ledger is
-  // the texture. Never square cells: squares read as windows
-  // channels live on the standing faces, not the tips and ledges
-  float vertFace = smoothstep(0.55, 0.35, abs(normalize(vNormal).y));
+  // ---- SIGNAL SKIN ----
+  // Sintered graphite, machined. The engravings live in ROUGHNESS and
+  // specular, not in albedo, so they are nearly invisible head on and
+  // only surface as the light rakes across them.
+  vec3 N = normalize(vNormal);
+  vec3 V = normalize(vViewPosition);
+  float graze = 1.0 - abs(dot(N, V));
+  graze = smoothstep(0.25, 0.92, graze);
 
-  // the slab courses are REAL now: stepped shelves live in the baked
-  // normal and AO maps. The shader only keeps the course phase for the
-  // roughness split below
-  float cf = fract(vMonoW.y / 2.1);
+  // THE GLYPH LANGUAGE. Columns, not scatter: the face is divided
+  // into vertical lanes and each lane carries a run of small marks
+  // stacked down it, the way the spec sheets inscribe them. Two
+  // systems overlaid at different lane widths.
+  float glyph = 0.0;
+  for (int sys = 0; sys < 2; sys++) {
+    float laneW = sys == 0 ? 34.0 : 21.0;
+    float rowH = sys == 0 ? 1.30 : 2.05;
+    float lane = floor(ang * laneW);
+    float lanePhase = monoHash(vec3(lane, sideS, float(sys) * 3.0));
+    // not every lane is inscribed: the density the spec asks for
+    if (lanePhase < 0.30) continue;
+    float lx = fract(ang * laneW);
+    float row = floor(vMonoW.y / rowH + lanePhase * 5.0);
+    float ly = fract(vMonoW.y / rowH + lanePhase * 5.0);
+    float gh = monoHash(vec3(lane, row, sideS + float(sys) * 7.0));
+    if (gh < 0.34) continue;
+    // a mark: a vertical stem with one or two crossbars, or a short
+    // stroke. Small, hard edged, machined
+    float mark = 0.0;
+    float stem = smoothstep(0.055, 0.022, abs(lx - 0.5))
+               * smoothstep(0.06, 0.10, ly) * smoothstep(0.94, 0.90, ly);
+    mark = max(mark, stem * step(0.45, gh));
+    for (int b = 0; b < 2; b++) {
+      float bh = fract(gh * (5.7 + float(b) * 9.3));
+      if (bh < 0.4) continue;
+      float by = 0.22 + 0.52 * fract(bh * 3.3);
+      float barHalf = 0.16 + 0.20 * fract(bh * 11.0);
+      float bar = smoothstep(0.05, 0.02, abs(ly - by))
+                * smoothstep(barHalf, barHalf - 0.06, abs(lx - 0.5));
+      mark = max(mark, bar);
+    }
+    glyph = max(glyph, mark);
+  }
 
-  float rowH = 1.05;
-  float rowF = vMonoW.y / rowH;
-  float row = floor(rowF);
-  float fv = fract(rowF);
-  float rowSeed = monoHash(vec3(row, sideS, 7.0));
-  // strata families: neighbouring courses share a tone, then it shifts
-  float strata = floor(row / (5.0 + floor(rowSeed * 4.0)));
-  float strataTone = 0.88 + 0.22 * monoHash(vec3(strata, sideS, 3.3));
-  diffuseColor.rgb *= strataTone;
+  // macro plate cracks: sparse and thin, a few per face. A periodic
+  // fract() here striped the whole skin like corduroy
+  vec2 pc = vec2(ang * 1.15, vMonoW.y * 0.026);
+  vec2 pcell = floor(pc);
+  float ph = monoHash(vec3(pcell, sideS));
+  float crack = 0.0;
+  if (ph > 0.62) {
+    vec2 pf = fract(pc) - vec2(0.35 + 0.3 * fract(ph * 7.0), 0.5);
+    float pa = (fract(ph * 13.0) - 0.5) * 2.2;
+    float dd = abs(pf.x * cos(pa) + pf.y * sin(pa));
+    crack = smoothstep(0.035, 0.004, dd);
+  }
 
-  float cols = max(12.0, floor(26.0 * formS));
-  float colF = (ang / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
-  float col = floor(colF);
-  float fu = fract(colF);
-  float block = floor(col / 6.0);
-  float bs = monoHash(vec3(block, row, sideS * 3.7));
-  float runLen = 1.0 + floor(bs * 5.0);
-  float inBlock = col - block * 6.0;
-  // some whole rows carry no script: the fields breathe
-  float rowLive = step(0.18, monoHash(vec3(row, sideS, 17.0)));
-  float inRun = step(inBlock, runLen - 0.5) * step(0.22, bs) * rowLive;
-  float vIn = smoothstep(0.30, 0.42, fv) * smoothstep(0.78, 0.66, fv);
-  float hIn = 1.0;
-  if (inBlock < 0.5) hIn *= smoothstep(0.06, 0.18, fu);
-  if (abs(inBlock - (runLen - 1.0)) < 0.5) hIn *= smoothstep(0.94, 0.82, fu);
-  float glyph = inRun * vIn * hIn * vertFace;
+  // ROUGHNESS is where the engraving lives. Grooves hold a duller,
+  // rougher surface inside a polished skin, so they read as light
+  // catches the lip and skips the groove
+  // sintered grain: fine, irregular, no periodicity to lock onto, and
+  // a slow large scale drift over the top of it
+  float micro = monoHash(floor(vec3(ang * 130.0, vMonoW.y * 26.0, sideS)));
+  float macroVar = monoHash(floor(vec3(ang * 3.0, vMonoW.y * 0.5, sideS + 9.0)));
+  // spec: roughness 0.48, variation plus or minus 0.08
+  float rough = 0.48 + 0.045 * (micro - 0.5) * 2.0 + 0.035 * (macroVar - 0.5) * 2.0;
+  rough += glyph * 0.16;
+  rough += crack * 0.14;
+  vMonoRough = clamp(rough, 0.24, 0.92);
 
-  // carved: the groove holds shadow, deeper at its floor, and its
-  // upper lip catches the key light
-  float lip = inRun * hIn * vertFace
-            * (smoothstep(0.72, 0.78, fv) - smoothstep(0.82, 0.92, fv));
-  diffuseColor.rgb *= 1.0 - glyph * (0.50 + 0.22 * (1.0 - smoothstep(0.36, 0.62, fv)));
-  diffuseColor.rgb += diffuseColor.rgb * lip * 0.5;
-  float seam = smoothstep(0.045, 0.0, min(fv, 1.0 - fv));
-  diffuseColor.rgb *= 1.0 - seam * 0.12 * vertFace;
-
-  // no procedural veining: on a broad flat slab a world-space sine
-  // smears into wavy streaks. The relief comes from the baked normal
-  // and AO maps, which is the whole point of the sculpt pipeline
-  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.35);
-  diffuseColor.rgb *= mix(0.7, 1.0, heightT * heightT);
-  diffuseColor.rgb = mix(diffuseColor.rgb * 0.3, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
+  // albedo barely moves: a hint of darkening in the deepest grooves,
+  // and only where the light is already raking
+  diffuseColor.rgb *= 1.0 - glyph * 0.10 * graze;
+  diffuseColor.rgb *= 1.0 - crack * 0.28;
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.76, 1.05), uSeverity * 0.3);
+  diffuseColor.rgb = mix(diffuseColor.rgb * 0.35, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
   if (dying > 0.0) {
     float gt = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
     diffuseColor.rgb *= mix(1.0, mix(gt, 0.8, uCalm), dying);
   }
-  vMonoEng = glyph;
-  // polished obsidian on the standing script faces only; grooves,
-  // undercuts, tips and ledges stay matte so the sheen reads as
-  // material, not glaze, and the cut edges of decay never flare
-  float polish = vertFace * (1.0 - smoothstep(0.10, 0.0, cf));
-  vMonoRough = mix(0.66, mix(0.38, 0.62, clamp(glyph, 0.0, 1.0)), polish);
+
+  // ---- PROXIMITY / SIGNAL ----
+  // Activity is a function of distance from the fissure. The wave of
+  // roughness travels first; light follows it, and only ever in
+  // fragments, never a whole glyph
+  float prox = exp(-fromFissure * 0.22);
+  float wavePhase = vMonoW.y * 0.055 - uTime * 0.42 - uSignal * 2.4;
+  float wave = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(wavePhase));
+  vMonoRough = clamp(vMonoRough - wave * prox * 0.16, 0.05, 0.95);
+
+  float frag = step(0.945, monoHash(vec3(floor(ang * 26.0), floor(vMonoW.y * 2.2), sideS)));
+  float lit = glyph * frag * wave * prox;
+  // cross-gap alignment: when the eye is square to the fissure, the
+  // two faces momentarily agree
+  lit *= 1.0 + uAlign * 2.2;
+  vMonoEng = lit * (1.0 - uCalm * 0.45);
   }
 }`;
 
 const FRAG_EMISSIVE = `#include <emissivemap_fragment>
 if (gl_FrontFacing) {
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
-  // the crown burns from within: a long soft ramp, never a painted cap
-  // the tips burn, and only the tips: a wide hot ramp plus bloom eats
-  // the near horn and makes solid stone read as a ghost
-  float crownT = smoothstep(0.93, 1.0, heightT);
-  vec3 crownCol = mix(vec3(1.0, 0.9, 0.72), vec3(0.8, 0.9, 1.0), uSeverity);
-  totalEmissiveRadiance += crownCol * crownT * crownT * 0.85 * (1.0 - uSeverity * 0.5);
+  vec3 sig = mix(vec3(1.0, 0.98, 0.94), vec3(0.72, 0.86, 1.0), uSeverity);
+  // only fragments ever light, and they are small and hard edged
+  totalEmissiveRadiance += sig * vMonoEng * 2.4;
   float hd = distance(vMonoW, uHover);
   float camD = distance(cameraPosition, uHover);
   float sigma = clamp(camD * 0.16, 2.5, 15.0);
   float lampF = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
-  vec3 lampCol = mix(vec3(1.0, 0.85, 0.6), vec3(0.5, 0.78, 1.0), uSeverity);
-  totalEmissiveRadiance += lampCol * lampF * (0.12 + vMonoEng * 0.55);
+  totalEmissiveRadiance += sig * lampF * 0.16;
   if (uInnerAmt > 0.001) {
     vec3 iv = uInner - vMonoW;
     totalEmissiveRadiance += vec3(0.45, 0.5, 0.6) * (uInnerAmt / (1.0 + dot(iv, iv) * 0.02));
   }
 }`;
+
 
 
 /**
@@ -170,16 +199,16 @@ const LIGHT_KEYS: Array<{
   amb: number;
   env: number;
 }> = [
-  { p: 0.0, i: 1.0, c: '#ffe0b3', d: [0.35, 0.75, 0.55], amb: 1.1, env: 0.28 },
-  { p: 0.15, i: 1.45, c: '#ffd9a0', d: [0.9, 0.35, 0.15], amb: 0.85, env: 0.32 },
-  { p: 0.29, i: 1.0, c: '#ffdcae', d: [0.5, 0.6, 0.45], amb: 1.0, env: 0.3 },
-  { p: 0.43, i: 1.5, c: '#f6d3a2', d: [0.95, 0.3, -0.1], amb: 0.7, env: 0.34 },
-  { p: 0.53, i: 0.4, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.2 },
-  { p: 0.65, i: 0.45, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.2 },
-  { p: 0.7, i: 0.7, c: '#b9cfe8', d: [-0.6, 0.5, -0.5], amb: 0.6, env: 0.26 },
-  { p: 0.83, i: 0.8, c: '#e8c9a0', d: [0.3, 0.4, 0.8], amb: 0.8, env: 0.26 },
-  { p: 0.92, i: 0.55, c: '#aebfd6', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.24 },
-  { p: 1.0, i: 0.5, c: '#a8bad2', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.24 }
+  { p: 0.0, i: 0.88, c: '#ffe0b3', d: [0.35, 0.75, 0.55], amb: 1.1, env: 0.29 },
+  { p: 0.15, i: 1.28, c: '#ffd9a0', d: [0.9, 0.35, 0.15], amb: 0.85, env: 0.33 },
+  { p: 0.29, i: 0.88, c: '#ffdcae', d: [0.5, 0.6, 0.45], amb: 1.0, env: 0.30 },
+  { p: 0.43, i: 1.33, c: '#f6d3a2', d: [0.95, 0.3, -0.1], amb: 0.7, env: 0.35 },
+  { p: 0.53, i: 0.35, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
+  { p: 0.65, i: 0.40, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
+  { p: 0.7, i: 0.62, c: '#b9cfe8', d: [-0.6, 0.5, -0.5], amb: 0.6, env: 0.27 },
+  { p: 0.83, i: 0.71, c: '#e8c9a0', d: [0.3, 0.4, 0.8], amb: 0.8, env: 0.27 },
+  { p: 0.92, i: 0.48, c: '#aebfd6', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 },
+  { p: 1.0, i: 0.44, c: '#a8bad2', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 }
 ];
 
 const CLAD_VERT = /* glsl */ `
@@ -596,10 +625,15 @@ const SKY_FRAG = /* glsl */ `
   out vec4 outColor;
   void main() {
     vec3 d = normalize(vDir);
-    float band = exp(-abs(d.y + 0.03) * 8.0);
-    vec3 base = mix(vec3(0.006, 0.0045, 0.003), vec3(0.002, 0.003, 0.005), uSeverity);
-    vec3 glow = mix(vec3(0.055, 0.038, 0.02), vec3(0.014, 0.02, 0.028), uSeverity);
-    vec3 col = base + glow * band;
+    // The skin is #050607. A near-black object against a near-black sky
+    // is nothing at all, which is why the spire vanished when the spec
+    // albedo went in. Every reference sheet stands it against haze, so
+    // the atmosphere carries the silhouette and the stone stays honest
+    float band = exp(-abs(d.y + 0.02) * 3.2);
+    float high = exp(-max(d.y - 0.1, 0.0) * 2.4);
+    vec3 base = mix(vec3(0.0075, 0.0072, 0.0080), vec3(0.005, 0.006, 0.009), uSeverity);
+    vec3 glow = mix(vec3(0.052, 0.047, 0.041), vec3(0.019, 0.024, 0.033), uSeverity);
+    vec3 col = base + glow * band * (0.35 + 0.65 * high);
     outColor = vec4(col, 1.0);
   }
 `;
@@ -682,6 +716,9 @@ export class JourneyRenderer {
   private hoverAmt = 0;
   private parX = 0;
   private parY = 0;
+  /** the signal the skin carries: driven by the law, not by a clock */
+  private signal = 0;
+  private lastStrikeTick = 0;
 
   constructor(canvas: HTMLCanvasElement, private readonly world: LatticeWorld, maxDpr: number) {
     this.maxDpr = maxDpr;
@@ -920,17 +957,21 @@ export class JourneyRenderer {
         uniform float uNear;
         out vec4 outColor;
         void main() {
-          // brightest at the throat, falling off up and down, so it
-          // reads as depth rather than a lit strip
-          float v = smoothstep(0.0, 0.22, vUvF.y) * smoothstep(1.0, 0.62, vUvF.y);
-          float u = smoothstep(0.0, 0.3, vUvF.x) * smoothstep(1.0, 0.7, vUvF.x);
-          vec3 holy = vec3(1.0, 0.97, 0.92);
-          vec3 cold = vec3(0.62, 0.78, 1.0);
+          // pure, featureless white: the core has no gradient of its
+          // own, only soft edges and an irregular width
+          float wob = 0.055 * sin(vUvF.y * 21.0) + 0.03 * sin(vUvF.y * 53.0 + 1.7);
+          float halfW = 0.30 + wob;
+          float d = abs(vUvF.x - 0.5);
+          float u = smoothstep(halfW, halfW - 0.09, d);
+          float v = smoothstep(0.0, 0.05, vUvF.y) * smoothstep(1.0, 0.80, vUvF.y);
+          // spec: emission colour pure #FFFFFF, intensity 8 to 15
+          vec3 holy = vec3(1.0);
+          vec3 cold = vec3(0.86, 0.93, 1.0);
           float fail = 1.0 - uDecay * 0.55;
           // inside the slit the plane is a few units from the eye, so
           // full strength floods the frame and the walls lose their
           // dark. It burns from a distance and only glows up close
-          float near = mix(2.6, 0.34, uNear);
+          float near = mix(4.2, 0.85, uNear);
           outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail, 1.0);
         }`,
       uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 }, uNear: { value: 0 } },
@@ -1023,7 +1064,7 @@ export class JourneyRenderer {
     // --- image-based light: the single biggest jump toward the
     // reference's material quality ---
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.02).texture;
     this.scene.environmentIntensity = 0.28;
 
     // --- the monument itself: authored stone, not boxes ---
@@ -1036,6 +1077,8 @@ export class JourneyRenderer {
       uHoverAmt: { value: 0 },
       uInner: { value: new THREE.Vector3(0, -999, 0) },
       uInnerAmt: { value: 0 },
+      uSignal: { value: 0 },
+      uAlign: { value: 0 },
       uFogColor: { value: new THREE.Color('#0c0906') },
       uFogDensity: { value: 0.0022 }
     });
@@ -1051,12 +1094,15 @@ export class JourneyRenderer {
     stoneAO.flipY = false;
     stoneAO.colorSpace = THREE.NoColorSpace;
     stoneAO.channel = 0;
+    // SIGNAL SKIN, to the supplied spec: base #050607, metalness 0.08,
+    // roughness 0.48, normal strength held back so the baked relief
+    // reads as machined rather than eroded
     const stone = new THREE.MeshStandardMaterial({
-      color: 0x232529,
-      roughness: 0.34,
-      metalness: 0.06,
+      color: 0x050607,
+      roughness: 0.48,
+      metalness: 0.08,
       normalMap: stoneNormal,
-      normalScale: new THREE.Vector2(1, 1),
+      normalScale: new THREE.Vector2(0.36, 0.36),
       aoMap: stoneAO,
       aoMapIntensity: 1.0,
       side: THREE.DoubleSide
@@ -1260,6 +1306,23 @@ export class JourneyRenderer {
       this.world.strikesDirty = false;
     }
 
+    // THE SIGNAL. The skin is the visible face of the mechanism, so
+    // the law drives it: a strike floods the surface and it settles
+    // back toward inert. Idle keeps a slow breath so it is never dead
+    if (this.world.tick !== this.lastStrikeTick && this.world.strikesDirty) {
+      this.signal = 1;
+      this.lastStrikeTick = this.world.tick;
+    }
+    this.signal *= Math.exp(-dt * 0.5);
+    const idle = reduced ? 0.06 : 0.09 + 0.05 * Math.sin(this.time * 0.11);
+    const signal = Math.min(1, this.signal + idle);
+
+    // CROSS-GAP ALIGNMENT, camera driven: when the eye comes square to
+    // the fissure, the faces either side of it agree for a moment
+    const toSpire = this.camera.position.clone().setY(0);
+    const align = toSpire.lengthSq() > 1 ? Math.abs(toSpire.normalize().x) : 0;
+    const alignAmt = smooth01(1 - align, 0.86, 1.0) * (1 - smooth01(progress, 0.46, 0.6));
+
     for (const mu of [this.stoneU, this.monoMirrorMat.uniforms]) {
       mu.uTime!.value = this.time;
       mu.uDecay!.value = decay;
@@ -1269,6 +1332,8 @@ export class JourneyRenderer {
       mu.uHoverAmt!.value = this.hoverAmt;
       (mu.uInner!.value as THREE.Vector3).copy(this.camera.position);
       mu.uInnerAmt!.value = inside * 0.35;
+      if (mu.uSignal) mu.uSignal.value = signal;
+      if (mu.uAlign) mu.uAlign.value = alignAmt;
       if (mu.uFogColor) (mu.uFogColor.value as THREE.Color).copy(fogColor);
       if (mu.uFogDensity) mu.uFogDensity.value = fogDensity;
     }

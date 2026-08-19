@@ -84,15 +84,8 @@ def build_half(side, name, rings, edge_div, chisel):
     for i in range(rings):
         t = (t_top) * (i / (rings - 1))
         k = section_at(t)
-        if chisel:
-            # course shelves: whole bands step in and out. Baked, never
-            # in the low poly
-            course = math.floor((t * H) / 2.1)
-            k *= 1.0 + (math.sin(course * 12.9898) * 0.5 + 0.5) * 0.045 - 0.016
         cx = cut_plane_x(t, side)
         kd = depth_section_at(t)
-        if chisel:
-            kd *= 1.0 + (math.sin(math.floor((t * H) / 2.1) * 12.9898) * 0.5 + 0.5) * 0.045 - 0.016
         for (pa, pb) in pts:
             verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * kd, t * H))
     for i in range(rings - 1):
@@ -275,9 +268,18 @@ vg = high.vertex_groups.new(name="disp")
 for v in high.data.vertices:
     t = max(0.0, min(1.0, v.co.z / H))
     vg.add([v.index], max(0.0, min(1.0, 1.1 * (1.0 - t) + 0.3)), "REPLACE")
-for nm, scale, strength in [("Mass", 26.0, 1.1), ("Chisel", 7.0, 0.42), ("Tooth", 2.2, 0.16)]:
-    tex = bpy.data.textures.new(nm, type="CLOUDS")
+# MACHINED SKIN, not masonry: large plate cracks at macro scale and a
+# dense sintered grain at micro scale. Nothing at the middle frequency,
+# which is where bedding and courses used to live
+for nm, kind, basis, scale, strength in [
+    ("Plates", "CLOUDS", "VORONOI_CRACKLE", 62.0, 0.85),
+    ("Breakup", "CLOUDS", "BLENDER_ORIGINAL", 30.0, 0.22),
+    ("Sinter", "STUCCI", None, 1.1, 0.075),
+]:
+    tex = bpy.data.textures.new(nm, type=kind)
     tex.noise_scale = scale
+    if basis:
+        tex.noise_basis = basis
     mod = high.modifiers.new(nm, "DISPLACE")
     mod.texture = tex
     mod.strength = strength
