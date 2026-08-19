@@ -1109,20 +1109,29 @@ export class JourneyRenderer {
     // without competing with the hero the way solid copies did.
     // Camera-facing, because a presence should never show you an edge.
     {
-      const N = 5;
+      // angle behind the monument, distance, height scale, lean
+      const STONES: ReadonlyArray<readonly [number, number, number, number]> = [
+        [-0.62, 104, 1.00, 0.05],
+        [-0.44, 186, 0.72, -0.03],
+        [-0.71, 268, 0.55, 0.02],
+        [-0.30, 150, 0.86, -0.06],
+        [-0.86, 132, 0.64, 0.04]
+      ];
+      const N = STONES.length;
       const rng = mulberry32ish(world.seed ^ 0x0c40);
       const pos: number[] = [];
       const centre: number[] = [];
       const meta: number[] = [];
       const idx: number[] = [];
       for (let i = 0; i < N; i++) {
-        // BEHIND the monument, not ringed around it. The opening camera
-        // sits at +z, so the choir stands on the far side, in a loose
-        // fan that never crosses in front of the hero
-        const a = -Math.PI * (0.20 + (i / (N - 1)) * 0.60) + (rng() - 0.5) * 0.16;
-        const d = 96 + rng() * 150;
-        const h = 62 + rng() * 74;
-        const w = h * (0.24 + rng() * 0.12);
+        // Composed, not spaced: near, mid and far members with a gap
+        // between the pairs, all behind the monument
+        const st = STONES[i]!;
+        const a = Math.PI * st[0];
+        const d = st[1];
+        const h = 132 * st[2];
+        const w = h * 0.17;
+        void rng;
         const cx = Math.cos(a) * d;
         const cz = Math.sin(a) * d;
         const b = pos.length / 3;
@@ -1131,7 +1140,7 @@ export class JourneyRenderer {
         for (const corner of [[-1, 0], [1, 0], [1, 1], [-1, 1]] as const) {
           pos.push(corner[0] * w, corner[1] * h, 0);
           centre.push(cx, 0, cz);
-          meta.push(rng() * 0.0 + i / N);
+          meta.push(i / N + st[3]);
         }
         idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
       }
@@ -1168,15 +1177,21 @@ export class JourneyRenderer {
           uniform vec3 uFog;
           out vec4 outColor;
           void main() {
-            // the silhouette: a tall form, wide at the foot, drawing in
-            // toward a rounded head. No features, ever
-            float t = clamp(vQ.y / max(abs(vQ.y) + 0.0001, 0.0001), 0.0, 1.0);
+            // A STANDING STONE, not a cloud: straight taper, hard edges,
+            // and a slanted cut across the top. The soft falloff that
+            // was here made them read as blobs of fog
             float hN = clamp(vQ.y / 136.0, 0.0, 1.0);
-            float body = 1.0 - pow(hN, 1.35);
-            float wN = abs(vQ.x) / max(body * 34.0, 0.001);
-            float form = smoothstep(1.0, 0.55, wN) * smoothstep(0.0, 0.08, hN)
-                       * smoothstep(1.02, 0.86, hN);
-            if (form <= 0.001) discard;
+            float body = 1.0 - 0.55 * hN;
+            float wN = abs(vQ.x) / max(body * 30.0, 0.001);
+            // the top is cut on a slant, each stone at its own angle
+            float slant = 0.86 + (fract(vMeta * 7.3) - 0.5) * 0.16
+                        + (vQ.x / 34.0) * (fract(vMeta * 3.1) - 0.5) * 0.30;
+            float aa = fwidth(wN) * 1.2 + 0.004;
+            float sideEdge = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, wN);
+            float topEdge = 1.0 - smoothstep(slant - 0.012, slant + 0.012, hN);
+            float footEdge = smoothstep(0.0, 0.012, hN);
+            float form = sideEdge * topEdge * footEdge;
+            if (form <= 0.003) discard;
             // see-through: the edges hold the most, the middle the least,
             // so you look INTO it rather than at it
             // the shell: heaviest at the silhouette, thinnest through
