@@ -73,17 +73,17 @@ const FRAG_MAP = `#include <map_fragment>
   // systems overlaid at different lane widths.
   float glyph = 0.0;
   for (int sys = 0; sys < 2; sys++) {
-    float laneW = sys == 0 ? 34.0 : 21.0;
-    float rowH = sys == 0 ? 1.30 : 2.05;
+    float laneW = sys == 0 ? 58.0 : 37.0;
+    float rowH = sys == 0 ? 0.72 : 1.15;
     float lane = floor(ang * laneW);
     float lanePhase = monoHash(vec3(lane, sideS, float(sys) * 3.0));
     // not every lane is inscribed: the density the spec asks for
-    if (lanePhase < 0.30) continue;
+    if (lanePhase < 0.10) continue;
     float lx = fract(ang * laneW);
     float row = floor(vMonoW.y / rowH + lanePhase * 5.0);
     float ly = fract(vMonoW.y / rowH + lanePhase * 5.0);
     float gh = monoHash(vec3(lane, row, sideS + float(sys) * 7.0));
-    if (gh < 0.34) continue;
+    if (gh < 0.20) continue;
     // a mark: a vertical stem with one or two crossbars, or a short
     // stroke. Small, hard edged, machined
     float mark = 0.0;
@@ -134,23 +134,39 @@ const FRAG_MAP = `#include <map_fragment>
   // ROUGHNESS is where the engraving lives. Grooves hold a duller,
   // rougher surface inside a polished skin, so they read as light
   // catches the lip and skips the groove
+  // each facet carries its own tone, keyed off its constant normal
+  vec3 facetKey = floor(normalize(vNormal) * 18.0);
+  float facetTone = 0.86 + 0.30 * monoHash(facetKey);
+
+  // the machined edge: with flat shading the normal changes only at a
+  // facet boundary, so its derivative finds every edge in the body
+  float edge = smoothstep(0.35, 1.6, length(fwidth(vNormal)) * 26.0);
+
   // sintered grain: fine, irregular, no periodicity to lock onto, and
   // a slow large scale drift over the top of it
   float micro = monoHash(floor(vec3(ang * 130.0, vMonoW.y * 26.0, sideS)));
+  float speck = monoHash(floor(vec3(ang * 420.0, vMonoW.y * 84.0, sideS * 3.0)));
+  float pit = step(0.978, speck);
   float macroVar = monoHash(floor(vec3(ang * 3.0, vMonoW.y * 0.5, sideS + 9.0)));
   // spec: roughness 0.48, variation plus or minus 0.08
   float rough = 0.48 + 0.045 * (micro - 0.5) * 2.0 + 0.035 * (macroVar - 0.5) * 2.0;
   rough += glyph * 0.16;
   rough += crack * 0.14;
   rough -= scratch * 0.26;
+  rough -= edge * 0.18;
+  rough += pit * 0.20;
   vMonoRough = clamp(rough, 0.24, 0.92);
 
   // albedo barely moves: a hint of darkening in the deepest grooves,
   // and only where the light is already raking
+  diffuseColor.rgb *= facetTone;
   diffuseColor.rgb *= 1.0 - glyph * 0.10 * graze;
   // a scratch is a polished cut: it catches, never darkens
   diffuseColor.rgb += diffuseColor.rgb * scratch * graze * 1.6;
   diffuseColor.rgb *= 1.0 - crack * 0.28;
+  // sintered pitting, and the bright machined edge
+  diffuseColor.rgb *= 1.0 - pit * 0.45;
+  diffuseColor.rgb += vec3(0.055, 0.058, 0.065) * edge;
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.76, 1.05), uSeverity * 0.3);
   diffuseColor.rgb = mix(diffuseColor.rgb * 0.35, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
   if (dying > 0.0) {
