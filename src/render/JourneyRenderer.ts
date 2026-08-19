@@ -1048,23 +1048,31 @@ export class JourneyRenderer {
       const phase: number[] = [];
       const kind: number[] = [];
       const idx: number[] = [];
+      // Each spire is built in its OWN frame, with its width running
+      // tangentially so the wedge faces the centre. Building them all
+      // along world X left every spire away from the camera axis
+      // standing edge on, an invisible sliver.
       const push = (
-        x: number, z: number, w: number, h: number, ph: number, k: number
+        cx: number, cz: number, tx: number, tz: number,
+        w: number, h: number, ph: number, k: number
       ): void => {
         const base = pos.length / 3;
-        // a wedge silhouette: two halves either side of a thin gap
         const gap = w * 0.06;
         for (const sgn of [-1, 1]) {
-          const inner = sgn * gap;
-          const outer = sgn * w;
-          pos.push(x + inner, 0, z, x + outer, 0, z, x + inner * 0.25, h, z);
+          const i0 = sgn * gap;
+          const o0 = sgn * w;
+          pos.push(cx + tx * i0, 0, cz + tz * i0);
+          pos.push(cx + tx * o0, 0, cz + tz * o0);
+          pos.push(cx + tx * i0 * 0.25, h, cz + tz * i0 * 0.25);
           phase.push(ph, ph, ph);
           kind.push(k, k, k);
         }
         idx.push(base, base + 1, base + 2, base + 3, base + 4, base + 5);
-        // the fissure itself
         const f = pos.length / 3;
-        pos.push(x - gap, 0, z, x + gap, 0, z, x + gap, h * 0.92, z, x - gap, h * 0.92, z);
+        pos.push(cx - tx * gap, 0, cz - tz * gap);
+        pos.push(cx + tx * gap, 0, cz + tz * gap);
+        pos.push(cx + tx * gap, h * 0.92, cz + tz * gap);
+        pos.push(cx - tx * gap, h * 0.92, cz - tz * gap);
         for (let q = 0; q < 4; q++) {
           phase.push(ph);
           kind.push(k + 10);
@@ -1073,10 +1081,20 @@ export class JourneyRenderer {
       };
       for (let i = 0; i < N; i++) {
         const a = rng() * Math.PI * 2;
-        const d = 380 + rng() * 780;
-        const h = 26 + rng() * 96;
-        // most are still lit; a third of them have already failed
-        push(Math.cos(a) * d, Math.sin(a) * d, h * 0.13, h, rng(), rng() > 0.34 ? 1 : 0);
+        // distance and height both spread hard, and independently, so
+        // the field reads as depth rather than as a row at one range
+        const d = 300 + Math.pow(rng(), 0.7) * 1500;
+        const h = 16 + Math.pow(rng(), 1.9) * 220;
+        push(
+          Math.cos(a) * d,
+          Math.sin(a) * d,
+          -Math.sin(a),
+          Math.cos(a),
+          h * (0.10 + rng() * 0.06),
+          h,
+          rng(),
+          rng() > 0.34 ? 1 : 0
+        );
       }
       const fg = new THREE.BufferGeometry();
       fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
