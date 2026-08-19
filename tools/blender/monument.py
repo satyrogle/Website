@@ -103,13 +103,15 @@ def build_half(side, name, rings, edge_div, chisel):
         faces.append((b0 + n - 1, b0, b1, b1 + n - 1))
     # THE CROWN: a flat cap sheared across the section, not a swept
     # spike. A spike at 5 percent section read as bent foil
-    # THE POINT: straight facets converging on the section's own
-    # centre. Offsetting the apex is what made the old tip curl like
-    # foil; sharpness was never the problem
+    # THE POINT: the apex stands over the CUT PLANE, so the edge facing
+    # the fissure runs vertical and the outer face slopes away from it.
+    # A right-angled tip, reversed on each half, which carries the split
+    # all the way to the top. An apex on the section centre gave a
+    # symmetric triangle that read as leaning
     apex = len(verts)
     k = section_at(t_top)
     cx = cut_plane_x(t_top, side)
-    verts.append((cx + s * 0.5 * BASE_W * k, 0.0, t_top * H + 9.5))
+    verts.append((cx + s * 0.06 * BASE_W * k, 0.0, t_top * H + 9.5))
     last = (rings - 1) * n
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))
