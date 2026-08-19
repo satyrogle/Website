@@ -1,20 +1,24 @@
-# Silhouettes from Jacob's reference sheet, 2026-08-19, round 2.
+# Silhouettes from Jacob's reference sheet, 2026-08-19, round 3.
 #
-# Round 1 verdict, verbatim: "1st one is fat 2nd one is very wrong 3rd
-# one is shit". Corrections, one per candidate:
-#   A SPLIT SPIRE  was 2:1 mass to height. The sheet is nearer 3:1, so
-#                  the wedge is slimmer and the slit tighter.
-#   B FISSION IDOL was built as a bouquet of separate spikes. The sheet
-#                  shows ONE mass with cracks cut through it and light
-#                  escaping from the damage. Rebuilt as a single body
-#                  with crack slots and a lit core inside it.
-#   C FOLDED OBELISK had a smooth twist, which reads as nothing. The
-#                  sheet shows a hard ROTATION: an upper mass turned
-#                  against a lower one, meeting at a fold.
+# Round 3 direction, Jacob verbatim: the split spire "was angelic and
+# holy and once we travel into the through a tunnel like the lusion
+# when astronaut is falling in a tunnel its soo cool can we mimic that
+# and then at the end we see true latent form which is a something
+# sinister staring back". On the idol: replace the central shard (read
+# as phallic), fix the weird top.
+#
+#   A SPLIT SPIRE  bone-pale HOLY register, luminous white fissure,
+#                  god-ray atmosphere. The slit continues below ground
+#                  as a falling shaft ending in a chamber where THE
+#                  WATCHER stands: a dark faceless form, backlit,
+#                  still. Four shots: exterior, doorway, the fall,
+#                  the watcher.
+#   B FISSION IDOL hanging shard cluster instead of the standing one,
+#                  crown cut to a clean angled break.
 #
 #   blender --background --python tools/blender/ref-candidates.py
 #
-# Grey, two angles each, no bake and no export.
+# Judge frames only. No bake, no export.
 import bpy
 import math
 import os
@@ -23,11 +27,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "captures", "form", "refs")
 os.makedirs(OUT, exist_ok=True)
 H = 195.0
-
-
-def hash1(x):
-    v = math.sin(x) * 43758.5453
-    return v - math.floor(v)
+DEPTH = 265.0  # how far the shaft falls below the ground
 
 
 def clean(obj):
@@ -69,21 +69,31 @@ def cut(obj, cutter):
     bpy.ops.object.delete()
 
 
-def emissive(obj, power=26.0):
+def matte(obj, v, rough=0.6):
+    m = bpy.data.materials.new(f"M{obj.name}")
+    m.use_nodes = True
+    b = m.node_tree.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (v, v, v * 1.02, 1)
+    b.inputs["Roughness"].default_value = rough
+    obj.data.materials.append(m)
+    return obj
+
+
+def emissive(obj, power=26.0, colour=(1.0, 0.97, 0.92)):
     m = bpy.data.materials.new(f"Em{obj.name}")
     m.use_nodes = True
     nt = m.node_tree
     nt.nodes.remove(nt.nodes["Principled BSDF"])
     e = nt.nodes.new("ShaderNodeEmission")
-    e.inputs[0].default_value = (1.0, 0.96, 0.9, 1)
+    e.inputs[0].default_value = (*colour, 1)
     e.inputs[1].default_value = power
     nt.links.new(e.outputs[0], nt.nodes["Material Output"].inputs[0])
     obj.data.materials.append(m)
     return obj
 
 
-def add_figure():
-    """A person, for scale. The sheet judges mass this way."""
+def add_figure(pale=False):
+    """A person, for scale."""
     bpy.ops.mesh.primitive_cylinder_add(radius=2.4, depth=9.0, location=(58, -34, 4.5))
     body = bpy.context.active_object
     bpy.ops.mesh.primitive_uv_sphere_add(radius=2.2, location=(58, -34, 10.6))
@@ -93,7 +103,7 @@ def add_figure():
     head.select_set(True)
     bpy.context.view_layer.objects.active = body
     bpy.ops.object.join()
-    return bpy.context.active_object
+    return matte(bpy.context.active_object, 0.28 if pale else 0.15)
 
 
 def blade(name, height, base_w, base_d, lean=0.0, rings=26, twist=0.0, top=0.1):
@@ -140,70 +150,124 @@ def blade(name, height, base_w, base_d, lean=0.0, rings=26, twist=0.0, top=0.1):
 
 
 def build_split_spire():
-    """
-    Slim, and with flair. One wedge cut down the centre; the halves
-    are tilted so the bases part into a doorway the journey can enter
-    and the slit closes to a hairline at the top. Unequal heights, a
-    chipped tip and a chamfer keep it from reading as a machined pair.
-    """
-    SLIT = 2.0
-    halves = []
+    """Holy above, a fall below, the watcher at the bottom."""
+    SLIT = 2.6
+    objs = []
     for i, sgn in enumerate((-1, 1)):
         w = blade(f"Half{i}", H if sgn < 0 else H * 0.93,
                   31.0, 17.0, lean=-2.0 * sgn, top=0.05,
                   twist=0.0 if sgn < 0 else 0.05)
         bpy.ops.mesh.primitive_cube_add(size=400, location=(-sgn * 200, 0, H * 0.5))
         cut(w, bpy.context.active_object)
-        # flair 1: a chamfer struck off one shoulder
         bpy.ops.mesh.primitive_cube_add(size=1, location=(sgn * 30, -14, H * (0.34 + 0.18 * i)))
         ch = bpy.context.active_object
         ch.scale = (26.0, 26.0, 40.0)
         ch.rotation_euler = (math.radians(28 + 14 * i), 0, math.radians(30 * sgn))
         cut(w, ch)
         if i == 1:
-            # flair 2: the short half is broken, not cut
             bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, H * 0.93))
             br = bpy.context.active_object
             br.scale = (60.0, 60.0, 26.0)
             br.rotation_euler = (math.radians(19), math.radians(23), 0)
             cut(w, br)
         w.location = (sgn * SLIT, 0, 0)
-        # the doorway: tops lean together, bases part
         w.rotation_euler = (0, math.radians(-1.9 * sgn), 0)
         facet(w, strength=3.2, scale=105.0 - i * 20.0, seed=i + 1)
-        halves.append(w)
+        # HOLY: bone-pale stone, not sombre grey
+        matte(w, 0.5, rough=0.62)
+        objs.append(w)
+
+    # the shaft: the slit continues below ground as two walls
+    walls = []
+    for sgn in (-1, 1):
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(sgn * (SLIT + 35.2), 0, -DEPTH / 2 - 1))
+        wall = bpy.context.active_object
+        wall.scale = (62.0, 84.0, DEPTH - 2)
+        walls.append(wall)
+    # the chamber the fall ends in, carved from both walls
+    for wall in walls:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 8.0, -DEPTH + 34.0))
+        void = bpy.context.active_object
+        void.scale = (92.0, 72.0, 62.0)
+        cut(wall, void)
+        matte(wall, 0.42, rough=0.7)
+    objs += walls
+
+    # the fissure light: one luminous blade above ground...
     bpy.ops.mesh.primitive_plane_add(size=1)
     fis = bpy.context.active_object
     fis.scale = (SLIT * 2.2, H * 0.46, 1.0)
     fis.rotation_euler = (math.radians(90), 0, 0)
     fis.location = (0, 2.5, H * 0.46)
-    return halves, [emissive(fis, 30.0)]
+    emissive(fis, 34.0)
+    # a faint thread of light down the shaft wall, so the fall reads
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 5.5, -105.0))
+    thread = bpy.context.active_object
+    thread.scale = (1.3, 180.0, 1.0)
+    thread.rotation_euler = (math.radians(90), 0, 0)
+    emissive(thread, 1.7)
+    # ...and a glow far below, the light the fall aims at
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(3.0, 26.0, -DEPTH + 2.6))
+    well = bpy.context.active_object
+    well.scale = (11.0, 11.0, 1.0)
+    emissive(well, 2.0)
+
+    # THE WATCHER: dark, faceless, still, backlit. It does not glow and
+    # it has no eyes; its regard is posture and placement
+    wt = blade("Watcher", 46.0, 6.8, 4.2, rings=10, top=0.03, twist=0.4)
+    wt.location = (3.0, 26.0, -DEPTH + 3.0)
+    wt.rotation_euler = (0, 0, math.radians(188))
+    clean(wt)
+    bpy.ops.object.shade_flat()
+    matte(wt, 0.015, rough=0.9)
+    # its backlight: a low panel BEHIND it, off-axis, never an eye
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(10.0, 54.0, -DEPTH + 12.0))
+    back = bpy.context.active_object
+    back.scale = (26.0, 16.0, 1.0)
+    back.rotation_euler = (math.radians(90), 0, 0)
+    emissive(back, 2.4, colour=(0.92, 0.96, 1.0))
+    objs += [wt]
+
+    # god-ray atmosphere for the holy exterior
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 70))
+    vol = bpy.context.active_object
+    vol.scale = (700, 700, 400)
+    vm = bpy.data.materials.new("Air")
+    vm.use_nodes = True
+    nt = vm.node_tree
+    nt.nodes.remove(nt.nodes["Principled BSDF"])
+    sc_node = nt.nodes.new("ShaderNodeVolumeScatter")
+    sc_node.inputs["Density"].default_value = 0.0009
+    sc_node.inputs["Anisotropy"].default_value = 0.35
+    nt.links.new(sc_node.outputs[0], nt.nodes["Material Output"].inputs["Volume"])
+    vol.data.materials.append(vm)
+
+    ground_cutter = dict(loc=(0, 2.0, 0), scale=(SLIT * 2.6, 30.0, 60.0))
+    shots = [
+        ("front", (0, -430, 36), (0, 0, H * 0.44), 62),
+        ("doorway", (0, -64, 9), (0, 0, H * 0.34), 30),
+        ("fall", (1.2, -3.5, -26), (0, 6.0, -DEPTH + 8), 24),
+        ("watcher", (-6, -40, -DEPTH + 40), (3, 24, -DEPTH + 18), 24),
+    ]
+    return objs, ground_cutter, shots, True
 
 
 def build_fission_idol():
-    """
-    A cracked SHELL, hollow, that the journey can travel into. Solid
-    it was a good object and a dead journey: nowhere to go. Now the
-    wall is thin, one fissure opens wide enough to enter, the rest
-    stay hairlines, and the lit core hangs in the cavity as the thing
-    you find at the end of the descent.
-    """
+    """The shell, with a hanging cluster and a clean broken crown."""
     body = blade("Idol", H * 0.86, 46.0, 32.0, rings=32, top=0.05)
     facet(body, strength=4.6, scale=80.0, seed=11)
-    # hollow it: the cavity is the room the journey ends in
     clean(body)
     sol = body.modifiers.new("Shell", "SOLIDIFY")
     sol.thickness = 5.5
     sol.offset = 1.0
     bpy.ops.object.modifier_apply(modifier=sol.name)
-    # THE BREACH: one fissure wide enough to admit the camera, running
-    # from the foot up into the body
+    # the breach
     bpy.ops.mesh.primitive_cube_add(size=1, location=(6.0, -34.0, H * 0.30))
     br = bpy.context.active_object
     br.scale = (17.0, 120.0, H * 0.62)
     br.rotation_euler = (0, math.radians(8), math.radians(6))
     cut(body, br)
-    # and the hairlines, which only leak light
+    # hairline cracks
     for (yaw, xoff, zf, thick, tilt) in [
         (0.62, -18.0, 0.50, 2.2, 21.0),
         (-0.85, 9.0, 0.20, 1.7, 16.0),
@@ -215,36 +279,37 @@ def build_fission_idol():
         c.scale = (thick, 200.0, H * 0.9)
         c.rotation_euler = (0, math.radians(tilt), yaw)
         cut(body, c)
-    # the core is NOT a sphere: a glowing ball inside a shell is an orb,
-    # which is a kill word here and would undo the whole point. It is an
-    # angular shard, lit, hanging in the cavity
-    core = blade("Core", H * 0.30, 7.0, 5.0, rings=8, top=0.02, twist=0.5)
-    core.location = (0, 0, H * 0.16)
-    core.rotation_euler = (math.radians(13), math.radians(-9), math.radians(24))
-    clean(core)
-    bpy.ops.object.shade_flat()
-    return [body], [emissive(core, 9.0)]
+    # the weird top becomes a clean angled break
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(8.0, 0, H * 0.92))
+    crown = bpy.context.active_object
+    crown.scale = (220.0, 220.0, 44.0)
+    crown.rotation_euler = (math.radians(7), math.radians(17), 0)
+    cut(body, crown)
+    matte(body, 0.15, rough=0.6)
+
+    # the core hangs: a cluster of three tip-down shards, off-centre,
+    # nothing standing, nothing central
+    lit = []
+    for (dx, dy, hz, ln, rz) in [
+        (-6.0, 11.0, 0.66, 26.0, 15.0),
+        (3.0, 7.0, 0.62, 34.0, -22.0),
+        (9.0, 13.0, 0.70, 19.0, 40.0),
+    ]:
+        sh = blade(f"Hang{dx}", ln, 3.4, 2.4, rings=8, top=0.04, twist=0.5)
+        sh.rotation_euler = (math.pi, 0, math.radians(rz))
+        sh.location = (dx, dy, H * hz)
+        clean(sh)
+        bpy.ops.object.shade_flat()
+        lit.append(emissive(sh, 5.0))
+
+    shots = [
+        ("front", (0, -430, 36), (0, 0, H * 0.44), 62),
+        ("threequarter", (255, -335, 70), (0, 0, H * 0.44), 62),
+        ("inside", (10.0, -46.0, H * 0.10), (0, 0, H * 0.48), 34),
+    ]
+    return [body] + lit, None, shots, False
 
 
-def build_folded_obelisk():
-    """A hard rotation: an upper mass turned against a lower one."""
-    low = blade("Low", H * 0.54, 34.0, 27.0, rings=14, top=0.86)
-    up = blade("Up", H * 0.5, 29.5, 23.5, rings=14, top=0.1)
-    up.location = (0, 0, H * 0.535)
-    up.rotation_euler = (0, 0, math.radians(41))
-    bpy.ops.object.select_all(action="DESELECT")
-    low.select_set(True)
-    up.select_set(True)
-    bpy.context.view_layer.objects.active = low
-    bpy.ops.object.join()
-    o = bpy.context.active_object
-    o.name = "Obelisk"
-    facet(o, strength=3.0, scale=110.0, seed=9)
-    return [o], []
-
-
-# FOLDED OBELISK killed by Jacob on sight, round 2: "wtf is that its
-# like children building blocks man". Not refined, not rescued.
 CANDIDATES = {
     "a-split-spire": build_split_spire,
     "b-fission-idol": build_fission_idol,
@@ -252,45 +317,43 @@ CANDIDATES = {
 
 for key, builder in CANDIDATES.items():
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    objs, lit = builder()
-    objs = list(objs) + [add_figure()]
+    objs, ground_cutter, shots, pale = builder()
+    add_figure(pale)
 
     bpy.ops.mesh.primitive_plane_add(size=1600, location=(0, 0, -1.5))
     ground = bpy.context.active_object
-    mat = bpy.data.materials.new("Grey")
-    mat.use_nodes = True
-    bsdf = mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (0.15, 0.15, 0.16, 1)
-    bsdf.inputs["Roughness"].default_value = 0.55
-    for o in objs + [ground]:
-        o.data.materials.append(mat)
+    matte(ground, 0.3 if pale else 0.15, rough=0.7)
+    if ground_cutter:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=ground_cutter["loc"])
+        gc = bpy.context.active_object
+        gc.scale = ground_cutter["scale"]
+        cut(ground, gc)
 
     sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", type="SUN"))
-    sun.data.energy = 4.5
+    sun.data.energy = 5.0 if pale else 4.5
     sun.data.angle = math.radians(1.5)
     sun.rotation_euler = (math.radians(62), math.radians(-8), math.radians(148))
     bpy.context.collection.objects.link(sun)
     fill = bpy.data.objects.new("Fill", bpy.data.lights.new("Fill", type="SUN"))
-    fill.data.energy = 0.6
+    fill.data.energy = 0.7
     fill.rotation_euler = (math.radians(74), math.radians(12), math.radians(-42))
     bpy.context.collection.objects.link(fill)
     w = bpy.data.worlds.new("W")
     w.use_nodes = True
-    w.node_tree.nodes["Background"].inputs[0].default_value = (0.012, 0.012, 0.015, 1)
+    bg = (0.011, 0.012, 0.016, 1) if pale else (0.012, 0.012, 0.015, 1)
+    w.node_tree.nodes["Background"].inputs[0].default_value = bg
     bpy.context.scene.world = w
 
     target = bpy.data.objects.new("T", None)
-    target.location = (0, 0, H * 0.44)
     bpy.context.collection.objects.link(target)
     cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
-    cam.data.lens = 62
     bpy.context.collection.objects.link(cam)
     cam.constraints.new(type="TRACK_TO").target = target
     bpy.context.scene.camera = cam
 
     sc = bpy.context.scene
     sc.render.engine = "CYCLES"
-    sc.cycles.samples = 22
+    sc.cycles.samples = 40 if pale else 24
     sc.render.resolution_x = 620
     sc.render.resolution_y = 840
     try:
@@ -298,15 +361,10 @@ for key, builder in CANDIDATES.items():
     except Exception:
         pass
 
-    shots = [("front", (0, -430, 36), H * 0.44), ("threequarter", (255, -335, 70), H * 0.44)]
-    if key == "a-split-spire":
-        shots.append(("inside", (0.0, -26.0, H * 0.12), H * 0.9))
-    if key == "b-fission-idol":
-        shots.append(("inside", (10.0, -46.0, H * 0.10), H * 0.40))
-    for nm, loc, tz in shots:
+    for nm, loc, tgt, lens in shots:
         cam.location = loc
-        target.location = (0, 0, tz)
-        cam.data.lens = 34 if nm == "inside" else 62
+        target.location = tgt
+        cam.data.lens = lens
         sc.render.filepath = os.path.join(OUT, f"{key}-{nm}.png")
         bpy.ops.render.render(write_still=True)
         print("RENDERED", sc.render.filepath)
