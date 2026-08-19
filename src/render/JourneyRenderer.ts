@@ -22,14 +22,36 @@ uniform float uHoverAmt;
 uniform vec3 uInner;
 uniform float uInnerAmt;
 float vMonoEng;
+float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
 
 const FRAG_MAP = `#include <map_fragment>
 {
-  vec3 cell = floor(vMonoW / 1.5);
-  float h = monoHash(cell);
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
-  float cluster = 0.5 + 0.5 * sin(cell.x * 0.315 + cell.z * 0.255 + cell.y * 0.165 + h * 9.0);
+
+  // unwrap the twist first: the decay field and the glyph courses both
+  // follow the blades. Constants mirror monumentForm.ts; pow(0,y)
+  // guarded, it has burned this project once already
+  float tphi = 0.55 + 4.0 * pow(max(heightT, 1e-4), 1.05);
+  float cph = cos(tphi);
+  float sph = sin(tphi);
+  vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
+  float sideS = q.x >= 0.0 ? 1.0 : -1.0;
+  float formS = (1.15 - 0.86 * pow(max(heightT, 1e-4), 1.3))
+              * (1.0 + 0.1 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
+  float formR = 3.4 + 34.0 * heightT * pow(max(1.0 - heightT, 0.0), 1.15)
+              - 5.5 * smoothstep(0.84, 1.0, heightT);
+  float hookT = 4.2 * smoothstep(0.84, 0.97, heightT);
+  vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
+  float ang = atan(lp.y, lp.x);
+
+  // the decay eats course-aligned slabs of masonry, never voxels: the
+  // bites follow the same courses the records are carved in
+  float courseD = floor(vMonoW.y / 2.1);
+  float colsD = max(10.0, floor(18.0 * formS));
+  float slabId = floor((ang / 6.2831853 + 0.5) * colsD);
+  float h = monoHash(vec3(courseD, slabId, sideS));
+  float cluster = 0.5 + 0.5 * sin(courseD * 0.51 + slabId * 0.83 + sideS + h * 9.0);
   float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
   if (uDecay > th) discard;
   float dying = smoothstep(0.035, 0.0, th - uDecay);
@@ -40,23 +62,24 @@ const FRAG_MAP = `#include <map_fragment>
     vMonoEng = 0.0;
   } else {
 
-  // unwrap the twist: bands and glyph courses follow the prongs.
-  // constants mirror monumentForm.ts; pow(0,y) guarded, it has burned
-  // this project once already
-  float tphi = 0.55 + 2.4 * pow(max(heightT, 1e-4), 1.08);
-  float cph = cos(tphi);
-  float sph = sin(tphi);
-  vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
-  float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-  float formS = (1.15 - 0.85 * pow(max(heightT, 1e-4), 1.25))
-              * (1.0 + 0.12 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
-  float formR = 12.0 - 8.6 * pow(max(heightT, 1e-4), 1.6) + 1.8 * sin(3.14159265 * heightT);
-  vec2 lp = vec2(abs(q.x) - formR, q.y * sideS);
-  float ang = atan(lp.y, lp.x);
-
   // the inscription: dense courses of carved channel script, dash runs
   // of varying length. Every course a run of records; the ledger is
   // the texture. Never square cells: squares read as windows
+  // channels live on the standing faces, not the tips and ledges
+  float vertFace = smoothstep(0.55, 0.35, abs(normalize(vNormal).y));
+
+  // slab courses: the mass reads as stacked segments. Dark undercut at
+  // each course base, lit shelf lip at its top, occasional recessed
+  // band
+  float courseF = vMonoW.y / 2.1;
+  float course = floor(courseF);
+  float cf = fract(courseF);
+  float cHash = monoHash(vec3(course, sideS, 11.0));
+  diffuseColor.rgb *= 1.0 - smoothstep(0.10, 0.0, cf) * 0.30 * vertFace;
+  diffuseColor.rgb *= 1.0 + smoothstep(0.86, 0.97, cf) * 0.20 * vertFace;
+  float recess = step(0.82, cHash);
+  diffuseColor.rgb *= 1.0 - recess * 0.16 * vertFace;
+
   float rowH = 1.05;
   float rowF = vMonoW.y / rowH;
   float row = floor(rowF);
@@ -64,7 +87,7 @@ const FRAG_MAP = `#include <map_fragment>
   float rowSeed = monoHash(vec3(row, sideS, 7.0));
   // strata families: neighbouring courses share a tone, then it shifts
   float strata = floor(row / (5.0 + floor(rowSeed * 4.0)));
-  float strataTone = 0.86 + 0.26 * monoHash(vec3(strata, sideS, 3.3));
+  float strataTone = 0.88 + 0.22 * monoHash(vec3(strata, sideS, 3.3));
   diffuseColor.rgb *= strataTone;
 
   float cols = max(24.0, floor(74.0 * formS));
@@ -75,23 +98,31 @@ const FRAG_MAP = `#include <map_fragment>
   float bs = monoHash(vec3(block, row, sideS * 3.7));
   float runLen = 1.0 + floor(bs * 5.0);
   float inBlock = col - block * 6.0;
-  float inRun = step(inBlock, runLen - 0.5) * step(0.22, bs);
+  // some whole rows carry no script: the fields breathe
+  float rowLive = step(0.18, monoHash(vec3(row, sideS, 17.0)));
+  float inRun = step(inBlock, runLen - 0.5) * step(0.22, bs) * rowLive;
   float vIn = smoothstep(0.30, 0.42, fv) * smoothstep(0.78, 0.66, fv);
   float hIn = 1.0;
   if (inBlock < 0.5) hIn *= smoothstep(0.06, 0.18, fu);
   if (abs(inBlock - (runLen - 1.0)) < 0.5) hIn *= smoothstep(0.94, 0.82, fu);
-  // channels live on the standing faces, not the tips and ledges
-  float vertFace = smoothstep(0.55, 0.35, abs(normalize(vNormal).y));
   float glyph = inRun * vIn * hIn * vertFace;
 
   // carved: the groove holds shadow, deeper at its floor, and its
   // upper lip catches the key light
   float lip = inRun * hIn * vertFace
             * (smoothstep(0.72, 0.78, fv) - smoothstep(0.82, 0.92, fv));
-  diffuseColor.rgb *= 1.0 - glyph * (0.40 + 0.20 * (1.0 - smoothstep(0.36, 0.62, fv)));
-  diffuseColor.rgb += diffuseColor.rgb * lip * 0.45;
+  diffuseColor.rgb *= 1.0 - glyph * (0.50 + 0.22 * (1.0 - smoothstep(0.36, 0.62, fv)));
+  diffuseColor.rgb += diffuseColor.rgb * lip * 0.5;
   float seam = smoothstep(0.045, 0.0, min(fv, 1.0 - fv));
-  diffuseColor.rgb *= 1.0 - seam * 0.14 * vertFace;
+  diffuseColor.rgb *= 1.0 - seam * 0.12 * vertFace;
+
+  // veining: faint mineral threads, close to invisible until the lamp
+  // or a shelf light crosses them
+  float w1 = sin(vMonoW.y * 0.39 + vMonoW.x * 0.19)
+           + sin(vMonoW.z * 0.29 - vMonoW.y * 0.12);
+  float vein = smoothstep(0.978, 0.998,
+      0.5 + 0.5 * sin(vMonoW.x * 1.2 + vMonoW.z * 0.95 + w1 * 2.2));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.3, 0.305, 0.32), vein * 0.12 * vertFace);
 
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.35);
   diffuseColor.rgb *= mix(0.7, 1.0, heightT * heightT);
@@ -101,6 +132,11 @@ const FRAG_MAP = `#include <map_fragment>
     diffuseColor.rgb *= mix(1.0, mix(gt, 0.8, uCalm), dying);
   }
   vMonoEng = glyph;
+  // polished obsidian on the standing script faces only; grooves,
+  // undercuts, tips and ledges stay matte so the sheen reads as
+  // material, not glaze, and the cut edges of decay never flare
+  float polish = vertFace * (1.0 - smoothstep(0.10, 0.0, cf));
+  vMonoRough = mix(0.66, mix(0.38, 0.62, clamp(glyph + vein * 0.6, 0.0, 1.0)), polish);
   }
 }`;
 
@@ -110,7 +146,7 @@ if (gl_FrontFacing) {
   // the crown burns from within: a long soft ramp, never a painted cap
   float crownT = smoothstep(0.8, 1.0, heightT);
   vec3 crownCol = mix(vec3(1.0, 0.9, 0.72), vec3(0.8, 0.9, 1.0), uSeverity);
-  totalEmissiveRadiance += crownCol * crownT * crownT * crownT * 1.6 * (1.0 - uSeverity * 0.5);
+  totalEmissiveRadiance += crownCol * crownT * crownT * crownT * 1.25 * (1.0 - uSeverity * 0.5);
   float hd = distance(vMonoW, uHover);
   float camD = distance(cameraPosition, uHover);
   float sigma = clamp(camD * 0.16, 2.5, 15.0);
@@ -394,23 +430,25 @@ const MONO_FRAG = /* glsl */ `
 
     vec3 L = normalize(vec3(0.35, 0.75, 0.55));
     float diff = clamp(dot(n, L), 0.0, 1.0);
-    vec3 base = mix(vec3(0.21, 0.205, 0.2), vec3(0.25, 0.24, 0.225), h * 0.5);
-    base = mix(base, vec3(0.14, 0.17, 0.23), uSeverity * 0.5);
+    vec3 base = mix(vec3(0.15, 0.15, 0.16), vec3(0.19, 0.185, 0.19), h * 0.5);
+    base = mix(base, vec3(0.12, 0.14, 0.19), uSeverity * 0.5);
     vec3 col = base * (0.38 + 0.5 * diff) * mix(0.5, 1.15, heightT * heightT);
     vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
     col += crownCol * smoothstep(0.93, 1.0, heightT) * 1.5 * (1.0 - uSeverity * 0.5);
 
     // the inscription courses, coarse: this surface is only ever a
     // shivered reflection
-    float tphi = 0.55 + 2.4 * pow(max(heightT, 1e-4), 1.08);
+    float tphi = 0.55 + 4.0 * pow(max(heightT, 1e-4), 1.05);
     float cph = cos(tphi);
     float sph = sin(tphi);
     vec2 q = vec2(cph * vWorld.x + sph * vWorld.z, -sph * vWorld.x + cph * vWorld.z);
     float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-    float formS = (1.15 - 0.85 * pow(max(heightT, 1e-4), 1.25))
-                * (1.0 + 0.12 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
-    float formR = 12.0 - 8.6 * pow(max(heightT, 1e-4), 1.6) + 1.8 * sin(3.14159265 * heightT);
-    vec2 lp = vec2(abs(q.x) - formR, q.y * sideS);
+    float formS = (1.15 - 0.86 * pow(max(heightT, 1e-4), 1.3))
+                * (1.0 + 0.1 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
+    float formR = 3.4 + 34.0 * heightT * pow(max(1.0 - heightT, 0.0), 1.15)
+                - 5.5 * smoothstep(0.84, 1.0, heightT);
+    float hookT = 4.2 * smoothstep(0.84, 0.97, heightT);
+    vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
     float angP = atan(lp.y, lp.x);
     float rowH = 1.05;
     float row = floor(vWorld.y / rowH);
@@ -626,8 +664,8 @@ export class JourneyRenderer {
   private time = 0;
 
   private readonly towerBox = new THREE.Box3(
-    new THREE.Vector3(-HALF - 0.6, 0, -HALF - 0.6),
-    new THREE.Vector3(HALF + 0.6, TOWER_TOP, HALF + 0.6)
+    new THREE.Vector3(-HALF - 5.5, 0, -HALF - 5.5),
+    new THREE.Vector3(HALF + 5.5, TOWER_TOP, HALF + 5.5)
   );
   private readonly raycaster = new THREE.Raycaster();
   private readonly hoverPoint = new THREE.Vector3(0, -999, 0);
@@ -763,11 +801,11 @@ export class JourneyRenderer {
         bar(fp(i / SPINE_SEGS, side), fp((i + 1) / SPINE_SEGS, side), 1.8);
       }
     }
-    // ties live in the middle band only: at the crown the prongs pin
+    // ties live in the middle band only: at the crown the blades pin
     // each other, and braces against the bright sky read as scaffold
     const TIES = 9;
     for (let i = 0; i <= TIES; i++) {
-      const t = 0.12 + (i / TIES) * 0.6;
+      const t = 0.24 + (i / TIES) * 0.48;
       bar(fp(t, 0), fp(t, 1), 1.0);
       if (i < TIES) {
         const tn = 0.12 + ((i + 1) / TIES) * 0.6;
@@ -927,9 +965,9 @@ export class JourneyRenderer {
     // ridges and in the carved grooves rather than on the faces
     this.stoneU = monoUniforms();
     const stone = new THREE.MeshStandardMaterial({
-      color: 0x3a3d42,
-      roughness: 0.5,
-      metalness: 0.08,
+      color: 0x232529,
+      roughness: 0.34,
+      metalness: 0.06,
       side: THREE.DoubleSide
     });
     stone.onBeforeCompile = (sh) => {
@@ -943,6 +981,10 @@ export class JourneyRenderer {
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', FRAG_COMMON)
         .replace('#include <map_fragment>', FRAG_MAP)
+        .replace(
+          '#include <roughnessmap_fragment>',
+          '#include <roughnessmap_fragment>\nroughnessFactor = vMonoRough;'
+        )
         .replace('#include <emissivemap_fragment>', FRAG_EMISSIVE);
     };
     this.monoMat = stone;

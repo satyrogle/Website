@@ -1,56 +1,78 @@
 /**
- * The monument's form, as mathematics. Single source of truth: the
- * Blender authoring script (tools/blender/monument.py) mirrors these
- * constants exactly, and the shader inlines twist/radius/scale with the
- * same numbers. Change a constant here and there together or the cells,
- * the camera and the stone part company.
+ * The monument's form, as mathematics. v2 after the "nope" of
+ * 2026-08-19: one fused trunk splitting into two broad flat
+ * ribbon-blades that wrap each other in a visible helix, tips crossing
+ * the axis and hooking past each other at the crown.
  *
- * The form: two tapering prongs rising from one base, twisting around
- * each other, converging near the tip without touching. Between them a
- * cleft of open air runs the full height, turning with the twist. The
- * qualities are extracted, never copied; the record of what was taken
- * and refused lives in docs/APPROVED_VISUAL_JOURNEY.md (2026-08-19).
+ * Single source of truth: tools/blender/monument.py mirrors these
+ * constants exactly, and the two GLSL blocks in JourneyRenderer inline
+ * twist/radius/scale/hook with the same numbers. Change them together
+ * or the cells, the camera and the stone part company.
  */
 
 export const FORM_H = 195;
 /** total twist base to tip, radians */
-export const FORM_PHI = 2.4;
+export const FORM_PHI = 4.0;
 /** base orientation: the cleft must not face the opening camera */
 export const FORM_PHI0 = 0.55;
-const TWIST_POW = 1.08;
+const TWIST_POW = 1.05;
 
-/** keel cross-section, local units: a = radial (outward +), b = tangential */
+/**
+ * ribbon-blade cross-section, local units: a = radial (thin axis,
+ * outward keel +), b = tangential (the wide axis that carries the
+ * helix read)
+ */
 export const PROFILE: ReadonlyArray<readonly [number, number]> = [
-  [8.7, 0.0],
-  [5.34, 6.26],
-  [-2.55, 7.54],
-  [-5.22, 3.02],
-  [-5.22, -3.02],
-  [-2.55, -7.54],
-  [5.34, -6.26]
+  [4.8, 0.0],
+  [3.0, 6.4],
+  [0.8, 12.5],
+  [-2.2, 11.2],
+  [-4.0, 5.2],
+  [-4.0, -5.2],
+  [-2.2, -11.2],
+  [0.8, -12.5],
+  [3.0, -6.4]
 ];
 
-/** prong B stops short of the crown: the tips must not mirror */
-export const TIP_T: readonly [number, number] = [1.0, 0.962];
+/** blade B stops short of the crown: the tips must not mirror */
+export const TIP_T: readonly [number, number] = [1.0, 0.958];
+
+function smoothstep01(e0: number, e1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
 
 export function twistAt(t: number): number {
   return FORM_PHI0 + FORM_PHI * Math.pow(Math.max(t, 1e-6), TWIST_POW);
 }
 
-/** distance of each prong centreline from the world Y axis */
+/**
+ * distance of each blade centreline from the world Y axis: fused at
+ * the base, bowed at the waist, crossing the axis at the crown. The
+ * crossing is the interlock.
+ */
 export function radiusAt(t: number): number {
-  return 12.0 - 8.6 * Math.pow(Math.max(t, 0), 1.6) + 1.8 * Math.sin(Math.PI * t);
+  return (
+    3.4 +
+    34.0 * t * Math.pow(Math.max(1 - t, 0), 1.15) -
+    5.5 * smoothstep01(0.84, 1.0, t)
+  );
+}
+
+/** tangential lean at the crown so the crossing tips slide past */
+export function hookAt(t: number): number {
+  return 4.2 * smoothstep01(0.84, 0.97, t);
 }
 
 /** cross-section scale: planted at the base, narrow at the tip */
 export function scaleAt(t: number): number {
   return (
-    (1.15 - 0.85 * Math.pow(Math.max(t, 0), 1.25)) *
-    (1 + 0.12 * Math.sin(Math.PI * Math.min(1, 1.15 * t)))
+    (1.15 - 0.86 * Math.pow(Math.max(t, 0), 1.3)) *
+    (1 + 0.1 * Math.sin(Math.PI * Math.min(1, 1.15 * t)))
   );
 }
 
-/** small deterministic wander so the prongs are hewn, not machined */
+/** small deterministic wander so the blades are hewn, not machined */
 export function wobbleAt(t: number, side: number): [number, number] {
   return [0.35 * Math.sin(9.3 * t + 2.1 * side), 0.35 * Math.cos(7.7 * t + 1.3 * side)];
 }
@@ -61,15 +83,18 @@ export interface FormPoint {
   z: number;
 }
 
-/** centreline of a prong (side 0 or 1) at normalised height t */
+/** centreline of a blade (side 0 or 1) at normalised height t */
 export function prongCentre(t: number, side: 0 | 1): FormPoint {
   const a = twistAt(t) + side * Math.PI;
   const r = radiusAt(t);
+  const hk = hookAt(t);
+  const ca = Math.cos(a);
+  const sa = Math.sin(a);
   const [wx, wz] = wobbleAt(t, side);
-  return { x: Math.cos(a) * r + wx, y: t * FORM_H, z: Math.sin(a) * r + wz };
+  return { x: r * ca - hk * sa + wx, y: t * FORM_H, z: r * sa + hk * ca + wz };
 }
 
-/** frame axes of a prong at height t: radial points away from the axis */
+/** frame axes of a blade at height t: radial points away from the axis */
 export function prongFrame(
   t: number,
   side: 0 | 1
@@ -102,7 +127,7 @@ export const PERIMETER = CUM[CUM.length - 1]!;
 
 /** point on the profile boundary, u in [0,1) by arc length */
 export function profilePoint(u: number): [number, number] {
-  const d = ((u % 1) + 1) % 1 * PERIMETER;
+  const d = (((u % 1) + 1) % 1) * PERIMETER;
   for (let i = 0; i < PROFILE.length; i++) {
     if (d <= CUM[i + 1]!) {
       const p = PROFILE[i]!;
@@ -114,7 +139,7 @@ export function profilePoint(u: number): [number, number] {
   return [PROFILE[0]![0], PROFILE[0]![1]];
 }
 
-/** world position on the prong surface at height t, arc position u */
+/** world position on the blade surface at height t, arc position u */
 export function surfacePoint(t: number, side: 0 | 1, u: number): FormPoint {
   const c = prongCentre(t, side);
   const f = prongFrame(t, side);
@@ -140,7 +165,6 @@ export function profileSupport(da: number, db: number): number {
   for (let i = 0; i < PROFILE.length; i++) {
     const p = PROFILE[i]!;
     const q = PROFILE[(i + 1) % PROFILE.length]!;
-    // ray (0,0)+r(dx,dy) against segment p-q
     const ex = q[0] - p[0];
     const ey = q[1] - p[1];
     const det = dx * -ey - dy * -ex;

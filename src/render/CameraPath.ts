@@ -49,8 +49,8 @@ const KEYS: PathKey[] = [
   { p: 0.255, pos: [78, 32, 220], look: [-6, 94, 0], fov: 44, sev: 0.12 },
   { p: 0.325, pos: [72, 34, 212], look: [-6, 96, 0], fov: 44, sev: 0.16 },
   // RULE: dwell close on the inscribed flank, courses sweeping past
-  { p: 0.395, pos: [16, 102, 32], look: [-1, 112, 11], fov: 50, sev: 0.42 },
-  { p: 0.462, pos: [10, 120, 26], look: [-3, 128, 9], fov: 50, sev: 0.55 },
+  { p: 0.395, pos: [18, 100, 34], look: [5, 110, -2], fov: 50, sev: 0.42 },
+  { p: 0.462, pos: [12, 118, 30], look: [2, 126, -4], fov: 50, sev: 0.55 },
   // travel: to the mouth of the cleft
   { p: 0.5, pos: cleftKey(138, -30), look: cleftKey(134, -4), fov: 52, sev: 0.66 },
   // BRAWLER: dwell inside, between the prongs, among the ties
