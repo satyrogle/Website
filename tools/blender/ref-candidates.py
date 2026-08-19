@@ -140,46 +140,90 @@ def blade(name, height, base_w, base_d, lean=0.0, rings=26, twist=0.0, top=0.1):
 
 
 def build_split_spire():
-    """Slim. One wedge, cut down the centre, parted by a tight slit."""
-    SLIT = 2.4
+    """
+    Slim, and with flair. One wedge cut down the centre; the halves
+    are tilted so the bases part into a doorway the journey can enter
+    and the slit closes to a hairline at the top. Unequal heights, a
+    chipped tip and a chamfer keep it from reading as a machined pair.
+    """
+    SLIT = 2.0
     halves = []
     for i, sgn in enumerate((-1, 1)):
-        w = blade(f"Half{i}", H if sgn < 0 else H * 0.94,
+        w = blade(f"Half{i}", H if sgn < 0 else H * 0.93,
                   31.0, 17.0, lean=-2.0 * sgn, top=0.05,
                   twist=0.0 if sgn < 0 else 0.05)
         bpy.ops.mesh.primitive_cube_add(size=400, location=(-sgn * 200, 0, H * 0.5))
         cut(w, bpy.context.active_object)
+        # flair 1: a chamfer struck off one shoulder
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(sgn * 30, -14, H * (0.34 + 0.18 * i)))
+        ch = bpy.context.active_object
+        ch.scale = (26.0, 26.0, 40.0)
+        ch.rotation_euler = (math.radians(28 + 14 * i), 0, math.radians(30 * sgn))
+        cut(w, ch)
+        if i == 1:
+            # flair 2: the short half is broken, not cut
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, H * 0.93))
+            br = bpy.context.active_object
+            br.scale = (60.0, 60.0, 26.0)
+            br.rotation_euler = (math.radians(19), math.radians(23), 0)
+            cut(w, br)
         w.location = (sgn * SLIT, 0, 0)
+        # the doorway: tops lean together, bases part
+        w.rotation_euler = (0, math.radians(-1.9 * sgn), 0)
         facet(w, strength=3.2, scale=105.0 - i * 20.0, seed=i + 1)
         halves.append(w)
     bpy.ops.mesh.primitive_plane_add(size=1)
     fis = bpy.context.active_object
-    fis.scale = (SLIT * 1.6, H * 0.46, 1.0)
+    fis.scale = (SLIT * 2.2, H * 0.46, 1.0)
     fis.rotation_euler = (math.radians(90), 0, 0)
     fis.location = (0, 2.5, H * 0.46)
     return halves, [emissive(fis, 30.0)]
 
 
 def build_fission_idol():
-    """ONE mass, cracked. The light escapes through the damage."""
-    body = blade("Idol", H * 0.82, 44.0, 30.0, rings=30, top=0.06)
+    """
+    A cracked SHELL, hollow, that the journey can travel into. Solid
+    it was a good object and a dead journey: nowhere to go. Now the
+    wall is thin, one fissure opens wide enough to enter, the rest
+    stay hairlines, and the lit core hangs in the cavity as the thing
+    you find at the end of the descent.
+    """
+    body = blade("Idol", H * 0.86, 46.0, 32.0, rings=32, top=0.05)
     facet(body, strength=4.6, scale=80.0, seed=11)
-    cracks = [
-        (0.0, 12.0, 0.30, 2.4, 26.0),
-        (0.55, -16.0, 0.52, 1.9, 22.0),
-        (-0.7, 6.0, 0.16, 1.6, 18.0),
-        (1.15, 20.0, 0.62, 1.5, 15.0),
-    ]
-    for (yaw, xoff, zf, thick, tilt) in cracks:
+    # hollow it: the cavity is the room the journey ends in
+    clean(body)
+    sol = body.modifiers.new("Shell", "SOLIDIFY")
+    sol.thickness = 5.5
+    sol.offset = 1.0
+    bpy.ops.object.modifier_apply(modifier=sol.name)
+    # THE BREACH: one fissure wide enough to admit the camera, running
+    # from the foot up into the body
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(6.0, -34.0, H * 0.30))
+    br = bpy.context.active_object
+    br.scale = (17.0, 120.0, H * 0.62)
+    br.rotation_euler = (0, math.radians(8), math.radians(6))
+    cut(body, br)
+    # and the hairlines, which only leak light
+    for (yaw, xoff, zf, thick, tilt) in [
+        (0.62, -18.0, 0.50, 2.2, 21.0),
+        (-0.85, 9.0, 0.20, 1.7, 16.0),
+        (1.25, 22.0, 0.60, 1.6, 13.0),
+        (2.1, -6.0, 0.42, 1.9, -12.0),
+    ]:
         bpy.ops.mesh.primitive_cube_add(size=1, location=(xoff, 0, H * zf))
         c = bpy.context.active_object
         c.scale = (thick, 200.0, H * 0.9)
         c.rotation_euler = (0, math.radians(tilt), yaw)
         cut(body, c)
-    bpy.ops.mesh.primitive_ico_sphere_add(radius=17.0, subdivisions=2,
-                                          location=(0, 0, H * 0.36))
-    core = emissive(bpy.context.active_object, 14.0)
-    return [body], [core]
+    # the core is NOT a sphere: a glowing ball inside a shell is an orb,
+    # which is a kill word here and would undo the whole point. It is an
+    # angular shard, lit, hanging in the cavity
+    core = blade("Core", H * 0.30, 7.0, 5.0, rings=8, top=0.02, twist=0.5)
+    core.location = (0, 0, H * 0.16)
+    core.rotation_euler = (math.radians(13), math.radians(-9), math.radians(24))
+    clean(core)
+    bpy.ops.object.shade_flat()
+    return [body], [emissive(core, 9.0)]
 
 
 def build_folded_obelisk():
@@ -199,10 +243,11 @@ def build_folded_obelisk():
     return [o], []
 
 
+# FOLDED OBELISK killed by Jacob on sight, round 2: "wtf is that its
+# like children building blocks man". Not refined, not rescued.
 CANDIDATES = {
     "a-split-spire": build_split_spire,
     "b-fission-idol": build_fission_idol,
-    "c-folded-obelisk": build_folded_obelisk,
 }
 
 for key, builder in CANDIDATES.items():
@@ -253,8 +298,15 @@ for key, builder in CANDIDATES.items():
     except Exception:
         pass
 
-    for nm, loc in [("front", (0, -430, 36)), ("threequarter", (255, -335, 70))]:
+    shots = [("front", (0, -430, 36), H * 0.44), ("threequarter", (255, -335, 70), H * 0.44)]
+    if key == "a-split-spire":
+        shots.append(("inside", (0.0, -26.0, H * 0.12), H * 0.9))
+    if key == "b-fission-idol":
+        shots.append(("inside", (10.0, -46.0, H * 0.10), H * 0.40))
+    for nm, loc, tz in shots:
         cam.location = loc
+        target.location = (0, 0, tz)
+        cam.data.lens = 34 if nm == "inside" else 62
         sc.render.filepath = os.path.join(OUT, f"{key}-{nm}.png")
         bpy.ops.render.render(write_still=True)
         print("RENDERED", sc.render.filepath)
