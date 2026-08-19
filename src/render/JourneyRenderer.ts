@@ -1109,15 +1109,18 @@ export class JourneyRenderer {
     // without competing with the hero the way solid copies did.
     // Camera-facing, because a presence should never show you an edge.
     {
-      const N = 11;
+      const N = 5;
       const rng = mulberry32ish(world.seed ^ 0x0c40);
       const pos: number[] = [];
       const centre: number[] = [];
       const meta: number[] = [];
       const idx: number[] = [];
       for (let i = 0; i < N; i++) {
-        const a = (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.42;
-        const d = 66 + rng() * 132;
+        // BEHIND the monument, not ringed around it. The opening camera
+        // sits at +z, so the choir stands on the far side, in a loose
+        // fan that never crosses in front of the hero
+        const a = -Math.PI * (0.20 + (i / (N - 1)) * 0.60) + (rng() - 0.5) * 0.16;
+        const d = 96 + rng() * 150;
         const h = 62 + rng() * 74;
         const w = h * (0.24 + rng() * 0.12);
         const cx = Math.cos(a) * d;
