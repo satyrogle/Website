@@ -6,7 +6,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
-import { TIP_T, cleftDir, prongCentre, surfacePoint } from '../world/monumentForm';
+import { TIP_T, prongCentre, surfacePoint } from '../world/monumentForm';
 import { CameraPath } from './CameraPath';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -32,19 +32,15 @@ const FRAG_MAP = `#include <map_fragment>
 {
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
 
-  // unwrap the twist first: the decay field and the glyph courses both
-  // follow the blades. Constants mirror monumentForm.ts (THE FORK);
-  // pow(0,y) guarded, it has burned this project once already
-  float tphi = -0.15 + 0.45 * heightT;
-  float cph = cos(tphi);
-  float sph = sin(tphi);
-  vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
-  float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-  float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
-  float formR = 3.4 + 26.0 * smoothstep(0.05, 0.74, heightT) - 5.0 * pow(smoothstep(0.8, 1.0, heightT), 1.3);
-  float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4) * (sideS > 0.0 ? 1.0 : 0.5);
-  vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
-  float ang = atan(lp.y, lp.x);
+  // THE SPLIT SPIRE has no twist to unwrap: each half is a wedge, so
+  // the courses run across its outer face by depth, then wrap round
+  // the flank. Constants mirror monumentForm.ts
+  float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
+  float formS = 1.0 - 0.95 * pow(max(heightT, 1e-4), 1.35);
+  float cutX = sideS * (2.6 + 0.0332 * heightT * 195.0 * 0.5);
+  float outward = abs(vMonoW.x - cutX) / max(31.0 * formS, 0.001);
+  float across = clamp(vMonoW.z / max(17.0 * formS, 0.001), -1.0, 1.0);
+  float ang = across * 1.5 + sign(vMonoW.z) * smoothstep(0.5, 1.0, outward) * 1.2;
 
   // the decay eats course-aligned slabs of masonry, never voxels: the
   // bites follow the same courses the records are carved in
@@ -84,7 +80,7 @@ const FRAG_MAP = `#include <map_fragment>
   float strataTone = 0.88 + 0.22 * monoHash(vec3(strata, sideS, 3.3));
   diffuseColor.rgb *= strataTone;
 
-  float cols = max(20.0, floor(52.0 * formS));
+  float cols = max(12.0, floor(26.0 * formS));
   float colF = (ang / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
   float col = floor(colF);
   float fu = fract(colF);
@@ -456,23 +452,16 @@ const MONO_FRAG = /* glsl */ `
 
     // the inscription courses, coarse: this surface is only ever a
     // shivered reflection
-    float tphi = -0.15 + 0.45 * heightT;
-    float cph = cos(tphi);
-    float sph = sin(tphi);
-    vec2 q = vec2(cph * vWorld.x + sph * vWorld.z, -sph * vWorld.x + cph * vWorld.z);
-    float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-    float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
-    float formR = 3.4 + 26.0 * smoothstep(0.05, 0.74, heightT) - 5.0 * pow(smoothstep(0.8, 1.0, heightT), 1.3);
-    float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4) * (sideS > 0.0 ? 1.0 : 0.5);
-    vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
-    float angP = atan(lp.y, lp.x);
+    float sideS = vWorld.x >= 0.0 ? 1.0 : -1.0;
+    float formS = 1.0 - 0.95 * pow(max(heightT, 1e-4), 1.35);
+    float angP = clamp(vWorld.z / max(17.0 * formS, 0.001), -1.0, 1.0) * 1.5;
     float rowH = 1.05;
     float row = floor(vWorld.y / rowH);
     float fv = fract(vWorld.y / rowH);
     float rowSeed = hash3(vec3(row, sideS, 7.0));
     float strata = floor(row / (5.0 + floor(rowSeed * 4.0)));
     col *= 0.86 + 0.26 * hash3(vec3(strata, sideS, 3.3));
-    float cols = max(24.0, floor(74.0 * formS));
+    float cols = max(12.0, floor(26.0 * formS));
     float colF = (angP / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
     float block = floor(floor(colF) / 6.0);
     float bs = hash3(vec3(block, row, sideS * 3.7));
@@ -642,9 +631,7 @@ export class JourneyRenderer {
     to: number;
   }> = (() => {
     const tipA = prongCentre(TIP_T[0] - 0.01, 0);
-    const mouthT = 138 / TOWER_TOP;
-    const mouthDir = cleftDir(mouthT);
-    const law = surfacePoint(100 / TOWER_TOP, 0, 0);
+    const law = surfacePoint(100 / TOWER_TOP, 0, 0.5);
     return [
       {
         el: document.getElementById('anno-crown'),
@@ -654,7 +641,7 @@ export class JourneyRenderer {
       },
       {
         el: document.getElementById('anno-cleft'),
-        point: new THREE.Vector3(mouthDir[0] * 8, 138, mouthDir[1] * 8),
+        point: new THREE.Vector3(0, 40, 16),
         from: 0.3,
         to: 0.44
       },
@@ -672,6 +659,7 @@ export class JourneyRenderer {
   private fillLight!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
   private frameMat!: THREE.MeshStandardMaterial;
+  private fissureMat!: THREE.ShaderMaterial;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
@@ -820,7 +808,8 @@ export class JourneyRenderer {
     };
     const fp = (t: number, side: 0 | 1): THREE.Vector3 => {
       const c = prongCentre(Math.min(t, TIP_T[side] - 0.012), side);
-      return new THREE.Vector3(c.x, c.y, c.z);
+      // pull the tie ends INTO the stone so they never float in the slit
+      return new THREE.Vector3(c.x * 1.9, c.y, c.z);
     };
     const SPINE_SEGS = 26;
     for (const side of [0, 1] as const) {
@@ -910,6 +899,46 @@ export class JourneyRenderer {
     this.witnessLight.position.set(0.2, 0.5, 1.0);
     this.scene.add(this.witnessLight);
 
+    // --- THE FISSURE ---
+    // The reference's defining feature: not a glow around the spire
+    // but a blade of light standing inside the slit, seen through the
+    // gap between the halves. It is the doorway, and it is the only
+    // bright thing in the opening frame.
+    this.fissureMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: `
+        out vec2 vUvF;
+        void main() {
+          vUvF = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        precision highp float;
+        in vec2 vUvF;
+        uniform float uSeverity;
+        uniform float uDecay;
+        out vec4 outColor;
+        void main() {
+          // brightest at the throat, falling off up and down, so it
+          // reads as depth rather than a lit strip
+          float v = smoothstep(0.0, 0.22, vUvF.y) * smoothstep(1.0, 0.62, vUvF.y);
+          float u = smoothstep(0.0, 0.3, vUvF.x) * smoothstep(1.0, 0.7, vUvF.x);
+          vec3 holy = vec3(1.0, 0.97, 0.92);
+          vec3 cold = vec3(0.62, 0.78, 1.0);
+          float fail = 1.0 - uDecay * 0.55;
+          outColor = vec4(mix(holy, cold, uSeverity) * v * u * 2.6 * fail, 1.0);
+        }`,
+      uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 } },
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    {
+      const fis = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 150), this.fissureMat);
+      fis.position.set(0, 78, -7.0);
+      fis.frustumCulled = false;
+      this.scene.add(fis);
+    }
+
     // --- atmosphere ---
     // The halos sit BEHIND the whole form, never on its axis. An
     // additive sprite at the axis is painted over every surface behind
@@ -925,7 +954,7 @@ export class JourneyRenderer {
     // the crown light belongs to the tall horn alone, never centred
     const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
     this.crownHalo = makeHalo('#ecd0a0', 72);
-    this.crownHalo.position.set(tallTip.x * 1.2, tallTip.y + 2, tallTip.z - 30);
+    this.crownHalo.position.set(tallTip.x * 2.2, tallTip.y + 2, tallTip.z - 34);
     this.scene.add(this.crownHalo);
 
     // --- the air: dust motes over the water, rising slowly ---
@@ -1190,6 +1219,8 @@ export class JourneyRenderer {
     }
 
     this.skyMat.uniforms.uSeverity!.value = sev;
+    this.fissureMat.uniforms.uSeverity!.value = sev;
+    this.fissureMat.uniforms.uDecay!.value = decay;
     this.seaMat.uniforms.uSeverity!.value = sev;
     this.seaMat.uniforms.uDecay!.value = decay;
     this.seaMat.uniforms.uTime!.value = reduced ? 0 : this.time;

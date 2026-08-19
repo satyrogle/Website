@@ -3,10 +3,10 @@ import type { WorldEvent } from '../record/events';
 import {
   PERIMETER,
   TIP_T,
-  prongCentre,
-  prongFrame,
-  profileSupport,
-  scaleAt,
+  cutPlaneX,
+  depthAt,
+  reachAt,
+  sectionAt,
   surfacePoint
 } from './monumentForm';
 
@@ -84,13 +84,14 @@ export class LatticeWorld {
     const seeds: number[] = [];
     const thresholds: number[] = [];
 
-    // surface cells: every course wraps the two prongs of the form
+    // surface cells: every course wraps the outer face of each half.
+    // The cut faces, which line the fissure, stay bare stone
     for (let level = 0; level < LEVELS; level++) {
       const y = level * CELL + CELL / 2;
       const t = y / TOWER_TOP;
       for (const side of [0, 1] as const) {
         if (t > TIP_T[side]) continue;
-        const per = PERIMETER * scaleAt(t);
+        const per = PERIMETER * sectionAt(t) * 24;
         const count = Math.max(6, Math.round(per / CELL));
         for (let k = 0; k < count; k++) {
           // half-cell course offset: masonry, not a grid
@@ -177,29 +178,17 @@ export class LatticeWorld {
     this.markCounter++;
     const label = 'MARK ' + String(this.markCounter).padStart(2, '0');
 
-    // seat the mark onto the nearest prong's surface at that height
+    // seat the mark onto the outer face of the nearer half
     const my = Math.min(TOWER_TOP - CELL, Math.max(CELL, y));
     const t = my / TOWER_TOP;
-    let side: 0 | 1 = 0;
-    let centre = prongCentre(t, 0);
-    {
-      const other = prongCentre(Math.min(t, TIP_T[1]), 1);
-      const d0 = (x - centre.x) ** 2 + (z - centre.z) ** 2;
-      const d1 = (x - other.x) ** 2 + (z - other.z) ** 2;
-      if (d1 < d0) {
-        side = 1;
-        centre = other;
-      }
-    }
-    const frame = prongFrame(t, side);
-    const dx = x - centre.x;
-    const dz = z - centre.z;
-    const len = Math.hypot(dx, dz) || 1;
-    const la = dx * frame.radial[0] + dz * frame.radial[1];
-    const lb = dx * frame.tangential[0] + dz * frame.tangential[1];
-    const reach = profileSupport(la, lb) * scaleAt(t) + 0.45;
-    const sx = centre.x + (dx / len) * reach;
-    const sz = centre.z + (dz / len) * reach;
+    const side: 0 | 1 = x < 0 ? 0 : 1;
+    const s = side === 0 ? -1 : 1;
+    const cut = cutPlaneX(Math.min(t, TIP_T[side]), side);
+    const halfDepth = depthAt(t);
+    const sz = Math.min(halfDepth * 0.92, Math.max(-halfDepth * 0.92, z));
+    // ride the face: how far out the stone reaches at this depth
+    const across = 1 - Math.min(1, Math.abs(sz) / Math.max(1e-3, halfDepth));
+    const sx = cut + s * (0.35 + reachAt(t) * (0.25 + 0.75 * across));
 
     if (this.marks.length >= MAX_MARKS) {
       const oldest = this.marks.shift();

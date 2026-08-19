@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { FORM_H, cleftDir } from '../world/monumentForm';
 
 /**
  * The single authored travel: exterior, approach, the cleft, descent,
@@ -23,53 +22,51 @@ interface PathKey {
  * the twist.
  */
 function cleftKey(y: number, d: number): [number, number, number] {
-  const dir = cleftDir(y / FORM_H);
-  return [dir[0] * d, y, dir[1] * d];
+  // the fissure of the split spire runs north-south and does not turn
+  // with height: d is distance along it, negative on the approach side
+  return [0, y, d];
 }
 
 /**
- * The score: dwell where a panel is read, travel between. The approach
- * orbits so the twist reads in three dimensions; the climb hugs the
- * inscribed face; the breach enters the cleft between the prongs,
- * Brawler is read inside it among the ties, the passage corkscrews
- * down with the twist and exits low on the far side; the journey ends
- * at the foot, then the distance is given back: the opening frame
- * again, stripped, understood.
+ * The score for THE SPLIT SPIRE. The visitor sees it whole and holy,
+ * comes around its flank, reads the inscribed face close, then walks
+ * into the fissure at the foot where the halves part. Inside the slit
+ * the walls are within touching distance and the light is a blade
+ * overhead. The passage carries through and out the far side, and the
+ * journey ends by giving the distance back.
  */
 const KEYS: PathKey[] = [
   // ENTER: the approved opening frame, held
   { p: 0.0, pos: [0, 14, 300], look: [0, 96, 0], fov: 40, sev: 0.0 },
-  { p: 0.045, pos: [2, 14, 288], look: [0, 95, 0], fov: 40, sev: 0.0 },
-  // travel: the orbit in, the twist revealing itself
-  { p: 0.115, pos: [30, 22, 120], look: [0, 74, 0], fov: 43, sev: 0.03 },
-  // SYSTEM: dwell low at the face
-  { p: 0.15, pos: [30, 28, 60], look: [2, 60, 0], fov: 46, sev: 0.06 },
-  { p: 0.185, pos: [28, 30, 54], look: [2, 64, 0], fov: 46, sev: 0.08 },
-  // DESK42: dwell wide, the monument entire above its sea
-  { p: 0.255, pos: [78, 32, 220], look: [-6, 94, 0], fov: 44, sev: 0.12 },
-  { p: 0.325, pos: [72, 34, 212], look: [-6, 96, 0], fov: 44, sev: 0.16 },
-  // RULE: dwell close on the inscribed broad face, courses sweeping past
-  { p: 0.395, pos: [8, 104, 25], look: [12, 112, 3], fov: 50, sev: 0.42 },
-  { p: 0.462, pos: [4, 124, 24], look: [10, 130, 4], fov: 50, sev: 0.55 },
-  // travel: to the mouth of the gap between the slabs
-  { p: 0.5, pos: cleftKey(138, 30), look: cleftKey(134, 4), fov: 52, sev: 0.66 },
-  // BRAWLER: dwell inside, between the slabs, among the ties
-  { p: 0.53, pos: cleftKey(130, 7), look: cleftKey(112, 2), fov: 52, sev: 0.72 },
-  { p: 0.6, pos: cleftKey(114, 5), look: cleftKey(96, -2), fov: 52, sev: 0.78 },
-  // travel: down the slot, out the far side
-  { p: 0.64, pos: cleftKey(96, -4), look: cleftKey(78, -12), fov: 50, sev: 0.82 },
+  { p: 0.045, pos: [3, 14, 288], look: [0, 95, 0], fov: 40, sev: 0.0 },
+  // travel: around the flank, so the wedge reads as depth not as a card
+  { p: 0.115, pos: [86, 26, 150], look: [0, 78, 0], fov: 43, sev: 0.03 },
+  // SYSTEM: dwell low, the halves towering
+  { p: 0.15, pos: [64, 20, 92], look: [0, 62, 0], fov: 46, sev: 0.06 },
+  { p: 0.185, pos: [58, 22, 86], look: [0, 66, 0], fov: 46, sev: 0.08 },
+  // DESK42: dwell wide, the spire entire on its shore
+  { p: 0.255, pos: [96, 30, 240], look: [-4, 96, 0], fov: 44, sev: 0.12 },
+  { p: 0.325, pos: [88, 32, 232], look: [-4, 98, 0], fov: 44, sev: 0.16 },
+  // RULE: close on the inscribed face, courses sweeping past
+  { p: 0.395, pos: [46, 96, 40], look: [8, 108, 2], fov: 50, sev: 0.42 },
+  { p: 0.462, pos: [40, 116, 34], look: [6, 126, 2], fov: 50, sev: 0.55 },
+  // travel: down to the mouth of the fissure, where the halves part
+  { p: 0.5, pos: cleftKey(52, 92), look: cleftKey(44, 10), fov: 52, sev: 0.66 },
+  // BRAWLER: inside the slit, walls close, the light a blade overhead
+  { p: 0.53, pos: cleftKey(26, 26), look: cleftKey(40, -6), fov: 54, sev: 0.72 },
+  { p: 0.6, pos: cleftKey(22, 8), look: cleftKey(58, -18), fov: 54, sev: 0.78 },
+  // travel: through the passage and out behind
+  { p: 0.64, pos: cleftKey(20, -14), look: cleftKey(34, -46), fov: 52, sev: 0.82 },
   // TECHNOLOGY: emerged behind, the stripped face above
-  { p: 0.67, pos: cleftKey(66, -22), look: [0, 86, 0], fov: 47, sev: 0.87 },
-  { p: 0.74, pos: cleftKey(56, -40), look: [0, 80, 0], fov: 47, sev: 0.9 },
+  { p: 0.67, pos: cleftKey(34, -62), look: [0, 88, 0], fov: 47, sev: 0.87 },
+  { p: 0.74, pos: [-30, 40, -110], look: [0, 82, 0], fov: 47, sev: 0.9 },
   // STUDIO: dwell at the foot, above the scree line
-  { p: 0.81, pos: [-6, 18, 56], look: [0, 66, 0], fov: 46, sev: 0.88 },
-  { p: 0.86, pos: [-2, 15, 64], look: [0, 72, 0], fov: 46, sev: 0.87 },
-  // THE RETURN: distance given back, the opening frame again, known
-  // now. Framed a little right of centre so the closing words and the
-  // revealed lattice share the screen
-  { p: 0.9, pos: [0, 18, 110], look: [2, 80, 0], fov: 42, sev: 0.9 },
-  { p: 0.95, pos: [-4, 15, 165], look: [3, 90, 0], fov: 40, sev: 0.88 },
-  { p: 1.0, pos: [-8, 15, 205], look: [4, 92, 0], fov: 40, sev: 0.86 }
+  { p: 0.81, pos: [-58, 20, 62], look: [0, 68, 0], fov: 46, sev: 0.88 },
+  { p: 0.86, pos: [-40, 16, 84], look: [0, 74, 0], fov: 46, sev: 0.87 },
+  // THE RETURN: distance given back, the opening frame again, known now
+  { p: 0.9, pos: [-14, 18, 128], look: [2, 82, 0], fov: 42, sev: 0.9 },
+  { p: 0.95, pos: [-8, 15, 190], look: [2, 90, 0], fov: 40, sev: 0.88 },
+  { p: 1.0, pos: [-4, 14, 240], look: [2, 94, 0], fov: 40, sev: 0.86 }
 ];
 
 export interface CameraState {
