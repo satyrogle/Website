@@ -50,10 +50,15 @@ const KEYS: PathKey[] = [
   { p: 0.74, pos: [-17, 52, 58], look: [0, 72, 0], fov: 47, sev: 0.9 },
   // STUDIO: dwell at the foot, above the scree line
   { p: 0.81, pos: [-4, 20, 62], look: [0, 66, 0], fov: 46, sev: 0.88 },
-  { p: 0.875, pos: [-2, 14, 70], look: [0, 72, 0], fov: 46, sev: 0.87 },
-  // CONTACT: the true form, whole, held
-  { p: 0.945, pos: [0, 11, 92], look: [0, 88, 0], fov: 45, sev: 0.85 },
-  { p: 1.0, pos: [0, 10.5, 95], look: [0, 92, 0], fov: 45, sev: 0.85 }
+  { p: 0.86, pos: [-2, 15, 68], look: [0, 74, 0], fov: 46, sev: 0.87 },
+  // the tip: the ground gives, the crown recedes
+  { p: 0.885, pos: [0, 8, 66], look: [0, 150, 0], fov: 50, sev: 0.88 },
+  // THE FALL: through the surface
+  { p: 0.905, pos: [0, -2, 60], look: [0, 120, 8], fov: 58, sev: 0.9 },
+  { p: 0.93, pos: [0, -26, 52], look: [0, 70, 16], fov: 66, sev: 0.9 },
+  // the drowned world: the monument hangs above, inverted
+  { p: 0.965, pos: [0, -50, 46], look: [0, -60, 0], fov: 56, sev: 0.9 },
+  { p: 1.0, pos: [0, -46, 50], look: [0, -104, 0], fov: 50, sev: 0.88 }
 ];
 
 export interface CameraState {
@@ -65,6 +70,10 @@ export class CameraPath {
 
   private readonly pos = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
+  /** the current look target, for orbit-style parallax around it */
+  get lookPoint(): THREE.Vector3 {
+    return this.look;
+  }
   private readonly targetPos = new THREE.Vector3();
   private readonly targetLook = new THREE.Vector3();
   private fov = 40;

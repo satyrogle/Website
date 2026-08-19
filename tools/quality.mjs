@@ -185,8 +185,8 @@ async function harnessPage(context) {
       })
   );
   check(
-    'temporal calm: mean frame change under 1% over half a second',
-    diff < 0.01,
+    'temporal calm: drift allowed, strobe forbidden (under 4%/half-second)',
+    diff < 0.04,
     'diff=' + diff.toFixed(5)
   );
   await ctx.close();

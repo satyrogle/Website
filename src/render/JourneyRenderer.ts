@@ -8,6 +8,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
 import { CameraPath } from './CameraPath';
 
+const UP = new THREE.Vector3(0, 1, 0);
+
 const FRAG_COMMON = `#include <common>
 varying vec3 vMonoW;
 uniform float uDecay;
@@ -39,6 +41,7 @@ const FRAG_MAP = `#include <map_fragment>
   float edge = min(eUv.x, eUv.y);
   diffuseColor.rgb *= 0.8 + 0.2 * smoothstep(0.0, 0.09, edge);
   float eng = 0.0;
+  float cellHasRecord = step(0.68, monoHash(cell * 1.7 + 3.1));
   vec2 pp = cuv;
   float amp = 1.0;
   for (int i = 0; i < 4; i++) {
@@ -49,7 +52,7 @@ const FRAG_MAP = `#include <map_fragment>
     eng = max(eng, engFrame * keep * amp);
     amp *= 0.72;
   }
-  eng *= smoothstep(0.02, 0.09, edge);
+  eng *= smoothstep(0.02, 0.09, edge) * cellHasRecord;
   diffuseColor.rgb *= 1.0 - eng * 0.3;
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.55);
   diffuseColor.rgb *= mix(0.55, 1.2, heightT * heightT);
@@ -305,6 +308,7 @@ const MONO_VERT = /* glsl */ `
 
 const MONO_FRAG = /* glsl */ `
   precision highp float;
+  uniform float uUnder;
   in vec3 vWorld;
   in vec3 vNormalW;
   in float vFog;
@@ -406,7 +410,7 @@ const MONO_FRAG = /* glsl */ `
 
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorld.y));
     #ifdef MIRROR
-    col *= 0.24;
+    col *= mix(0.24, 0.85, uUnder);
     #endif
     col = mix(col, uFogColor, vFog);
     outColor = vec4(col, 1.0);
@@ -417,6 +421,7 @@ const MOTE_VERT = /* glsl */ `
   in float aSeed;
   uniform float uTime;
   uniform float uScale;
+  uniform float uFall;
   out float vSeed;
   void main() {
     vSeed = aSeed;
@@ -428,7 +433,7 @@ const MOTE_VERT = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     float dist = max(1.0, -mv.z);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = clamp(uScale * 0.055 * (0.5 + aSeed) / dist, 0.75, 3.5);
+    gl_PointSize = clamp(uScale * 0.08 * (0.5 + aSeed) * (1.0 + uFall * 2.8) / dist, 1.0, 14.0);
   }
 `;
 
@@ -437,15 +442,17 @@ const MOTE_FRAG = /* glsl */ `
   in float vSeed;
   uniform float uSeverity;
   uniform float uAmt;
+  uniform float uFall;
   out vec4 outColor;
   void main() {
     vec2 d = gl_PointCoord - 0.5;
-    float r2 = dot(d, d);
+    float r2 = dot(d, d) ;
     if (r2 > 0.25) discard;
-    float fall = exp(-r2 * 12.0);
+    // in the fall the air becomes speed
+    float fall = exp(-(d.x * d.x * mix(12.0, 60.0, uFall) + d.y * d.y * mix(12.0, 4.0, uFall)));
     vec3 warm = vec3(0.62, 0.5, 0.34);
     vec3 cold = vec3(0.3, 0.38, 0.5);
-    outColor = vec4(mix(warm, cold, uSeverity) * fall * 0.4 * uAmt, 1.0);
+    outColor = vec4(mix(warm, cold, uSeverity) * fall * 0.62 * uAmt, 1.0);
   }
 `;
 
@@ -469,12 +476,19 @@ const SEA_FRAG = /* glsl */ `
   void main() {
     float dist = length(vWorld - uCam);
     vec3 col = vec3(0.006, 0.009, 0.013);
+    if (!gl_FrontFacing) {
+      // the surface from beneath: a luminous ceiling, about to break
+      float overhead = exp(-max(0.0, dist - 8.0) * 0.02);
+      col = vec3(0.16, 0.17, 0.2) * (0.4 + 0.6 * overhead)
+          + vec3(0.14, 0.11, 0.06) * overhead * (1.0 - uSeverity * 0.5);
+      col *= 0.9 + 0.1 * sin(uTime * 0.4 + vWorld.x * 0.05 + vWorld.z * 0.04);
+    }
     // the monument's standing light on the water, dying as it strips
     float r = length(vWorld.xz);
     float pool = exp(-r * 0.016);
     vec3 poolCol = mix(vec3(0.185, 0.155, 0.115), vec3(0.10, 0.12, 0.15), uSeverity);
     col += poolCol * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4)
-        * (0.92 + 0.08 * sin(uTime * 0.3 + vWorld.x * 0.02 + vWorld.z * 0.013));
+        * (0.86 + 0.14 * sin(uTime * 0.3 + vWorld.x * 0.02 + vWorld.z * 0.013));
     float haze = 1.0 - exp(-dist * dist * 0.000004);
     col = mix(col, mix(vec3(0.022, 0.017, 0.012), vec3(0.010, 0.014, 0.020), uSeverity), haze);
     outColor = vec4(col, 0.72);
@@ -555,6 +569,10 @@ export class JourneyRenderer {
   private readonly hoverPoint = new THREE.Vector3(0, -999, 0);
   private pointerNdc: { x: number; y: number } | null = null;
   private hoverAmt = 0;
+  private parX = 0;
+  private parY = 0;
+  private prevProgress = 0;
+  private impactT = -10;
 
   constructor(canvas: HTMLCanvasElement, private readonly world: LatticeWorld, maxDpr: number) {
     this.maxDpr = maxDpr;
@@ -606,6 +624,7 @@ export class JourneyRenderer {
       }
     });
     this.seaMat.transparent = true;
+    this.seaMat.side = THREE.DoubleSide;
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), this.seaMat);
     sea.rotation.x = -Math.PI / 2;
     sea.position.y = SEA_Y;
@@ -740,7 +759,7 @@ export class JourneyRenderer {
 
     // --- the air: dust motes over the water, rising slowly ---
     {
-      const N = 260;
+      const N = 430;
       const rngM = mulberry32ish(world.seed ^ 0x5150);
       const mp = new Float32Array(N * 3);
       const ms = new Float32Array(N);
@@ -763,7 +782,8 @@ export class JourneyRenderer {
           uTime: { value: 0 },
           uScale: { value: 900 },
           uSeverity: { value: 0 },
-          uAmt: { value: 1 }
+          uAmt: { value: 1 },
+          uFall: { value: 0 }
         },
         blending: THREE.AdditiveBlending,
         depthWrite: false,
@@ -803,6 +823,7 @@ export class JourneyRenderer {
 
     // --- the monument itself: authored stone, not boxes ---
     const monoUniforms = (): Record<string, THREE.IUniform> => ({
+      uUnder: { value: 0 },
       uTime: { value: 0 },
       uDecay: { value: 0 },
       uSeverity: { value: 0 },
@@ -850,7 +871,8 @@ export class JourneyRenderer {
         const terrainMat = new THREE.MeshStandardMaterial({
           color: 0x181a1e,
           roughness: 0.96,
-          metalness: 0.0
+          metalness: 0.0,
+          side: THREE.DoubleSide
         });
         gltf.scene.traverse((o) => {
           if (!(o as THREE.Mesh).isMesh) return;
@@ -887,9 +909,26 @@ export class JourneyRenderer {
     this.time += dt;
     this.path.update(this.camera, progress, dt, reduced);
     if (!reduced) {
-      // the sea breathes under the viewpoint, barely
-      this.camera.position.x += Math.sin(this.time * 0.09) * 0.16;
-      this.camera.position.y += Math.sin(this.time * 0.06 + 2.0) * 0.11;
+      // the world is never embalmed: the camera orbits its subject,
+      // drifting on its own and leaning with the visitor's hand
+      const t = this.time;
+      const px = this.pointerNdc ? this.pointerNdc.x : 0;
+      const py = this.pointerNdc ? this.pointerNdc.y : 0;
+      this.parX += (px - this.parX) * (1 - Math.exp(-dt * 1.6));
+      this.parY += (py - this.parY) * (1 - Math.exp(-dt * 1.6));
+      const yaw = this.parX * 0.11 + Math.sin(t * 0.5) * 0.02 + Math.sin(t * 0.13) * 0.012;
+      const pitch = this.parY * 0.055 + Math.sin(t * 0.34 + 2.0) * 0.014;
+      const lookP = this.path.lookPoint;
+      const off = this.camera.position.clone().sub(lookP);
+      off.applyAxisAngle(UP, -yaw);
+      const right = new THREE.Vector3().crossVectors(off, UP).normalize();
+      off.applyAxisAngle(right, pitch);
+      off.multiplyScalar(1 + Math.sin(t * 0.21 + 4.0) * 0.02);
+      this.camera.position.copy(lookP).add(off);
+      // the frame itself leans with the hand: the subject swings gently
+      const sway = lookP.clone().addScaledVector(right.normalize(), -this.parX * 5.0);
+      sway.y += -this.parY * 3.0 + Math.sin(t * 0.4 + 1.0) * 0.6;
+      this.camera.lookAt(sway);
     }
     const sev = this.path.state.severity;
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
@@ -940,7 +979,7 @@ export class JourneyRenderer {
     // holiness dims as the monument strips, and never smears the lens
     const haloFade = smooth01(this.camera.position.distanceTo(this.halo.position), 40, 95);
     const crownFade = smooth01(this.camera.position.distanceTo(this.crownHalo.position), 40, 95);
-    const breath = reduced ? 1 : 0.93 + 0.07 * Math.sin(this.time * 0.22);
+    const breath = reduced ? 1 : 0.88 + 0.12 * Math.sin(this.time * 0.22);
     this.halo.material.opacity = 0.45 * (1 - decay * 0.85) * haloFade * breath;
     this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade * (2 - breath) * 0.5;
 
@@ -972,7 +1011,11 @@ export class JourneyRenderer {
     this.markMat.uniforms.uTime!.value = this.world.tick / 60;
     this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.time;
     this.moteMat.uniforms.uSeverity!.value = sev;
-    this.moteMat.uniforms.uAmt!.value = 1 - smooth01(progress, 0.45, 0.62) * (1 - smooth01(progress, 0.64, 0.72));
+    const fallAmt = smooth01(progress, 0.89, 0.93) * (1 - smooth01(progress, 0.955, 0.985));
+    this.moteMat.uniforms.uFall!.value = reduced ? 0 : fallAmt;
+    this.moteMat.uniforms.uAmt!.value =
+      (1 - smooth01(progress, 0.45, 0.62) * (1 - smooth01(progress, 0.64, 0.72))) *
+      (1 + fallAmt * 1.5);
     const marks = this.world.marks;
     for (let m = 0; m < marks.length; m++) {
       const mk = marks[m]!;
@@ -984,6 +1027,31 @@ export class JourneyRenderer {
     this.markGeom.setDrawRange(0, marks.length);
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;
+
+    // THE BREAK: crossing the surface, once, both directions
+    const IMPACT_P = 0.9;
+    if (
+      !reduced &&
+      ((this.prevProgress < IMPACT_P && progress >= IMPACT_P) ||
+        (this.prevProgress > IMPACT_P && progress <= IMPACT_P))
+    ) {
+      this.impactT = this.time;
+      const flash = document.getElementById('flash');
+      const crack = document.getElementById('crack');
+      for (const el of [flash, crack]) {
+        if (!el) continue;
+        el.classList.add('hit');
+        void el.getBoundingClientRect();
+        el.classList.remove('hit');
+      }
+    }
+    this.prevProgress = progress;
+    const thud = Math.exp(-(this.time - this.impactT) * 3.0);
+    this.bloom.strength = 0.34 + 1.1 * (thud > 0.01 ? thud : 0);
+    // beneath the surface the drowned world takes over
+    const under = smooth01(-this.camera.position.y, 0, 14);
+    this.monoMirrorMat.uniforms.uTime!.value = this.time;
+    if (this.monoMirrorMat.uniforms.uUnder) this.monoMirrorMat.uniforms.uUnder.value = under;
 
     // survey annotations track their anchors
     const v = new THREE.Vector3();

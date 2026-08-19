@@ -36,20 +36,29 @@ d1.texture = strata
 d1.strength = 0.9
 d1.direction = "X"
 
-wear = bpy.data.textures.new("Wear", type="CLOUDS")
-wear.noise_scale = 22.0
-d2 = mono.modifiers.new("Wear", "DISPLACE")
-d2.texture = wear
-d2.strength = 0.45
-
-# the two journey wounds, carved as boolean bites
-for name, loc, r in (("WoundA", (5.0, -20.0, 140.0), 6.5), ("WoundB", (-5.0, -20.0, 65.0), 6.0)):
-    bpy.ops.mesh.primitive_ico_sphere_add(radius=r, subdivisions=3, location=loc)
+# the two journey wounds: clusters of bites, never a drilled circle
+wound_defs = (
+    ("WoundA", (5.0, -20.0, 140.0), 6.0),
+    ("WoundA2", (8.5, -18.0, 136.5), 4.2),
+    ("WoundA3", (2.0, -19.0, 144.0), 3.6),
+    ("WoundB", (-5.0, -20.0, 65.0), 5.4),
+    ("WoundB2", (-8.0, -18.5, 61.0), 3.8),
+    ("WoundB3", (-2.0, -19.0, 69.5), 3.2),
+)
+for name, loc, r in wound_defs:
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=r, subdivisions=2, location=loc)
     w = bpy.context.active_object
     w.name = name
     b = mono.modifiers.new(name, "BOOLEAN")
     b.operation = "DIFFERENCE"
     b.object = w
+
+# fine wear applied AFTER the cuts: the wound edges become torn stone
+wear = bpy.data.textures.new("Wear", type="CLOUDS")
+wear.noise_scale = 9.0
+d2 = mono.modifiers.new("Wear", "DISPLACE")
+d2.texture = wear
+d2.strength = 0.85
 
 bpy.context.view_layer.objects.active = mono
 for m in list(mono.modifiers):
