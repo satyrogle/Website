@@ -113,6 +113,31 @@ Standing plan, staged, each stage judged on frames before the next:
 4. Later stages: chapter transitions, loader choreography, terrain
    dressing, sound (Gate F territory).
 
+## THE JOURNEY, IN JACOB'S OWN WORDS, 2026-08-19
+
+Verbatim, on the split spire: "it was angelic and holy and once we
+travel into the through a tunnel like the lusion when astronaut is
+falling in a tunnel its soo cool can we mimic that and then at the end
+we see true latent form which is a something sinister staring back"
+
+Rulings:
+1. The spire's register is ANGELIC AND HOLY: bone-pale stone, a
+   luminous white fissure, sacred light. The sombre grey render missed
+   the reference and is corrected.
+2. The journey enters THROUGH the fissure and FALLS down a lit shaft:
+   a falling-tunnel beat explicitly authorized by Jacob's instruction,
+   which overrides the earlier no-tunnel ban for this beat only. The
+   quality taken from lusion's astronaut fall is the sensation of
+   descent through a confined lit space; their content is not copied.
+3. The end of the fall is THE LATENT FORM: something sinister staring
+   back. Designed under the standing no-monster law as an implied
+   watcher: a dark faceless form, backlit, still, its regard carried
+   by posture and placement. The Sauron rule stands: no lit void
+   framed as an eye, no two-point gaze.
+4. Fission idol: core read as phallic and is replaced with a hanging
+   shard cluster; the crown gets a clean angled break. Jacob directs
+   further after seeing it.
+
 ## KILL WORD, 2026-08-19, Jacob: "it looks like eye of sauron bro"
 
 Fires the kill-word law. The frame is dead as composed, and the cause
