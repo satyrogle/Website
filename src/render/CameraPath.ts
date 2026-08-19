@@ -48,19 +48,19 @@ const KEYS: PathKey[] = [
   // DESK42: dwell wide, the monument entire above its sea
   { p: 0.255, pos: [78, 32, 220], look: [-6, 94, 0], fov: 44, sev: 0.12 },
   { p: 0.325, pos: [72, 34, 212], look: [-6, 96, 0], fov: 44, sev: 0.16 },
-  // RULE: dwell close on the inscribed flank, courses sweeping past
-  { p: 0.395, pos: [18, 100, 34], look: [5, 110, -2], fov: 50, sev: 0.42 },
-  { p: 0.462, pos: [12, 118, 30], look: [2, 126, -4], fov: 50, sev: 0.55 },
-  // travel: to the mouth of the cleft
-  { p: 0.5, pos: cleftKey(138, -30), look: cleftKey(134, -4), fov: 52, sev: 0.66 },
-  // BRAWLER: dwell inside, between the prongs, among the ties
-  { p: 0.53, pos: cleftKey(130, -7), look: cleftKey(112, -2), fov: 52, sev: 0.72 },
-  { p: 0.6, pos: cleftKey(114, -5), look: cleftKey(96, 2), fov: 52, sev: 0.78 },
-  // travel: the corkscrew down, turning with the twist
-  { p: 0.64, pos: cleftKey(96, 4), look: cleftKey(78, 12), fov: 50, sev: 0.82 },
-  // TECHNOLOGY: emerged low on the far side, the stripped face above
-  { p: 0.67, pos: cleftKey(66, 22), look: [0, 86, 0], fov: 47, sev: 0.87 },
-  { p: 0.74, pos: cleftKey(56, 40), look: [0, 80, 0], fov: 47, sev: 0.9 },
+  // RULE: dwell close on the inscribed broad face, courses sweeping past
+  { p: 0.395, pos: [8, 104, 25], look: [12, 112, 3], fov: 50, sev: 0.42 },
+  { p: 0.462, pos: [4, 124, 24], look: [10, 130, 4], fov: 50, sev: 0.55 },
+  // travel: to the mouth of the gap between the slabs
+  { p: 0.5, pos: cleftKey(138, 30), look: cleftKey(134, 4), fov: 52, sev: 0.66 },
+  // BRAWLER: dwell inside, between the slabs, among the ties
+  { p: 0.53, pos: cleftKey(130, 7), look: cleftKey(112, 2), fov: 52, sev: 0.72 },
+  { p: 0.6, pos: cleftKey(114, 5), look: cleftKey(96, -2), fov: 52, sev: 0.78 },
+  // travel: down the slot, out the far side
+  { p: 0.64, pos: cleftKey(96, -4), look: cleftKey(78, -12), fov: 50, sev: 0.82 },
+  // TECHNOLOGY: emerged behind, the stripped face above
+  { p: 0.67, pos: cleftKey(66, -22), look: [0, 86, 0], fov: 47, sev: 0.87 },
+  { p: 0.74, pos: cleftKey(56, -40), look: [0, 80, 0], fov: 47, sev: 0.9 },
   // STUDIO: dwell at the foot, above the scree line
   { p: 0.81, pos: [-6, 18, 56], look: [0, 66, 0], fov: 46, sev: 0.88 },
   { p: 0.86, pos: [-2, 15, 64], look: [0, 72, 0], fov: 46, sev: 0.87 },

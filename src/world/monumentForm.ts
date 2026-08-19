@@ -1,8 +1,9 @@
 /**
- * The monument's form, as mathematics. v2 after the "nope" of
- * 2026-08-19: one fused trunk splitting into two broad flat
- * ribbon-blades that wrap each other in a visible helix, tips crossing
- * the axis and hooking past each other at the crown.
+ * The monument's form, as mathematics. v3: THE FORK, contact-sheet
+ * candidate A, chosen dealer's-choice under "igloo bar, monument
+ * content, go". Two broad slabs facing the visitor, fused at the foot,
+ * a lens of open sky between them, one tip curling over and past the
+ * other at the crown.
  *
  * Single source of truth: tools/blender/monument.py mirrors these
  * constants exactly, and the two GLSL blocks in JourneyRenderer inline
@@ -12,30 +13,30 @@
 
 export const FORM_H = 195;
 /** total twist base to tip, radians */
-export const FORM_PHI = 4.0;
-/** base orientation: the cleft must not face the opening camera */
-export const FORM_PHI0 = 0.55;
-const TWIST_POW = 1.05;
+export const FORM_PHI = 1.1;
+/** base orientation: the gap faces the opening camera; the fork reads */
+export const FORM_PHI0 = -0.35;
+const TWIST_POW = 1.0;
 
 /**
- * ribbon-blade cross-section, local units: a = radial (thin axis,
- * outward keel +), b = tangential (the wide axis that carries the
- * helix read)
+ * slab cross-section, local units: a = radial is the WIDE axis (the
+ * broad face toward the visitor), b = tangential is the thin depth
+ * with the edge toward the gap
  */
 export const PROFILE: ReadonlyArray<readonly [number, number]> = [
-  [4.8, 0.0],
-  [3.0, 6.4],
-  [0.8, 12.5],
-  [-2.2, 11.2],
-  [-4.0, 5.2],
-  [-4.0, -5.2],
-  [-2.2, -11.2],
-  [0.8, -12.5],
-  [3.0, -6.4]
+  [11.0, 0.0],
+  [8.0, 3.2],
+  [2.0, 4.0],
+  [-4.5, 3.4],
+  [-8.8, 1.7],
+  [-8.8, -1.7],
+  [-4.5, -3.4],
+  [2.0, -4.0],
+  [8.0, -3.2]
 ];
 
 /** blade B stops short of the crown: the tips must not mirror */
-export const TIP_T: readonly [number, number] = [1.0, 0.958];
+export const TIP_T: readonly [number, number] = [1.0, 0.94];
 
 function smoothstep01(e0: number, e1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -53,9 +54,9 @@ export function twistAt(t: number): number {
  */
 export function radiusAt(t: number): number {
   return (
-    3.4 +
-    34.0 * t * Math.pow(Math.max(1 - t, 0), 1.15) -
-    5.5 * smoothstep01(0.84, 1.0, t)
+    4.0 +
+    36.0 * t * Math.pow(Math.max(1 - t, 0), 1.1) -
+    11.0 * Math.pow(smoothstep01(0.86, 1.0, t), 1.6)
   );
 }
 
@@ -67,8 +68,8 @@ export function hookAt(t: number): number {
 /** cross-section scale: planted at the base, narrow at the tip */
 export function scaleAt(t: number): number {
   return (
-    (1.15 - 0.86 * Math.pow(Math.max(t, 0), 1.3)) *
-    (1 + 0.1 * Math.sin(Math.PI * Math.min(1, 1.15 * t)))
+    (1.2 - 0.92 * Math.pow(Math.max(t, 0), 1.3)) *
+    (1 + 0.06 * Math.sin(Math.PI * Math.min(1, 1.15 * t)))
   );
 }
 

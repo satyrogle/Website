@@ -30,17 +30,17 @@ const FRAG_MAP = `#include <map_fragment>
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
 
   // unwrap the twist first: the decay field and the glyph courses both
-  // follow the blades. Constants mirror monumentForm.ts; pow(0,y)
-  // guarded, it has burned this project once already
-  float tphi = 0.55 + 4.0 * pow(max(heightT, 1e-4), 1.05);
+  // follow the blades. Constants mirror monumentForm.ts (THE FORK);
+  // pow(0,y) guarded, it has burned this project once already
+  float tphi = -0.35 + 1.1 * heightT;
   float cph = cos(tphi);
   float sph = sin(tphi);
   vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
   float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-  float formS = (1.15 - 0.86 * pow(max(heightT, 1e-4), 1.3))
-              * (1.0 + 0.1 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
-  float formR = 3.4 + 34.0 * heightT * pow(max(1.0 - heightT, 0.0), 1.15)
-              - 5.5 * smoothstep(0.84, 1.0, heightT);
+  float formS = (1.2 - 0.92 * pow(max(heightT, 1e-4), 1.3))
+              * (1.0 + 0.06 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
+  float formR = 4.0 + 36.0 * heightT * pow(max(1.0 - heightT, 0.0), 1.1)
+              - 11.0 * pow(smoothstep(0.86, 1.0, heightT), 1.6);
   float hookT = 4.2 * smoothstep(0.84, 0.97, heightT);
   vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
   float ang = atan(lp.y, lp.x);
@@ -68,17 +68,10 @@ const FRAG_MAP = `#include <map_fragment>
   // channels live on the standing faces, not the tips and ledges
   float vertFace = smoothstep(0.55, 0.35, abs(normalize(vNormal).y));
 
-  // slab courses: the mass reads as stacked segments. Dark undercut at
-  // each course base, lit shelf lip at its top, occasional recessed
-  // band
-  float courseF = vMonoW.y / 2.1;
-  float course = floor(courseF);
-  float cf = fract(courseF);
-  float cHash = monoHash(vec3(course, sideS, 11.0));
-  diffuseColor.rgb *= 1.0 - smoothstep(0.10, 0.0, cf) * 0.30 * vertFace;
-  diffuseColor.rgb *= 1.0 + smoothstep(0.86, 0.97, cf) * 0.20 * vertFace;
-  float recess = step(0.82, cHash);
-  diffuseColor.rgb *= 1.0 - recess * 0.16 * vertFace;
+  // the slab courses are REAL now: stepped shelves live in the baked
+  // normal and AO maps. The shader only keeps the course phase for the
+  // roughness split below
+  float cf = fract(vMonoW.y / 2.1);
 
   float rowH = 1.05;
   float rowF = vMonoW.y / rowH;
@@ -90,7 +83,7 @@ const FRAG_MAP = `#include <map_fragment>
   float strataTone = 0.88 + 0.22 * monoHash(vec3(strata, sideS, 3.3));
   diffuseColor.rgb *= strataTone;
 
-  float cols = max(24.0, floor(74.0 * formS));
+  float cols = max(20.0, floor(52.0 * formS));
   float colF = (ang / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
   float col = floor(colF);
   float fu = fract(colF);
@@ -116,14 +109,9 @@ const FRAG_MAP = `#include <map_fragment>
   float seam = smoothstep(0.045, 0.0, min(fv, 1.0 - fv));
   diffuseColor.rgb *= 1.0 - seam * 0.12 * vertFace;
 
-  // veining: faint mineral threads, close to invisible until the lamp
-  // or a shelf light crosses them
-  float w1 = sin(vMonoW.y * 0.39 + vMonoW.x * 0.19)
-           + sin(vMonoW.z * 0.29 - vMonoW.y * 0.12);
-  float vein = smoothstep(0.978, 0.998,
-      0.5 + 0.5 * sin(vMonoW.x * 1.2 + vMonoW.z * 0.95 + w1 * 2.2));
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.3, 0.305, 0.32), vein * 0.12 * vertFace);
-
+  // no procedural veining: on a broad flat slab a world-space sine
+  // smears into wavy streaks. The relief comes from the baked normal
+  // and AO maps, which is the whole point of the sculpt pipeline
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.35);
   diffuseColor.rgb *= mix(0.7, 1.0, heightT * heightT);
   diffuseColor.rgb = mix(diffuseColor.rgb * 0.3, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
@@ -136,7 +124,7 @@ const FRAG_MAP = `#include <map_fragment>
   // undercuts, tips and ledges stay matte so the sheen reads as
   // material, not glaze, and the cut edges of decay never flare
   float polish = vertFace * (1.0 - smoothstep(0.10, 0.0, cf));
-  vMonoRough = mix(0.66, mix(0.38, 0.62, clamp(glyph + vein * 0.6, 0.0, 1.0)), polish);
+  vMonoRough = mix(0.66, mix(0.38, 0.62, clamp(glyph, 0.0, 1.0)), polish);
   }
 }`;
 
@@ -167,6 +155,33 @@ if (gl_FrontFacing) {
  * renderer owns no authoritative state: decay is a pure function of
  * scroll, strikes come from the world's law.
  */
+
+/**
+ * The light score: every beat is lit on purpose. Warm hero light at
+ * the establish, a raking key across the relief at the reading dwells
+ * (the igloo move: material is revealed by light direction, not
+ * brightness), near-darkness inside the cleft, cold witness light for
+ * the return. Lerped by scroll progress.
+ */
+const LIGHT_KEYS: Array<{
+  p: number;
+  i: number;
+  c: string;
+  d: [number, number, number];
+  amb: number;
+  env: number;
+}> = [
+  { p: 0.0, i: 1.0, c: '#ffe0b3', d: [0.35, 0.75, 0.55], amb: 1.1, env: 0.28 },
+  { p: 0.15, i: 1.45, c: '#ffd9a0', d: [0.9, 0.35, 0.15], amb: 0.85, env: 0.32 },
+  { p: 0.29, i: 1.0, c: '#ffdcae', d: [0.5, 0.6, 0.45], amb: 1.0, env: 0.3 },
+  { p: 0.43, i: 1.5, c: '#f6d3a2', d: [0.95, 0.3, -0.1], amb: 0.7, env: 0.34 },
+  { p: 0.53, i: 0.4, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.2 },
+  { p: 0.65, i: 0.45, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.2 },
+  { p: 0.7, i: 0.7, c: '#b9cfe8', d: [-0.6, 0.5, -0.5], amb: 0.6, env: 0.26 },
+  { p: 0.83, i: 0.8, c: '#e8c9a0', d: [0.3, 0.4, 0.8], amb: 0.8, env: 0.26 },
+  { p: 0.92, i: 0.55, c: '#aebfd6', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.24 },
+  { p: 1.0, i: 0.5, c: '#a8bad2', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.24 }
+];
 
 const CLAD_VERT = /* glsl */ `
   in vec3 aOffset;
@@ -652,6 +667,8 @@ export class JourneyRenderer {
   })();
   private rimLight!: THREE.DirectionalLight;
   private witnessLight!: THREE.DirectionalLight;
+  private keyLight!: THREE.DirectionalLight;
+  private ambient!: THREE.AmbientLight;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
   private monoMirrorMat!: THREE.ShaderMaterial;
@@ -849,11 +866,13 @@ export class JourneyRenderer {
     this.scree.count = 0;
     this.scene.add(this.scree);
 
-    // --- light for the standard materials ---
-    const keyLight = new THREE.DirectionalLight(0xe8eef5, 1.0);
-    keyLight.position.set(0.35, 0.8, 0.55);
-    this.scene.add(keyLight);
-    this.scene.add(new THREE.AmbientLight(0x1a2129, 1.1));
+    // --- light for the standard materials: driven per beat by the
+    // light score in update(), never one static rig ---
+    this.keyLight = new THREE.DirectionalLight(0xe8eef5, 1.0);
+    this.keyLight.position.set(0.35, 0.8, 0.55);
+    this.scene.add(this.keyLight);
+    this.ambient = new THREE.AmbientLight(0x1a2129, 1.1);
+    this.scene.add(this.ambient);
 
     // the traveller's light: alive only inside the cleft, and kept
     // faint. The passage must stay darkness with structure, never a
@@ -961,13 +980,25 @@ export class JourneyRenderer {
       uFogDensity: { value: 0.0022 }
     });
     // physically based stone, with the world's law injected into it:
-    // dark igneous mass, faint metallic sheen, light living on the
-    // ridges and in the carved grooves rather than on the faces
+    // dark igneous mass whose relief is REAL, baked from the high-poly
+    // sculpt (tools/blender/monument.py) into tangent normal + AO maps
     this.stoneU = monoUniforms();
+    const texLoader = new THREE.TextureLoader();
+    const stoneNormal = texLoader.load('/models/monument-normal.png');
+    stoneNormal.flipY = false;
+    stoneNormal.colorSpace = THREE.NoColorSpace;
+    const stoneAO = texLoader.load('/models/monument-ao.png');
+    stoneAO.flipY = false;
+    stoneAO.colorSpace = THREE.NoColorSpace;
+    stoneAO.channel = 0;
     const stone = new THREE.MeshStandardMaterial({
       color: 0x232529,
       roughness: 0.34,
       metalness: 0.06,
+      normalMap: stoneNormal,
+      normalScale: new THREE.Vector2(1, 1),
+      aoMap: stoneAO,
+      aoMapIntensity: 1.0,
       side: THREE.DoubleSide
     });
     stone.onBeforeCompile = (sh) => {
@@ -1039,16 +1070,20 @@ export class JourneyRenderer {
   update(progress: number, dt: number, reduced: boolean): void {
     this.time += dt;
     this.path.update(this.camera, progress, dt, reduced);
+    const inside = smooth01(progress, 0.49, 0.53) * (1 - smooth01(progress, 0.65, 0.69));
     if (!reduced) {
       // the world is never embalmed: the camera orbits its subject,
-      // drifting on its own and leaning with the visitor's hand
+      // drifting on its own and leaning with the visitor's hand. The
+      // hand's reach shrinks inside the cleft: the walls are close
       const t = this.time;
+      const reach = 1 - inside * 0.8;
       const px = this.pointerNdc ? this.pointerNdc.x : 0;
       const py = this.pointerNdc ? this.pointerNdc.y : 0;
       this.parX += (px - this.parX) * (1 - Math.exp(-dt * 1.6));
       this.parY += (py - this.parY) * (1 - Math.exp(-dt * 1.6));
-      const yaw = this.parX * 0.11 + Math.sin(t * 0.5) * 0.02 + Math.sin(t * 0.13) * 0.012;
-      const pitch = this.parY * 0.055 + Math.sin(t * 0.34 + 2.0) * 0.014;
+      const yaw =
+        (this.parX * 0.11 + Math.sin(t * 0.5) * 0.02 + Math.sin(t * 0.13) * 0.012) * reach;
+      const pitch = (this.parY * 0.055 + Math.sin(t * 0.34 + 2.0) * 0.014) * reach;
       const lookP = this.path.lookPoint;
       const off = this.camera.position.clone().sub(lookP);
       off.applyAxisAngle(UP, -yaw);
@@ -1063,7 +1098,24 @@ export class JourneyRenderer {
     }
     const sev = this.path.state.severity;
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
-    const inside = smooth01(progress, 0.49, 0.53) * (1 - smooth01(progress, 0.65, 0.69));
+
+    // the light score: each beat is lit on purpose
+    {
+      let k = 0;
+      while (k < LIGHT_KEYS.length - 2 && LIGHT_KEYS[k + 1]!.p < progress) k++;
+      const a = LIGHT_KEYS[k]!;
+      const b = LIGHT_KEYS[k + 1]!;
+      const f = smooth01(progress, a.p, b.p);
+      this.keyLight.intensity = a.i + (b.i - a.i) * f;
+      this.keyLight.color.copy(lerpColor(a.c, b.c, f));
+      this.keyLight.position.set(
+        a.d[0] + (b.d[0] - a.d[0]) * f,
+        a.d[1] + (b.d[1] - a.d[1]) * f,
+        a.d[2] + (b.d[2] - a.d[2]) * f
+      );
+      this.ambient.intensity = a.amb + (b.amb - a.amb) * f;
+      this.scene.environmentIntensity = a.env + (b.env - a.env) * f;
+    }
 
     // the air thickens on the way in and clears again with the return,
     // so the revealed lattice is seen, not swallowed
