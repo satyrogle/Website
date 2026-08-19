@@ -339,10 +339,9 @@ low.data.materials.clear()
 bpy.ops.object.select_all(action="DESELECT")
 low.select_set(True)
 bpy.context.view_layer.objects.active = low
-try:
-    bpy.ops.object.shade_auto_smooth(angle=0.5)
-except Exception:
-    bpy.ops.object.shade_flat()
+# hard planes: the spec's edges are machined, with no smoothing across
+# a facet boundary
+bpy.ops.object.shade_flat()
 
 # --- the shore ---
 bpy.ops.mesh.primitive_plane_add(size=1400)

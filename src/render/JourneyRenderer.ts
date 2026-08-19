@@ -102,6 +102,22 @@ const FRAG_MAP = `#include <map_fragment>
     glyph = max(glyph, mark);
   }
 
+  // long scratch lines: the fine diagonal hairlines the sheets carry
+  // across every face, at a much longer scale than the glyphs
+  float scratch = 0.0;
+  for (int sc = 0; sc < 3; sc++) {
+    float band = 3.0 + float(sc) * 2.3;
+    vec2 sp = vec2(ang, vMonoW.y * 0.055);
+    float sa = 0.6 + float(sc) * 0.9;
+    float proj = sp.x * cos(sa) + sp.y * sin(sa);
+    float lane = floor(proj * band);
+    float lh = monoHash(vec3(lane, sideS, float(sc) * 11.0));
+    if (lh < 0.55) continue;
+    float d = abs(fract(proj * band) - 0.5) / band;
+    float run = smoothstep(0.9, 0.2, abs(fract(sp.y * 0.35 + lh * 3.0) - 0.5) * 2.0);
+    scratch = max(scratch, smoothstep(0.020, 0.002, d * band) * run);
+  }
+
   // macro plate cracks: sparse and thin, a few per face. A periodic
   // fract() here striped the whole skin like corduroy
   vec2 pc = vec2(ang * 1.15, vMonoW.y * 0.026);
@@ -126,11 +142,14 @@ const FRAG_MAP = `#include <map_fragment>
   float rough = 0.48 + 0.045 * (micro - 0.5) * 2.0 + 0.035 * (macroVar - 0.5) * 2.0;
   rough += glyph * 0.16;
   rough += crack * 0.14;
+  rough -= scratch * 0.26;
   vMonoRough = clamp(rough, 0.24, 0.92);
 
   // albedo barely moves: a hint of darkening in the deepest grooves,
   // and only where the light is already raking
   diffuseColor.rgb *= 1.0 - glyph * 0.10 * graze;
+  // a scratch is a polished cut: it catches, never darkens
+  diffuseColor.rgb += diffuseColor.rgb * scratch * graze * 1.6;
   diffuseColor.rgb *= 1.0 - crack * 0.28;
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.76, 1.05), uSeverity * 0.3);
   diffuseColor.rgb = mix(diffuseColor.rgb * 0.35, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
@@ -199,16 +218,16 @@ const LIGHT_KEYS: Array<{
   amb: number;
   env: number;
 }> = [
-  { p: 0.0, i: 0.88, c: '#ffe0b3', d: [0.35, 0.75, 0.55], amb: 1.1, env: 0.29 },
-  { p: 0.15, i: 1.28, c: '#ffd9a0', d: [0.9, 0.35, 0.15], amb: 0.85, env: 0.33 },
-  { p: 0.29, i: 0.88, c: '#ffdcae', d: [0.5, 0.6, 0.45], amb: 1.0, env: 0.30 },
-  { p: 0.43, i: 1.33, c: '#f6d3a2', d: [0.95, 0.3, -0.1], amb: 0.7, env: 0.35 },
-  { p: 0.53, i: 0.35, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
-  { p: 0.65, i: 0.40, c: '#cfe0f0', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
-  { p: 0.7, i: 0.62, c: '#b9cfe8', d: [-0.6, 0.5, -0.5], amb: 0.6, env: 0.27 },
-  { p: 0.83, i: 0.71, c: '#e8c9a0', d: [0.3, 0.4, 0.8], amb: 0.8, env: 0.27 },
-  { p: 0.92, i: 0.48, c: '#aebfd6', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 },
-  { p: 1.0, i: 0.44, c: '#a8bad2', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 }
+  { p: 0.0, i: 0.88, c: '#eef1f4', d: [0.35, 0.75, 0.55], amb: 1.1, env: 0.29 },
+  { p: 0.15, i: 1.28, c: '#e8ecf0', d: [0.9, 0.35, 0.15], amb: 0.85, env: 0.33 },
+  { p: 0.29, i: 0.88, c: '#e9edf1', d: [0.5, 0.6, 0.45], amb: 1.0, env: 0.30 },
+  { p: 0.43, i: 1.33, c: '#e4e9ee', d: [0.95, 0.3, -0.1], amb: 0.7, env: 0.35 },
+  { p: 0.53, i: 0.35, c: '#cfd9e4', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
+  { p: 0.65, i: 0.40, c: '#cfd9e4', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
+  { p: 0.7, i: 0.62, c: '#c3ccd8', d: [-0.6, 0.5, -0.5], amb: 0.6, env: 0.27 },
+  { p: 0.83, i: 0.71, c: '#dbe1e8', d: [0.3, 0.4, 0.8], amb: 0.8, env: 0.27 },
+  { p: 0.92, i: 0.48, c: '#b4bfcd', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 },
+  { p: 1.0, i: 0.44, c: '#aeb9c8', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 }
 ];
 
 const CLAD_VERT = /* glsl */ `
@@ -808,7 +827,7 @@ export class JourneyRenderer {
         uHoverAmt: { value: 0 },
         uInner: { value: new THREE.Vector3(0, -999, 0) },
         uInnerAmt: { value: 0 },
-        uFogColor: { value: new THREE.Color('#0a1016') },
+        uFogColor: { value: new THREE.Color('#07080a') },
         uFogDensity: { value: 0.0035 }
       }
     });
@@ -998,12 +1017,12 @@ export class JourneyRenderer {
     // Second law, learned when the frame read as the Eye of Sauron:
     // the glow NEVER sits in the gap between the horns. A lit void
     // framed by two curved forms is an eye. It lives off-axis and low.
-    this.halo = makeHalo('#c9a071', 210);
+    this.halo = makeHalo('#8f9aa8', 180);
     this.halo.position.set(-104, TOWER_TOP * 0.18, -HALO_DEPTH);
     this.scene.add(this.halo);
     // the crown light belongs to the tall horn alone, never centred
     const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
-    this.crownHalo = makeHalo('#ecd0a0', 72);
+    this.crownHalo = makeHalo('#cdd6e2', 64);
     this.crownHalo.position.set(tallTip.x * 2.2, tallTip.y + 2, tallTip.z - 34);
     this.scene.add(this.crownHalo);
 
@@ -1083,7 +1102,7 @@ export class JourneyRenderer {
       uInnerAmt: { value: 0 },
       uSignal: { value: 0 },
       uAlign: { value: 0 },
-      uFogColor: { value: new THREE.Color('#0c0906') },
+      uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
     // physically based stone, with the world's law injected into it:
@@ -1290,7 +1309,7 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     // so the revealed lattice is seen, not swallowed
     const fogDensity =
       0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7) * (1 - smooth01(progress, 0.86, 0.97));
-    const fogColor = lerpColor('#080603', '#020407', sev);
+    const fogColor = lerpColor('#07080a', '#04060a', sev);
     (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
     (this.scene.fog as THREE.FogExp2).density = fogDensity;
 
