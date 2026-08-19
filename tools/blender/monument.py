@@ -81,11 +81,17 @@ def build_half(side, name, rings, edge_div, chisel):
     n = len(pts)
     t_top = TIP_T[side]
     verts, faces = [], []
+    # the loft starts BELOW the ground and keeps a constant section
+    # down there, so each foot enters the terrain as straight stone.
+    # Ending at exactly zero with a fanned cap left the terrain's dip
+    # exposing the undersides, and exposing each one differently
+    T_UNDER = -0.055
     for i in range(rings):
-        t = (t_top) * (i / (rings - 1))
-        k = section_at(t)
-        cx = cut_plane_x(t, side)
-        kd = depth_section_at(t)
+        f = i / (rings - 1)
+        t = T_UNDER + (t_top - T_UNDER) * f
+        k = 1.0 - (1.0 - TOP_K) * t
+        cx = cut_plane_x(max(t, 0.0), side)
+        kd = 1.0 - (1.0 - TOP_D) * t
         for (pa, pb) in pts:
             verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * kd, t * H))
     for i in range(rings - 1):
@@ -109,12 +115,8 @@ def build_half(side, name, rings, edge_div, chisel):
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))
     faces.append((last + n - 1, last, apex))
-    # base cap, buried
-    base = len(verts)
-    verts.append((cut_plane_x(0.0, side) + s * 0.4 * BASE_W, 0.0, -3.0))
-    for j in range(n - 1):
-        faces.append((j + 1, j, base))
-    faces.append((0, n - 1, base))
+    # base cap: one flat face across the buried section
+    faces.append(tuple(range(n - 1, -1, -1)))
 
     me = bpy.data.meshes.new(name)
     me.from_pydata(verts, [], faces)
@@ -364,7 +366,7 @@ for v in terr.data.vertices:
     if r < 260.0:
         f = max(0.0, min(1.0, (r - 60.0) / 200.0))
         f = f * f * (3 - 2 * f)
-        v.co.z = v.co.z * f - 1.6 * (1.0 - f)
+        v.co.z = v.co.z * f + 0.35 * (1.0 - f)
 bpy.ops.object.shade_smooth()
 
 bpy.ops.object.select_all(action="DESELECT")

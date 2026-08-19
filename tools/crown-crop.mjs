@@ -13,7 +13,7 @@ await p.waitForTimeout(5200);
 const label = process.argv[2] || 'current';
 await p.screenshot({
   path: `C:/Users/jacob/dark-lattice-genesis/captures/crown/${label}.png`,
-  clip: { x: 640, y: 30, width: 380, height: 380 }
+  clip: process.argv[3] === 'foot' ? { x: 600, y: 560, width: 460, height: 340 } : { x: 640, y: 30, width: 380, height: 380 }
 });
 console.log('cropped', label);
 await b.close();
