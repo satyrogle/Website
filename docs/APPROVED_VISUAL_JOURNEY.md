@@ -92,6 +92,27 @@ Three rulings recorded:
      breach passage; the true form becomes the dark lattice of ties
      binding the two prongs, discovered from inside the cleft.
 
+## THE IGLOO BAR, 2026-08-19, Jacob, verbatim: "igloo bar, monument content, go"
+
+Given after the honest gap analysis: the igloo skeleton was taken but
+not the flesh (asset craft, per-beat lighting, transition craft). The
+instruction: match igloo.inc's experiential grammar and quality bar
+with OUR monument content. Never a clone of their world.
+
+Standing plan, staged, each stage judged on frames before the next:
+1. Body = contact-sheet candidate A THE FORK (dealer's choice under
+   "go"; overridable by a letter or a supplied reference image at any
+   time). Sculpt-and-bake pipeline: dense high-poly with course-step
+   shelves and layered relief, baked to normal+AO maps on an analytic
+   low-poly whose surface the cells and camera math share exactly.
+2. Lighting designed per beat (a light score lerped by progress:
+   raking key on material at the dwells, darkness in the cleft, cold
+   witness at the return), not one global rig.
+3. Beat map docs/IGLOO_BEAT_MAP.md governs rhythm: composed frame at
+   every stop, decisive travel between, transitions through occlusion.
+4. Later stages: chapter transitions, loader choreography, terrain
+   dressing, sound (Gate F territory).
+
 ## Marker body v2 REJECTED, 2026-08-19, Jacob, verbatim: "nope"
 
 Second one-word rejection of the same premise. Per the kill-word law,
