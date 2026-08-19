@@ -758,7 +758,7 @@ export class JourneyRenderer {
     this.scene.fog = new THREE.FogExp2(0x0c0906, 0.0022);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.3, 900);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 4200);
 
     const rt = new THREE.WebGLRenderTarget(2, 2, {
       samples: 4,
