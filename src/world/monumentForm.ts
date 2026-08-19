@@ -48,29 +48,22 @@ export function twistAt(t: number): number {
 }
 
 /**
- * distance of each blade centreline from the world Y axis: fused at
- * the base, bowed at the waist, crossing the axis at the crown. The
- * crossing is the interlock.
+ * distance of each horn centreline from the world Y axis: fused at the
+ * foot, opening progressively, the sweep accelerating toward the tip.
+ * The pair never crosses; crossing read as a lambda.
  */
 export function radiusAt(t: number): number {
-  return (
-    4.0 +
-    36.0 * t * Math.pow(Math.max(1 - t, 0), 1.1) -
-    11.0 * Math.pow(smoothstep01(0.86, 1.0, t), 1.6)
-  );
+  return 3.4 + 5.5 * t + 9.5 * Math.pow(smoothstep01(0.1, 1.0, t), 1.5);
 }
 
-/** tangential lean at the crown so the crossing tips slide past */
+/** the curl: the tip leans out of plane so the horn turns in 3D */
 export function hookAt(t: number): number {
-  return 4.2 * smoothstep01(0.84, 0.97, t);
+  return 9.0 * Math.pow(smoothstep01(0.6, 1.0, t), 1.6);
 }
 
-/** cross-section scale: planted at the base, narrow at the tip */
+/** cross-section scale: thick at the base, drawn to a point */
 export function scaleAt(t: number): number {
-  return (
-    (1.2 - 0.92 * Math.pow(Math.max(t, 0), 1.3)) *
-    (1 + 0.06 * Math.sin(Math.PI * Math.min(1, 1.15 * t)))
-  );
+  return 1.2 - 0.72 * Math.pow(Math.max(t, 0), 1.6);
 }
 
 /** small deterministic wander so the blades are hewn, not machined */

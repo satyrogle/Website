@@ -37,11 +37,9 @@ const FRAG_MAP = `#include <map_fragment>
   float sph = sin(tphi);
   vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
   float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-  float formS = (1.2 - 0.92 * pow(max(heightT, 1e-4), 1.3))
-              * (1.0 + 0.06 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
-  float formR = 4.0 + 36.0 * heightT * pow(max(1.0 - heightT, 0.0), 1.1)
-              - 11.0 * pow(smoothstep(0.86, 1.0, heightT), 1.6);
-  float hookT = 4.2 * smoothstep(0.84, 0.97, heightT);
+  float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
+  float formR = 3.4 + 5.5 * heightT + 9.5 * pow(smoothstep(0.1, 1.0, heightT), 1.5);
+  float hookT = 9.0 * pow(smoothstep(0.6, 1.0, heightT), 1.6);
   vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
   float ang = atan(lp.y, lp.x);
 
@@ -132,9 +130,11 @@ const FRAG_EMISSIVE = `#include <emissivemap_fragment>
 if (gl_FrontFacing) {
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
   // the crown burns from within: a long soft ramp, never a painted cap
-  float crownT = smoothstep(0.8, 1.0, heightT);
+  // the tips burn, and only the tips: a wide hot ramp plus bloom eats
+  // the near horn and makes solid stone read as a ghost
+  float crownT = smoothstep(0.93, 1.0, heightT);
   vec3 crownCol = mix(vec3(1.0, 0.9, 0.72), vec3(0.8, 0.9, 1.0), uSeverity);
-  totalEmissiveRadiance += crownCol * crownT * crownT * crownT * 1.25 * (1.0 - uSeverity * 0.5);
+  totalEmissiveRadiance += crownCol * crownT * crownT * 0.85 * (1.0 - uSeverity * 0.5);
   float hd = distance(vMonoW, uHover);
   float camD = distance(cameraPosition, uHover);
   float sigma = clamp(camD * 0.16, 2.5, 15.0);
@@ -453,16 +453,14 @@ const MONO_FRAG = /* glsl */ `
 
     // the inscription courses, coarse: this surface is only ever a
     // shivered reflection
-    float tphi = 0.55 + 4.0 * pow(max(heightT, 1e-4), 1.05);
+    float tphi = -0.35 + 1.1 * heightT;
     float cph = cos(tphi);
     float sph = sin(tphi);
     vec2 q = vec2(cph * vWorld.x + sph * vWorld.z, -sph * vWorld.x + cph * vWorld.z);
     float sideS = q.x >= 0.0 ? 1.0 : -1.0;
-    float formS = (1.15 - 0.86 * pow(max(heightT, 1e-4), 1.3))
-                * (1.0 + 0.1 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
-    float formR = 3.4 + 34.0 * heightT * pow(max(1.0 - heightT, 0.0), 1.15)
-                - 5.5 * smoothstep(0.84, 1.0, heightT);
-    float hookT = 4.2 * smoothstep(0.84, 0.97, heightT);
+    float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
+    float formR = 3.4 + 5.5 * heightT + 9.5 * pow(smoothstep(0.1, 1.0, heightT), 1.5);
+    float hookT = 9.0 * pow(smoothstep(0.6, 1.0, heightT), 1.6);
     vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
     float angP = atan(lp.y, lp.x);
     float rowH = 1.05;
@@ -668,6 +666,7 @@ export class JourneyRenderer {
   private rimLight!: THREE.DirectionalLight;
   private witnessLight!: THREE.DirectionalLight;
   private keyLight!: THREE.DirectionalLight;
+  private fillLight!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
@@ -885,6 +884,13 @@ export class JourneyRenderer {
     this.rimLight = new THREE.DirectionalLight(0x7fa8d0, 0);
     this.rimLight.position.set(-0.25, 0.9, -0.6);
     this.scene.add(this.rimLight);
+
+    // the fill: a cool, weak light opposite the key. Without it the
+    // horn on the key's far side is a black cutout with no material
+    // in it at all, which is not restraint, it is absence
+    this.fillLight = new THREE.DirectionalLight(0x9db3c8, 0.35);
+    this.fillLight.position.set(-0.7, 0.35, -0.35);
+    this.scene.add(this.fillLight);
 
     // the witness light: a cold front fill that arrives only with
     // understanding, so the revealed lattice is legible at the return
@@ -1115,6 +1121,13 @@ export class JourneyRenderer {
       );
       this.ambient.intensity = a.amb + (b.amb - a.amb) * f;
       this.scene.environmentIntensity = a.env + (b.env - a.env) * f;
+      // the fill tracks the key, opposite and weak: never a second key
+      this.fillLight.position.set(
+        -this.keyLight.position.x,
+        Math.abs(this.keyLight.position.y) * 0.45,
+        -this.keyLight.position.z
+      );
+      this.fillLight.intensity = this.keyLight.intensity * 0.3;
     }
 
     // the air thickens on the way in and clears again with the return,

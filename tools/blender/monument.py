@@ -62,17 +62,20 @@ def twist_at(t):
 
 
 def radius_at(t):
-    return 4.0 + 36.0 * t * (max(1.0 - t, 0.0) ** 1.1) - 11.0 * (smoothstep(0.86, 1.0, t) ** 1.6)
+    # horns, not a lambda: fused at the foot, opening progressively,
+    # the sweep accelerating toward the tip. The pair never crosses
+    return 3.4 + 5.5 * t + 9.5 * (smoothstep(0.10, 1.0, t) ** 1.5)
 
 
 def hook_at(t):
-    return 4.2 * smoothstep(0.84, 0.97, t)
+    # the curl: the tip leans out of the plane so the horn turns in
+    # three dimensions instead of splaying as a flat V
+    return 9.0 * (smoothstep(0.60, 1.0, t) ** 1.6)
 
 
 def scale_at(t):
-    return (1.2 - 0.92 * (max(t, 0.0) ** 1.3)) * (
-        1.0 + 0.06 * math.sin(math.pi * min(1.0, 1.15 * t))
-    )
+    # thick at the base, drawn to a point: a horn's taper
+    return 1.2 - 0.72 * (max(t, 0.0) ** 1.6)
 
 
 def wobble_at(t, side):
@@ -99,7 +102,7 @@ def profile_points(edge_div):
     return pts
 
 
-def build_blade(side, name, nr, edge_div, course_steps, with_uv):
+def build_blade(side, name, nr, edge_div, course_steps):
     pts = profile_points(edge_div)
     np_ = len(pts)
     t_top = TIP_T[side]
@@ -152,32 +155,6 @@ def build_blade(side, name, nr, edge_div, course_steps, with_uv):
     mesh.from_pydata(verts, [], faces)
     mesh.validate()
 
-    if with_uv:
-        # u wraps the profile, v climbs the height; each blade gets its
-        # own half of the atlas with a bleed gap between
-        uv = mesh.uv_layers.new(name="UVMap")
-        n_ring = nr * np_
-
-        def vert_uv(vi):
-            if vi < n_ring:
-                return (vi % np_) / np_, (vi // np_) / (nr - 1)
-            if vi < n_ring + np_:
-                return ((vi - n_ring) % np_) / np_, 1.0
-            return 0.0, 1.0 if vi == n_ring + np_ else 0.0
-
-        for poly in mesh.polygons:
-            us = []
-            for li in poly.loop_indices:
-                u, v = vert_uv(mesh.loops[li].vertex_index)
-                us.append([u, v])
-            # seam: a face that wraps the profile keeps u monotonic
-            umax = max(u for u, _ in us)
-            for pair in us:
-                if umax - pair[0] > 0.5:
-                    pair[0] += 1.0
-            for li, (u, v) in zip(poly.loop_indices, us):
-                uv.data[li].uv = (u * 0.48 + side * 0.52, v)
-
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     return obj
@@ -202,15 +179,28 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 
 # ---- LOW: the analytic body the runtime trusts ----
 low = join_pair(
-    build_blade(0, "LowA", 240, 7, False, True),
-    build_blade(1, "LowB", 240, 7, False, True),
+    build_blade(0, "LowA", 240, 7, False),
+    build_blade(1, "LowB", 240, 7, False),
     "Monument",
 )
 
+# Smart-projected UVs. Hand-rolled cylindrical coordinates left the tip
+# and base fans with degenerate loops, which produced NaN tangents and
+# rendered one blade as a see-through ghost. Let Blender solve it.
+bpy.ops.object.select_all(action="DESELECT")
+low.select_set(True)
+bpy.context.view_layer.objects.active = low
+if not low.data.uv_layers:
+    low.data.uv_layers.new(name="UVMap")
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.012, correct_aspect=True)
+bpy.ops.object.mode_set(mode="OBJECT")
+
 # ---- HIGH: the sculpt ----
 high = join_pair(
-    build_blade(0, "HighA", 700, 21, True, False),
-    build_blade(1, "HighB", 700, 21, True, False),
+    build_blade(0, "HighA", 700, 21, True),
+    build_blade(1, "HighB", 700, 21, True),
     "MonumentHigh",
 )
 vg = high.vertex_groups.new(name="disp")
