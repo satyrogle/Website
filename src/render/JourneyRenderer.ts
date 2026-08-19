@@ -718,6 +718,7 @@ export class JourneyRenderer {
   private hazeMat!: THREE.ShaderMaterial;
   private fieldMat!: THREE.ShaderMaterial;
   private mistMat!: THREE.ShaderMaterial;
+  private choirMat!: THREE.ShaderMaterial;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
@@ -1099,6 +1100,115 @@ export class JourneyRenderer {
       const field = new THREE.Mesh(fg, this.fieldMat);
       field.frustumCulled = false;
       this.scene.add(field);
+    }
+
+    // --- THE CHOIR ---
+    // Standing presences around the monument, from the reference
+    // sheet's CHOIR STONE: individually inert, meaning only in their
+    // alignment. Rendered see-through, so they populate the plain
+    // without competing with the hero the way solid copies did.
+    // Camera-facing, because a presence should never show you an edge.
+    {
+      const N = 11;
+      const rng = mulberry32ish(world.seed ^ 0x0c40);
+      const pos: number[] = [];
+      const centre: number[] = [];
+      const meta: number[] = [];
+      const idx: number[] = [];
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.42;
+        const d = 66 + rng() * 132;
+        const h = 62 + rng() * 74;
+        const w = h * (0.24 + rng() * 0.12);
+        const cx = Math.cos(a) * d;
+        const cz = Math.sin(a) * d;
+        const b = pos.length / 3;
+        // a quad in local space; the vertex shader turns it to face the
+        // camera, so the corners carry the local offsets
+        for (const corner of [[-1, 0], [1, 0], [1, 1], [-1, 1]] as const) {
+          pos.push(corner[0] * w, corner[1] * h, 0);
+          centre.push(cx, 0, cz);
+          meta.push(rng() * 0.0 + i / N);
+        }
+        idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+      }
+      this.choirMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `
+          in vec3 aCentre;
+          in float aMeta;
+          out vec2 vQ;
+          out float vMeta;
+          out float vDist;
+          uniform float uTime;
+          void main() {
+            vMeta = aMeta;
+            // billboard: the quad turns about Y to face the camera
+            vec3 c = aCentre;
+            vec3 toCam = cameraPosition - c;
+            vec3 right = normalize(vec3(-toCam.z, 0.0, toCam.x));
+            // a slow lean, so they are standing rather than pinned
+            float sway = sin(uTime * 0.12 + aMeta * 24.0) * 0.7;
+            vec3 world = c + right * position.x + vec3(sway * position.y * 0.01, position.y, 0.0);
+            vQ = vec2(position.x, position.y);
+            vec4 mv = viewMatrix * vec4(world, 1.0);
+            vDist = -mv.z;
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          precision highp float;
+          in vec2 vQ;
+          in float vMeta;
+          in float vDist;
+          uniform float uTime;
+          uniform float uAlign;
+          uniform vec3 uFog;
+          out vec4 outColor;
+          void main() {
+            // the silhouette: a tall form, wide at the foot, drawing in
+            // toward a rounded head. No features, ever
+            float t = clamp(vQ.y / max(abs(vQ.y) + 0.0001, 0.0001), 0.0, 1.0);
+            float hN = clamp(vQ.y / 136.0, 0.0, 1.0);
+            float body = 1.0 - pow(hN, 1.35);
+            float wN = abs(vQ.x) / max(body * 34.0, 0.001);
+            float form = smoothstep(1.0, 0.55, wN) * smoothstep(0.0, 0.08, hN)
+                       * smoothstep(1.02, 0.86, hN);
+            if (form <= 0.001) discard;
+            // see-through: the edges hold the most, the middle the least,
+            // so you look INTO it rather than at it
+            // the shell: heaviest at the silhouette, thinnest through
+            // the middle, so the eye looks INTO the form and the plain
+            // stays visible through it
+            float shell = pow(smoothstep(0.25, 1.0, wN), 1.5);
+            float alpha = form * (0.10 + shell * 0.62) * 0.62;
+            // inert alone; the alignment is the only thing they ever say
+            // A presence DARKENS the haze it stands in. Brighter than
+            // the background turned them into light shafts; a body
+            // occludes, and only its edge catches anything
+            float rim = smoothstep(0.72, 1.0, wN);
+            float lit = (0.045 + uAlign * 0.20) * rim;
+            vec3 col = uFog * 0.30 + vec3(lit);
+            float fade = exp(-vDist * vDist * 0.0000021);
+            outColor = vec4(col, alpha * fade);
+          }`,
+        uniforms: {
+          uTime: { value: 0 },
+          uAlign: { value: 0 },
+          uFog: { value: new THREE.Color('#07080a') }
+        },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      const cg = new THREE.BufferGeometry();
+      cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      cg.setAttribute('aCentre', new THREE.Float32BufferAttribute(centre, 3));
+      cg.setAttribute('aMeta', new THREE.Float32BufferAttribute(meta, 1));
+      cg.setIndex(idx);
+      const choir = new THREE.Mesh(cg, this.choirMat);
+      choir.frustumCulled = false;
+      choir.renderOrder = 2;
+      this.scene.add(choir);
     }
 
     // --- DRIFTING MIST ---
@@ -1530,6 +1640,8 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     this.fissureMat.uniforms.uNear!.value = inside;
     this.fieldMat.uniforms.uTime!.value = reduced ? 0 : this.time;
     this.mistMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    this.choirMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    (this.choirMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     (this.mistMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.fieldMat.uniforms.uSeverity!.value = sev;
     (this.fieldMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
@@ -1594,6 +1706,7 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
       mu.uInnerAmt!.value = inside * 0.35;
       if (mu.uSignal) mu.uSignal.value = signal;
       if (mu.uAlign) mu.uAlign.value = alignAmt;
+      this.choirMat.uniforms.uAlign!.value = alignAmt;
       if (mu.uFogColor) (mu.uFogColor.value as THREE.Color).copy(fogColor);
       if (mu.uFogDensity) mu.uFogDensity.value = fogDensity;
     }
