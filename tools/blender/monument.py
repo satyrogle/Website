@@ -29,8 +29,8 @@ SLIT_BASE = 5.0
 SLIT_TOP = 1.1
 BASE_W = 31.0
 BASE_D = 17.0
-TOP_K = 0.02
-TOP_D = 0.02
+TOP_K = 0.1
+TOP_D = 0.1
 SHEAR = 0.0
 TIP_T = (1.0, 0.9)
 
@@ -109,7 +109,7 @@ def build_half(side, name, rings, edge_div, chisel):
     apex = len(verts)
     k = section_at(t_top)
     cx = cut_plane_x(t_top, side)
-    verts.append((cx + s * 0.5 * BASE_W * k, 0.0, t_top * H + 7.0))
+    verts.append((cx + s * 0.5 * BASE_W * k, 0.0, t_top * H + 9.5))
     last = (rings - 1) * n
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))

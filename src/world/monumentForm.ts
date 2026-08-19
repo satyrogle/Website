@@ -34,8 +34,8 @@ const BASE_D = 17;
  * a blade edge, one that keeps both is a chiselled cap. At 0.05 both
  * tips ended as paper slivers, which is what read as odd.
  */
-const TOP_K = 0.02;
-const TOP_D = 0.02;
+const TOP_K = 0.1;
+const TOP_D = 0.1;
 /**
  * Where the celled body stops. Above this the crown breaks into bare
  * shards, which carry no records: the broken part of a monument is the
