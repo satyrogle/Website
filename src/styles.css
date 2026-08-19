@@ -541,38 +541,14 @@ html.js .ledger__list li.is-new { animation: ledger-in 0.5s ease; }
   line-height: 2.1;
 }
 
-/* ---------- the fall and the break ---------- */
+/* ---------- the return ---------- */
 
-.stop--fall {
+/* The distance is given back slowly: this stop is long on purpose, so
+   the retreat to the opening frame happens while its words are read. */
+.stop--return {
   min-height: 280vh;
   align-content: end;
   padding-bottom: 18vh;
-}
-
-#flash {
-  position: fixed;
-  inset: 0;
-  z-index: 8;
-  background: #e9eef2;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.7s ease-out;
-}
-#crack {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 8;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 1.4s ease-out;
-}
-#flash.hit { transition: none; opacity: 0.85; }
-#crack.hit { transition: none; opacity: 1; }
-
-@media (prefers-reduced-motion: reduce) {
-  #flash, #crack { display: none; }
 }
 
 /* ---------- survey annotations ---------- */

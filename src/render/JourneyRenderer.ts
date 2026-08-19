@@ -6,6 +6,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
+import { TIP_T, cleftDir, prongCentre, surfacePoint } from '../world/monumentForm';
 import { CameraPath } from './CameraPath';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -32,43 +33,84 @@ const FRAG_MAP = `#include <map_fragment>
   float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
   if (uDecay > th) discard;
   float dying = smoothstep(0.035, 0.0, th - uDecay);
-  vec3 an = abs(normalize(vNormal));
-  vec2 cuv;
-  if (an.y > 0.6) cuv = fract(vMonoW.xz / 1.5);
-  else if (an.x > an.z) cuv = fract(vMonoW.zy / 1.5);
-  else cuv = fract(vMonoW.xy / 1.5);
-  vec2 eUv = min(cuv, 1.0 - cuv);
-  float edge = min(eUv.x, eUv.y);
-  diffuseColor.rgb *= 0.8 + 0.2 * smoothstep(0.0, 0.09, edge);
-  float eng = 0.0;
-  float cellHasRecord = step(0.68, monoHash(cell * 1.7 + 3.1));
-  vec2 pp = cuv;
-  float amp = 1.0;
-  for (int i = 0; i < 4; i++) {
-    pp = fract(pp * 2.0 + h * 13.17 + float(i) * 0.31);
-    vec2 dd = abs(pp - 0.5);
-    float engFrame = smoothstep(0.5, 0.44, max(dd.x, dd.y)) * smoothstep(0.3, 0.36, max(dd.x, dd.y));
-    float keep = step(0.45, fract(h * (7.0 + float(i) * 3.7) + float(i) * 0.37));
-    eng = max(eng, engFrame * keep * amp);
-    amp *= 0.72;
-  }
-  eng *= smoothstep(0.02, 0.09, edge) * cellHasRecord;
-  diffuseColor.rgb *= 1.0 - eng * 0.3;
-  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.55);
-  diffuseColor.rgb *= mix(0.55, 1.2, heightT * heightT);
+
+  // the inside of the shell holds no records and no light
+  if (!gl_FrontFacing) {
+    diffuseColor.rgb = vec3(0.02, 0.023, 0.028);
+    vMonoEng = 0.0;
+  } else {
+
+  // unwrap the twist: bands and glyph courses follow the prongs.
+  // constants mirror monumentForm.ts; pow(0,y) guarded, it has burned
+  // this project once already
+  float tphi = 0.55 + 2.4 * pow(max(heightT, 1e-4), 1.08);
+  float cph = cos(tphi);
+  float sph = sin(tphi);
+  vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
+  float sideS = q.x >= 0.0 ? 1.0 : -1.0;
+  float formS = (1.15 - 0.85 * pow(max(heightT, 1e-4), 1.25))
+              * (1.0 + 0.12 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
+  float formR = 12.0 - 8.6 * pow(max(heightT, 1e-4), 1.6) + 1.8 * sin(3.14159265 * heightT);
+  vec2 lp = vec2(abs(q.x) - formR, q.y * sideS);
+  float ang = atan(lp.y, lp.x);
+
+  // the inscription: dense courses of carved channel script, dash runs
+  // of varying length. Every course a run of records; the ledger is
+  // the texture. Never square cells: squares read as windows
+  float rowH = 1.05;
+  float rowF = vMonoW.y / rowH;
+  float row = floor(rowF);
+  float fv = fract(rowF);
+  float rowSeed = monoHash(vec3(row, sideS, 7.0));
+  // strata families: neighbouring courses share a tone, then it shifts
+  float strata = floor(row / (5.0 + floor(rowSeed * 4.0)));
+  float strataTone = 0.86 + 0.26 * monoHash(vec3(strata, sideS, 3.3));
+  diffuseColor.rgb *= strataTone;
+
+  float cols = max(24.0, floor(74.0 * formS));
+  float colF = (ang / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
+  float col = floor(colF);
+  float fu = fract(colF);
+  float block = floor(col / 6.0);
+  float bs = monoHash(vec3(block, row, sideS * 3.7));
+  float runLen = 1.0 + floor(bs * 5.0);
+  float inBlock = col - block * 6.0;
+  float inRun = step(inBlock, runLen - 0.5) * step(0.22, bs);
+  float vIn = smoothstep(0.30, 0.42, fv) * smoothstep(0.78, 0.66, fv);
+  float hIn = 1.0;
+  if (inBlock < 0.5) hIn *= smoothstep(0.06, 0.18, fu);
+  if (abs(inBlock - (runLen - 1.0)) < 0.5) hIn *= smoothstep(0.94, 0.82, fu);
+  // channels live on the standing faces, not the tips and ledges
+  float vertFace = smoothstep(0.55, 0.35, abs(normalize(vNormal).y));
+  float glyph = inRun * vIn * hIn * vertFace;
+
+  // carved: the groove holds shadow, deeper at its floor, and its
+  // upper lip catches the key light
+  float lip = inRun * hIn * vertFace
+            * (smoothstep(0.72, 0.78, fv) - smoothstep(0.82, 0.92, fv));
+  diffuseColor.rgb *= 1.0 - glyph * (0.40 + 0.20 * (1.0 - smoothstep(0.36, 0.62, fv)));
+  diffuseColor.rgb += diffuseColor.rgb * lip * 0.45;
+  float seam = smoothstep(0.045, 0.0, min(fv, 1.0 - fv));
+  diffuseColor.rgb *= 1.0 - seam * 0.14 * vertFace;
+
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.35);
+  diffuseColor.rgb *= mix(0.7, 1.0, heightT * heightT);
   diffuseColor.rgb = mix(diffuseColor.rgb * 0.3, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
   if (dying > 0.0) {
-    float g = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
-    diffuseColor.rgb *= mix(1.0, mix(g, 0.8, uCalm), dying);
+    float gt = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
+    diffuseColor.rgb *= mix(1.0, mix(gt, 0.8, uCalm), dying);
   }
-  vMonoEng = eng;
+  vMonoEng = glyph;
+  }
 }`;
 
 const FRAG_EMISSIVE = `#include <emissivemap_fragment>
-{
+if (gl_FrontFacing) {
   float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
+  // the crown burns from within: a long soft ramp, never a painted cap
+  float crownT = smoothstep(0.8, 1.0, heightT);
   vec3 crownCol = mix(vec3(1.0, 0.9, 0.72), vec3(0.8, 0.9, 1.0), uSeverity);
-  totalEmissiveRadiance += crownCol * smoothstep(0.93, 1.0, heightT) * 1.1 * (1.0 - uSeverity * 0.5);
+  totalEmissiveRadiance += crownCol * crownT * crownT * crownT * 1.6 * (1.0 - uSeverity * 0.5);
   float hd = distance(vMonoW, uHover);
   float camD = distance(cameraPosition, uHover);
   float sigma = clamp(camD * 0.16, 2.5, 15.0);
@@ -111,19 +153,19 @@ const CLAD_VERT = /* glsl */ `
   void main() {
     vSeed = aSeed;
     // the standing monument is authored stone now; a cube exists only
-    // in its moment of failure, as debris in the air
-    // scroll decay: past the threshold the cell detaches and falls.
+    // in its moment of failure, as debris in the air. The fall is
+    // punctuation, never weather: it completes quickly and goes dark
     float over = max(0.0, uDecay - aThresh);
     // a live strike fells the cell regardless of scroll
     float sinceStrike = aStrike < 0.0 ? -1.0 : max(0.0, uTime - aStrike);
-    float fallT = max(over * 10.0, sinceStrike > 0.0 ? sinceStrike * 0.9 : 0.0);
+    float fallT = max(over * 40.0, sinceStrike > 0.0 ? sinceStrike * 1.8 : 0.0);
     vFall = fallT;
     vDying = smoothstep(0.035, 0.0, aThresh - uDecay) * step(uDecay, aThresh);
 
     // masonry: no two cells cut quite alike
     float sizeVar = 0.93 + 0.1 * fract(aSeed * 7.31);
-    vec3 wp = position * sizeVar * clamp(1.0 - fallT * 0.45, 0.05, 1.0) + aOffset;
-    if (fallT <= 0.0 || fallT > 2.4) wp = vec3(0.0, -9999.0, 0.0);
+    vec3 wp = position * sizeVar * clamp(1.0 - fallT * 0.85, 0.05, 1.0) + aOffset;
+    if (fallT <= 0.0 || fallT > 2.0) wp = vec3(0.0, -9999.0, 0.0);
     if (fallT > 0.0) {
       float ang = fallT * (aSeed * 8.0 - 4.0) + uTime * 0.22 * (aSeed - 0.5) * (1.0 - uCalmV);
       float ca = cos(ang);
@@ -179,10 +221,9 @@ const CLAD_FRAG = /* glsl */ `
     vec3 n = normalize(vNormalV);
     vec3 L = normalize(vec3(0.35, 0.75, 0.55));
     float diff = clamp(dot(n, L), 0.0, 1.0);
-    // moonlit stone, not a lightbox: dark grey-blue mass whose holiness
-    // is contrast, carried by the burning crown and the lit edges
-    vec3 base = mix(vec3(0.42, 0.39, 0.345), vec3(0.46, 0.425, 0.365), vSeed * 0.5);
-    base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.75);
+    // chunks of the body: dark igneous stone, its light failing with it
+    vec3 base = mix(vec3(0.21, 0.205, 0.2), vec3(0.25, 0.24, 0.225), vSeed * 0.5);
+    base = mix(base, vec3(0.14, 0.17, 0.23), uSeverity * 0.5);
     vec3 col = base * (0.38 + 0.5 * diff) * mix(0.5, 1.15, vHeight * vHeight);
     // the crown burns near-white: the monument's own lamp
     vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
@@ -308,7 +349,6 @@ const MONO_VERT = /* glsl */ `
 
 const MONO_FRAG = /* glsl */ `
   precision highp float;
-  uniform float uUnder;
   in vec3 vWorld;
   in vec3 vNormalW;
   in float vFog;
@@ -354,36 +394,41 @@ const MONO_FRAG = /* glsl */ `
 
     vec3 L = normalize(vec3(0.35, 0.75, 0.55));
     float diff = clamp(dot(n, L), 0.0, 1.0);
-    vec3 base = mix(vec3(0.42, 0.39, 0.345), vec3(0.46, 0.425, 0.365), h * 0.5);
-    base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.75);
+    vec3 base = mix(vec3(0.21, 0.205, 0.2), vec3(0.25, 0.24, 0.225), h * 0.5);
+    base = mix(base, vec3(0.14, 0.17, 0.23), uSeverity * 0.5);
     vec3 col = base * (0.38 + 0.5 * diff) * mix(0.5, 1.15, heightT * heightT);
     vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
     col += crownCol * smoothstep(0.93, 1.0, heightT) * 1.5 * (1.0 - uSeverity * 0.5);
 
-    // mortar courses on the dominant face
-    vec3 an = abs(n);
-    vec2 cuv;
-    if (an.y > 0.6) cuv = fract(vWorld.xz / 1.5);
-    else if (an.x > an.z) cuv = fract(vWorld.zy / 1.5);
-    else cuv = fract(vWorld.xy / 1.5);
-    vec2 eUv = min(cuv, 1.0 - cuv);
-    float edge = min(eUv.x, eUv.y);
-    col *= 0.78 + 0.22 * smoothstep(0.0, 0.09, edge);
-
-    // the engravings, carved into the stone itself
-    float eng = 0.0;
-    vec2 pp = cuv;
-    float amp = 1.0;
-    for (int i = 0; i < 4; i++) {
-      pp = fract(pp * 2.0 + h * 13.17 + float(i) * 0.31);
-      vec2 dd = abs(pp - 0.5);
-      float frame = smoothstep(0.5, 0.44, max(dd.x, dd.y)) * smoothstep(0.3, 0.36, max(dd.x, dd.y));
-      float keep = step(0.45, fract(h * (7.0 + float(i) * 3.7) + float(i) * 0.37));
-      eng = max(eng, frame * keep * amp);
-      amp *= 0.72;
-    }
-    eng *= smoothstep(0.02, 0.09, edge);
-    col *= 1.0 - eng * 0.24;
+    // the inscription courses, coarse: this surface is only ever a
+    // shivered reflection
+    float tphi = 0.55 + 2.4 * pow(max(heightT, 1e-4), 1.08);
+    float cph = cos(tphi);
+    float sph = sin(tphi);
+    vec2 q = vec2(cph * vWorld.x + sph * vWorld.z, -sph * vWorld.x + cph * vWorld.z);
+    float sideS = q.x >= 0.0 ? 1.0 : -1.0;
+    float formS = (1.15 - 0.85 * pow(max(heightT, 1e-4), 1.25))
+                * (1.0 + 0.12 * sin(3.14159265 * min(1.0, 1.15 * heightT)));
+    float formR = 12.0 - 8.6 * pow(max(heightT, 1e-4), 1.6) + 1.8 * sin(3.14159265 * heightT);
+    vec2 lp = vec2(abs(q.x) - formR, q.y * sideS);
+    float angP = atan(lp.y, lp.x);
+    float rowH = 1.05;
+    float row = floor(vWorld.y / rowH);
+    float fv = fract(vWorld.y / rowH);
+    float rowSeed = hash3(vec3(row, sideS, 7.0));
+    float strata = floor(row / (5.0 + floor(rowSeed * 4.0)));
+    col *= 0.86 + 0.26 * hash3(vec3(strata, sideS, 3.3));
+    float cols = max(24.0, floor(74.0 * formS));
+    float colF = (angP / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
+    float block = floor(floor(colF) / 6.0);
+    float bs = hash3(vec3(block, row, sideS * 3.7));
+    float runLen = 1.0 + floor(bs * 5.0);
+    float inBlock = floor(colF) - block * 6.0;
+    float inRun = step(inBlock, runLen - 0.5) * step(0.22, bs);
+    float vIn = smoothstep(0.30, 0.42, fv) * smoothstep(0.78, 0.66, fv);
+    float eng = inRun * vIn;
+    col *= 1.0 - eng * 0.4;
+    col *= 1.0 - smoothstep(0.045, 0.0, min(fv, 1.0 - fv)) * 0.14;
 
     // the visitor's lamp
     float hd = distance(vWorld, uHover);
@@ -410,7 +455,7 @@ const MONO_FRAG = /* glsl */ `
 
     col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorld.y));
     #ifdef MIRROR
-    col *= mix(0.24, 0.85, uUnder);
+    col *= 0.24;
     #endif
     col = mix(col, uFogColor, vFog);
     outColor = vec4(col, 1.0);
@@ -421,7 +466,6 @@ const MOTE_VERT = /* glsl */ `
   in float aSeed;
   uniform float uTime;
   uniform float uScale;
-  uniform float uFall;
   out float vSeed;
   void main() {
     vSeed = aSeed;
@@ -433,7 +477,7 @@ const MOTE_VERT = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     float dist = max(1.0, -mv.z);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = clamp(uScale * 0.08 * (0.5 + aSeed) * (1.0 + uFall * 2.8) / dist, 1.0, 14.0);
+    gl_PointSize = clamp(uScale * 0.08 * (0.5 + aSeed) / dist, 1.0, 14.0);
   }
 `;
 
@@ -442,14 +486,12 @@ const MOTE_FRAG = /* glsl */ `
   in float vSeed;
   uniform float uSeverity;
   uniform float uAmt;
-  uniform float uFall;
   out vec4 outColor;
   void main() {
     vec2 d = gl_PointCoord - 0.5;
     float r2 = dot(d, d) ;
     if (r2 > 0.25) discard;
-    // in the fall the air becomes speed
-    float fall = exp(-(d.x * d.x * mix(12.0, 60.0, uFall) + d.y * d.y * mix(12.0, 4.0, uFall)));
+    float fall = exp(-r2 * 12.0);
     vec3 warm = vec3(0.62, 0.5, 0.34);
     vec3 cold = vec3(0.3, 0.38, 0.5);
     outColor = vec4(mix(warm, cold, uSeverity) * fall * 0.62 * uAmt, 1.0);
@@ -544,12 +586,34 @@ export class JourneyRenderer {
     point: THREE.Vector3;
     from: number;
     to: number;
-  }> = [
-    { el: null, point: new THREE.Vector3(2, 191, 11), from: 0.05, to: 0.4 },
-    { el: null, point: new THREE.Vector3(6, 141, 21), from: 0.26, to: 0.52 },
-    { el: null, point: new THREE.Vector3(9, 100, 22), from: 0.36, to: 0.5 }
-  ];
+  }> = (() => {
+    const tipA = prongCentre(TIP_T[0] - 0.01, 0);
+    const mouthT = 138 / TOWER_TOP;
+    const mouthDir = cleftDir(mouthT);
+    const law = surfacePoint(100 / TOWER_TOP, 0, 0);
+    return [
+      {
+        el: document.getElementById('anno-crown'),
+        point: new THREE.Vector3(tipA.x, tipA.y + 2, tipA.z),
+        from: 0.05,
+        to: 0.4
+      },
+      {
+        el: document.getElementById('anno-cleft'),
+        point: new THREE.Vector3(mouthDir[0] * 8, 138, mouthDir[1] * 8),
+        from: 0.3,
+        to: 0.44
+      },
+      {
+        el: document.getElementById('anno-law'),
+        point: new THREE.Vector3(law.x * 1.05, law.y, law.z * 1.05),
+        from: 0.36,
+        to: 0.5
+      }
+    ];
+  })();
   private rimLight!: THREE.DirectionalLight;
+  private witnessLight!: THREE.DirectionalLight;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
   private monoMirrorMat!: THREE.ShaderMaterial;
@@ -571,8 +635,6 @@ export class JourneyRenderer {
   private hoverAmt = 0;
   private parX = 0;
   private parY = 0;
-  private prevProgress = 0;
-  private impactT = -10;
 
   constructor(canvas: HTMLCanvasElement, private readonly world: LatticeWorld, maxDpr: number) {
     this.maxDpr = maxDpr;
@@ -673,32 +735,49 @@ export class JourneyRenderer {
     mirror.frustumCulled = false;
     this.scene.add(mirror);
 
-    // --- the true form: the dark frame inside ---
+    // --- the true form: the dark lattice that binds the prongs ---
+    // Two spines follow the prong cores; ties and diagonals cross the
+    // cleft. From outside it is invisible under the stone. From inside
+    // the cleft, and after the stone strips, it is the subject.
     const frameMat = new THREE.MeshStandardMaterial({
       color: 0x0b0e12,
       roughness: 0.55,
       metalness: 0.25
     });
     const frame = new THREE.Group();
-    const colGeom = new THREE.BoxGeometry(1.15, TOWER_TOP, 1.15);
-    for (const gx of [-15, -9, -3, 3, 9, 15]) {
-      for (const gz of [-15, -9, -3, 3, 9, 15]) {
-        if (Math.abs(gx) !== 15 && Math.abs(gz) !== 15) continue; // perimeter frame
-        const c = new THREE.Mesh(colGeom, frameMat);
-        c.position.set(gx, TOWER_TOP / 2, gz);
-        frame.add(c);
+    const bar = (a: THREE.Vector3, b: THREE.Vector3, w: number): void => {
+      const len = a.distanceTo(b);
+      if (len < 0.01) return;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, len + w * 0.5, w), frameMat);
+      m.position.copy(a).add(b).multiplyScalar(0.5);
+      m.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
+      frame.add(m);
+    };
+    const fp = (t: number, side: 0 | 1): THREE.Vector3 => {
+      const c = prongCentre(Math.min(t, TIP_T[side] - 0.012), side);
+      return new THREE.Vector3(c.x, c.y, c.z);
+    };
+    const SPINE_SEGS = 26;
+    for (const side of [0, 1] as const) {
+      for (let i = 0; i < SPINE_SEGS; i++) {
+        bar(fp(i / SPINE_SEGS, side), fp((i + 1) / SPINE_SEGS, side), 1.8);
       }
     }
-    const beamGeomX = new THREE.BoxGeometry(33, 1.0, 1.0);
-    const beamGeomZ = new THREE.BoxGeometry(1.0, 1.0, 33);
-    for (let ly = 24; ly < TOWER_TOP; ly += 24) {
-      for (const off of [-15, 15]) {
-        const bx = new THREE.Mesh(beamGeomX, frameMat);
-        bx.position.set(0, ly, off);
-        frame.add(bx);
-        const bz = new THREE.Mesh(beamGeomZ, frameMat);
-        bz.position.set(off, ly, 0);
-        frame.add(bz);
+    // ties live in the middle band only: at the crown the prongs pin
+    // each other, and braces against the bright sky read as scaffold
+    const TIES = 9;
+    for (let i = 0; i <= TIES; i++) {
+      const t = 0.12 + (i / TIES) * 0.6;
+      bar(fp(t, 0), fp(t, 1), 1.0);
+      if (i < TIES) {
+        const tn = 0.12 + ((i + 1) / TIES) * 0.6;
+        // diagonals pulled inboard so their ends stay buried in stone
+        const d0a = fp(t, 0);
+        const d0b = fp(tn, 1);
+        const d1a = fp(t, 1);
+        const d1b = fp(tn, 0);
+        bar(d0a.clone().lerp(d0b, 0.07), d0b.clone().lerp(d0a, 0.07), 0.7);
+        bar(d1a.clone().lerp(d1b, 0.07), d1b.clone().lerp(d1a, 0.07), 0.7);
       }
     }
     this.scene.add(frame);
@@ -738,9 +817,10 @@ export class JourneyRenderer {
     this.scene.add(keyLight);
     this.scene.add(new THREE.AmbientLight(0x1a2129, 1.1));
 
-    // the traveller's light: alive only inside the wall, so the cavity
-    // reads as darkness with structure rather than a void
-    this.innerLight = new THREE.PointLight(0xbfd4e8, 0, 55, 1.6);
+    // the traveller's light: alive only inside the cleft, and kept
+    // faint. The passage must stay darkness with structure, never a
+    // floodlit cavity
+    this.innerLight = new THREE.PointLight(0xbfd4e8, 0, 55, 2.0);
     this.scene.add(this.innerLight);
 
     // the rim of the true form: cold light from behind and above that
@@ -749,12 +829,20 @@ export class JourneyRenderer {
     this.rimLight.position.set(-0.25, 0.9, -0.6);
     this.scene.add(this.rimLight);
 
+    // the witness light: a cold front fill that arrives only with
+    // understanding, so the revealed lattice is legible at the return
+    this.witnessLight = new THREE.DirectionalLight(0x9fb4cc, 0);
+    this.witnessLight.position.set(0.2, 0.5, 1.0);
+    this.scene.add(this.witnessLight);
+
     // --- atmosphere ---
     this.halo = makeHalo('#c9a071', 240);
     this.halo.position.set(0, TOWER_TOP * 0.45, 0);
     this.scene.add(this.halo);
-    this.crownHalo = makeHalo('#ecd0a0', 175);
-    this.crownHalo.position.set(0, TOWER_TOP * 0.92, 0);
+    // the crown glow floats at the very tips, wrapping the gap of sky
+    // between them rather than painting the upper stone
+    this.crownHalo = makeHalo('#ecd0a0', 110);
+    this.crownHalo.position.set(0, TOWER_TOP + 8, 0);
     this.scene.add(this.crownHalo);
 
     // --- the air: dust motes over the water, rising slowly ---
@@ -819,11 +907,10 @@ export class JourneyRenderer {
     // reference's material quality ---
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.25;
+    this.scene.environmentIntensity = 0.28;
 
     // --- the monument itself: authored stone, not boxes ---
     const monoUniforms = (): Record<string, THREE.IUniform> => ({
-      uUnder: { value: 0 },
       uTime: { value: 0 },
       uDecay: { value: 0 },
       uSeverity: { value: 0 },
@@ -835,12 +922,14 @@ export class JourneyRenderer {
       uFogColor: { value: new THREE.Color('#0c0906') },
       uFogDensity: { value: 0.0022 }
     });
-    // physically based stone, with the world's law injected into it
+    // physically based stone, with the world's law injected into it:
+    // dark igneous mass, faint metallic sheen, light living on the
+    // ridges and in the carved grooves rather than on the faces
     this.stoneU = monoUniforms();
     const stone = new THREE.MeshStandardMaterial({
-      color: 0xb9b2a4,
-      roughness: 0.58,
-      metalness: 0.03,
+      color: 0x3a3d42,
+      roughness: 0.5,
+      metalness: 0.08,
       side: THREE.DoubleSide
     });
     stone.onBeforeCompile = (sh) => {
@@ -934,7 +1023,10 @@ export class JourneyRenderer {
     const decay = 0.9 * smooth01(progress, 0.16, 0.98);
     const inside = smooth01(progress, 0.49, 0.53) * (1 - smooth01(progress, 0.65, 0.69));
 
-    const fogDensity = 0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7);
+    // the air thickens on the way in and clears again with the return,
+    // so the revealed lattice is seen, not swallowed
+    const fogDensity =
+      0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7) * (1 - smooth01(progress, 0.86, 0.97));
     const fogColor = lerpColor('#080603', '#020407', sev);
     (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
     (this.scene.fog as THREE.FogExp2).density = fogDensity;
@@ -965,7 +1057,7 @@ export class JourneyRenderer {
       (cu.uHover!.value as THREE.Vector3).copy(this.hoverPoint);
       cu.uHoverAmt!.value = this.hoverAmt;
       (cu.uInner!.value as THREE.Vector3).copy(this.camera.position);
-      cu.uInnerAmt!.value = inside * 0.55;
+      cu.uInnerAmt!.value = inside * 0.35;
       cu.uFogDensity!.value = fogDensity;
       (cu.uFogColor!.value as THREE.Color).copy(fogColor);
     }
@@ -983,10 +1075,11 @@ export class JourneyRenderer {
     this.halo.material.opacity = 0.45 * (1 - decay * 0.85) * haloFade * breath;
     this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade * (2 - breath) * 0.5;
 
-    // the traveller's light burns only inside the wall
-    this.innerLight.intensity = 90 * inside;
+    // the traveller's light burns only inside the cleft
+    this.innerLight.intensity = 24 * inside;
     this.innerLight.position.copy(this.camera.position);
-    this.rimLight.intensity = 2.4 * smooth01(sev, 0.6, 0.9);
+    this.rimLight.intensity = 5.0 * smooth01(sev, 0.6, 0.9);
+    this.witnessLight.intensity = 2.6 * smooth01(sev, 0.72, 0.95);
 
     // the fallen accumulate
     this.scree.count = Math.floor(this.screeTotal * Math.min(1, decay * 1.15));
@@ -1004,18 +1097,15 @@ export class JourneyRenderer {
       (mu.uHover!.value as THREE.Vector3).copy(this.hoverPoint);
       mu.uHoverAmt!.value = this.hoverAmt;
       (mu.uInner!.value as THREE.Vector3).copy(this.camera.position);
-      mu.uInnerAmt!.value = inside * 0.55;
+      mu.uInnerAmt!.value = inside * 0.35;
       if (mu.uFogColor) (mu.uFogColor.value as THREE.Color).copy(fogColor);
       if (mu.uFogDensity) mu.uFogDensity.value = fogDensity;
     }
     this.markMat.uniforms.uTime!.value = this.world.tick / 60;
     this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.time;
     this.moteMat.uniforms.uSeverity!.value = sev;
-    const fallAmt = smooth01(progress, 0.89, 0.93) * (1 - smooth01(progress, 0.955, 0.985));
-    this.moteMat.uniforms.uFall!.value = reduced ? 0 : fallAmt;
     this.moteMat.uniforms.uAmt!.value =
-      (1 - smooth01(progress, 0.45, 0.62) * (1 - smooth01(progress, 0.64, 0.72))) *
-      (1 + fallAmt * 1.5);
+      1 - smooth01(progress, 0.45, 0.62) * (1 - smooth01(progress, 0.64, 0.72));
     const marks = this.world.marks;
     for (let m = 0; m < marks.length; m++) {
       const mk = marks[m]!;
@@ -1027,31 +1117,6 @@ export class JourneyRenderer {
     this.markGeom.setDrawRange(0, marks.length);
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;
-
-    // THE BREAK: crossing the surface, once, both directions
-    const IMPACT_P = 0.9;
-    if (
-      !reduced &&
-      ((this.prevProgress < IMPACT_P && progress >= IMPACT_P) ||
-        (this.prevProgress > IMPACT_P && progress <= IMPACT_P))
-    ) {
-      this.impactT = this.time;
-      const flash = document.getElementById('flash');
-      const crack = document.getElementById('crack');
-      for (const el of [flash, crack]) {
-        if (!el) continue;
-        el.classList.add('hit');
-        void el.getBoundingClientRect();
-        el.classList.remove('hit');
-      }
-    }
-    this.prevProgress = progress;
-    const thud = Math.exp(-(this.time - this.impactT) * 3.0);
-    this.bloom.strength = 0.34 + 1.1 * (thud > 0.01 ? thud : 0);
-    // beneath the surface the drowned world takes over
-    const under = smooth01(-this.camera.position.y, 0, 14);
-    this.monoMirrorMat.uniforms.uTime!.value = this.time;
-    if (this.monoMirrorMat.uniforms.uUnder) this.monoMirrorMat.uniforms.uUnder.value = under;
 
     // survey annotations track their anchors
     const v = new THREE.Vector3();

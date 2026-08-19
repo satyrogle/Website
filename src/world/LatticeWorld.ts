@@ -1,14 +1,23 @@
 import { mulberry32 } from '../core/rng';
 import type { WorldEvent } from '../record/events';
+import {
+  PERIMETER,
+  TIP_T,
+  prongCentre,
+  prongFrame,
+  profileSupport,
+  scaleAt,
+  surfacePoint
+} from './monumentForm';
 
 /**
- * THE MONUMENT. The authoritative world: one colossal stele of light
- * cells standing in a dark sea. Every cell is a record. Scroll decays
- * it: cells fail and fall in waves, crown first, and what remains is
- * the dark frame that was always doing the holding. The strike law
- * runs live regardless of scroll: the weakest cell on the visited face
- * is struck into the record. A visitor press seats a new cell into the
- * face, retained and recorded.
+ * THE MONUMENT. The authoritative world: two twisting prongs of
+ * inscribed stone standing in a dark sea, every surface cell a record.
+ * Scroll decays it: cells fail and fall in waves, crown first, and what
+ * remains is the dark lattice of ties that was always doing the
+ * holding. The strike law runs live regardless of scroll: the weakest
+ * cell on the visited face is struck into the record. A visitor press
+ * seats a new cell into the face, retained and recorded.
  *
  * Deterministic: seeded generation, fixed-step law, no Math.random.
  * Scroll decay is a pure function of progress; replay needs only the
@@ -75,46 +84,41 @@ export class LatticeWorld {
     const seeds: number[] = [];
     const thresholds: number[] = [];
 
-    // shell cells only: the monument's face
+    // surface cells: every course wraps the two prongs of the form
     for (let level = 0; level < LEVELS; level++) {
       const y = level * CELL + CELL / 2;
-      let ring = 0;
-      for (let ix = 0; ix < FOOT; ix++) {
-        for (let iz = 0; iz < FOOT; iz++) {
-          const isShell = ix === 0 || iz === 0 || ix === FOOT - 1 || iz === FOOT - 1;
-          if (!isShell) continue;
-          const x = ix * CELL - HALF + CELL / 2;
-          const z = iz * CELL - HALF + CELL / 2;
+      const t = y / TOWER_TOP;
+      for (const side of [0, 1] as const) {
+        if (t > TIP_T[side]) continue;
+        const per = PERIMETER * scaleAt(t);
+        const count = Math.max(6, Math.round(per / CELL));
+        for (let k = 0; k < count; k++) {
+          // half-cell course offset: masonry, not a grid
+          const u = (k + (level % 2) * 0.5) / count;
+          const p = surfacePoint(t, side, u);
           const index = seeds.length;
-          pts.push(x, y, z);
+          pts.push(p.x, y, p.z);
           const s = rng();
           seeds.push(s);
 
           // decay climbs down from the crown, clustered so it reads as
           // blight, not dissolve
-          const heightT = level / LEVELS; // 0 base, 1 crown
-          const cluster = 0.5 + 0.5 * Math.sin(x * 0.21 + z * 0.17 + level * 0.11 + s * 9.0);
-          let th = 0.2 + 0.78 * (1 - heightT) + 0.28 * (cluster - 0.5) + (s - 0.5) * 0.12;
-          // the wounds: two seeded breaches on the travelled face, opened
-          // early by the decay. The journey enters through one and leaves
-          // through the other.
-          const dEntry = Math.hypot(x - 5, y - 140, z - 20);
-          const dExit = Math.hypot(x + 5, y - 65, z - 20);
-          if (dEntry < 5.5 || dExit < 5.5) th *= 0.42;
+          const cluster = 0.5 + 0.5 * Math.sin(p.x * 0.21 + p.z * 0.17 + level * 0.11 + s * 9.0);
+          const th = 0.2 + 0.78 * (1 - t) + 0.28 * (cluster - 0.5) + (s - 0.5) * 0.12;
           thresholds.push(Math.min(0.985, Math.max(0.06, th)));
 
-          // the law runs on the face the camera passes (front, mid-heights)
-          if (iz === FOOT - 1 && level > 25 && level < 95 && this.lawCells.length < 420) {
+          // the law runs on the first prong's mid courses, the face the
+          // journey reads up close
+          if (side === 0 && level > 25 && level < 95 && this.lawCells.length < 420) {
             this.lawCells.push({
               index,
               level,
-              ring,
+              ring: k,
               health: 0.5 + rng() * 0.5,
               decay: 0.0008 + rng() * 0.003,
               struck: false
             });
           }
-          ring++;
         }
       }
     }
@@ -173,13 +177,29 @@ export class LatticeWorld {
     this.markCounter++;
     const label = 'MARK ' + String(this.markCounter).padStart(2, '0');
 
-    // snap to the closest face plane, keep height within the tower
+    // seat the mark onto the nearest prong's surface at that height
     const my = Math.min(TOWER_TOP - CELL, Math.max(CELL, y));
-    const px = Math.min(HALF + 0.4, Math.max(-HALF - 0.4, x));
-    const pz = Math.min(HALF + 0.4, Math.max(-HALF - 0.4, z));
-    const snapX = Math.abs(Math.abs(px) - HALF) < Math.abs(Math.abs(pz) - HALF);
-    const sx = snapX ? Math.sign(px || 1) * (HALF + 0.4) : px;
-    const sz = snapX ? pz : Math.sign(pz || 1) * (HALF + 0.4);
+    const t = my / TOWER_TOP;
+    let side: 0 | 1 = 0;
+    let centre = prongCentre(t, 0);
+    {
+      const other = prongCentre(Math.min(t, TIP_T[1]), 1);
+      const d0 = (x - centre.x) ** 2 + (z - centre.z) ** 2;
+      const d1 = (x - other.x) ** 2 + (z - other.z) ** 2;
+      if (d1 < d0) {
+        side = 1;
+        centre = other;
+      }
+    }
+    const frame = prongFrame(t, side);
+    const dx = x - centre.x;
+    const dz = z - centre.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const la = dx * frame.radial[0] + dz * frame.radial[1];
+    const lb = dx * frame.tangential[0] + dz * frame.tangential[1];
+    const reach = profileSupport(la, lb) * scaleAt(t) + 0.45;
+    const sx = centre.x + (dx / len) * reach;
+    const sz = centre.z + (dz / len) * reach;
 
     if (this.marks.length >= MAX_MARKS) {
       const oldest = this.marks.shift();
