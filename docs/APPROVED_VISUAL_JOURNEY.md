@@ -113,6 +113,43 @@ Standing plan, staged, each stage judged on frames before the next:
 4. Later stages: chapter transitions, loader choreography, terrain
    dressing, sound (Gate F territory).
 
+## THE ENTITY IS LOCKED, 2026-08-19, Jacob: "lock this entity for now"
+
+```
+LOCKED:   THE SPLIT SPIRE, body and skin
+AT:       claude/genesis e1f530c
+COVERS:   the form (monumentForm.ts and its mirrors in monument.py and
+          both GLSL blocks), the SIGNAL SKIN shader, the fissure core,
+          and the bake pipeline that feeds them
+```
+
+What locked means: no change to the silhouette, the crown, the feet,
+the slit taper, the skin's material numbers, the glyph or scratch
+systems, or the core, without Jacob unlocking it in as many words.
+Bug fixes that restore intended behaviour are allowed and must be
+reported. Everything else about the site stays open.
+
+The state at lock, so drift is detectable:
+
+- Form: one wedge cut down the centre, halves parted 5.0 at the foot
+  closing to 1.1 at the crown, unequal heights 1.0 and 0.9, each tip a
+  right-angled point standing over its own cut plane, feet flaring
+  into the shore.
+- Skin: base #050607, metalness 0.08, roughness 0.48 plus or minus
+  0.08, normal strength 0.36. Nine flat-shaded facet bands, per-facet
+  tone, machined edge rim from the normal derivative, dense two-system
+  glyph columns, three scratch-line systems, sintered pitting, macro
+  plate cracks.
+- Signal: driven by the law's strikes with a slow idle breath, gated
+  by proximity to the fissure, roughness wave leading the light, only
+  fragments ever lit, cross-gap alignment on camera angle.
+- Core: pure white, featureless, irregular width, damped when the
+  camera is inside the slit.
+
+Still unbuilt against the spec, and NOT part of the lock: the six
+baked maps (roughness, height, cavity and emissive mask are still
+procedural), and four of the seven activation states.
+
 ## THE JOURNEY, IN JACOB'S OWN WORDS, 2026-08-19
 
 Verbatim, on the split spire: "it was angelic and holy and once we
