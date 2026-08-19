@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
 import { TIP_T, prongCentre, surfacePoint } from '../world/monumentForm';
+import { ChoirGroup } from '../world/ChoirGroup';
 import { CameraPath } from './CameraPath';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -718,7 +719,7 @@ export class JourneyRenderer {
   private hazeMat!: THREE.ShaderMaterial;
   private fieldMat!: THREE.ShaderMaterial;
   private mistMat!: THREE.ShaderMaterial;
-  private choirMat!: THREE.ShaderMaterial;
+  private readonly choir: ChoirGroup;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
@@ -1102,142 +1103,11 @@ export class JourneyRenderer {
       this.scene.add(field);
     }
 
-    // --- THE CHOIR ---
-    // Standing presences around the monument, from the reference
-    // sheet's CHOIR STONE: individually inert, meaning only in their
-    // alignment. Rendered see-through, so they populate the plain
-    // without competing with the hero the way solid copies did.
-    // Camera-facing, because a presence should never show you an edge.
-    {
-      // angle behind the monument, distance, height scale, lean
-      const STONES: ReadonlyArray<readonly [number, number, number, number]> = [
-        [-0.62, 104, 1.00, 0.05],
-        [-0.44, 186, 0.72, -0.03],
-        [-0.71, 268, 0.55, 0.02],
-        [-0.30, 150, 0.86, -0.06],
-        [-0.86, 132, 0.64, 0.04]
-      ];
-      const N = STONES.length;
-      const rng = mulberry32ish(world.seed ^ 0x0c40);
-      const pos: number[] = [];
-      const centre: number[] = [];
-      const meta: number[] = [];
-      const hgt: number[] = [];
-      const idx: number[] = [];
-      for (let i = 0; i < N; i++) {
-        // Composed, not spaced: near, mid and far members with a gap
-        // between the pairs, all behind the monument
-        const st = STONES[i]!;
-        const a = Math.PI * st[0];
-        const d = st[1];
-        const h = 96 * st[2];
-        const w = h * 0.62;
-        void rng;
-        const cx = Math.cos(a) * d;
-        const cz = Math.sin(a) * d;
-        const b = pos.length / 3;
-        // a quad in local space; the vertex shader turns it to face the
-        // camera, so the corners carry the local offsets
-        for (const corner of [[-1, 0], [1, 0], [1, 1], [-1, 1]] as const) {
-          // the quad runs a little past the stone so the slanted top has
-          // room to be cut rather than clipped by the geometry edge
-          pos.push(corner[0] * w, corner[1] * h * 1.04, 0);
-          centre.push(cx, 0, cz);
-          meta.push(i / N + st[3]);
-          hgt.push(h);
-        }
-        idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
-      }
-      this.choirMat = new THREE.ShaderMaterial({
-        glslVersion: THREE.GLSL3,
-        vertexShader: `
-          in vec3 aCentre;
-          in float aMeta;
-          in float aH;
-          out vec2 vQ;
-          out float vMeta;
-          out float vH;
-          out float vDist;
-          uniform float uTime;
-          void main() {
-            vMeta = aMeta;
-            vH = aH;
-            // billboard: the quad turns about Y to face the camera
-            vec3 c = aCentre;
-            vec3 toCam = cameraPosition - c;
-            vec3 right = normalize(vec3(-toCam.z, 0.0, toCam.x));
-            // a slow lean, so they are standing rather than pinned
-            float sway = sin(uTime * 0.12 + aMeta * 24.0) * 0.7;
-            vec3 world = c + right * position.x + vec3(sway * position.y * 0.01, position.y, 0.0);
-            vQ = vec2(position.x, position.y);
-            vec4 mv = viewMatrix * vec4(world, 1.0);
-            vDist = -mv.z;
-            gl_Position = projectionMatrix * mv;
-          }`,
-        fragmentShader: `
-          precision highp float;
-          in vec2 vQ;
-          in float vMeta;
-          in float vH;
-          in float vDist;
-          uniform float uTime;
-          uniform float uAlign;
-          uniform vec3 uFog;
-          out vec4 outColor;
-          void main() {
-            // A SUPPORTING MASS. The monument is tall, sharp and split;
-            // anything that repeats those terms argues with it. These
-            // are broad, low and round-shouldered, and their whole job
-            // is to be present without being looked at.
-            float hN = vQ.y / max(vH, 0.001);
-            if (hN > 1.0) discard;
-            // shoulder: full width through the body, then turning over
-            // into a dome rather than a point or a cut
-            float lean = (fract(vMeta * 7.3) - 0.5) * 0.22;
-            float shoulder = pow(max(1.0 - pow(hN, 2.4), 0.0), 0.42);
-            float axis = vQ.x / max(vH * 0.46, 0.001) - lean * hN;
-            float wN = abs(axis) / max(shoulder, 0.001);
-            float aa = fwidth(wN) * 1.4 + 0.02;
-            float form = (1.0 - smoothstep(1.0 - aa, 1.0 + aa, wN))
-                       * smoothstep(0.0, 0.02, hN);
-            if (form <= 0.003) discard;
-            // see-through: the edges hold the most, the middle the least,
-            // so you look INTO it rather than at it
-            // the shell: heaviest at the silhouette, thinnest through
-            // the middle, so the eye looks INTO the form and the plain
-            // stays visible through it
-            float shell = pow(smoothstep(0.30, 1.0, wN), 1.6);
-            float alpha = form * (0.05 + shell * 0.30) * 0.30;
-            // inert alone; the alignment is the only thing they ever say
-            // A presence DARKENS the haze it stands in. Brighter than
-            // the background turned them into light shafts; a body
-            // occludes, and only its edge catches anything
-            float rim = smoothstep(0.86, 1.0, wN);
-            float lit = (0.012 + uAlign * 0.12) * rim;
-            vec3 col = uFog * 0.55 + vec3(lit);
-            float fade = exp(-vDist * vDist * 0.0000021);
-            outColor = vec4(col, alpha * fade);
-          }`,
-        uniforms: {
-          uTime: { value: 0 },
-          uAlign: { value: 0 },
-          uFog: { value: new THREE.Color('#07080a') }
-        },
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-      const cg = new THREE.BufferGeometry();
-      cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      cg.setAttribute('aCentre', new THREE.Float32BufferAttribute(centre, 3));
-      cg.setAttribute('aMeta', new THREE.Float32BufferAttribute(meta, 1));
-      cg.setAttribute('aH', new THREE.Float32BufferAttribute(hgt, 1));
-      cg.setIndex(idx);
-      const choir = new THREE.Mesh(cg, this.choirMat);
-      choir.frustumCulled = false;
-      choir.renderOrder = 2;
-      this.scene.add(choir);
-    }
+    // THE CHOIR is no longer built here. Five transparent swaying
+    // billboards were the wrong quality level for the idea; the real
+    // masses are authored geometry in ChoirGroup, loaded from
+    // choir.glb, and they never move.
+    this.choir = new ChoirGroup(this.scene);
 
     // --- DRIFTING MIST ---
     // Low banks crossing the field. Movement across the frame, which
@@ -1668,8 +1538,7 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     this.fissureMat.uniforms.uNear!.value = inside;
     this.fieldMat.uniforms.uTime!.value = reduced ? 0 : this.time;
     this.mistMat.uniforms.uTime!.value = reduced ? 0 : this.time;
-    this.choirMat.uniforms.uTime!.value = reduced ? 0 : this.time;
-    (this.choirMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
+
     (this.mistMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.fieldMat.uniforms.uSeverity!.value = sev;
     (this.fieldMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
@@ -1734,7 +1603,6 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
       mu.uInnerAmt!.value = inside * 0.35;
       if (mu.uSignal) mu.uSignal.value = signal;
       if (mu.uAlign) mu.uAlign.value = alignAmt;
-      this.choirMat.uniforms.uAlign!.value = alignAmt;
       if (mu.uFogColor) (mu.uFogColor.value as THREE.Color).copy(fogColor);
       if (mu.uFogDensity) mu.uFogDensity.value = fogDensity;
     }
@@ -1754,6 +1622,9 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     this.markGeom.setDrawRange(0, marks.length);
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;
+
+    // the choir: three inputs, none of which move a single vertex
+    this.choir.update({ progress, severity: sev, alignment: alignAmt });
 
     // survey annotations track their anchors
     const v = new THREE.Vector3();
