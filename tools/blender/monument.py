@@ -15,19 +15,28 @@
 # Run: blender --background --python tools/blender/monument.py
 # Produces: public/models/monument.glb, monument-normal.png,
 #           monument-ao.png
+#
+# Fast judge loop, no bake, no export:
+#   blender --background --python tools/blender/monument.py -- --silhouette
+# Renders the low poly grey at three angles into captures/form/. The
+# form is judged there BEFORE it costs a bake or touches the site.
 import bpy
 import math
 import os
+import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_GLB = os.path.join(ROOT, "public", "models", "monument.glb")
 OUT_NRM = os.path.join(ROOT, "public", "models", "monument-normal.png")
 OUT_AO = os.path.join(ROOT, "public", "models", "monument-ao.png")
 
-# ---- form constants: THE FORK, mirrored in monumentForm.ts ----
+# ---- form constants: THE HORNS, mirrored in monumentForm.ts ----
+# The pair must splay ACROSS the opening camera, so the twist stays
+# small: rotate the pair toward the view axis and the splay
+# foreshortens into a single notched slab, which is what it did.
 H = 195.0
-PHI = 1.1
-PHI0 = -0.35
+PHI = 0.45
+PHI0 = -0.15
 TWIST_POW = 1.0
 PROFILE = [
     (11.0, 0.0),
@@ -62,15 +71,16 @@ def twist_at(t):
 
 
 def radius_at(t):
-    # horns, not a lambda: fused at the foot, opening progressively,
-    # the sweep accelerating toward the tip. The pair never crosses
-    return 3.4 + 5.5 * t + 9.5 * (smoothstep(0.10, 1.0, t) ** 1.5)
+    # the lyre: fused at the foot, sweeping wide through the waist,
+    # then the tips draw back in and up. They approach without ever
+    # crossing, because crossing read as a lambda
+    return 3.4 + 26.0 * smoothstep(0.05, 0.74, t) - 5.0 * (smoothstep(0.80, 1.0, t) ** 1.3)
 
 
 def hook_at(t):
-    # the curl: the tip leans out of the plane so the horn turns in
-    # three dimensions instead of splaying as a flat V
-    return 9.0 * (smoothstep(0.60, 1.0, t) ** 1.6)
+    # a little out-of-plane lean for dimension. Large values hid the
+    # whole arc behind foreshortening, which is what killed the last one
+    return 2.2 * (smoothstep(0.55, 1.0, t) ** 1.4)
 
 
 def scale_at(t):
@@ -196,6 +206,61 @@ bpy.ops.object.mode_set(mode="EDIT")
 bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.012, correct_aspect=True)
 bpy.ops.object.mode_set(mode="OBJECT")
+
+if "--silhouette" in sys.argv:
+    # fast judge loop: grey form, three angles, no bake, no export
+    FORM_DIR = os.path.join(ROOT, "captures", "form")
+    os.makedirs(FORM_DIR, exist_ok=True)
+    bpy.ops.mesh.primitive_plane_add(size=1400, location=(0, 0, -1.2))
+    ground = bpy.context.active_object
+    matg = bpy.data.materials.new("Grey")
+    matg.use_nodes = True
+    bsdf = matg.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (0.16, 0.16, 0.17, 1)
+    bsdf.inputs["Roughness"].default_value = 0.5
+    low.data.materials.append(matg)
+    ground.data.materials.append(matg)
+    sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", type="SUN"))
+    sun.data.energy = 4.0
+    sun.rotation_euler = (math.radians(55), math.radians(-12), math.radians(160))
+    bpy.context.collection.objects.link(sun)
+    fill = bpy.data.objects.new("Fill", bpy.data.lights.new("Fill", type="SUN"))
+    fill.data.energy = 0.8
+    fill.rotation_euler = (math.radians(70), math.radians(15), math.radians(-30))
+    bpy.context.collection.objects.link(fill)
+    world = bpy.data.worlds.new("W")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs[0].default_value = (0.01, 0.01, 0.012, 1)
+    bpy.context.scene.world = world
+    target = bpy.data.objects.new("Target", None)
+    target.location = (0, 0, 95)
+    bpy.context.collection.objects.link(target)
+    cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
+    cam.data.lens = 60
+    bpy.context.collection.objects.link(cam)
+    cam.constraints.new(type="TRACK_TO").target = target
+    bpy.context.scene.camera = cam
+    sc = bpy.context.scene
+    sc.render.engine = "CYCLES"
+    sc.cycles.samples = 20
+    sc.render.resolution_x = 620
+    sc.render.resolution_y = 880
+    try:
+        sc.cycles.device = "GPU"
+    except Exception:
+        pass
+    for nm, loc, tz in [
+        ("front", (0, -300, 14), 95),
+        ("threequarter", (185, -235, 40), 95),
+        ("crown", (0, -110, 165), 168),
+    ]:
+        cam.location = loc
+        target.location = (0, 0, tz)
+        sc.render.filepath = os.path.join(FORM_DIR, f"form-{nm}.png")
+        bpy.ops.render.render(write_still=True)
+        print("RENDERED", sc.render.filepath)
+    print("SILHOUETTE ONLY, nothing exported")
+    raise SystemExit(0)
 
 # ---- HIGH: the sculpt ----
 high = join_pair(

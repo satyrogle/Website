@@ -11,6 +11,9 @@ import { CameraPath } from './CameraPath';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
+/** how far behind the form the glow sprites sit, in world units */
+const HALO_DEPTH = 78;
+
 const FRAG_COMMON = `#include <common>
 varying vec3 vMonoW;
 uniform float uDecay;
@@ -32,14 +35,14 @@ const FRAG_MAP = `#include <map_fragment>
   // unwrap the twist first: the decay field and the glyph courses both
   // follow the blades. Constants mirror monumentForm.ts (THE FORK);
   // pow(0,y) guarded, it has burned this project once already
-  float tphi = -0.35 + 1.1 * heightT;
+  float tphi = -0.15 + 0.45 * heightT;
   float cph = cos(tphi);
   float sph = sin(tphi);
   vec2 q = vec2(cph * vMonoW.x + sph * vMonoW.z, -sph * vMonoW.x + cph * vMonoW.z);
   float sideS = q.x >= 0.0 ? 1.0 : -1.0;
   float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
-  float formR = 3.4 + 5.5 * heightT + 9.5 * pow(smoothstep(0.1, 1.0, heightT), 1.5);
-  float hookT = 9.0 * pow(smoothstep(0.6, 1.0, heightT), 1.6);
+  float formR = 3.4 + 26.0 * smoothstep(0.05, 0.74, heightT) - 5.0 * pow(smoothstep(0.8, 1.0, heightT), 1.3);
+  float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4);
   vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
   float ang = atan(lp.y, lp.x);
 
@@ -453,14 +456,14 @@ const MONO_FRAG = /* glsl */ `
 
     // the inscription courses, coarse: this surface is only ever a
     // shivered reflection
-    float tphi = -0.35 + 1.1 * heightT;
+    float tphi = -0.15 + 0.45 * heightT;
     float cph = cos(tphi);
     float sph = sin(tphi);
     vec2 q = vec2(cph * vWorld.x + sph * vWorld.z, -sph * vWorld.x + cph * vWorld.z);
     float sideS = q.x >= 0.0 ? 1.0 : -1.0;
     float formS = 1.2 - 0.72 * pow(max(heightT, 1e-4), 1.6);
-    float formR = 3.4 + 5.5 * heightT + 9.5 * pow(smoothstep(0.1, 1.0, heightT), 1.5);
-    float hookT = 9.0 * pow(smoothstep(0.6, 1.0, heightT), 1.6);
+    float formR = 3.4 + 26.0 * smoothstep(0.05, 0.74, heightT) - 5.0 * pow(smoothstep(0.8, 1.0, heightT), 1.3);
+    float hookT = 2.2 * pow(smoothstep(0.55, 1.0, heightT), 1.4);
     vec2 lp = vec2(abs(q.x) - max(formR, 0.3), (q.y - sign(q.x) * hookT) * sideS);
     float angP = atan(lp.y, lp.x);
     float rowH = 1.05;
@@ -668,6 +671,8 @@ export class JourneyRenderer {
   private keyLight!: THREE.DirectionalLight;
   private fillLight!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
+  private frameMat!: THREE.MeshStandardMaterial;
+  private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
   private monoMirrorMat!: THREE.ShaderMaterial;
@@ -793,11 +798,17 @@ export class JourneyRenderer {
     // Two spines follow the prong cores; ties and diagonals cross the
     // cleft. From outside it is invisible under the stone. From inside
     // the cleft, and after the stone strips, it is the subject.
-    const frameMat = new THREE.MeshStandardMaterial({
+    // The lattice is the LAST thing the visitor understands, so it may
+    // not be legible in the opening frame. Through the widened gap it
+    // read as scaffolding and gave the ending away.
+    this.frameMat = new THREE.MeshStandardMaterial({
       color: 0x0b0e12,
       roughness: 0.55,
-      metalness: 0.25
+      metalness: 0.25,
+      transparent: true,
+      opacity: 0
     });
+    const frameMat = this.frameMat;
     const frame = new THREE.Group();
     const bar = (a: THREE.Vector3, b: THREE.Vector3, w: number): void => {
       const len = a.distanceTo(b);
@@ -834,6 +845,7 @@ export class JourneyRenderer {
         bar(d1a.clone().lerp(d1b, 0.07), d1b.clone().lerp(d1a, 0.07), 0.7);
       }
     }
+    this.frameGroup = frame;
     this.scene.add(frame);
 
     // --- the scree of the struck ---
@@ -899,13 +911,16 @@ export class JourneyRenderer {
     this.scene.add(this.witnessLight);
 
     // --- atmosphere ---
+    // The halos sit BEHIND the whole form, never on its axis. An
+    // additive sprite at the axis is painted over every surface behind
+    // it, so the far horn washed out to a ghost while the near one
+    // stayed black. Behind the form it backlights the silhouette,
+    // which is what a halo was always meant to do.
     this.halo = makeHalo('#c9a071', 240);
-    this.halo.position.set(0, TOWER_TOP * 0.45, 0);
+    this.halo.position.set(0, TOWER_TOP * 0.45, -HALO_DEPTH);
     this.scene.add(this.halo);
-    // the crown glow floats at the very tips, wrapping the gap of sky
-    // between them rather than painting the upper stone
     this.crownHalo = makeHalo('#ecd0a0', 110);
-    this.crownHalo.position.set(0, TOWER_TOP + 8, 0);
+    this.crownHalo.position.set(0, TOWER_TOP + 8, -HALO_DEPTH);
     this.scene.add(this.crownHalo);
 
     // --- the air: dust motes over the water, rising slowly ---
@@ -1190,6 +1205,11 @@ export class JourneyRenderer {
 
     // the fallen accumulate
     this.scree.count = Math.floor(this.screeTotal * Math.min(1, decay * 1.15));
+
+    // the lattice surfaces only as the stone that hid it fails
+    const latticeSeen = smooth01(progress, 0.3, 0.54);
+    this.frameMat.opacity = latticeSeen;
+    this.frameGroup.visible = latticeSeen > 0.015;
 
     if (this.world.strikesDirty) {
       this.strikeAttr.needsUpdate = true;

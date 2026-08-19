@@ -13,9 +13,9 @@
 
 export const FORM_H = 195;
 /** total twist base to tip, radians */
-export const FORM_PHI = 1.1;
+export const FORM_PHI = 0.45;
 /** base orientation: the gap faces the opening camera; the fork reads */
-export const FORM_PHI0 = -0.35;
+export const FORM_PHI0 = -0.15;
 const TWIST_POW = 1.0;
 
 /**
@@ -53,12 +53,12 @@ export function twistAt(t: number): number {
  * The pair never crosses; crossing read as a lambda.
  */
 export function radiusAt(t: number): number {
-  return 3.4 + 5.5 * t + 9.5 * Math.pow(smoothstep01(0.1, 1.0, t), 1.5);
+  return 3.4 + 26.0 * smoothstep01(0.05, 0.74, t) - 5.0 * Math.pow(smoothstep01(0.8, 1.0, t), 1.3);
 }
 
 /** the curl: the tip leans out of plane so the horn turns in 3D */
 export function hookAt(t: number): number {
-  return 9.0 * Math.pow(smoothstep01(0.6, 1.0, t), 1.6);
+  return 2.2 * Math.pow(smoothstep01(0.55, 1.0, t), 1.4);
 }
 
 /** cross-section scale: thick at the base, drawn to a point */
