@@ -4,8 +4,80 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
 import { CameraPath } from './CameraPath';
+
+const FRAG_COMMON = `#include <common>
+varying vec3 vMonoW;
+uniform float uDecay;
+uniform float uSeverity;
+uniform float uTime;
+uniform float uCalm;
+uniform vec3 uHover;
+uniform float uHoverAmt;
+uniform vec3 uInner;
+uniform float uInnerAmt;
+float vMonoEng;
+float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
+
+const FRAG_MAP = `#include <map_fragment>
+{
+  vec3 cell = floor(vMonoW / 1.5);
+  float h = monoHash(cell);
+  float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
+  float cluster = 0.5 + 0.5 * sin(cell.x * 0.315 + cell.z * 0.255 + cell.y * 0.165 + h * 9.0);
+  float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
+  if (uDecay > th) discard;
+  float dying = smoothstep(0.035, 0.0, th - uDecay);
+  vec3 an = abs(normalize(vNormal));
+  vec2 cuv;
+  if (an.y > 0.6) cuv = fract(vMonoW.xz / 1.5);
+  else if (an.x > an.z) cuv = fract(vMonoW.zy / 1.5);
+  else cuv = fract(vMonoW.xy / 1.5);
+  vec2 eUv = min(cuv, 1.0 - cuv);
+  float edge = min(eUv.x, eUv.y);
+  diffuseColor.rgb *= 0.8 + 0.2 * smoothstep(0.0, 0.09, edge);
+  float eng = 0.0;
+  vec2 pp = cuv;
+  float amp = 1.0;
+  for (int i = 0; i < 4; i++) {
+    pp = fract(pp * 2.0 + h * 13.17 + float(i) * 0.31);
+    vec2 dd = abs(pp - 0.5);
+    float engFrame = smoothstep(0.5, 0.44, max(dd.x, dd.y)) * smoothstep(0.3, 0.36, max(dd.x, dd.y));
+    float keep = step(0.45, fract(h * (7.0 + float(i) * 3.7) + float(i) * 0.37));
+    eng = max(eng, engFrame * keep * amp);
+    amp *= 0.72;
+  }
+  eng *= smoothstep(0.02, 0.09, edge);
+  diffuseColor.rgb *= 1.0 - eng * 0.3;
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.75, 1.05), uSeverity * 0.55);
+  diffuseColor.rgb *= mix(0.55, 1.2, heightT * heightT);
+  diffuseColor.rgb = mix(diffuseColor.rgb * 0.3, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
+  if (dying > 0.0) {
+    float g = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
+    diffuseColor.rgb *= mix(1.0, mix(g, 0.8, uCalm), dying);
+  }
+  vMonoEng = eng;
+}`;
+
+const FRAG_EMISSIVE = `#include <emissivemap_fragment>
+{
+  float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
+  vec3 crownCol = mix(vec3(1.0, 0.9, 0.72), vec3(0.8, 0.9, 1.0), uSeverity);
+  totalEmissiveRadiance += crownCol * smoothstep(0.93, 1.0, heightT) * 1.1 * (1.0 - uSeverity * 0.5);
+  float hd = distance(vMonoW, uHover);
+  float camD = distance(cameraPosition, uHover);
+  float sigma = clamp(camD * 0.16, 2.5, 15.0);
+  float lampF = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
+  vec3 lampCol = mix(vec3(1.0, 0.85, 0.6), vec3(0.5, 0.78, 1.0), uSeverity);
+  totalEmissiveRadiance += lampCol * lampF * (0.12 + vMonoEng * 0.55);
+  if (uInnerAmt > 0.001) {
+    vec3 iv = uInner - vMonoW;
+    totalEmissiveRadiance += vec3(0.45, 0.5, 0.6) * (uInnerAmt / (1.0 + dot(iv, iv) * 0.02));
+  }
+}`;
+
 
 /**
  * THE MONUMENT, observed. One colossal stele of light cells in a dark
@@ -453,10 +525,21 @@ export class JourneyRenderer {
   private readonly scree: THREE.InstancedMesh;
   private readonly screeTotal: number;
   private innerLight!: THREE.PointLight;
+  private readonly annos: Array<{
+    el: HTMLElement | null;
+    point: THREE.Vector3;
+    from: number;
+    to: number;
+  }> = [
+    { el: null, point: new THREE.Vector3(2, 191, 11), from: 0.05, to: 0.4 },
+    { el: null, point: new THREE.Vector3(6, 141, 21), from: 0.26, to: 0.52 },
+    { el: null, point: new THREE.Vector3(9, 100, 22), from: 0.36, to: 0.5 }
+  ];
   private rimLight!: THREE.DirectionalLight;
   private moteMat!: THREE.ShaderMaterial;
-  private monoMat!: THREE.ShaderMaterial;
+  private monoMat!: THREE.MeshStandardMaterial;
   private monoMirrorMat!: THREE.ShaderMaterial;
+  private stoneU!: Record<string, THREE.IUniform>;
   /** resolves once the authored monument is standing */
   readonly ready: Promise<void>;
   private readonly halo: THREE.Sprite;
@@ -482,6 +565,7 @@ export class JourneyRenderer {
       powerPreference: 'high-performance'
     });
     this.renderer.setClearColor(0x020304, 1);
+    this.scene.fog = new THREE.FogExp2(0x0c0906, 0.0022);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.3, 900);
@@ -711,6 +795,12 @@ export class JourneyRenderer {
     this.resize();
     window.addEventListener('resize', this.resize);
 
+    // --- image-based light: the single biggest jump toward the
+    // reference's material quality ---
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.25;
+
     // --- the monument itself: authored stone, not boxes ---
     const monoUniforms = (): Record<string, THREE.IUniform> => ({
       uTime: { value: 0 },
@@ -724,13 +814,28 @@ export class JourneyRenderer {
       uFogColor: { value: new THREE.Color('#0c0906') },
       uFogDensity: { value: 0.0022 }
     });
-    this.monoMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3,
-      vertexShader: MONO_VERT,
-      fragmentShader: MONO_FRAG,
-      uniforms: monoUniforms(),
+    // physically based stone, with the world's law injected into it
+    this.stoneU = monoUniforms();
+    const stone = new THREE.MeshStandardMaterial({
+      color: 0xb9b2a4,
+      roughness: 0.58,
+      metalness: 0.03,
       side: THREE.DoubleSide
     });
+    stone.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, this.stoneU);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMonoW;')
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvMonoW = (modelMatrix * vec4(position, 1.0)).xyz;'
+        );
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', FRAG_COMMON)
+        .replace('#include <map_fragment>', FRAG_MAP)
+        .replace('#include <emissivemap_fragment>', FRAG_EMISSIVE);
+    };
+    this.monoMat = stone;
     this.monoMirrorMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       vertexShader: MONO_VERT,
@@ -742,16 +847,26 @@ export class JourneyRenderer {
     this.ready = new GLTFLoader()
       .loadAsync('/models/monument.glb')
       .then((gltf) => {
+        const terrainMat = new THREE.MeshStandardMaterial({
+          color: 0x181a1e,
+          roughness: 0.96,
+          metalness: 0.0
+        });
         gltf.scene.traverse((o) => {
-          if ((o as THREE.Mesh).isMesh) {
-            const mesh = o as THREE.Mesh;
-            const stone = new THREE.Mesh(mesh.geometry, this.monoMat);
-            stone.frustumCulled = false;
-            this.scene.add(stone);
-            const drowned = new THREE.Mesh(mesh.geometry, this.monoMirrorMat);
-            drowned.frustumCulled = false;
-            this.scene.add(drowned);
+          if (!(o as THREE.Mesh).isMesh) return;
+          const mesh = o as THREE.Mesh;
+          if (mesh.name === 'Terrain') {
+            const ground = new THREE.Mesh(mesh.geometry, terrainMat);
+            ground.frustumCulled = false;
+            this.scene.add(ground);
+            return;
           }
+          const body = new THREE.Mesh(mesh.geometry, this.monoMat);
+          body.frustumCulled = false;
+          this.scene.add(body);
+          const drowned = new THREE.Mesh(mesh.geometry, this.monoMirrorMat);
+          drowned.frustumCulled = false;
+          this.scene.add(drowned);
         });
       })
       .catch((e) => {
@@ -782,6 +897,8 @@ export class JourneyRenderer {
 
     const fogDensity = 0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7);
     const fogColor = lerpColor('#080603', '#020407', sev);
+    (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
+    (this.scene.fog as THREE.FogExp2).density = fogDensity;
 
     // the lamp follows attention; it wakes and settles smoothly
     let hoverTargetAmt = 0;
@@ -840,8 +957,7 @@ export class JourneyRenderer {
       this.world.strikesDirty = false;
     }
 
-    for (const mm of [this.monoMat, this.monoMirrorMat]) {
-      const mu = mm.uniforms;
+    for (const mu of [this.stoneU, this.monoMirrorMat.uniforms]) {
       mu.uTime!.value = this.time;
       mu.uDecay!.value = decay;
       mu.uSeverity!.value = sev;
@@ -850,8 +966,8 @@ export class JourneyRenderer {
       mu.uHoverAmt!.value = this.hoverAmt;
       (mu.uInner!.value as THREE.Vector3).copy(this.camera.position);
       mu.uInnerAmt!.value = inside * 0.55;
-      (mu.uFogColor!.value as THREE.Color).copy(fogColor);
-      mu.uFogDensity!.value = fogDensity;
+      if (mu.uFogColor) (mu.uFogColor.value as THREE.Color).copy(fogColor);
+      if (mu.uFogDensity) mu.uFogDensity.value = fogDensity;
     }
     this.markMat.uniforms.uTime!.value = this.world.tick / 60;
     this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.time;
@@ -868,6 +984,20 @@ export class JourneyRenderer {
     this.markGeom.setDrawRange(0, marks.length);
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;
+
+    // survey annotations track their anchors
+    const v = new THREE.Vector3();
+    for (const a of this.annos) {
+      if (!a.el) continue;
+      v.copy(a.point).project(this.camera);
+      const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+      const phase = progress > a.from && progress < a.to;
+      a.el.style.opacity = vis && phase && !reduced ? '1' : phase && vis ? '1' : '0';
+      if (vis) {
+        a.el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(1) + 'px';
+        a.el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight).toFixed(1) + 'px';
+      }
+    }
 
     this.composer.render();
   }

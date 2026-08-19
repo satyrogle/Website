@@ -541,6 +541,29 @@ html.js .ledger__list li.is-new { animation: ledger-in 0.5s ease; }
   line-height: 2.1;
 }
 
+/* ---------- survey annotations ---------- */
+
+.anno {
+  position: fixed;
+  z-index: 5;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  color: var(--bone-55);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.anno__line {
+  display: inline-block;
+  width: 44px;
+  height: 1px;
+  background: var(--bone-38);
+  vertical-align: middle;
+  margin-right: 0.6rem;
+}
+
 /* ---------- record chip ---------- */
 
 .chip {
