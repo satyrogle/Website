@@ -1122,6 +1122,7 @@ export class JourneyRenderer {
       const pos: number[] = [];
       const centre: number[] = [];
       const meta: number[] = [];
+      const hgt: number[] = [];
       const idx: number[] = [];
       for (let i = 0; i < N; i++) {
         // Composed, not spaced: near, mid and far members with a gap
@@ -1138,9 +1139,12 @@ export class JourneyRenderer {
         // a quad in local space; the vertex shader turns it to face the
         // camera, so the corners carry the local offsets
         for (const corner of [[-1, 0], [1, 0], [1, 1], [-1, 1]] as const) {
-          pos.push(corner[0] * w, corner[1] * h, 0);
+          // the quad runs a little past the stone so the slanted top has
+          // room to be cut rather than clipped by the geometry edge
+          pos.push(corner[0] * w, corner[1] * h * 1.18, 0);
           centre.push(cx, 0, cz);
           meta.push(i / N + st[3]);
+          hgt.push(h);
         }
         idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
       }
@@ -1149,12 +1153,15 @@ export class JourneyRenderer {
         vertexShader: `
           in vec3 aCentre;
           in float aMeta;
+          in float aH;
           out vec2 vQ;
           out float vMeta;
+          out float vH;
           out float vDist;
           uniform float uTime;
           void main() {
             vMeta = aMeta;
+            vH = aH;
             // billboard: the quad turns about Y to face the camera
             vec3 c = aCentre;
             vec3 toCam = cameraPosition - c;
@@ -1171,6 +1178,7 @@ export class JourneyRenderer {
           precision highp float;
           in vec2 vQ;
           in float vMeta;
+          in float vH;
           in float vDist;
           uniform float uTime;
           uniform float uAlign;
@@ -1180,9 +1188,9 @@ export class JourneyRenderer {
             // A STANDING STONE, not a cloud: straight taper, hard edges,
             // and a slanted cut across the top. The soft falloff that
             // was here made them read as blobs of fog
-            float hN = clamp(vQ.y / 136.0, 0.0, 1.0);
+            float hN = vQ.y / max(vH, 0.001);
             float body = 1.0 - 0.55 * hN;
-            float wN = abs(vQ.x) / max(body * 30.0, 0.001);
+            float wN = abs(vQ.x) / max(body * vH * 0.19, 0.001);
             // the top is cut on a slant, each stone at its own angle
             float slant = 0.86 + (fract(vMeta * 7.3) - 0.5) * 0.16
                         + (vQ.x / 34.0) * (fract(vMeta * 3.1) - 0.5) * 0.30;
@@ -1222,6 +1230,7 @@ export class JourneyRenderer {
       cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       cg.setAttribute('aCentre', new THREE.Float32BufferAttribute(centre, 3));
       cg.setAttribute('aMeta', new THREE.Float32BufferAttribute(meta, 1));
+      cg.setAttribute('aH', new THREE.Float32BufferAttribute(hgt, 1));
       cg.setIndex(idx);
       const choir = new THREE.Mesh(cg, this.choirMat);
       choir.frustumCulled = false;
