@@ -16,8 +16,15 @@
  */
 
 export const FORM_H = 195;
-/** half the gap between the two halves, world units */
-export const SLIT = 2.6;
+/**
+ * Half the gap between the halves. It CLOSES with height: a doorway at
+ * the foot the journey can walk into, a hairline at the crown. The
+ * first version had it opening with height, which left the tips too
+ * far apart to read as one split mass.
+ */
+export const SLIT_BASE = 5.0;
+export const SLIT_TOP = 1.1;
+export const SLIT = SLIT_BASE;
 /** cross-section at the foot */
 const BASE_W = 31;
 const BASE_D = 17;
@@ -29,9 +36,6 @@ const BASE_D = 17;
  */
 const TOP_K = 0.02;
 const TOP_D = 0.02;
-/** each half tilts, so the bases part into a doorway */
-const TILT = 0.0332;
-
 /**
  * Where the celled body stops. Above this the crown breaks into bare
  * shards, which carry no records: the broken part of a monument is the
@@ -77,8 +81,7 @@ function sgn(side: 0 | 1): number {
 
 /** the cut face of a half at height t: its x, after tilt */
 export function cutPlaneX(t: number, side: 0 | 1): number {
-  const s = sgn(side);
-  return s * (SLIT + TILT * t * FORM_H * 0.5);
+  return sgn(side) * (SLIT_BASE - (SLIT_BASE - SLIT_TOP) * Math.min(1, Math.max(0, t)));
 }
 
 /** centre of a half's section at height t (on its cut plane) */

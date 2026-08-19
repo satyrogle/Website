@@ -37,7 +37,7 @@ const FRAG_MAP = `#include <map_fragment>
   // the flank. Constants mirror monumentForm.ts
   float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
   float formS = 1.0 - 0.95 * pow(max(heightT, 1e-4), 1.35);
-  float cutX = sideS * (2.6 + 0.0332 * heightT * 195.0 * 0.5);
+  float cutX = sideS * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
   float outward = abs(vMonoW.x - cutX) / max(31.0 * formS, 0.001);
   float across = clamp(vMonoW.z / max(17.0 * formS, 0.001), -1.0, 1.0);
   float ang = across * 1.5 + sign(vMonoW.z) * smoothstep(0.5, 1.0, outward) * 1.2;
@@ -917,6 +917,7 @@ export class JourneyRenderer {
         in vec2 vUvF;
         uniform float uSeverity;
         uniform float uDecay;
+        uniform float uNear;
         out vec4 outColor;
         void main() {
           // brightest at the throat, falling off up and down, so it
@@ -926,14 +927,18 @@ export class JourneyRenderer {
           vec3 holy = vec3(1.0, 0.97, 0.92);
           vec3 cold = vec3(0.62, 0.78, 1.0);
           float fail = 1.0 - uDecay * 0.55;
-          outColor = vec4(mix(holy, cold, uSeverity) * v * u * 2.6 * fail, 1.0);
+          // inside the slit the plane is a few units from the eye, so
+          // full strength floods the frame and the walls lose their
+          // dark. It burns from a distance and only glows up close
+          float near = mix(2.6, 0.34, uNear);
+          outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail, 1.0);
         }`,
-      uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 } },
+      uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 }, uNear: { value: 0 } },
       side: THREE.DoubleSide,
       depthWrite: false
     });
     {
-      const fis = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 150), this.fissureMat);
+      const fis = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 150), this.fissureMat);
       fis.position.set(0, 78, -7.0);
       fis.frustumCulled = false;
       this.scene.add(fis);
@@ -1221,6 +1226,9 @@ export class JourneyRenderer {
     this.skyMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uDecay!.value = decay;
+    this.fissureMat.uniforms.uNear!.value = inside;
+    // bloom must not smear the fissure across the walls in there
+    this.bloom.strength = 0.34 * (1 - inside * 0.72);
     this.seaMat.uniforms.uSeverity!.value = sev;
     this.seaMat.uniforms.uDecay!.value = decay;
     this.seaMat.uniforms.uTime!.value = reduced ? 0 : this.time;

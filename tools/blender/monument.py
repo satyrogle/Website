@@ -25,13 +25,13 @@ OUT_NRM = os.path.join(ROOT, "public", "models", "monument-normal.png")
 OUT_AO = os.path.join(ROOT, "public", "models", "monument-ao.png")
 
 H = 195.0
-SLIT = 2.6
+SLIT_BASE = 5.0
+SLIT_TOP = 1.1
 BASE_W = 31.0
 BASE_D = 17.0
 TOP_K = 0.02
 TOP_D = 0.02
 SHEAR = 0.0
-TILT = 0.0332
 TIP_T = (1.0, 0.9)
 
 HALF_PROFILE = [
@@ -55,7 +55,7 @@ def depth_section_at(t):
 
 def cut_plane_x(t, side):
     s = -1.0 if side == 0 else 1.0
-    return s * (SLIT + TILT * t * H * 0.5)
+    return s * (SLIT_BASE - (SLIT_BASE - SLIT_TOP) * min(1.0, max(0.0, t)))
 
 
 def resample(edge_div):
