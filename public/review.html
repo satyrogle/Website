@@ -51,6 +51,7 @@
 <nav>
   <a href="#journey">The journey</a>
   <a href="#material">Material and bake</a>
+  <a href="#crowns">The crown</a>
   <a href="#refs">From your sheet</a>
   <a href="#forms">Earlier forms</a>
 </nav>
@@ -62,6 +63,12 @@
     visitor passes through, in order.
   </p>
   <div class="grid" id="g-journey"></div>
+</section>
+
+<section id="crowns">
+  <h2>The crown</h2>
+  <p class="lede">Close crops of the tips, at size. Each is the live site, not a Blender study.</p>
+  <div class="grid" id="g-crowns"></div>
 </section>
 
 <section id="refs">
@@ -125,6 +132,14 @@ const refs = [
   ['b-fission-idol-threequarter', 'B — three-quarter', ''],
   ['b-fission-idol-inside', 'B — inside the shell', 'The hanging cluster in the cavity.']
 ];
+const crowns = [
+  ['crown-sharp', 'NOW — sharp points', 'Straight-sided facets converging on the section centre. The old tip curled like foil because the taper was concave and the apex was offset; sharpness was never the problem.'],
+  ['current', 'BEFORE — the odd tops', 'Tapered to 5 percent of base, so both tips ended as paper slivers: one curled and caught a blown highlight, the other snapped off blunt.'],
+  ['crown-shards', 'REJECTED — shard crown', 'The fission-idol crown read as a populated tiara. Too many points.'],
+  ['crown-broken', 'Option — sheared crown', 'Both tips cut off at opposing angles.'],
+  ['crown-blade', 'Option — blade edge', 'Width kept, depth lost: the tip becomes a vertical knife edge.'],
+  ['crown-chisel', 'Option — chiselled cap', 'Taper stops early, a few large facets converge on a small blunt cap.']
+];
 const material = [
   ['bake-normal', 'Baked normal map', 'Two UV islands, one per slab. The horizontal bands are real stepped courses from the high-poly.'],
   ['bake-ao', 'Baked ambient occlusion', 'Contact shadow in every groove and under every shelf.']
@@ -144,6 +159,7 @@ function render(id, list) {
       <figcaption><b>${t}</b>${d ? ' — ' + d : ''}</figcaption>
     </figure>`).join('');
 }
+render('g-crowns', crowns);
 render('g-refs', refs);
 render('g-journey', journey);
 render('g-material', material);

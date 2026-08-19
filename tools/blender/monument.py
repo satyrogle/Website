@@ -28,9 +28,11 @@ H = 195.0
 SLIT = 2.6
 BASE_W = 31.0
 BASE_D = 17.0
-TOP_K = 0.05
+TOP_K = 0.02
+TOP_D = 0.02
+SHEAR = 0.0
 TILT = 0.0332
-TIP_T = (1.0, 0.93)
+TIP_T = (1.0, 0.9)
 
 HALF_PROFILE = [
     (0.0, 1.0),
@@ -44,7 +46,11 @@ HALF_PROFILE = [
 
 
 def section_at(t):
-    return 1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.35)
+    return 1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)
+
+
+def depth_section_at(t):
+    return 1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)
 
 
 def cut_plane_x(t, side):
@@ -84,22 +90,30 @@ def build_half(side, name, rings, edge_div, chisel):
             course = math.floor((t * H) / 2.1)
             k *= 1.0 + (math.sin(course * 12.9898) * 0.5 + 0.5) * 0.045 - 0.016
         cx = cut_plane_x(t, side)
+        kd = depth_section_at(t)
+        if chisel:
+            kd *= 1.0 + (math.sin(math.floor((t * H) / 2.1) * 12.9898) * 0.5 + 0.5) * 0.045 - 0.016
         for (pa, pb) in pts:
-            verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * k, t * H))
+            verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * kd, t * H))
     for i in range(rings - 1):
         b0, b1 = i * n, (i + 1) * n
         for j in range(n - 1):
             faces.append((b0 + j, b0 + j + 1, b1 + j + 1, b1 + j))
         # the cut face: last boundary point back to the first
         faces.append((b0 + n - 1, b0, b1, b1 + n - 1))
-    # tip cap
-    tip = len(verts)
-    verts.append((cut_plane_x(t_top, side) + s * -0.4 * BASE_W * section_at(t_top),
-                  0.0, t_top * H + 1.6))
+    # THE CROWN: a flat cap sheared across the section, not a swept
+    # spike. A spike at 5 percent section read as bent foil
+    # THE POINT: straight facets converging on the section's own
+    # centre. Offsetting the apex is what made the old tip curl like
+    # foil; sharpness was never the problem
+    apex = len(verts)
+    k = section_at(t_top)
+    cx = cut_plane_x(t_top, side)
+    verts.append((cx + s * -0.5 * BASE_W * k, 0.0, t_top * H + 7.0))
     last = (rings - 1) * n
     for j in range(n - 1):
-        faces.append((last + j, last + j + 1, tip))
-    faces.append((last + n - 1, last, tip))
+        faces.append((last + j, last + j + 1, apex))
+    faces.append((last + n - 1, last, apex))
     # base cap, buried
     base = len(verts)
     verts.append((cut_plane_x(0.0, side) + s * -0.4 * BASE_W, 0.0, -3.0))
@@ -113,6 +127,55 @@ def build_half(side, name, rings, edge_div, chisel):
     ob = bpy.data.objects.new(name, me)
     bpy.context.collection.objects.link(ob)
     return ob
+
+
+def build_shard(side, idx, base_t, top_t, du, dv, lean_u, lean_v, w, d):
+    """
+    One crown shard. Rises from the body's cap at (du, dv) offset,
+    leaning as it goes, ending in a sharp angled point. Bare stone: no
+    cells are placed above the body, because the crown is the part that
+    has already broken.
+    """
+    s_ = -1.0 if side == 0 else 1.0
+    prof = [(1.0, 0.3), (0.35, 1.0), (-0.75, 0.7), (-1.0, 0.0), (-0.75, -0.7), (0.35, -1.0)]
+    n = len(prof)
+    rings = 9
+    verts, faces = [], []
+    cx0 = cut_plane_x(base_t, side) + s_ * -0.5 * BASE_W * section_at(base_t)
+    for i in range(rings):
+        f = i / (rings - 1)
+        t = base_t + (top_t - base_t) * f
+        k = (1.0 - 0.88 * (f ** 1.25))
+        cx = cx0 + du + lean_u * (f ** 1.6)
+        cz = dv + lean_v * (f ** 1.6)
+        for (pa, pb) in prof:
+            verts.append((cx + pa * w * k, cz + pb * d * k, t * H))
+    for i in range(rings - 1):
+        b0, b1 = i * n, (i + 1) * n
+        for j in range(n):
+            jn = (j + 1) % n
+            faces.append((b0 + j, b0 + jn, b1 + jn, b1 + j))
+    # a sharp tip, offset so no two shards point the same way
+    tip = len(verts)
+    verts.append((cx0 + du + lean_u * 1.25, dv + lean_v * 1.25, top_t * H + w * 1.5))
+    last = (rings - 1) * n
+    for j in range(n):
+        faces.append((last + j, last + (j + 1) % n, tip))
+    base = len(verts)
+    verts.append((cx0 + du, dv, base_t * H - 6.0))
+    for j in range(n):
+        faces.append(((j + 1) % n, j, base))
+    me = bpy.data.meshes.new(f"Shard{side}{idx}")
+    me.from_pydata(verts, [], faces)
+    me.validate()
+    ob = bpy.data.objects.new(f"Shard{side}{idx}", me)
+    bpy.context.collection.objects.link(ob)
+    return ob
+
+
+# each half's crown: shards at different heights, leans and sizes, so
+# the top reads as broken crystal rather than a finished point
+SHARDS = {}
 
 
 def join(a, b, name):
@@ -132,8 +195,21 @@ def join(a, b, name):
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
-low = join(build_half(0, "LowA", 150, 5, False),
-           build_half(1, "LowB", 150, 5, False), "Monument")
+parts = [build_half(0, "LowA", 150, 5, False), build_half(1, "LowB", 150, 5, False)]
+for side, specs in SHARDS.items():
+    for idx, spec in enumerate(specs):
+        parts.append(build_shard(side, idx, *spec))
+bpy.ops.object.select_all(action="DESELECT")
+for o in parts:
+    o.select_set(True)
+bpy.context.view_layer.objects.active = parts[0]
+bpy.ops.object.join()
+low = bpy.context.active_object
+low.name = "Monument"
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.mesh.normals_make_consistent(inside=False)
+bpy.ops.object.mode_set(mode="OBJECT")
 
 bpy.ops.object.select_all(action="DESELECT")
 low.select_set(True)
@@ -178,8 +254,21 @@ if "--silhouette" in sys.argv:
         print("RENDERED", sc.render.filepath)
     raise SystemExit(0)
 
-high = join(build_half(0, "HighA", 620, 17, True),
-            build_half(1, "HighB", 620, 17, True), "MonumentHigh")
+hparts = [build_half(0, "HighA", 620, 17, True), build_half(1, "HighB", 620, 17, True)]
+for side, specs in SHARDS.items():
+    for idx, spec in enumerate(specs):
+        hparts.append(build_shard(side, idx + 90, *spec))
+bpy.ops.object.select_all(action="DESELECT")
+for o in hparts:
+    o.select_set(True)
+bpy.context.view_layer.objects.active = hparts[0]
+bpy.ops.object.join()
+high = bpy.context.active_object
+high.name = "MonumentHigh"
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.mesh.normals_make_consistent(inside=False)
+bpy.ops.object.mode_set(mode="OBJECT")
 vg = high.vertex_groups.new(name="disp")
 for v in high.data.vertices:
     t = max(0.0, min(1.0, v.co.z / H))

@@ -21,17 +21,32 @@ export const SLIT = 2.6;
 /** cross-section at the foot */
 const BASE_W = 31;
 const BASE_D = 17;
-/** fraction of the base section still present at the tip */
-const TOP_K = 0.05;
+/**
+ * Fraction of the base section still present at the tip. Width and
+ * depth taper separately: a crown that keeps width and loses depth is
+ * a blade edge, one that keeps both is a chiselled cap. At 0.05 both
+ * tips ended as paper slivers, which is what read as odd.
+ */
+const TOP_K = 0.02;
+const TOP_D = 0.02;
 /** each half tilts, so the bases part into a doorway */
 const TILT = 0.0332;
 
-/** the short half stops here; the tall one runs to 1 */
-export const TIP_T: readonly [number, number] = [1.0, 0.93];
+/**
+ * Where the celled body stops. Above this the crown breaks into bare
+ * shards, which carry no records: the broken part of a monument is the
+ * part the system has already lost.
+ */
+export const TIP_T: readonly [number, number] = [1.0, 0.9];
 
-/** taper: how much section survives at height t */
+/** width taper: how much section survives at height t */
 export function sectionAt(t: number): number {
-  return 1 - (1 - TOP_K) * Math.pow(Math.max(t, 0), 1.35);
+  return 1 - (1 - TOP_K) * Math.max(t, 0);
+}
+
+/** depth taper, independent of width */
+export function depthSectionAt(t: number): number {
+  return 1 - (1 - TOP_D) * Math.max(t, 0);
 }
 
 /**
@@ -101,12 +116,11 @@ export function profilePoint(u: number): [number, number] {
 
 /** world position on a half's outer surface at height t, arc u */
 export function surfacePoint(t: number, side: 0 | 1, u: number): FormPoint {
-  const k = sectionAt(t);
   const [a, b] = profilePoint(u);
   return {
-    x: cutPlaneX(t, side) + sgn(side) * -a * BASE_W * k,
+    x: cutPlaneX(t, side) + sgn(side) * -a * BASE_W * sectionAt(t),
     y: t * FORM_H,
-    z: b * BASE_D * k
+    z: b * BASE_D * depthSectionAt(t)
   };
 }
 
@@ -117,7 +131,7 @@ export function reachAt(t: number): number {
 
 /** depth of the stone at height t */
 export function depthAt(t: number): number {
-  return BASE_D * sectionAt(t);
+  return BASE_D * depthSectionAt(t);
 }
 
 /**
