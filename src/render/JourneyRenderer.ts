@@ -104,17 +104,28 @@ const FRAG_MAP = `#include <map_fragment>
 
   // long scratch lines: the fine diagonal hairlines the sheets carry
   // across every face, at a much longer scale than the glyphs
+  // Each scratch is a LINE with its own centre and length along its own
+  // axis. Gating length with a repeating wave, as the first version
+  // did, only drew them in horizontal bands about fifty units apart,
+  // which is why they appeared at the top and bottom and nowhere else
   float scratch = 0.0;
+  vec2 sp = vec2(ang, vMonoW.y * 0.055);
   for (int sc = 0; sc < 3; sc++) {
     float band = 3.0 + float(sc) * 2.3;
-    vec2 sp = vec2(ang, vMonoW.y * 0.055);
     float sa = 0.6 + float(sc) * 0.9;
-    float proj = sp.x * cos(sa) + sp.y * sin(sa);
-    float lane = floor(proj * band);
+    float ca2 = cos(sa);
+    float sa2 = sin(sa);
+    float across = sp.x * ca2 + sp.y * sa2;   // perpendicular to the line
+    float along = -sp.x * sa2 + sp.y * ca2;   // along it
+    float lane = floor(across * band);
     float lh = monoHash(vec3(lane, sideS, float(sc) * 11.0));
-    if (lh < 0.55) continue;
-    float d = abs(fract(proj * band) - 0.5) / band;
-    float run = smoothstep(0.9, 0.2, abs(fract(sp.y * 0.35 + lh * 3.0) - 0.5) * 2.0);
+    if (lh < 0.42) continue;
+    float d = abs(fract(across * band) - 0.5) / band;
+    // centre and half length, per lane, so a scratch starts and stops
+    // where that scratch happens to start and stop
+    float centre = (monoHash(vec3(lane, sideS + 3.0, float(sc))) - 0.5) * 14.0;
+    float halfLen = 1.4 + 4.6 * monoHash(vec3(lane, sideS + 7.0, float(sc)));
+    float run = smoothstep(halfLen, halfLen * 0.55, abs(along - centre));
     scratch = max(scratch, smoothstep(0.020, 0.002, d * band) * run);
   }
 
@@ -162,7 +173,7 @@ const FRAG_MAP = `#include <map_fragment>
   diffuseColor.rgb *= facetTone;
   diffuseColor.rgb *= 1.0 - glyph * 0.10 * graze;
   // a scratch is a polished cut: it catches, never darkens
-  diffuseColor.rgb += diffuseColor.rgb * scratch * graze * 1.6;
+  diffuseColor.rgb += diffuseColor.rgb * scratch * (0.55 + 0.45 * graze) * 1.8;
   diffuseColor.rgb *= 1.0 - crack * 0.28;
   // sintered pitting, and the bright machined edge
   diffuseColor.rgb *= 1.0 - pit * 0.45;
