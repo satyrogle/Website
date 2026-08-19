@@ -92,6 +92,26 @@ Three rulings recorded:
      breach passage; the true form becomes the dark lattice of ties
      binding the two prongs, discovered from inside the cleft.
 
+## Marker body v2 REJECTED, 2026-08-19, Jacob, verbatim: "nope"
+
+Second one-word rejection of the same premise. Per the kill-word law,
+no third body is built from guesswork: two extractions from memory
+have died on his sight, which is the thirteen-carriers failure with a
+mental image standing in for the prose. The build loop is STOPPED.
+
+What replaces it: a silhouette contact sheet, four distinct forms as
+raw grey Blender renders (tools/blender/form-candidates.py, output in
+captures/form/candidates/), no site integration, for Jacob to point
+at. Suspected v2 miss, logged as hypothesis not fact: the real Marker
+barely twists; its drama is massive near-parallel slab prongs and the
+curled interlocking tips, and v2's 229-degree helix reads as a ribbon
+sculpture instead. Candidate A embodies that hypothesis.
+
+The decision is his: pick a candidate, supply the exact Marker image
+to match (references/chosen/), or kill the Marker direction outright.
+Nothing integrates until one of those happens. The v2 body remains on
+claude/genesis as the current UNAPPROVED state.
+
 ## Marker body v1 REJECTED, 2026-08-19, Jacob, verbatim: "nope"
 
 The first Marker-quality body (genesis 4e87414: two keel-profile prongs,
