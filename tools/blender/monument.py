@@ -352,7 +352,7 @@ bpy.ops.object.mode_set(mode="EDIT")
 bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.mesh.subdivide(number_cuts=110)
 bpy.ops.object.mode_set(mode="OBJECT")
-for nm, scale, strength in [("Dunes", 180.0, 26.0), ("Grain", 30.0, 3.0)]:
+for nm, scale, strength in [("Dunes", 210.0, 15.0), ("Grain", 26.0, 0.9)]:
     tex = bpy.data.textures.new(nm, type="CLOUDS")
     tex.noise_scale = scale
     mod = terr.modifiers.new(nm, "DISPLACE")
@@ -363,8 +363,8 @@ for m in list(terr.modifiers):
     bpy.ops.object.modifier_apply(modifier=m.name)
 for v in terr.data.vertices:
     r = math.hypot(v.co.x, v.co.y)
-    if r < 260.0:
-        f = max(0.0, min(1.0, (r - 60.0) / 200.0))
+    if r < 420.0:
+        f = max(0.0, min(1.0, (r - 150.0) / 270.0))
         f = f * f * (3 - 2 * f)
         v.co.z = v.co.z * f + 0.35 * (1.0 - f)
 bpy.ops.object.shade_smooth()

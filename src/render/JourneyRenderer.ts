@@ -45,7 +45,7 @@ const FRAG_MAP = `#include <map_fragment>
   float ang = across * 1.5 + sign(vMonoW.z) * smoothstep(0.5, 1.0, outward) * 1.2;
 
   // decay eats plates, and a plate is bounded by the macro cracks
-  float plateId = floor(vMonoW.y / 9.5) * 7.0 + floor((ang + 3.0) * 1.6);
+  float plateId = floor(vMonoW.y / 2.4) * 17.0 + floor((ang + 3.0) * 6.5);
   float h = monoHash(vec3(plateId, sideS, 3.0));
   float cluster = 0.5 + 0.5 * sin(plateId * 0.61 + sideS + h * 9.0);
   float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
@@ -693,6 +693,10 @@ export class JourneyRenderer {
   private fillLight!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
   private frameMat!: THREE.MeshStandardMaterial;
+  private readonly groundU: Record<string, THREE.IUniform> = {
+    uGSeverity: { value: 0 },
+    uGDecay: { value: 0 }
+  };
   private fissureMat!: THREE.ShaderMaterial;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
@@ -1136,12 +1140,64 @@ export class JourneyRenderer {
     this.ready = new GLTFLoader()
       .loadAsync('/models/monument.glb')
       .then((gltf) => {
+        // THE FLOOR. A flat grey plane under a fully skinned monument
+        // reads as paint. It is the same family of material now: the
+        // same near-black base, polished enough to hold the fissure's
+        // reflection and the sky's sheen at grazing angles, with the
+        // same sintered grain running through it.
         const terrainMat = new THREE.MeshStandardMaterial({
-          color: 0x181a1e,
-          roughness: 0.96,
-          metalness: 0.0,
+          color: 0x06070a,
+          roughness: 0.34,
+          metalness: 0.04,
           side: THREE.DoubleSide
         });
+        terrainMat.onBeforeCompile = (sh) => {
+          Object.assign(sh.uniforms, this.groundU);
+          sh.vertexShader = sh.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vGroundW;')
+            .replace(
+              '#include <begin_vertex>',
+              '#include <begin_vertex>\nvGroundW = (modelMatrix * vec4(position, 1.0)).xyz;'
+            );
+          sh.fragmentShader = sh.fragmentShader
+            .replace(
+              '#include <common>',
+              `#include <common>
+varying vec3 vGroundW;
+uniform float uGSeverity;
+uniform float uGDecay;
+float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }`
+            )
+            .replace(
+              '#include <map_fragment>',
+              `#include <map_fragment>
+{
+  // the fissure lays a reflection down the floor: a long streak on the
+  // monument's axis, tightest near the foot and spreading with distance
+  float r = length(vGroundW.xz);
+  float axis = abs(vGroundW.x) / (2.2 + r * 0.10);
+  float streak = exp(-axis * axis) * exp(-r * 0.010) * step(-1.0, vGroundW.z);
+  vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
+  diffuseColor.rgb += lit * streak * 0.30 * (1.0 - uGDecay * 0.5);
+  // wet sheen far off, so the plane resolves into a horizon rather
+  // than stopping as a painted edge
+  diffuseColor.rgb += vec3(0.020, 0.021, 0.026) * smoothstep(120.0, 620.0, r);
+  // the same sintered grain the skin carries, at floor scale
+  float g = gHash(floor(vGroundW.xz * 1.6));
+  diffuseColor.rgb *= 0.86 + 0.28 * g;
+}`
+            )
+            .replace(
+              '#include <roughnessmap_fragment>',
+              `#include <roughnessmap_fragment>
+{
+  float rr = length(vGroundW.xz);
+  // polished where the light falls, dulling as it runs out to the dunes
+  roughnessFactor = mix(0.24, 0.72, smoothstep(40.0, 340.0, rr))
+                  + 0.06 * (gHash(floor(vGroundW.xz * 0.5)) - 0.5);
+}`
+            );
+        };
         gltf.scene.traverse((o) => {
           if (!(o as THREE.Mesh).isMesh) return;
           const mesh = o as THREE.Mesh;
@@ -1273,6 +1329,8 @@ export class JourneyRenderer {
     this.fissureMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uDecay!.value = decay;
     this.fissureMat.uniforms.uNear!.value = inside;
+    this.groundU.uGSeverity!.value = sev;
+    this.groundU.uGDecay!.value = decay;
     // bloom must not smear the fissure across the walls in there
     this.bloom.strength = 0.34 * (1 - inside * 0.72);
     this.seaMat.uniforms.uSeverity!.value = sev;
