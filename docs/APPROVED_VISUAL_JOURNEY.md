@@ -92,6 +92,23 @@ Three rulings recorded:
      breach passage; the true form becomes the dark lattice of ties
      binding the two prongs, discovered from inside the cleft.
 
+## Marker body v1 REJECTED, 2026-08-19, Jacob, verbatim: "nope"
+
+The first Marker-quality body (genesis 4e87414: two keel-profile prongs,
+137-degree twist, converging tips, separate columns to the floor) was
+rejected on sight. Diagnosis recorded so the mistake is not repeated:
+the extraction was too timid and missed the shape signature that was
+named "especially". The Marker's silhouette is ONE mass splitting into
+two broad flat ribbon-blades that visibly wrap each other in a helix,
+with tips that hook PAST each other at the crown, at stocky
+proportions. Two slim tusks converging is not that.
+
+The premise (Jacob's named reference) stands; the correction targets
+the signature: fused trunk, ribbon-blade cross-section, more twist,
+axis-crossing interlocked tips, slab-course segmentation, obsidian
+grade. Form iterated as silhouette renders in Blender BEFORE site
+integration, per image-first law.
+
 ## Jacob's reference list, given 2026-08-18 during journey refinement
 
 Verbatim: "https://lusion.co/ https://www.ilabsolutions.it/
