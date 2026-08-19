@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
 import { CameraPath } from './CameraPath';
 
@@ -34,6 +35,8 @@ const CLAD_VERT = /* glsl */ `
   out vec3 vWorld;
   void main() {
     vSeed = aSeed;
+    // the standing monument is authored stone now; a cube exists only
+    // in its moment of failure, as debris in the air
     // scroll decay: past the threshold the cell detaches and falls.
     float over = max(0.0, uDecay - aThresh);
     // a live strike fells the cell regardless of scroll
@@ -44,7 +47,8 @@ const CLAD_VERT = /* glsl */ `
 
     // masonry: no two cells cut quite alike
     float sizeVar = 0.93 + 0.1 * fract(aSeed * 7.31);
-    vec3 wp = position * sizeVar * (fallT > 0.0 ? clamp(1.0 - fallT * 0.45, 0.05, 1.0) : 1.0) + aOffset;
+    vec3 wp = position * sizeVar * clamp(1.0 - fallT * 0.45, 0.05, 1.0) + aOffset;
+    if (fallT <= 0.0 || fallT > 2.4) wp = vec3(0.0, -9999.0, 0.0);
     if (fallT > 0.0) {
       float ang = fallT * (aSeed * 8.0 - 4.0) + uTime * 0.22 * (aSeed - 0.5) * (1.0 - uCalmV);
       float ca = cos(ang);
@@ -205,6 +209,138 @@ const MARK_FRAG = /* glsl */ `
 `;
 
 
+
+const MONO_VERT = /* glsl */ `
+  uniform float uTime;
+  uniform float uFogDensity;
+  out vec3 vWorld;
+  out vec3 vNormalW;
+  out float vFog;
+  void main() {
+    vec3 wp = position;
+    #ifdef MIRROR
+    wp.y = -wp.y - 0.12;
+    wp.x += sin(wp.y * 0.32 + uTime * 0.7 + wp.z * 0.11) * 0.4;
+    #endif
+    vWorld = wp;
+    vNormalW = normal;
+    vec4 mv = viewMatrix * vec4(wp, 1.0);
+    gl_Position = projectionMatrix * mv;
+    float dist = max(1.0, -mv.z);
+    vFog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
+  }
+`;
+
+const MONO_FRAG = /* glsl */ `
+  precision highp float;
+  in vec3 vWorld;
+  in vec3 vNormalW;
+  in float vFog;
+  uniform float uTime;
+  uniform float uDecay;
+  uniform float uSeverity;
+  uniform float uCalm;
+  uniform vec3 uHover;
+  uniform float uHoverAmt;
+  uniform vec3 uInner;
+  uniform float uInnerAmt;
+  uniform vec3 uFogColor;
+  out vec4 outColor;
+
+  float hash3(vec3 c) {
+    return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+  }
+
+  void main() {
+    // the masonry field: continuous stone, coursed in 1.5 unit cells
+    vec3 cell = floor(vWorld / 1.5);
+    float h = hash3(cell);
+    float heightT = clamp(vWorld.y / 195.0, 0.0, 1.0);
+    float cluster = 0.5 + 0.5 * sin(cell.x * 0.315 + cell.z * 0.255 + cell.y * 0.165 + h * 9.0);
+    float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
+
+    // the decay eats the stone in whole courses, never as spray
+    if (uDecay > th) discard;
+    float dying = smoothstep(0.035, 0.0, th - uDecay);
+
+    vec3 n = normalize(vNormalW);
+    // inside of the shell: dark, cool, lit only by the traveller
+    if (!gl_FrontFacing) {
+      vec3 icol = vec3(0.018, 0.022, 0.028);
+      if (uInnerAmt > 0.001) {
+        vec3 iv = uInner - vWorld;
+        float il = uInnerAmt / (1.0 + dot(iv, iv) * 0.02);
+        icol += vec3(0.4, 0.45, 0.55) * il;
+      }
+      outColor = vec4(mix(icol, uFogColor, vFog), 1.0);
+      return;
+    }
+
+    vec3 L = normalize(vec3(0.35, 0.75, 0.55));
+    float diff = clamp(dot(n, L), 0.0, 1.0);
+    vec3 base = mix(vec3(0.42, 0.39, 0.345), vec3(0.46, 0.425, 0.365), h * 0.5);
+    base = mix(base, vec3(0.24, 0.3, 0.4), uSeverity * 0.75);
+    vec3 col = base * (0.38 + 0.5 * diff) * mix(0.5, 1.15, heightT * heightT);
+    vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
+    col += crownCol * smoothstep(0.93, 1.0, heightT) * 1.5 * (1.0 - uSeverity * 0.5);
+
+    // mortar courses on the dominant face
+    vec3 an = abs(n);
+    vec2 cuv;
+    if (an.y > 0.6) cuv = fract(vWorld.xz / 1.5);
+    else if (an.x > an.z) cuv = fract(vWorld.zy / 1.5);
+    else cuv = fract(vWorld.xy / 1.5);
+    vec2 eUv = min(cuv, 1.0 - cuv);
+    float edge = min(eUv.x, eUv.y);
+    col *= 0.78 + 0.22 * smoothstep(0.0, 0.09, edge);
+
+    // the engravings, carved into the stone itself
+    float eng = 0.0;
+    vec2 pp = cuv;
+    float amp = 1.0;
+    for (int i = 0; i < 4; i++) {
+      pp = fract(pp * 2.0 + h * 13.17 + float(i) * 0.31);
+      vec2 dd = abs(pp - 0.5);
+      float frame = smoothstep(0.5, 0.44, max(dd.x, dd.y)) * smoothstep(0.3, 0.36, max(dd.x, dd.y));
+      float keep = step(0.45, fract(h * (7.0 + float(i) * 3.7) + float(i) * 0.37));
+      eng = max(eng, frame * keep * amp);
+      amp *= 0.72;
+    }
+    eng *= smoothstep(0.02, 0.09, edge);
+    col *= 1.0 - eng * 0.24;
+
+    // the visitor's lamp
+    float hd = distance(vWorld, uHover);
+    float camD = distance(cameraPosition, uHover);
+    float sigma = clamp(camD * 0.16, 2.5, 15.0);
+    float lamp = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
+    float breathe = 1.0 - (1.0 - uCalm) * 0.08 * (0.5 + 0.5 * sin(uTime * 1.1));
+    vec3 lampCol = mix(vec3(1.0, 0.88, 0.68), vec3(0.5, 0.78, 1.0), uSeverity);
+    col = mix(col, col * lampCol * 1.3, lamp * 0.45);
+    col += lampCol * eng * lamp * breathe * 0.7;
+
+    // the traveller's light on the stone
+    if (uInnerAmt > 0.001) {
+      vec3 iv = uInner - vWorld;
+      float il = uInnerAmt / (1.0 + dot(iv, iv) * 0.02);
+      col += vec3(0.5, 0.55, 0.65) * il * (0.3 + 0.7 * max(dot(n, normalize(iv)), 0.0));
+    }
+
+    // a course about to fail gutters, slow and shallow
+    if (dying > 0.0) {
+      float g = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
+      col *= mix(1.0, mix(g, 0.8, uCalm), dying);
+    }
+
+    col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorld.y));
+    #ifdef MIRROR
+    col *= 0.24;
+    #endif
+    col = mix(col, uFogColor, vFog);
+    outColor = vec4(col, 1.0);
+  }
+`;
+
 const MOTE_VERT = /* glsl */ `
   in float aSeed;
   uniform float uTime;
@@ -319,6 +455,10 @@ export class JourneyRenderer {
   private innerLight!: THREE.PointLight;
   private rimLight!: THREE.DirectionalLight;
   private moteMat!: THREE.ShaderMaterial;
+  private monoMat!: THREE.ShaderMaterial;
+  private monoMirrorMat!: THREE.ShaderMaterial;
+  /** resolves once the authored monument is standing */
+  readonly ready: Promise<void>;
   private readonly halo: THREE.Sprite;
   private readonly crownHalo: THREE.Sprite;
   private readonly maxDpr: number;
@@ -570,6 +710,53 @@ export class JourneyRenderer {
 
     this.resize();
     window.addEventListener('resize', this.resize);
+
+    // --- the monument itself: authored stone, not boxes ---
+    const monoUniforms = (): Record<string, THREE.IUniform> => ({
+      uTime: { value: 0 },
+      uDecay: { value: 0 },
+      uSeverity: { value: 0 },
+      uCalm: { value: 0 },
+      uHover: { value: new THREE.Vector3(0, -999, 0) },
+      uHoverAmt: { value: 0 },
+      uInner: { value: new THREE.Vector3(0, -999, 0) },
+      uInnerAmt: { value: 0 },
+      uFogColor: { value: new THREE.Color('#0c0906') },
+      uFogDensity: { value: 0.0022 }
+    });
+    this.monoMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: MONO_VERT,
+      fragmentShader: MONO_FRAG,
+      uniforms: monoUniforms(),
+      side: THREE.DoubleSide
+    });
+    this.monoMirrorMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: MONO_VERT,
+      fragmentShader: MONO_FRAG,
+      uniforms: monoUniforms(),
+      side: THREE.DoubleSide,
+      defines: { MIRROR: '' }
+    });
+    this.ready = new GLTFLoader()
+      .loadAsync('/models/monument.glb')
+      .then((gltf) => {
+        gltf.scene.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) {
+            const mesh = o as THREE.Mesh;
+            const stone = new THREE.Mesh(mesh.geometry, this.monoMat);
+            stone.frustumCulled = false;
+            this.scene.add(stone);
+            const drowned = new THREE.Mesh(mesh.geometry, this.monoMirrorMat);
+            drowned.frustumCulled = false;
+            this.scene.add(drowned);
+          }
+        });
+      })
+      .catch((e) => {
+        console.error('monument.glb failed to load; debris continues without its body', e);
+      });
   }
 
   /** The visitor's attention: where they point at the monument. */
@@ -653,6 +840,19 @@ export class JourneyRenderer {
       this.world.strikesDirty = false;
     }
 
+    for (const mm of [this.monoMat, this.monoMirrorMat]) {
+      const mu = mm.uniforms;
+      mu.uTime!.value = this.time;
+      mu.uDecay!.value = decay;
+      mu.uSeverity!.value = sev;
+      mu.uCalm!.value = reduced ? 1 : 0;
+      (mu.uHover!.value as THREE.Vector3).copy(this.hoverPoint);
+      mu.uHoverAmt!.value = this.hoverAmt;
+      (mu.uInner!.value as THREE.Vector3).copy(this.camera.position);
+      mu.uInnerAmt!.value = inside * 0.55;
+      (mu.uFogColor!.value as THREE.Color).copy(fogColor);
+      mu.uFogDensity!.value = fogDensity;
+    }
     this.markMat.uniforms.uTime!.value = this.world.tick / 60;
     this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.time;
     this.moteMat.uniforms.uSeverity!.value = sev;

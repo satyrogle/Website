@@ -15,11 +15,11 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "..", "public", "models", "m
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 # the stele: 42 x 195 x 42 world units to match the world's constants
-bpy.ops.mesh.primitive_cube_add(size=1)
+bpy.ops.mesh.primitive_cube_add(size=2)
 mono = bpy.context.active_object
 mono.name = "Monument"
-mono.scale = (21.0, 97.5, 21.0)
-mono.location = (0.0, 97.5, 0.0)
+mono.scale = (21.0, 21.0, 97.5)  # Blender is Z-up
+mono.location = (0.0, 0.0, 97.5)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
 # density for displacement
@@ -43,7 +43,7 @@ d2.texture = wear
 d2.strength = 0.45
 
 # the two journey wounds, carved as boolean bites
-for name, loc, r in (("WoundA", (5.0, 140.0, 20.0), 6.5), ("WoundB", (-5.0, 65.0, 20.0), 6.0)):
+for name, loc, r in (("WoundA", (5.0, -20.0, 140.0), 6.5), ("WoundB", (-5.0, -20.0, 65.0), 6.0)):
     bpy.ops.mesh.primitive_ico_sphere_add(radius=r, subdivisions=3, location=loc)
     w = bpy.context.active_object
     w.name = name
