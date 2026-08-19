@@ -113,6 +113,24 @@ Standing plan, staged, each stage judged on frames before the next:
 4. Later stages: chapter transitions, loader choreography, terrain
    dressing, sound (Gate F territory).
 
+## KILL WORD, 2026-08-19, Jacob: "it looks like eye of sauron bro"
+
+Fires the kill-word law. The frame is dead as composed, and the cause
+is compositional, not material: two near-mirror horns enclosing a
+centred glow make a pointed almond of negative space with a bright
+pupil in it. The halo had just been moved behind the form to fix the
+ghosting, which put the glow exactly in the gap.
+
+Standing rule added to this direction: **the gap between the horns is
+never centred, never symmetric, and never contains a concentrated
+light source.** Any pair of forms enclosing a lit void reads as an eye
+and no amount of grading fixes it.
+
+Correction applied: hard asymmetry (the second horn stops at 0.76 of
+the first's height with half its curl, so the silhouette cannot mirror),
+the halo moved off-axis and low so the glow never occupies the gap,
+and the crown light attached to the tall tip alone.
+
 ## Marker body v2 REJECTED, 2026-08-19, Jacob, verbatim: "nope"
 
 Second one-word rejection of the same premise. Per the kill-word law,
