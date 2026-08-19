@@ -1130,8 +1130,8 @@ export class JourneyRenderer {
         const st = STONES[i]!;
         const a = Math.PI * st[0];
         const d = st[1];
-        const h = 132 * st[2];
-        const w = h * 0.17;
+        const h = 96 * st[2];
+        const w = h * 0.62;
         void rng;
         const cx = Math.cos(a) * d;
         const cz = Math.sin(a) * d;
@@ -1141,7 +1141,7 @@ export class JourneyRenderer {
         for (const corner of [[-1, 0], [1, 0], [1, 1], [-1, 1]] as const) {
           // the quad runs a little past the stone so the slanted top has
           // room to be cut rather than clipped by the geometry edge
-          pos.push(corner[0] * w, corner[1] * h * 1.18, 0);
+          pos.push(corner[0] * w, corner[1] * h * 1.04, 0);
           centre.push(cx, 0, cz);
           meta.push(i / N + st[3]);
           hgt.push(h);
@@ -1185,35 +1185,36 @@ export class JourneyRenderer {
           uniform vec3 uFog;
           out vec4 outColor;
           void main() {
-            // A STANDING STONE, not a cloud: straight taper, hard edges,
-            // and a slanted cut across the top. The soft falloff that
-            // was here made them read as blobs of fog
+            // A SUPPORTING MASS. The monument is tall, sharp and split;
+            // anything that repeats those terms argues with it. These
+            // are broad, low and round-shouldered, and their whole job
+            // is to be present without being looked at.
             float hN = vQ.y / max(vH, 0.001);
-            float body = 1.0 - 0.55 * hN;
-            float wN = abs(vQ.x) / max(body * vH * 0.19, 0.001);
-            // the top is cut on a slant, each stone at its own angle
-            float slant = 0.86 + (fract(vMeta * 7.3) - 0.5) * 0.16
-                        + (vQ.x / 34.0) * (fract(vMeta * 3.1) - 0.5) * 0.30;
-            float aa = fwidth(wN) * 1.2 + 0.004;
-            float sideEdge = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, wN);
-            float topEdge = 1.0 - smoothstep(slant - 0.012, slant + 0.012, hN);
-            float footEdge = smoothstep(0.0, 0.012, hN);
-            float form = sideEdge * topEdge * footEdge;
+            if (hN > 1.0) discard;
+            // shoulder: full width through the body, then turning over
+            // into a dome rather than a point or a cut
+            float lean = (fract(vMeta * 7.3) - 0.5) * 0.22;
+            float shoulder = pow(max(1.0 - pow(hN, 2.4), 0.0), 0.42);
+            float axis = vQ.x / max(vH * 0.46, 0.001) - lean * hN;
+            float wN = abs(axis) / max(shoulder, 0.001);
+            float aa = fwidth(wN) * 1.4 + 0.02;
+            float form = (1.0 - smoothstep(1.0 - aa, 1.0 + aa, wN))
+                       * smoothstep(0.0, 0.02, hN);
             if (form <= 0.003) discard;
             // see-through: the edges hold the most, the middle the least,
             // so you look INTO it rather than at it
             // the shell: heaviest at the silhouette, thinnest through
             // the middle, so the eye looks INTO the form and the plain
             // stays visible through it
-            float shell = pow(smoothstep(0.25, 1.0, wN), 1.5);
-            float alpha = form * (0.10 + shell * 0.62) * 0.62;
+            float shell = pow(smoothstep(0.30, 1.0, wN), 1.6);
+            float alpha = form * (0.05 + shell * 0.30) * 0.30;
             // inert alone; the alignment is the only thing they ever say
             // A presence DARKENS the haze it stands in. Brighter than
             // the background turned them into light shafts; a body
             // occludes, and only its edge catches anything
-            float rim = smoothstep(0.72, 1.0, wN);
-            float lit = (0.045 + uAlign * 0.20) * rim;
-            vec3 col = uFog * 0.30 + vec3(lit);
+            float rim = smoothstep(0.86, 1.0, wN);
+            float lit = (0.012 + uAlign * 0.12) * rim;
+            vec3 col = uFog * 0.55 + vec3(lit);
             float fade = exp(-vDist * vDist * 0.0000021);
             outColor = vec4(col, alpha * fade);
           }`,
