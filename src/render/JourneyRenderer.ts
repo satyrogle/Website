@@ -616,45 +616,6 @@ const MOTE_FRAG = /* glsl */ `
   }
 `;
 
-const SEA_VERT = /* glsl */ `
-  out vec3 vWorld;
-  void main() {
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
-  }
-`;
-
-const SEA_FRAG = /* glsl */ `
-  precision highp float;
-  in vec3 vWorld;
-  uniform vec3 uCam;
-  uniform float uSeverity;
-  uniform float uDecay;
-  uniform float uTime;
-  out vec4 outColor;
-  void main() {
-    float dist = length(vWorld - uCam);
-    vec3 col = vec3(0.006, 0.009, 0.013);
-    if (!gl_FrontFacing) {
-      // the surface from beneath: a luminous ceiling, about to break
-      float overhead = exp(-max(0.0, dist - 8.0) * 0.02);
-      col = vec3(0.16, 0.17, 0.2) * (0.4 + 0.6 * overhead)
-          + vec3(0.14, 0.11, 0.06) * overhead * (1.0 - uSeverity * 0.5);
-      col *= 0.9 + 0.1 * sin(uTime * 0.4 + vWorld.x * 0.05 + vWorld.z * 0.04);
-    }
-    // the monument's standing light on the water, dying as it strips
-    float r = length(vWorld.xz);
-    float pool = exp(-r * 0.016);
-    vec3 poolCol = mix(vec3(0.185, 0.155, 0.115), vec3(0.10, 0.12, 0.15), uSeverity);
-    col += poolCol * pool * (1.0 - uDecay * 0.75) * (1.0 - uSeverity * 0.4)
-        * (0.86 + 0.14 * sin(uTime * 0.3 + vWorld.x * 0.02 + vWorld.z * 0.013));
-    float haze = 1.0 - exp(-dist * dist * 0.000004);
-    col = mix(col, mix(vec3(0.022, 0.017, 0.012), vec3(0.010, 0.014, 0.020), uSeverity), haze);
-    outColor = vec4(col, 0.72);
-  }
-`;
-
 const SKY_VERT = /* glsl */ `
   out vec3 vDir;
   void main() {
@@ -680,6 +641,17 @@ const SKY_FRAG = /* glsl */ `
     vec3 base = mix(vec3(0.0075, 0.0072, 0.0080), vec3(0.005, 0.006, 0.009), uSeverity);
     vec3 glow = mix(vec3(0.052, 0.047, 0.041), vec3(0.019, 0.024, 0.033), uSeverity);
     vec3 col = base + glow * band * (0.35 + 0.65 * high);
+
+    // strata: slow horizontal layers of denser air, so the sky is a
+    // volume the monument stands in rather than a gradient behind it
+    float strata = sin(d.y * 26.0 + 1.3) * 0.5 + 0.5;
+    strata *= sin(d.y * 9.0 - 0.7) * 0.5 + 0.5;
+    col += glow * strata * 0.16 * exp(-abs(d.y) * 2.2);
+
+    // a faint drift across the azimuth, so turning the camera finds
+    // variation instead of the same ramp everywhere
+    float drift = sin(atan(d.z, d.x) * 2.0 + d.y * 3.0) * 0.5 + 0.5;
+    col += glow * drift * 0.08 * band;
     outColor = vec4(col, 1.0);
   }
 `;
@@ -695,7 +667,6 @@ export class JourneyRenderer {
   private mirrorMat!: THREE.ShaderMaterial;
   private readonly cladMat: THREE.ShaderMaterial;
   private readonly markMat: THREE.ShaderMaterial;
-  private readonly seaMat: THREE.ShaderMaterial;
   private readonly skyMat: THREE.ShaderMaterial;
   private readonly strikeAttr: THREE.InstancedBufferAttribute;
   private readonly markGeom: THREE.BufferGeometry;
@@ -744,6 +715,7 @@ export class JourneyRenderer {
     uGDecay: { value: 0 }
   };
   private fissureMat!: THREE.ShaderMaterial;
+  private hazeMat!: THREE.ShaderMaterial;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
@@ -807,24 +779,9 @@ export class JourneyRenderer {
     sky.frustumCulled = false;
     this.scene.add(sky);
 
-    // --- sea ---
-    this.seaMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3,
-      vertexShader: SEA_VERT,
-      fragmentShader: SEA_FRAG,
-      uniforms: {
-        uCam: { value: new THREE.Vector3() },
-        uSeverity: { value: 0 },
-        uDecay: { value: 0 },
-        uTime: { value: 0 }
-      }
-    });
-    this.seaMat.transparent = true;
-    this.seaMat.side = THREE.DoubleSide;
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), this.seaMat);
-    sea.rotation.x = -Math.PI / 2;
-    sea.position.y = SEA_Y;
-    this.scene.add(sea);
+    // The sea is gone. It was a 2400 unit transparent plane at y=0 from
+    // the drowned-monument direction, lying flat across the shore and
+    // hazing everything the floor was supposed to show.
 
     // --- the cladding: the flesh of light ---
     const box = new THREE.BoxGeometry(CELL * 0.98, CELL * 0.98, CELL * 0.98);
@@ -1035,6 +992,78 @@ export class JourneyRenderer {
       this.scene.add(fis);
     }
 
+    // --- THE CORE HAZE ---
+    // The spec asks for slight volumetric haze near the core. This is
+    // a camera-facing sheet standing in the slit plane: air catching
+    // the fissure, densest at the foot where the light pools.
+    {
+      const hazeMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `
+          out vec2 vH;
+          void main() {
+            vH = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `
+          precision highp float;
+          in vec2 vH;
+          uniform float uSeverity;
+          uniform float uDecay;
+          out vec4 outColor;
+          void main() {
+            // a plume: wide and soft at the foot, narrowing as it rises,
+            // never a hard shape
+            float rise = vH.y;
+            float w = 0.10 + 0.34 * rise;
+            float across = smoothstep(w, 0.0, abs(vH.x - 0.5));
+            float fade = smoothstep(0.0, 0.06, rise) * smoothstep(1.0, 0.42, rise);
+            vec3 tint = mix(vec3(1.0, 0.99, 0.97), vec3(0.80, 0.88, 1.0), uSeverity);
+            outColor = vec4(tint * across * fade * 0.16 * (1.0 - uDecay * 0.6), 1.0);
+          }`,
+        uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 } },
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      this.hazeMat = hazeMat;
+      const haze = new THREE.Mesh(new THREE.PlaneGeometry(46, 120), hazeMat);
+      haze.position.set(0, 58, -3.5);
+      haze.frustumCulled = false;
+      this.scene.add(haze);
+    }
+
+    // --- DISTANT RIDGES ---
+    // Depth behind the monument: low broken silhouettes that give the
+    // haze something to sit in front of, and give the spire a world.
+    {
+      const ridgeMat = new THREE.MeshBasicMaterial({ color: 0x090a0d, fog: true });
+      const rng = mulberry32ish(world.seed ^ 0x1d6e);
+      for (let ring = 0; ring < 3; ring++) {
+        const dist = 620 + ring * 260;
+        const pts: number[] = [];
+        const idx: number[] = [];
+        const segs = 90;
+        for (let i = 0; i <= segs; i++) {
+          const a = (i / segs) * Math.PI * 2;
+          const h = (14 + rng() * 46) * (1 - ring * 0.2);
+          pts.push(Math.cos(a) * dist, 0, Math.sin(a) * dist);
+          pts.push(Math.cos(a) * dist, h, Math.sin(a) * dist);
+          if (i < segs) {
+            const b = i * 2;
+            idx.push(b, b + 1, b + 3, b, b + 3, b + 2);
+          }
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+        g.setIndex(idx);
+        const m = new THREE.Mesh(g, ridgeMat);
+        m.frustumCulled = false;
+        this.scene.add(m);
+      }
+    }
+
     // --- atmosphere ---
     // The halos sit BEHIND the whole form, never on its axis. An
     // additive sprite at the axis is painted over every surface behind
@@ -1085,9 +1114,10 @@ export class JourneyRenderer {
         depthWrite: false,
         transparent: true
       });
-      const motes = new THREE.Points(mg, this.moteMat);
-      motes.frustumCulled = false;
-      this.scene.add(motes);
+      // not added to the scene: drifting points read as dust, and dust
+      // is a kill word on this project. The air is carried by the sky
+      // strata and the core haze instead
+      void mg;
     }
 
     // --- visitor marks ---
@@ -1375,14 +1405,12 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     this.fissureMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uDecay!.value = decay;
     this.fissureMat.uniforms.uNear!.value = inside;
+    this.hazeMat.uniforms.uSeverity!.value = sev;
+    this.hazeMat.uniforms.uDecay!.value = decay;
     this.groundU.uGSeverity!.value = sev;
     this.groundU.uGDecay!.value = decay;
     // bloom must not smear the fissure across the walls in there
     this.bloom.strength = 0.34 * (1 - inside * 0.72);
-    this.seaMat.uniforms.uSeverity!.value = sev;
-    this.seaMat.uniforms.uDecay!.value = decay;
-    this.seaMat.uniforms.uTime!.value = reduced ? 0 : this.time;
-    (this.seaMat.uniforms.uCam!.value as THREE.Vector3).copy(this.camera.position);
 
     // holiness dims as the monument strips, and never smears the lens
     const haloFade = smooth01(this.camera.position.distanceTo(this.halo.position), 40, 95);
