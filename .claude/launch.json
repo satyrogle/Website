@@ -15,6 +15,28 @@
       "autoPort": false
     },
     {
+      "name": "genesis",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/jacob/dark-lattice-genesis", "run", "dev"],
+      "port": 5180
+    },
+    {
+      "name": "genesis-b",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "C:/Users/jacob/dark-lattice-genesis",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181,
+      "autoPort": false
+    },
+    {
       "name": "dark-lattice-b",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "5341", "--strictPort"],
