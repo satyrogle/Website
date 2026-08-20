@@ -13,7 +13,7 @@ import { createRequire } from 'node:module';
 const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
 const { chromium } = require('playwright');
 
-const BASE = 'http://localhost:5180';
+const BASE = process.env.DL_BASE || 'http://localhost:5180';
 const results = [];
 const consoleErrors = [];
 

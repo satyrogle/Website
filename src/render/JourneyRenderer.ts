@@ -12,9 +12,6 @@ import { CameraPath } from './CameraPath';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-/** how far behind the form the glow sprites sit, in world units */
-const HALO_DEPTH = 78;
-
 const FRAG_COMMON = `#include <common>
 varying vec3 vMonoW;
 uniform float uDecay;
@@ -246,16 +243,40 @@ const LIGHT_KEYS: Array<{
   amb: number;
   env: number;
 }> = [
-  { p: 0.0, i: 0.88, c: '#eef1f4', d: [0.35, 0.75, 0.55], amb: 1.1, env: 0.29 },
-  { p: 0.15, i: 1.28, c: '#e8ecf0', d: [0.9, 0.35, 0.15], amb: 0.85, env: 0.33 },
-  { p: 0.29, i: 0.88, c: '#e9edf1', d: [0.5, 0.6, 0.45], amb: 1.0, env: 0.30 },
-  { p: 0.43, i: 1.33, c: '#e4e9ee', d: [0.95, 0.3, -0.1], amb: 0.7, env: 0.35 },
-  { p: 0.53, i: 0.35, c: '#cfd9e4', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
-  { p: 0.65, i: 0.40, c: '#cfd9e4', d: [0.2, 0.9, 0.2], amb: 0.45, env: 0.20 },
-  { p: 0.7, i: 0.62, c: '#c3ccd8', d: [-0.6, 0.5, -0.5], amb: 0.6, env: 0.27 },
-  { p: 0.83, i: 0.71, c: '#dbe1e8', d: [0.3, 0.4, 0.8], amb: 0.8, env: 0.27 },
-  { p: 0.92, i: 0.48, c: '#b4bfcd', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 },
-  { p: 1.0, i: 0.44, c: '#aeb9c8', d: [0.2, 0.5, 1.0], amb: 0.7, env: 0.25 }
+  // THE RIG, rebalanced 2026-08-19. Jacob: the hero is "very light in
+  // colour and rest of background and skybox are eating it... can we
+  // make it something that is very coherent".
+  //
+  // The fault was not the albedo, it was the ratio. Ambient was STRONGER
+  // than the key at every stop - 1.1 against 0.88 at the landing - so
+  // the monument was lit mostly by directionless fill. Fill cannot model
+  // a form: it raises every facet by the same amount whatever way the
+  // facet faces, which is the definition of flat. Lifting the albedo on
+  // top of that only made the flatness paler, which is why it started
+  // reading as a light grey cutout the sky could eat.
+  //
+  // Ambient roughly halved and the key raised to carry the exposure
+  // instead. Now one side of the mass is lit and the other falls away,
+  // so it reads as a solid with weight rather than a shape with a tone.
+  // The landing key also swings side-on, from [0.35, 0.75, 0.55] which
+  // was almost down the camera axis - frontal light flattens a form as
+  // surely as ambient does - to a raking angle that separates the two
+  // prongs and lets the skin's grazing-angle glyphs do their work.
+  //
+  // Inside the cleft the ambient is cut less hard: in there the fissure
+  // and the traveller's light are doing the modelling already, and the
+  // walls need enough fill to stay material rather than becoming a
+  // black cutout.
+  { p: 0.0, i: 1.45, c: '#eef1f4', d: [0.85, 0.55, 0.12], amb: 0.5, env: 0.29 },
+  { p: 0.15, i: 2.1, c: '#e8ecf0', d: [0.9, 0.35, 0.15], amb: 0.38, env: 0.33 },
+  { p: 0.29, i: 1.45, c: '#e9edf1', d: [0.72, 0.5, 0.2], amb: 0.45, env: 0.3 },
+  { p: 0.43, i: 2.2, c: '#e4e9ee', d: [0.95, 0.3, -0.1], amb: 0.32, env: 0.35 },
+  { p: 0.53, i: 0.52, c: '#cfd9e4', d: [0.2, 0.9, 0.2], amb: 0.3, env: 0.2 },
+  { p: 0.65, i: 0.6, c: '#cfd9e4', d: [0.2, 0.9, 0.2], amb: 0.3, env: 0.2 },
+  { p: 0.7, i: 1.02, c: '#c3ccd8', d: [-0.6, 0.5, -0.5], amb: 0.3, env: 0.27 },
+  { p: 0.83, i: 1.17, c: '#dbe1e8', d: [0.55, 0.4, 0.6], amb: 0.36, env: 0.27 },
+  { p: 0.92, i: 0.79, c: '#b4bfcd', d: [0.5, 0.5, 0.8], amb: 0.32, env: 0.25 },
+  { p: 1.0, i: 0.73, c: '#aeb9c8', d: [0.55, 0.5, 0.7], amb: 0.32, env: 0.25 }
 ];
 
 const CLAD_VERT = /* glsl */ `
@@ -452,134 +473,13 @@ const MARK_FRAG = /* glsl */ `
 
 
 
-const MONO_VERT = /* glsl */ `
-  uniform float uTime;
-  uniform float uFogDensity;
-  out vec3 vWorld;
-  out vec3 vNormalW;
-  out float vFog;
-  void main() {
-    vec3 wp = position;
-    #ifdef MIRROR
-    wp.y = -wp.y - 0.12;
-    wp.x += sin(wp.y * 0.32 + uTime * 0.7 + wp.z * 0.11) * 0.4;
-    #endif
-    vWorld = wp;
-    vNormalW = normal;
-    vec4 mv = viewMatrix * vec4(wp, 1.0);
-    gl_Position = projectionMatrix * mv;
-    float dist = max(1.0, -mv.z);
-    vFog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
-  }
-`;
-
-const MONO_FRAG = /* glsl */ `
-  precision highp float;
-  in vec3 vWorld;
-  in vec3 vNormalW;
-  in float vFog;
-  uniform float uTime;
-  uniform float uDecay;
-  uniform float uSeverity;
-  uniform float uCalm;
-  uniform vec3 uHover;
-  uniform float uHoverAmt;
-  uniform vec3 uInner;
-  uniform float uInnerAmt;
-  uniform vec3 uFogColor;
-  out vec4 outColor;
-
-  float hash3(vec3 c) {
-    return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-  }
-
-  void main() {
-    // the masonry field: continuous stone, coursed in 1.5 unit cells
-    vec3 cell = floor(vWorld / 1.5);
-    float h = hash3(cell);
-    float heightT = clamp(vWorld.y / 195.0, 0.0, 1.0);
-    float cluster = 0.5 + 0.5 * sin(cell.x * 0.315 + cell.z * 0.255 + cell.y * 0.165 + h * 9.0);
-    float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
-
-    // the decay eats the stone in whole courses, never as spray
-    if (uDecay > th) discard;
-    float dying = smoothstep(0.035, 0.0, th - uDecay);
-
-    vec3 n = normalize(vNormalW);
-    // inside of the shell: dark, cool, lit only by the traveller
-    if (!gl_FrontFacing) {
-      vec3 icol = vec3(0.018, 0.022, 0.028);
-      if (uInnerAmt > 0.001) {
-        vec3 iv = uInner - vWorld;
-        float il = uInnerAmt / (1.0 + dot(iv, iv) * 0.02);
-        icol += vec3(0.4, 0.45, 0.55) * il;
-      }
-      outColor = vec4(mix(icol, uFogColor, vFog), 1.0);
-      return;
-    }
-
-    vec3 L = normalize(vec3(0.35, 0.75, 0.55));
-    float diff = clamp(dot(n, L), 0.0, 1.0);
-    vec3 base = mix(vec3(0.15, 0.15, 0.16), vec3(0.19, 0.185, 0.19), h * 0.5);
-    base = mix(base, vec3(0.12, 0.14, 0.19), uSeverity * 0.5);
-    vec3 col = base * (0.38 + 0.5 * diff) * mix(0.5, 1.15, heightT * heightT);
-    vec3 crownCol = mix(vec3(1.0, 0.94, 0.8), vec3(0.85, 0.92, 1.0), uSeverity);
-    col += crownCol * smoothstep(0.93, 1.0, heightT) * 1.5 * (1.0 - uSeverity * 0.5);
-
-    // the inscription courses, coarse: this surface is only ever a
-    // shivered reflection
-    float sideS = vWorld.x >= 0.0 ? 1.0 : -1.0;
-    float formS = 1.0 - 0.95 * pow(max(heightT, 1e-4), 1.35);
-    float angP = clamp(vWorld.z / max(17.0 * formS, 0.001), -1.0, 1.0) * 1.5;
-    float rowH = 1.05;
-    float row = floor(vWorld.y / rowH);
-    float fv = fract(vWorld.y / rowH);
-    float rowSeed = hash3(vec3(row, sideS, 7.0));
-    float strata = floor(row / (5.0 + floor(rowSeed * 4.0)));
-    col *= 0.86 + 0.26 * hash3(vec3(strata, sideS, 3.3));
-    float cols = max(12.0, floor(26.0 * formS));
-    float colF = (angP / 6.2831853 + 0.5) * cols + rowSeed * 31.0;
-    float block = floor(floor(colF) / 6.0);
-    float bs = hash3(vec3(block, row, sideS * 3.7));
-    float runLen = 1.0 + floor(bs * 5.0);
-    float inBlock = floor(colF) - block * 6.0;
-    float inRun = step(inBlock, runLen - 0.5) * step(0.22, bs);
-    float vIn = smoothstep(0.30, 0.42, fv) * smoothstep(0.78, 0.66, fv);
-    float eng = inRun * vIn;
-    col *= 1.0 - eng * 0.4;
-    col *= 1.0 - smoothstep(0.045, 0.0, min(fv, 1.0 - fv)) * 0.14;
-
-    // the visitor's lamp
-    float hd = distance(vWorld, uHover);
-    float camD = distance(cameraPosition, uHover);
-    float sigma = clamp(camD * 0.16, 2.5, 15.0);
-    float lamp = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
-    float breathe = 1.0 - (1.0 - uCalm) * 0.08 * (0.5 + 0.5 * sin(uTime * 1.1));
-    vec3 lampCol = mix(vec3(1.0, 0.88, 0.68), vec3(0.5, 0.78, 1.0), uSeverity);
-    col = mix(col, col * lampCol * 1.3, lamp * 0.45);
-    col += lampCol * eng * lamp * breathe * 0.7;
-
-    // the traveller's light on the stone
-    if (uInnerAmt > 0.001) {
-      vec3 iv = uInner - vWorld;
-      float il = uInnerAmt / (1.0 + dot(iv, iv) * 0.02);
-      col += vec3(0.5, 0.55, 0.65) * il * (0.3 + 0.7 * max(dot(n, normalize(iv)), 0.0));
-    }
-
-    // a course about to fail gutters, slow and shallow
-    if (dying > 0.0) {
-      float g = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
-      col *= mix(1.0, mix(g, 0.8, uCalm), dying);
-    }
-
-    col = mix(col * 0.35, col, smoothstep(0.0, 4.0, vWorld.y));
-    #ifdef MIRROR
-    col *= 0.24;
-    #endif
-    col = mix(col, uFogColor, vFog);
-    outColor = vec4(col, 1.0);
-  }
-`;
+// MONO_VERT and MONO_FRAG lived here: the mirrored stone shader for
+// the drowned monument. Removed with the reflection itself, 2026-08-19.
+//
+// Worth recording: MONO_FRAG carried its own inlined copy of the form
+// constants, so the rule was "change the form in FOUR places" -
+// src/world/monumentForm.ts, tools/blender/monument.py, FRAG_MAP and
+// MONO_FRAG. It is THREE now. One fewer copy to drift out of step.
 
 const MOTE_VERT = /* glsl */ `
   in float aSeed;
@@ -626,36 +526,325 @@ const SKY_VERT = /* glsl */ `
   }
 `;
 
+// THE SKY, as one function rather than one shader. The shore now runs
+// all the way out to the fog, so the plain has to MEET this instead of
+// cutting it, and the ground evaluates the same law at the horizon
+// rather than carrying a second copy of these numbers.
+const SKY_LAW = /* glsl */ `
+float skyHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
+float skyNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(skyHash(i), skyHash(i + vec2(1.0, 0.0)), f.x),
+             mix(skyHash(i + vec2(0.0, 1.0)), skyHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float skyFbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++) { v += a * skyNoise(p); p *= 2.07; a *= 0.5; }
+  return v;
+}
+
+// Rotating the SAMPLE POINT about the monument's axis, rather than
+// translating it, is what keeps the drift even. A flat sheet seen from
+// below is 300 units away overhead and 26000 at the horizon, so a
+// constant world velocity would tear across the zenith and stand still
+// at the horizon. Rotation moves every sample at the same ANGULAR rate,
+// which is the same rate on screen everywhere.
+//
+// It rotates the texture only. Deck altitude and the draw's dip are
+// computed from the true direction, so the bend stays fixed on the
+// Spire while the weather moves through it.
+vec2 skyDrift(vec2 p, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+}
+
+vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strata, float shaftAmt, float time) {
+  // The skin is #050607. A near-black object against a near-black sky
+  // is nothing at all, which is why the spire vanished when the spec
+  // albedo went in. Every reference sheet stands it against haze, so
+  // the atmosphere carries the silhouette and the stone stays honest
+  float band = exp(-abs(d.y + 0.02) * 3.2);
+  float high = exp(-max(d.y - 0.1, 0.0) * 2.4);
+  // COLD BLUE, on Jacob's instruction 2026-08-19: the sky "collides
+  // with the base and hero and spires and rest plain". It did. Sky,
+  // plain, choir and monument were all sitting in one narrow neutral
+  // grey band, so nothing separated from anything and the only thing
+  // outside the band was the fissure - which is why it read as blinding
+  // and why the hero read as invisible beside it.
+  //
+  // This is the brief's Deep energy blue as a HUE, not as a colour: at
+  // roughly three to one blue over red it lands near 225 degrees, a true
+  // blue with no violet in it, and it stays deeply desaturated. The
+  // near-black stone is very slightly warm, so it now reads warm against
+  // a cold sky instead of grey against grey.
+  //
+  // It is also about a quarter darker in luminance than the neutral sky
+  // was, which gives the monument somewhere to be brighter THAN.
+  vec3 base = mix(vec3(0.0040, 0.0058, 0.0115), vec3(0.0030, 0.0048, 0.0105), sev);
+  vec3 glow = mix(vec3(0.0230, 0.0350, 0.0700), vec3(0.0130, 0.0220, 0.0500), sev);
+  vec3 col = base + glow * band * (0.35 + 0.65 * high);
+
+  // THE DECKS. Three horizontal sheets of haze at real altitudes. A ray
+  // meets a sheet at t = (H - eye.y) / d.y, so the texture compresses
+  // toward the horizon on its own and slides as the camera translates.
+  // That perspective is the entire difference between weather and a
+  // painted backdrop.
+  //
+  // This replaces a pair of sines on d.y that claimed to be strata and
+  // could only ever have been stripes on a dome: banding the VIEW angle
+  // has no distance in it, so it has no compression, no parallax, and a
+  // nameable repeated element the moment it is strong enough to see. It
+  // was also multiplied by exp(-|d.y| * 2.2), which killed it exactly
+  // where the sky is bright. Measured, the sky was a monotonic ramp of
+  // 0.060 to 0.234 varying 12 percent across the whole frame.
+  float dens = 0.0;
+  float lit = 0.0;
+  float dy = max(d.y, 0.035);
+  for (int k = 0; k < 3; k++) {
+    float fk = float(k);
+    float H0 = 300.0 + fk * 760.0;
+
+    // THE DRAW. The sheets are not level: they dip toward the Spire's
+    // axis, nearly horizontal at the edges and gently curving down as
+    // they pass over the monument, as if the whole chamber were under a
+    // field.
+    //
+    // This is deliberately GEOMETRY and not a texture warp. Swirling
+    // the sample coordinate would crowd the pattern toward the centre
+    // and read as an effect painted on a flat sheet; bending the sheet
+    // itself and intersecting the bent sheet makes the perspective, the
+    // compression and the convergence all fall out on their own. A
+    // swirl says "effect". A draw says "law".
+    //
+    // Bending H makes the intersection implicit, so it is solved with
+    // one fixed-point step: hit the flat sheet, ask how deep the dip is
+    // there, then hit the bent sheet. One step is ample for a bend this
+    // gentle and it keeps the cost closed-form.
+    //
+    // Two properties come free and both are in the brief. At grazing
+    // angles t is enormous, so the sample lands far out where the dip
+    // has died and the strata stay level at the edges. Overhead the
+    // sample lands near the axis, which is where the dip is deepest.
+    float t = (H0 - eye.y) / dy;
+    vec2 pf = eye.xz + d.xz * t;
+    // 7000 units of influence, not 3000. At 3000 the dip only reached
+    // the lowest deck: the upper two are sampled four and seven
+    // thousand units out at the elevations that matter, so the field
+    // had died before it got to them and the bend touched about a third
+    // of the density. "As if the whole chamber were under a field"
+    // needs the field to reach the whole chamber.
+    float bend = exp(-dot(pf, pf) / 49000000.0);
+    float H = H0 * (1.0 - drawAmt * 0.35 * bend);
+
+    // clamped so the horizon converges instead of running to infinite
+    // frequency, which is where a flat deck aliases
+    t = min((H - eye.y) / dy, 26000.0);
+    vec2 p = eye.xz + d.xz * t;
+    // STRATIFICATION. Isotropic fbm gives a field of blobs, and a bent
+    // sheet of blobs reads as blobs that MOVED, not as a sheet that
+    // bent - there is no line for the eye to follow. Squeezing one
+    // horizontal axis elongates the features into layers, which is what
+    // the word strata means and what makes the dip legible. Kept
+    // parallel and never radial: features converging on the axis would
+    // be a radial bloom, which is banned.
+    // uStrata = 1.0 is the isotropic sky that was already approved.
+    // 0.005 rad/s is about 0.29 degrees a second, near seven pixels a
+    // second at this field of view - a hundred pixels over a fifteen
+    // second dwell. Found by rendering, not reasoning: the decks were
+    // built STATIC on the argument that camera parallax would carry the
+    // motion, and at the landing dwell the camera barely travels, so
+    // the whole upper frame froze. The first correction at 0.0026 was
+    // still too slow to read.
+    float n = skyFbm(skyDrift(p, time * 0.005) * vec2(strata, 1.0) * (0.00055 - fk * 0.00013));
+    // thin and mostly clear. A low threshold fills the sky and the
+    // frame stops having negative space, which is the whole composition
+    float body = smoothstep(0.46, 0.70, n);
+    // how much deck the ray actually crosses, which goes as 1/d.y. This
+    // is the physical term and it also removes the zenith singularity:
+    // straight up, every ray meets the sheet at almost the same point,
+    // so without it the whole top of the sky is one arbitrary noise
+    // sample that slides in value as the camera moves
+    body *= clamp(0.16 / dy, 0.0, 1.0);
+    dens += body * (0.52 - 0.12 * fk);
+    // the fissure lights its own weather. A deck passing over the
+    // monument carries that light and the rest of the sky does not,
+    // which keeps the glow and its source on one axis
+    lit += body * exp(-length(p) * 0.0016) * (0.9 - 0.22 * fk);
+  }
+  // thick air eats the horizon glow before it arrives, and gives a
+  // little of it back where a deck is lit from below
+  col *= 1.0 - clamp(dens, 0.0, 1.0) * 0.38;
+  col += glow * clamp(lit, 0.0, 1.5) * 0.26;
+
+  // THE LID. The faint inverted plain far above, met at the same
+  // t = (H - eye.y) / d.y as any deck. Three things separate it from
+  // the decks below and each one is load-bearing:
+  //
+  // 1. NO PATH-LENGTH TERM. The decks scale by clamp(0.16 / d.y)
+  //    because a ray crosses more haze at a shallow angle. A SURFACE
+  //    has no path length. Applying it would make the ceiling weakest
+  //    directly overhead, which is exactly backwards.
+  // 2. BROAD TONE, NOT TEXTURE. Two octaves at enormous scale and
+  //    nothing finer. Detail turns a ceiling into a cloud, and a
+  //    nameable repeated element is what has killed every carrier this
+  //    project has built.
+  // 3. IT NEVER ANNOUNCES ITSELF. It must read first as depth and only
+  //    later as WRONG depth, so it is faint, it carries no edge, and
+  //    the landing camera barely looks up.
+  //
+  // "Almost lost in haze" is free: t runs to infinity at the horizon,
+  // so the aerial term buries the lid there without being asked, and
+  // the tonal patches compress as they recede. That compression is the
+  // whole cue that says surface rather than gradient.
+  {
+    float t = min((11000.0 - eye.y) / max(d.y, 0.02), 400000.0);
+    vec2 q = eye.xz + d.xz * t;
+    // The aerial term has to reach further down than the decks' does or
+    // the lid dies above the elevations where its compression becomes
+    // legible, and legible compression is the entire surface cue.
+    float far = exp(-t / 42000.0);
+    // Cell size is the number that decides whether this is a ceiling or
+    // a wash. The landing camera sees roughly 15 to 36 degrees of sky,
+    // which is t from 42500 down to 18560: about 24000 units of lid. At
+    // the first attempt's 24000 unit cell that is ONE feature across the
+    // whole band, so it read as brighter fog. Near 4800 puts five
+    // features in it, which is enough to watch them stack and squash
+    // toward the horizon, and still far too coarse to be a texture.
+    // A third of the decks' rate. The difference is the point: the lid
+    // and the weather beneath it separate over time, and relative
+    // motion is the only kind the eye reads as depth. Everything moving
+    // together is what a camera sway looks like, and it reads as still.
+    vec2 qd = skyDrift(q, time * 0.0018);
+    float n = skyNoise(qd * 0.00021) * 0.70 + skyNoise(qd * 0.00048) * 0.30;
+    // centred and contrasty rather than a floor plus a wobble: the lid
+    // must be uneven, not uniformly present
+    float tone = smoothstep(0.32, 0.74, n);
+
+    // THE SHAFT. A rectangular absence cut clean through the lid, and
+    // nothing else. Cloud has no straight edges, so the cut itself is
+    // the whole evidence that something engineered it - no beam, no god
+    // rays, no column, and it never crosses the monument.
+    //
+    // Everything about its placement is a guard against the failure
+    // Jacob named, that it becomes a second focal monument and reduces
+    // the Spire to foreground dressing:
+    //   - 24700 units out, so the light it lets past falls on a part of
+    //     the plain nowhere near the Spire;
+    //   - offset 22 degrees to one side, never centred, never overhead;
+    //   - small, about 3 degrees, so it reads as an incision.
+    //
+    // The distance is also what puts it in frame at all. On a lid at
+    // altitude 11000, horizontal distance IS elevation: the first
+    // placement at 19000 units sat at 30 degrees, which is the landing
+    // frame's top edge, so the viewport cut it in half and it read as a
+    // smudge rather than a cut. 24700 units is 24 degrees - the upper
+    // third, with room around it.
+    //
+    // Longer along the line of sight than across it, because the plane
+    // is seen at a shallow angle and the radial extent foreshortens by
+    // roughly sixty percent. In plan it is a slot; on screen it is near
+    // square.
+    //
+    // The edge is hard but not aliased: its width is one pixel of the
+    // lid's own coordinate, taken from the derivative, so it stays a
+    // clean line at every distance instead of crawling.
+    vec2 rel = abs(q - vec2(-9253.0, -22902.0)) - vec2(700.0, 900.0);
+    float ew = max(fwidth(q.x), 1.0);
+    float cut = (1.0 - smoothstep(-ew, ew, rel.x)) * (1.0 - smoothstep(-ew, ew, rel.y));
+    tone *= 1.0 - cut * shaftAmt;
+
+    // d.y guard, which also keeps the ground's horizon call at exactly
+    // zero: it asks for a horizontal bearing and gets no lid at all
+    float lid = far * smoothstep(0.0, 0.05, d.y) * tone;
+    col += glow * lid * lidAmt * 0.70;
+
+    // "faint remote illumination beneath it". Not a shaft of light: the
+    // air under the opening simply carries a little more of whatever is
+    // above, which is what an absence in a ceiling actually does.
+    col += glow * cut * far * shaftAmt * 0.06;
+  }
+
+  // a faint drift across the azimuth, so turning the camera finds
+  // variation instead of the same ramp everywhere
+  float drift = sin(atan(d.z, d.x) * 2.0 + d.y * 3.0) * 0.5 + 0.5;
+  return col + glow * drift * 0.08 * band;
+}`;
+
 const SKY_FRAG = /* glsl */ `
   precision highp float;
   in vec3 vDir;
   uniform float uSeverity;
+  uniform float uLid;
+  uniform float uDraw;
+  uniform float uStrata;
+  uniform float uShaft;
+  uniform float uTime;
   out vec4 outColor;
+  ${SKY_LAW}
   void main() {
-    vec3 d = normalize(vDir);
-    // The skin is #050607. A near-black object against a near-black sky
-    // is nothing at all, which is why the spire vanished when the spec
-    // albedo went in. Every reference sheet stands it against haze, so
-    // the atmosphere carries the silhouette and the stone stays honest
-    float band = exp(-abs(d.y + 0.02) * 3.2);
-    float high = exp(-max(d.y - 0.1, 0.0) * 2.4);
-    vec3 base = mix(vec3(0.0075, 0.0072, 0.0080), vec3(0.005, 0.006, 0.009), uSeverity);
-    vec3 glow = mix(vec3(0.052, 0.047, 0.041), vec3(0.019, 0.024, 0.033), uSeverity);
-    vec3 col = base + glow * band * (0.35 + 0.65 * high);
-
-    // strata: slow horizontal layers of denser air, so the sky is a
-    // volume the monument stands in rather than a gradient behind it
-    float strata = sin(d.y * 26.0 + 1.3) * 0.5 + 0.5;
-    strata *= sin(d.y * 9.0 - 0.7) * 0.5 + 0.5;
-    col += glow * strata * 0.16 * exp(-abs(d.y) * 2.2);
-
-    // a faint drift across the azimuth, so turning the camera finds
-    // variation instead of the same ramp everywhere
-    float drift = sin(atan(d.z, d.x) * 2.0 + d.y * 3.0) * 0.5 + 0.5;
-    col += glow * drift * 0.08 * band;
-    outColor = vec4(col, 1.0);
+    outColor = vec4(skyAt(normalize(vDir), cameraPosition, uSeverity, uLid, uDraw, uStrata, uShaft, uTime), 1.0);
   }
 `;
+
+/**
+ * THE SHORE. The authored plain is a 1400 unit plane, so it stopped at
+ * 700 units - and the choir stands from 560 out to 1560. Four of the six
+ * masses had no ground under them at all and hung in open sky, which is
+ * exactly what they looked like, and the plain's own far edge cut a hard
+ * straight line across the frame at the same place.
+ *
+ * This carries the plain out into the fog. Its inner ring IS the authored
+ * mesh's boundary vertices, read from the geometry rather than assumed,
+ * so there is no seam to hide and no second copy of the plain's extent to
+ * keep in step with monument.py.
+ */
+function buildShore(src: THREE.BufferGeometry, mat: THREE.Material): THREE.Mesh {
+  const p = src.getAttribute('position') as THREE.BufferAttribute;
+  const box = new THREE.Box3().setFromBufferAttribute(p);
+  const edge = Math.min(box.max.x, box.max.z) - 0.5;
+  const OUT = 3600;
+  const seen = new Set<string>();
+  const ring: { a: number; x: number; y: number; z: number }[] = [];
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i);
+    const z = p.getZ(i);
+    if (Math.abs(x) < edge && Math.abs(z) < edge) continue;
+    const key = `${Math.round(x)}:${Math.round(z)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ring.push({ a: Math.atan2(z, x), x, y: p.getY(i), z });
+  }
+  // the plain is convex and contains the origin, so azimuth around the
+  // centre IS boundary order and no edge walk is needed
+  ring.sort((u, v) => u.a - v.a);
+
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const idx: number[] = [];
+  for (const v of ring) {
+    const r = Math.hypot(v.x, v.z) || 1;
+    // inner vertex is the plain's own; outer runs level, so the dunes
+    // ease off over three thousand units instead of ending
+    pos.push(v.x, v.y, v.z, (v.x / r) * OUT, 0, (v.z / r) * OUT);
+    nrm.push(0, 1, 0, 0, 1, 0);
+  }
+  for (let i = 0; i < ring.length; i++) {
+    const a = i * 2;
+    const b = ((i + 1) % ring.length) * 2;
+    idx.push(a, a + 1, b + 1, a, b + 1, b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  g.setIndex(idx);
+  const shore = new THREE.Mesh(g, mat);
+  shore.frustumCulled = false;
+  return shore;
+}
 
 export class JourneyRenderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -665,10 +854,11 @@ export class JourneyRenderer {
   private readonly scene = new THREE.Scene();
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
-  private mirrorMat!: THREE.ShaderMaterial;
   private readonly cladMat: THREE.ShaderMaterial;
   private readonly markMat: THREE.ShaderMaterial;
   private readonly skyMat: THREE.ShaderMaterial;
+  /** review pin for the lid; null means the severity ramp owns it */
+  private lidOverride: number | null = null;
   private readonly strikeAttr: THREE.InstancedBufferAttribute;
   private readonly markGeom: THREE.BufferGeometry;
   private readonly markPos = new Float32Array(12 * 3);
@@ -713,7 +903,15 @@ export class JourneyRenderer {
   private frameMat!: THREE.MeshStandardMaterial;
   private readonly groundU: Record<string, THREE.IUniform> = {
     uGSeverity: { value: 0 },
-    uGDecay: { value: 0 }
+    uGDecay: { value: 0 },
+    // the ground samples the sky at the horizon, so it needs the same
+    // clock or the join would drift apart from what it is joining
+    uGTime: { value: 0 },
+    // how far the plain has failed at the foot. Built too weak and
+    // swept, then taken UP on Jacob's call - 1.0 was the dial's ceiling
+    // so "a little more" had to come from the coefficients above, not
+    // from here.
+    uGBite: { value: 1.0 }
   };
   private fissureMat!: THREE.ShaderMaterial;
   private hazeMat!: THREE.ShaderMaterial;
@@ -723,11 +921,9 @@ export class JourneyRenderer {
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
   private monoMat!: THREE.MeshStandardMaterial;
-  private monoMirrorMat!: THREE.ShaderMaterial;
   private stoneU!: Record<string, THREE.IUniform>;
   /** resolves once the authored monument is standing */
   readonly ready: Promise<void>;
-  private readonly halo: THREE.Sprite;
   private readonly crownHalo: THREE.Sprite;
   private readonly maxDpr: number;
   private time = 0;
@@ -775,7 +971,22 @@ export class JourneyRenderer {
       glslVersion: THREE.GLSL3,
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
-      uniforms: { uSeverity: { value: 0 } },
+      // uLid is driven from severity in update(); 0.3 is the landing
+      // value, which is what the first frame shows before the ramp has
+      // anything to add.
+      //
+      // uDraw and uStrata are LOCKED to the cell Jacob chose out of the
+      // 2x2 in captures/draw/matrix: "d-layered-bend is right, lock
+      // it". They stay uniforms so the pair can be pinned for review,
+      // not because either is still open.
+      uniforms: {
+        uSeverity: { value: 0 },
+        uLid: { value: 0.3 },
+        uDraw: { value: 0.6 },
+        uStrata: { value: 0.35 },
+        uShaft: { value: 0.5 },
+        uTime: { value: 0 }
+      },
       side: THREE.BackSide,
       depthWrite: false
     });
@@ -823,12 +1034,23 @@ export class JourneyRenderer {
     clad.frustumCulled = false;
     this.scene.add(clad);
 
-    // the monument drowned: a true reflection, shivered by the water
-    this.mirrorMat = this.cladMat.clone();
-    this.mirrorMat.defines = { MIRROR: '' };
-    const mirror = new THREE.Mesh(cladGeom, this.mirrorMat);
-    mirror.frustumCulled = false;
-    this.scene.add(mirror);
+    // THE DROWNED REFLECTION IS REMOVED, 2026-08-19. Both copies of it:
+    // the cells here and the stone body below.
+    //
+    // It reflected the monument in water that no longer exists - the sea
+    // was taken out, and this was left behind. What it did instead was
+    // put a plinth under the hero. MONO_VERT mirrors with
+    // wp.y = -wp.y - 0.12, and the monument's foot is deliberately
+    // BURIED: monument.py lofts from t = -0.055, about 10.7 units below
+    // the plain, so each foot enters the terrain as straight stone.
+    // Mirrored, that buried stub lands at +10.6 ABOVE the plain at full
+    // untapered section, BASE_W wide, with a flat top. Two of them, one
+    // per half, flanking the fissure. Jacob: "it just looks its been
+    // placed on ground with support pillars ... a prop rather than
+    // holy". They were the support pillars, exactly.
+    //
+    // It should have gone with the drowned inverted monument, which he
+    // killed on the 19th. Removing it finishes that.
 
     // --- the true form: the dark lattice that binds the prongs ---
     // Two spines follow the prong cores; ties and diagonals cross the
@@ -981,8 +1203,15 @@ export class JourneyRenderer {
           float fail = 1.0 - uDecay * 0.55;
           // inside the slit the plane is a few units from the eye, so
           // full strength floods the frame and the walls lose their
-          // dark. It burns from a distance and only glows up close
-          float near = mix(4.2, 0.85, uNear);
+          // dark. It burns from a distance and only glows up close.
+          //
+          // 4.2 was blinding, and blinding is not the same as bright:
+          // at that intensity the eye adapts to the blade and every
+          // other value in the frame collapses, which is exactly why
+          // Jacob could not see the monument standing around it. 1.9
+          // still clips to white in the core and still carries the
+          // bloom; it just stops being the only thing the frame has.
+          float near = mix(1.9, 0.85, uNear);
           outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail, 1.0);
         }`,
       uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 }, uNear: { value: 0 } },
@@ -1143,11 +1372,14 @@ export class JourneyRenderer {
             d *= bank(q * 2.1 - vec2(uTime * 0.004, 0.0));
             float body = smoothstep(0.22, 0.75, d);
             float fade = smoothstep(0.0, 1.0, clamp(vM.y / 34.0, 0.0, 1.0));
-            // slow light crossing the plain: movement without objects,
-            // which is what a background can carry without competing
-            float sweep = bank(q * 0.55 + vec2(uTime * 0.011, uTime * -0.006));
-            float lit = smoothstep(0.45, 0.85, sweep) * 0.5;
-            outColor = vec4(uFog * (2.6 * body + 3.4 * lit) * (1.0 - fade) * 0.5, 1.0);
+            // The "slow light crossing the plain" sweep is REMOVED, on
+            // Jacob's instruction 2026-08-19. It was tuned to blend
+            // into a neutral grey sky; against a cold blue one it read
+            // as a warm glowing patch sitting on the ground with no
+            // source, which is the most obviously wrong thing a frame
+            // can have. The banks still drift, so the movement it was
+            // there for survives without the blob.
+            outColor = vec4(uFog * (2.6 * body) * (1.0 - fade) * 0.5, 1.0);
           }`,
         uniforms: { uTime: { value: 0 }, uFog: { value: new THREE.Color('#07080a') } },
         blending: THREE.AdditiveBlending,
@@ -1196,17 +1428,26 @@ export class JourneyRenderer {
     }
 
     // --- atmosphere ---
-    // The halos sit BEHIND the whole form, never on its axis. An
-    // additive sprite at the axis is painted over every surface behind
-    // it, so the far horn washed out to a ghost while the near one
-    // stayed black. Behind the form it backlights the silhouette,
-    // which is what a halo was always meant to do.
-    // Second law, learned when the frame read as the Eye of Sauron:
-    // the glow NEVER sits in the gap between the horns. A lit void
-    // framed by two curved forms is an eye. It lives off-axis and low.
-    this.halo = makeHalo('#8f9aa8', 180);
-    this.halo.position.set(-104, TOWER_TOP * 0.18, -HALO_DEPTH);
-    this.scene.add(this.halo);
+    // THE BACKING HALO IS REMOVED, 2026-08-19. A 180 unit additive
+    // sprite off to the left at low height, and the bright patch on the
+    // plain Jacob asked to lose. It is worth recording WHY it can go
+    // rather than just that he said so: it existed to separate a
+    // near-black form from a near-black sky, by backlighting the
+    // silhouette. That condition no longer holds. The sky is cold blue
+    // and the key rakes side-on, so the form is separated by hue and by
+    // modelling, and the halo had nothing left to do except sit there
+    // glowing with no source.
+    //
+    // Its two placement laws stand for anything that replaces it: never
+    // on the axis, because an additive sprite there paints over every
+    // surface behind it and washes the far horn to a ghost; and NEVER
+    // in the gap between the horns, because a lit void framed by two
+    // curved forms is an eye, which is a kill word this project has
+    // already paid for once.
+    //
+    // The crown light stays. It belongs to the tall horn alone, it is a
+    // third the size, and it reads as part of the fissure rather than
+    // as weather.
     // the crown light belongs to the tall horn alone, never centred
     const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
     this.crownHalo = makeHalo('#cdd6e2', 64);
@@ -1309,7 +1550,13 @@ export class JourneyRenderer {
     // roughness 0.48, normal strength held back so the baked relief
     // reads as machined rather than eroded
     const stone = new THREE.MeshStandardMaterial({
-      color: 0x050607,
+      // 0x050607 put the hero BELOW the sky in value, so it could only
+      // ever be a silhouette. 0x0c0e12 overcorrected into a pale flat
+      // grey. The band is bought with the KEY now, not the albedo - see
+      // the rig note above - so the stone comes back down to something
+      // that is still near-black sintered graphite by the SIGNAL SKIN
+      // spec and lets the light do the modelling.
+      color: 0x090b0f,
       roughness: 0.48,
       metalness: 0.08,
       normalMap: stoneNormal,
@@ -1336,14 +1583,6 @@ export class JourneyRenderer {
         .replace('#include <emissivemap_fragment>', FRAG_EMISSIVE);
     };
     this.monoMat = stone;
-    this.monoMirrorMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3,
-      vertexShader: MONO_VERT,
-      fragmentShader: MONO_FRAG,
-      uniforms: monoUniforms(),
-      side: THREE.DoubleSide,
-      defines: { MIRROR: '' }
-    });
     this.ready = new GLTFLoader()
       .loadAsync('/models/monument.glb')
       .then((gltf) => {
@@ -1373,7 +1612,10 @@ export class JourneyRenderer {
 varying vec3 vGroundW;
 uniform float uGSeverity;
 uniform float uGDecay;
-float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }`
+uniform float uGTime;
+uniform float uGBite;
+float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
+${SKY_LAW}`
             )
             .replace(
               '#include <map_fragment>',
@@ -1386,12 +1628,57 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
   float streak = exp(-axis * axis) * exp(-r * 0.010) * step(-1.0, vGroundW.z);
   vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
   diffuseColor.rgb += lit * streak * 0.30 * (1.0 - uGDecay * 0.5);
-  // wet sheen far off, so the plane resolves into a horizon rather
-  // than stopping as a painted edge
+  // wet sheen in the middle distance. This was carrying the comment
+  // about resolving into a horizon and it never could: past about a
+  // thousand units the fog owns the pixel outright and no albedo
+  // survives it. The horizon is done below, in the fog itself
   diffuseColor.rgb += vec3(0.020, 0.021, 0.026) * smoothstep(120.0, 620.0, r);
   // the same sintered grain the skin carries, at floor scale
   float g = gHash(floor(vGroundW.xz * 1.6));
   diffuseColor.rgb *= 0.86 + 0.28 * g;
+
+  // THE CONTACT. The plain is not intact where the mass went into it.
+  // Jacob: the hero reads as "a prop rather than holy" - a thing placed
+  // on ground rather than standing in a world that has answered it. The
+  // answer is consequence, not scenery: the plain carries the same
+  // plate failure the skin does, and the fissure finds the seams it
+  // opened. The mechanism is the form.
+  //
+  // Seams are the ZERO SET of a warped field divided by its own
+  // gradient - not a threshold on noise, and not cells. A threshold
+  // admits half the volume and reads as smoke; cells always resolve
+  // into a repeating unit, which is what killed the Voronoi core.
+  // Dividing by the gradient gives every seam the same width however
+  // steep the field is there, which is what makes it read as fracture.
+  float bite = 1.0 - smoothstep(46.0, 215.0, r);
+  if (bite > 0.0015) {
+    vec2 q = vGroundW.xz * 0.05;
+    // warped BEFORE the field is taken, or the seams inherit the
+    // noise's own roundness and come out as a lattice of bubbles
+    q += (vec2(skyNoise(q * 0.8), skyNoise(q * 0.8 + 11.3)) - 0.5) * 2.2;
+    float ff = skyFbm(q) - 0.4375;
+    float grad = length(vec2(dFdx(ff), dFdy(ff))) + 1e-6;
+    float seam = (1.0 - smoothstep(0.0, 3.0, abs(ff) / grad)) * bite;
+    // a crack is a shadow before it is anything else
+    diffuseColor.rgb *= 1.0 - seam * uGBite * 0.94;
+
+    // AND THEN IT CARRIES. Which stretches of the network are live
+    // drifts slowly, so it reads as charge finding a path through
+    // broken ground.
+    //
+    // Deliberately NOT a wave travelling out from the foot. A radial
+    // pulse on an axis is a ring, and a ring here is a radial bloom -
+    // which is on the banned-construction list and is the single
+    // easiest way to turn this into a portal. The light has to belong
+    // to the fracture, not to the centre.
+    //
+    // It also grows with uGDecay, so the more the monument fails the
+    // more the ground carries. The plain is part of the ledger.
+    float chan = skyFbm(q * 0.42 + vec2(uGTime * 0.055, uGTime * -0.021));
+    float live = smoothstep(0.46, 0.78, chan);
+    float carry = seam * live * uGBite * exp(-r * 0.014);
+    diffuseColor.rgb += lit * carry * (0.42 + 0.9 * uGDecay);
+  }
 }`
             )
             .replace(
@@ -1403,6 +1690,41 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
   roughnessFactor = mix(0.24, 0.72, smoothstep(40.0, 340.0, rr))
                   + 0.06 * (gHash(floor(vGroundW.xz * 0.5)) - 0.5);
 }`
+            )
+            .replace(
+              '#include <fog_fragment>',
+              `#ifdef FOG_EXP2
+{
+  // THE HORIZON, and the reason the shore does not simply move the old
+  // edge further away. Fog carries the far plain to fogColor, which is
+  // a good deal darker than the sky's glow at grazing angles, so a
+  // plain that runs to the fog still cuts a straight line across it.
+  // Out here the ground fogs toward the SKY instead, evaluated along
+  // its own bearing so the azimuth drift matches at the join. The
+  // plain stops being an object with an edge and becomes distance.
+  float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+  vec3 bearing = normalize(vec3(vGroundW.x - cameraPosition.x, 0.0, vGroundW.z - cameraPosition.z));
+  // lid amount is zero here on purpose: the bearing is horizontal, so
+  // the lid contributes nothing at the horizon anyway and the ground
+  // does not need a second uniform to say so
+  // The blend starts at 2400, not at 700, and that number is the
+  // furthest thing standing on the plain rather than a taste call.
+  //
+  // Objects fog to fogColor. This ground fogs toward the SKY. At the
+  // same distance that leaves the ground bright and the object black,
+  // so a distant mass became a silhouette sitting on a bright strip -
+  // which is what "its hovering" actually was, and it was my own
+  // horizon fix causing it. The furthest choir mass is at radius 2091,
+  // so out to 2400 the ground stays fogColour and a foot merges into
+  // ground of its own tone. Only past everything that stands on the
+  // plain does it fade into the sky, and it reaches full sky by the
+  // shore's rim, so the horizon still has no edge.
+  //
+  // ANYTHING PLACED FURTHER OUT THAN 2400 WILL HOVER AGAIN.
+  vec3 far = mix(fogColor, skyAt(bearing, cameraPosition, uGSeverity, 0.0, 0.0, 1.0, 0.0, uGTime), smoothstep(2400.0, 3550.0, length(vGroundW.xz)));
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, far, fogFactor);
+}
+#endif`
             );
         };
         gltf.scene.traverse((o) => {
@@ -1412,19 +1734,53 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
             const ground = new THREE.Mesh(mesh.geometry, terrainMat);
             ground.frustumCulled = false;
             this.scene.add(ground);
+            this.scene.add(buildShore(mesh.geometry, terrainMat));
             return;
           }
           const body = new THREE.Mesh(mesh.geometry, this.monoMat);
           body.frustumCulled = false;
           this.scene.add(body);
-          const drowned = new THREE.Mesh(mesh.geometry, this.monoMirrorMat);
-          drowned.frustumCulled = false;
-          this.scene.add(drowned);
         });
       })
       .catch((e) => {
         console.error('monument.glb failed to load; debris continues without its body', e);
       });
+  }
+
+  /**
+   * Pin the lid's presence, 0 to 1, overriding the severity ramp.
+   * Review affordance only, and the reason the ramp's two endpoints are
+   * measured frames rather than numbers someone wrote down.
+   */
+  setLid(amount: number): void {
+    this.lidOverride = Math.max(0, Math.min(1, amount));
+    this.skyMat.uniforms.uLid!.value = this.lidOverride;
+  }
+
+  /** How far the decks bend toward the axis, 0 to 1. Review pin. */
+  setDraw(amount: number): void {
+    this.skyMat.uniforms.uDraw!.value = Math.max(0, Math.min(1, amount));
+  }
+
+  /** Deck anisotropy: 1 is the approved isotropic sky, lower is more
+   *  layered. Review pin, because it changes an approved frame. */
+  setStrata(amount: number): void {
+    this.skyMat.uniforms.uStrata!.value = Math.max(0.1, Math.min(1, amount));
+  }
+
+  /** How open the shaft is, 0 to 1. Review pin. */
+  setShaft(amount: number): void {
+    this.skyMat.uniforms.uShaft!.value = Math.max(0, Math.min(1, amount));
+  }
+
+  /** How lit the choir masses are, 0 to 1. Review pin. */
+  setChoirDim(amount: number): void {
+    this.choir.setDim(amount);
+  }
+
+  /** How far the plain has failed at the foot, 0 to 1. Review pin. */
+  setBite(amount: number): void {
+    this.groundU.uGBite!.value = Math.max(0, Math.min(1, amount));
   }
 
   /** The visitor's attention: where they point at the monument. */
@@ -1497,7 +1853,7 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     // so the revealed lattice is seen, not swallowed
     const fogDensity =
       0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7) * (1 - smooth01(progress, 0.86, 0.97));
-    const fogColor = lerpColor('#07080a', '#04060a', sev);
+    const fogColor = lerpColor('#05070c', '#03050b', sev);
     (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
     (this.scene.fog as THREE.FogExp2).density = fogDensity;
 
@@ -1517,7 +1873,7 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     }
     this.hoverAmt += (hoverTargetAmt - this.hoverAmt) * (1 - Math.exp(-dt * 5));
 
-    for (const mat of [this.cladMat, this.mirrorMat]) {
+    for (const mat of [this.cladMat]) {
       const cu = mat.uniforms;
       cu.uDecay!.value = decay;
       cu.uTime!.value = this.time;
@@ -1533,6 +1889,26 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     }
 
     this.skyMat.uniforms.uSeverity!.value = sev;
+    // THE LID'S PRESENCE. Jacob approved two frames, and they are not
+    // the same setting: the landing frame at 0.30 and the studio foot
+    // at 0.85. One global value cannot serve both - 0.85 at landing
+    // announces a roof, which he explicitly forbade, and 0.30 at the
+    // foot is invisible. So presence rides severity, which is 0.0 at
+    // the landing key and 0.88 at the foot, and 0.30 + 0.625 * sev
+    // lands on his two frames exactly.
+    //
+    // This is also the read he specified: first depth, then WRONG
+    // depth. The enclosure becomes apparent as the world turns, and it
+    // rides the same grade that already moves the whole palette rather
+    // than being a new kind of change in the sky.
+    //
+    // Note the lid is scaled by `glow`, which cools and dims with
+    // severity. That coupling is NOT a bug to fix: it is part of what
+    // produced the frame he approved, and removing it would make the
+    // foot 1.6x brighter than what he saw.
+    if (this.lidOverride === null) {
+      this.skyMat.uniforms.uLid!.value = 0.3 + 0.625 * sev;
+    }
     this.fissureMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uDecay!.value = decay;
     this.fissureMat.uniforms.uNear!.value = inside;
@@ -1544,16 +1920,16 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     (this.fieldMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.hazeMat.uniforms.uSeverity!.value = sev;
     this.hazeMat.uniforms.uDecay!.value = decay;
+    this.skyMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    this.groundU.uGTime!.value = reduced ? 0 : this.time;
     this.groundU.uGSeverity!.value = sev;
     this.groundU.uGDecay!.value = decay;
     // bloom must not smear the fissure across the walls in there
     this.bloom.strength = 0.34 * (1 - inside * 0.72);
 
     // holiness dims as the monument strips, and never smears the lens
-    const haloFade = smooth01(this.camera.position.distanceTo(this.halo.position), 40, 95);
     const crownFade = smooth01(this.camera.position.distanceTo(this.crownHalo.position), 40, 95);
     const breath = reduced ? 1 : 0.88 + 0.12 * Math.sin(this.time * 0.22);
-    this.halo.material.opacity = 0.45 * (1 - decay * 0.85) * haloFade * breath;
     this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade * (2 - breath) * 0.5;
 
     // the traveller's light burns only inside the cleft
@@ -1592,7 +1968,7 @@ float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     const align = toSpire.lengthSq() > 1 ? Math.abs(toSpire.normalize().x) : 0;
     const alignAmt = smooth01(1 - align, 0.86, 1.0) * (1 - smooth01(progress, 0.46, 0.6));
 
-    for (const mu of [this.stoneU, this.monoMirrorMat.uniforms]) {
+    for (const mu of [this.stoneU]) {
       mu.uTime!.value = this.time;
       mu.uDecay!.value = decay;
       mu.uSeverity!.value = sev;

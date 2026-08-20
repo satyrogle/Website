@@ -42,6 +42,16 @@ def w2b(p):
 CAM = w2b(CAM_W)
 LOOK = w2b(LOOK_W)
 
+# HOW FAR EACH MASS IS BURIED. Every base was cut flat at exactly zero
+# and the plain is not flat: its dunes run between -4.9 and +6.0 out
+# where these stand, so a mass either sank or hung over a gap, and the
+# gap is what Jacob saw. monument.py already answers this for the Spire
+# ("the loft starts BELOW the ground and keeps a constant section down
+# there, so each foot enters the terrain as straight stone") and the
+# same law applies here. The taper is measured from ground level, so
+# everything below it stays full section: buried stone, not a cap.
+UNDER = 40.0
+
 # THE MASSES. Authored, not generated: near pair, a gap, a mid, a far
 # single, and one so distant it could be mistaken for terrain.
 #   (x, z, height, width, depth, yaw, lean, backOpen)
@@ -53,13 +63,52 @@ MASSES = [
     # invisible rather than distant. These sit inside the readable
     # band, with the far pair deliberately at the edge of it: one is
     # meant to be barely there, one mistakeable for terrain.
+    #
+    # These reach well past the authored plain, which is a 1400 unit
+    # plane and therefore stops at 700. The plain is carried out to the
+    # fog at runtime by buildShore in JourneyRenderer; before that
+    # existed, four of these six stood in open sky.
     #   (x, z, height, width, depth, yaw, lean, backOpen)
     (-330.0, -560.0, 176.0, 78.0, 46.0, 0.30, 0.03, True),
     (395.0, -700.0, 226.0, 94.0, 55.0, -0.42, -0.02, True),
     (-640.0, -880.0, 150.0, 68.0, 41.0, 0.12, 0.04, False),
+    # index 3. REMOVED on Jacob's instruction, 2026-08-19: "there is no
+    # point for the spire behind the entity as the hero covers it".
+    # Measured from the landing camera it is 74 percent occluded by the
+    # Spire and it is the only one of the six with ANY occlusion - the
+    # tallest and widest mass, spending its whole size behind the hero.
+    # Kept in the list rather than deleted so the indices below do not
+    # shift: index parity drives the taper's lean direction, and
+    # renumbering would silently alter masses 4 and 5.
     (140.0, -1080.0, 288.0, 126.0, 68.0, 0.58, 0.0, True),
     (-250.0, -1360.0, 118.0, 60.0, 35.0, -0.20, 0.02, False),
     (820.0, -1560.0, 208.0, 112.0, 60.0, 0.34, 0.0, False),
+    # index 6. ADDED on Jacob's instruction, 2026-08-19: he drew over the
+    # landing frame and marked the area right of the Spire as "having
+    # nothing and it looks odd". He was right, and measurably so - the
+    # Spire's right edge lands at px 954 and the nearest mass beyond it
+    # at px 1234, so 280 pixels of the frame held nothing at all.
+    #
+    # Solved against his eye, and I read him backwards twice first.
+    # "Little bit to the left" meant MOVE IT LEFT. I took it as "it is
+    # sitting too far left" and went right, twice, which is how it came
+    # back to where it started. Recorded because the phrasing will recur.
+    #
+    # x=510 centres it at px 1080. The empty gap runs from the Spire's
+    # right edge at px 954 to the nearer mass at px 1234, so the hole's
+    # own centre is 1094 - this sits essentially in the middle of what
+    # it was added to fill, with 90px of air to the Spire and 118px to
+    # the nearer mass. Both gaps matter: a mass needs air on the side it
+    # is read against, not only on the side that was empty.
+    #
+    # Radius 2064, which matters: the shore only holds its fogColour out
+    # to 2400 before it starts fading into the sky, and a mass beyond
+    # that becomes a black silhouette on a bright strip - it hovers.
+    # 2400 is the ceiling for anything standing on this plain.
+    #
+    # No back cavities: at this distance it is a fogColour silhouette
+    # and structure on it would be geometry nobody can ever see.
+    (510.0, -2000.0, 300.0, 132.0, 72.0, -0.26, 0.02, False),
 ]
 
 
@@ -116,24 +165,33 @@ PLANE_ROT = (
     math.atan2(PLANE_N[1], PLANE_N[0]) + math.pi / 2,
 )
 
+# Masses that are authored but not built. See the note on index 3.
+SKIP = {3}
+
 built = []
 
 for i, (wx, wz, h, w, d, yaw, lean, back_open) in enumerate(MASSES):
+    if i in SKIP:
+        continue
     bx, by, _ = w2b((wx, 0.0, wz))
 
-    # --- the mass: a broad block, tapering slightly, with cut corners
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(bx, by, h * 0.5))
+    # --- the mass: a broad block, tapering slightly, with cut corners.
+    # It runs from UNDER below the plain up to h, so the visible height
+    # is unchanged and the foot is in the ground rather than on it
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(bx, by, (h - UNDER) * 0.5))
     m = bpy.context.active_object
     m.name = f"Choir{i}"
-    m.scale = (w, d, h)
+    m.scale = (w, d, h + UNDER)
     m.rotation_euler = (0.0, lean, yaw)
     clean(m)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
-    # taper: pull the top in, so it is a standing mass and not a box
+    # taper: pull the top in, so it is a standing mass and not a box.
+    # t is height above the PLAIN, not along the block, and it clamps at
+    # zero: the buried length keeps the base section all the way down
     me = m.data
     for v in me.vertices:
-        t = max(0.0, min(1.0, (v.co.z + h * 0.5) / h))
+        t = max(0.0, min(1.0, (v.co.z + (h - UNDER) * 0.5) / h))
         v.co.x *= 1.0 - 0.42 * (t ** 1.2)
         v.co.y *= 1.0 - 0.34 * (t ** 1.2)
         v.co.x += w * 0.10 * (t ** 1.6) * (1.0 if i % 2 == 0 else -1.0)

@@ -99,7 +99,16 @@ function boot(): void {
         const p = renderer.path.markPoint(renderer.camera, ndcX, ndcY);
         return world.placeMark(p.x, p.y, p.z);
       },
-      records: (): number => document.querySelectorAll('#record-list li').length
+      records: (): number => document.querySelectorAll('#record-list li').length,
+      // review affordance: sweep the lid's presence without a rebuild,
+      // so its strength is chosen from rendered frames rather than from
+      // a number written into a spec
+      setLid: (amount: number): void => renderer.setLid(amount),
+      setDraw: (amount: number): void => renderer.setDraw(amount),
+      setStrata: (amount: number): void => renderer.setStrata(amount),
+      setShaft: (amount: number): void => renderer.setShaft(amount),
+      setChoirDim: (amount: number): void => renderer.setChoirDim(amount),
+      setBite: (amount: number): void => renderer.setBite(amount)
     };
     const renderOnly = (): void => {
       requestAnimationFrame(renderOnly);

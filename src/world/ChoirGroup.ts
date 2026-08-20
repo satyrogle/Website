@@ -26,6 +26,17 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
  *    straight line across the whole composition; from anywhere else
  *    they scatter. Perspective does the work, so nothing floats and
  *    nothing glows.
+ *
+ * They stand from 560 to 1560 units out, which is further than the
+ * authored plain reaches on its own, and two things have to stay true
+ * or they hang in the sky - which is what Jacob saw on 2026-08-19:
+ *   - the plain must run out past the furthest of them. monument.glb's
+ *     Terrain is a 1400 unit plane and stops at 700; buildShore in
+ *     JourneyRenderer carries it into the fog from there.
+ *   - each foot must be IN the ground, not on it. The plain's dunes run
+ *     between -4.9 and +6.0 out here, so a base cut flat at zero leaves
+ *     a gap. choir.py buries each mass by UNDER and keeps full section
+ *     below ground, the same law monument.py uses for the Spire's feet.
  */
 
 export interface ChoirInputs {
@@ -41,6 +52,7 @@ const CHOIR_FRAG_COMMON = `#include <common>
 varying vec3 vChoirW;
 uniform float uCSeverity;
 uniform float uCAlign;
+uniform float uCDim;
 float cHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
 
 const CHOIR_FRAG_MAP = `#include <map_fragment>
@@ -69,6 +81,13 @@ const CHOIR_FRAG_MAP = `#include <map_fragment>
   // severity reinterprets the light, it does not repaint the stone
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.66, 0.78, 1.04), uCSeverity * 0.45);
   diffuseColor.rgb = mix(diffuseColor.rgb * 0.4, diffuseColor.rgb, smoothstep(0.0, 8.0, vChoirW.y));
+
+  // THE DIM, on Jacob's instruction 2026-08-19. The masses had grown
+  // present enough to read as company beside the Spire rather than as
+  // world behind it. Applied last so it scales the whole material -
+  // facet tone, machined edge, groove light and all - instead of
+  // hollowing out one term and leaving the highlights where they were.
+  diffuseColor.rgb *= uCDim;
 }`;
 
 export class ChoirGroup {
@@ -77,8 +96,14 @@ export class ChoirGroup {
 
   private readonly uniforms: Record<string, THREE.IUniform> = {
     uCSeverity: { value: 0 },
-    uCAlign: { value: 0 }
+    uCAlign: { value: 0 },
+    uCDim: { value: 0.3 }
   };
+
+  /** How lit the masses are, 0 to 1. Review pin. */
+  setDim(amount: number): void {
+    this.uniforms.uCDim!.value = Math.max(0, Math.min(1, amount));
+  }
 
   constructor(scene: THREE.Scene) {
     // same material family as the Spire: near-black sintered graphite,

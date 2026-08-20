@@ -245,7 +245,16 @@ body.no-webgl main { pointer-events: auto; }
   align-items: baseline;
   gap: 2rem;
   padding: 1.5rem var(--gutter);
-  background: linear-gradient(to bottom, rgba(2, 3, 4, 0.88) 30%, transparent);
+  /* 0.88 held flat for the first 30% of the band, which laid a near
+     opaque bar across the top of the sky. The nav is bone white on a
+     dark world; it does not need that much, and the sky is the thing
+     being hidden. Lighter and falling away immediately. */
+  background: linear-gradient(
+    to bottom,
+    rgba(2, 3, 4, 0.6) 0%,
+    rgba(2, 3, 4, 0.26) 46%,
+    transparent 100%
+  );
 }
 
 .wordmark {
@@ -336,12 +345,22 @@ html.js [data-reveal].is-visible .stop-head .rule {
   min-height: 100vh;
   padding: 0 var(--gutter) 9vh;
   align-content: end;
-  background: linear-gradient(
-    to top,
-    rgba(2, 3, 4, 0.82) 0%,
-    rgba(2, 3, 4, 0.35) 38%,
-    transparent 62%
-  );
+  /* The scrim protects the COPY, not the frame. It used to run full
+     width from the bottom up, reaching 0.82 black over the lower 62%
+     of the viewport - which is the plain, the choir's feet and the
+     monument's whole base. The world was being tuned underneath a
+     curtain, and none of its colour could be judged through it.
+     Now it is weighted to the left, where every word actually sits,
+     and clears well before the monument. The bottom lift is a third
+     of what it was and dies at 34%. */
+  background:
+    linear-gradient(
+      to right,
+      rgba(2, 3, 4, 0.76) 0%,
+      rgba(2, 3, 4, 0.42) 24%,
+      transparent 50%
+    ),
+    linear-gradient(to top, rgba(2, 3, 4, 0.5) 0%, transparent 34%);
 }
 
 .hero-rule {
@@ -353,13 +372,29 @@ html.js [data-reveal].is-visible .stop-head .rule {
 }
 .hero-rule .rule { flex: 1; height: 1px; background: var(--bone-16); }
 
+/* Measured at 2270px: "Everything here" ran to x=1017 and the Spire's
+   left prong starts at x=916, so the headline sat 101px inside the
+   hero. Pulled back to six columns and stepped down about a fifth, so
+   the longest line clears the monument with air to spare and the copy
+   keeps a channel of its own on the left. */
+/* The size is solved, not chosen. The Spire's left edge sits at a fixed
+   FRACTION of the viewport - 0.404W - so the headline's limit scales
+   with the viewport too, which is why this is in vw rather than rem.
+   "Everything here" measures 7.62px of width per 1px of font size in
+   this face at this stretch - measured across six widths, not guessed -
+   and it has to fit the five-column box. That solves to 4.3vw with
+   headroom. The markup breaks the line itself with a <br>, so the
+   author's two lines are the design; at 7vw it held two lines at 2270
+   and broke to three from 1920 down, which is a hero line saying
+   something different depending on the window. */
 .stop--hero h1 {
-  grid-column: 1 / 10;
+  grid-column: 1 / 6;
+  font-size: clamp(2.4rem, 4.3vw, 6.3rem);
   margin-bottom: 2.25rem;
 }
 
 .hero-copy {
-  grid-column: 1 / 7;
+  grid-column: 1 / 6;
 }
 
 .hero-side {
