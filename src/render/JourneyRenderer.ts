@@ -263,6 +263,24 @@ const FRAG_MAP = `#include <map_fragment>
   // the band carries across the gap and the texture lines up either
   // side of it.
   float cS = sideS * clamp(outward, 0.0, 1.0);
+
+  // THE CUT, from Jacob's marked screenshot and confirmed with him
+  // before building: the bottom corner of the LEFT-on-screen spire
+  // carries no corrosion at all - no band, no pits, no web, no cracks,
+  // no weeping. Bare stone.
+  //
+  // Three boundaries. Outboard and below are the blade's own silhouette
+  // and the ground, so they need no cut. The only edge drawn here is
+  // the VERTICAL one inboard, and it is a hard step: the corrosion
+  // stops dead rather than fading, which is the right angle he asked
+  // for where it meets the ground.
+  //
+  // The camera looks down -z with +y up, so +x is screen RIGHT and the
+  // left spire is sideS = -1. cS is negative there, so -cS is that
+  // blade's outward fraction: 0 at the cleft, 1 at the silhouette.
+  float cCut = 1.0 - step(0.5, -sideS)
+                   * step(0.25, -cS)
+                   * step(vMonoW.y, 25.0);
   vec2 CP = vec2(cS * 34.0, vMonoW.y);
   vec2 BP = vec2(cS * 95.0, vMonoW.y);
 
@@ -285,7 +303,7 @@ const FRAG_MAP = `#include <map_fragment>
   float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
   // clustered, so it takes hold in patches rather than filling the band
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
-  band *= smoothstep(-12.0, 3.0, vMonoW.z);
+  band *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
 
   // the vesicular field. Warped BEFORE the level set is taken, or the
   // veins inherit the noise's own roundness and come out as bubbles
@@ -319,7 +337,7 @@ const FRAG_MAP = `#include <map_fragment>
   // the halo multiplier comes down as the band widens, or the cracks
   // scale with it and swallow the intact stone again
   float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.55, abs(cAcross));
-  halo *= smoothstep(-12.0, 3.0, vMonoW.z);
+  halo *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
   float cCrack = smoothstep(0.76, 0.99, cWebRaw)
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
                * halo * (1.0 - band * 0.85);
@@ -382,7 +400,7 @@ const FRAG_MAP = `#include <map_fragment>
   float cRun = step(0.62, cLane)
              * step(0.62, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.18, cDrop)
-             * cWeep * smoothstep(-12.0, 3.0, vMonoW.z);
+             * cWeep * smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
   diffuseColor.rgb += diffuseColor.rgb * cRun * (0.7 + 0.5 * graze);
   diffuseColor.rgb += vec3(0.022, 0.024, 0.028) * cRun;
 
