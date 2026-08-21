@@ -425,7 +425,11 @@ const FRAG_MAP = `#include <map_fragment>
   // Only the DEEPEST voids carry it, deep in the band, at a twentieth
   // of that. The rot glows from within; it does not light the monument.
   float cGlow = smoothstep(0.55, 1.0, cPit) * smoothstep(0.45, 0.88, band);
-  vMonoEng = (cGlow * 0.035 + cRun * 0.015) * (1.0 - uCalm * 0.45);
+  // Still too hot at 0.035 - on stone this dark, anything the eye can
+  // call a "patch" is already too much. It has to sit at the threshold
+  // of being noticed, or the pits stop reading as depth and start
+  // reading as lamps.
+  vMonoEng = (cGlow * 0.014 + cRun * 0.006) * (1.0 - uCalm * 0.45);
   }
 }`;
 
@@ -1847,8 +1851,8 @@ export class JourneyRenderer {
     // framing a clean disc, and it is set below the tall tip so it does
     // not float as a separate body above the monument.
     const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
-    this.crownHalo = makeHalo('#cdd6e2', 88);
-    this.crownHalo.position.set(0, tallTip.y - 16, tallTip.z - 34);
+    this.crownHalo = makeHalo('#cdd6e2', 112);
+    this.crownHalo.position.set(0, tallTip.y - 2, tallTip.z - 34);
     this.scene.add(this.crownHalo);
 
     // --- the air: dust motes over the water, rising slowly ---
