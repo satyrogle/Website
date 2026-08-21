@@ -30,6 +30,14 @@ uniform float uAlign;
 // aware, not that there is a lamp inside it.
 uniform float uWatchY;
 uniform float uWatchAmt;
+// THE WAKE. Where the visitor's attention last rested on the mass, and
+// how long ago it left. Jacob liked the ripple the old hover pool made
+// when the cursor was taken away, and it went out with the lamp. It
+// comes back COLD: not a warm pool sliding under the hand, but a wave
+// that leaves the last place it was touched and dies. Being noticed
+// after you stop looking is the sinister half of the same gesture.
+uniform vec3 uWakePos;
+uniform float uWakeT;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -443,9 +451,15 @@ const FRAG_MAP = `#include <map_fragment>
   // the eye can call a patch is too much, and the fissure must stay the
   // only real light in the frame.
   float wResp = exp(-pow((vMonoW.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
+  // the wake: a thin shell expanding from where the attention was, gone
+  // within a few seconds
+  float wakeD = distance(vMonoW, uWakePos);
+  float wakeR = uWakeT * 78.0;
+  float wake = exp(-pow((wakeD - wakeR) / 15.0, 2.0)) * exp(-uWakeT * 1.05);
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
-            + cRun * 0.005) * (1.0 - uCalm * 0.45) * (1.0 + wResp * 2.2);
+            + cRun * 0.005) * (1.0 - uCalm * 0.45)
+            * (1.0 + wResp * 2.2 + wake * 5.5);
   }
 }`;
 
@@ -758,7 +772,9 @@ const MARK_VERT = /* glsl */ `
     gl_Position = projectionMatrix * mv;
     float ignite = clamp((uTime - aBorn) * 1.4, 0.0, 1.0);
     float swell = 1.0 + (1.0 - ignite) * 2.4;
-    gl_PointSize = clamp(uScale * 2.0 * swell / dist, 2.0, 72.0);
+    // smaller, too: at 72 pixels a mark was a feature of the frame
+    // rather than something the visitor left in it
+    gl_PointSize = clamp(uScale * 1.35 * swell / dist, 2.0, 38.0);
   }
 `;
 
@@ -768,12 +784,31 @@ const MARK_FRAG = /* glsl */ `
   uniform float uTime;
   out vec4 outColor;
   void main() {
+    // A MARK IS A HOLE, NOT A DOT. Jacob: "when i click on hero there
+    // are small white sprouts sticking on hero like pimples".
+    //
+    // It was a soft round additive falloff - a filled bright disc stuck
+    // on the surface, which is exactly what a pimple is. In a direction
+    // where the stone is EATEN, a press has to open the surface, not
+    // add something to it.
+    //
+    // So only the RIM lights. Additive cannot darken, but a lit ring
+    // with nothing inside reads as an opening rather than a lump, and
+    // the rim is irregular per mark so it is bitten rather than
+    // stamped. The arrival still flares, briefly; what remains is a
+    // small hole in the face carrying the same cold as the rot.
     vec2 d = gl_PointCoord - 0.5;
-    float r2 = dot(d, d);
-    if (r2 > 0.25) discard;
-    float fall = exp(-r2 * 11.0);
+    float r = length(d) * 2.0;
+    if (r > 1.0) discard;
+    float a = atan(d.y, d.x);
+    float wob = 0.74 + 0.15 * sin(a * 5.0 + vBorn * 7.3)
+                     + 0.07 * sin(a * 11.0 - vBorn * 3.1);
+    float rim = exp(-pow((r - wob) / 0.15, 2.0));
     float ignite = clamp((uTime - vBorn) * 1.4, 0.0, 1.0);
-    vec3 col = mix(vec3(1.0), vec3(0.55, 0.87, 1.0), 0.3) * fall * (0.9 + 1.7 * (1.0 - ignite));
+    float flash = 1.0 - ignite;
+    vec3 cold = vec3(0.72, 0.86, 1.0);
+    vec3 col = cold * rim * (0.45 + 1.9 * flash)
+             + cold * smoothstep(wob, wob * 0.5, r) * 0.10 * flash;
     outColor = vec4(col, 1.0);
   }
 `;
@@ -1246,6 +1281,9 @@ export class JourneyRenderer {
   private readonly hoverPoint = new THREE.Vector3(0, -999, 0);
   private pointerNdc: { x: number; y: number } | null = null;
   private hoverAmt = 0;
+  /** where attention last rested on the mass, and how long since */
+  private readonly wakePos = new THREE.Vector3(0, -999, 0);
+  private wakeT = 99;
   private parX = 0;
   /** the watcher's smoothed aim, and how present it is */
   private watchX = 0;
@@ -2067,6 +2105,8 @@ export class JourneyRenderer {
       uAlign: { value: 0 },
       uWatchY: { value: 90 },
       uWatchAmt: { value: 0 },
+      uWakePos: { value: new THREE.Vector3(0, -999, 0) },
+      uWakeT: { value: 99 },
       uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
@@ -2475,6 +2515,21 @@ ${SKY_LAW}`
       }
     }
     this.hoverAmt += (hoverTargetAmt - this.hoverAmt) * (1 - Math.exp(-dt * 5));
+
+    // THE WAKE. While the pointer is on the mass the release point
+    // tracks it and the clock stays at zero; the moment it leaves, the
+    // clock runs and a shell expands from wherever it was last. So the
+    // ripple fires on LEAVING, which is the half of the old hover
+    // behaviour worth keeping - the monument answering after the
+    // visitor has stopped looking at it.
+    if (hoverTargetAmt > 0.5) {
+      this.wakePos.copy(this.hoverPoint);
+      this.wakeT = 0;
+    } else if (this.wakeT < 8) {
+      this.wakeT += dt;
+    }
+    (this.stoneU.uWakePos!.value as THREE.Vector3).copy(this.wakePos);
+    this.stoneU.uWakeT!.value = reduced ? 99 : this.wakeT;
 
     for (const mat of [this.cladMat]) {
       const cu = mat.uniforms;
