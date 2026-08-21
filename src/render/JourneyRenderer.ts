@@ -263,16 +263,6 @@ const FRAG_MAP = `#include <map_fragment>
   // the band carries across the gap and the texture lines up either
   // side of it.
   float cS = sideS * clamp(outward, 0.0, 1.0);
-
-  // THE CUT. Jacob: "delete the last 10% shader on left spire in a
-  // right angle". The outer tenth of the LEFT blade carries no
-  // corrosion at all, and the boundary is a hard step rather than a
-  // fade - a square edge, so where it meets the band's own diagonal it
-  // makes a right angle instead of dissolving.
-  //
-  // sideS is -1 on the left blade, so cS runs 0 at the cleft to -1 at
-  // that blade's outer edge; -cS is therefore its outward fraction.
-  float cCut = 1.0 - step(0.5, -sideS) * step(0.90, -cS);
   vec2 CP = vec2(cS * 34.0, vMonoW.y);
   vec2 BP = vec2(cS * 95.0, vMonoW.y);
 
@@ -295,7 +285,7 @@ const FRAG_MAP = `#include <map_fragment>
   float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
   // clustered, so it takes hold in patches rather than filling the band
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
-  band *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
+  band *= smoothstep(-12.0, 3.0, vMonoW.z);
 
   // the vesicular field. Warped BEFORE the level set is taken, or the
   // veins inherit the noise's own roundness and come out as bubbles
@@ -329,7 +319,7 @@ const FRAG_MAP = `#include <map_fragment>
   // the halo multiplier comes down as the band widens, or the cracks
   // scale with it and swallow the intact stone again
   float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.55, abs(cAcross));
-  halo *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
+  halo *= smoothstep(-12.0, 3.0, vMonoW.z);
   float cCrack = smoothstep(0.76, 0.99, cWebRaw)
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
                * halo * (1.0 - band * 0.85);
@@ -392,7 +382,7 @@ const FRAG_MAP = `#include <map_fragment>
   float cRun = step(0.62, cLane)
              * step(0.62, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.18, cDrop)
-             * cWeep * smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
+             * cWeep * smoothstep(-12.0, 3.0, vMonoW.z);
   diffuseColor.rgb += diffuseColor.rgb * cRun * (0.7 + 0.5 * graze);
   diffuseColor.rgb += vec3(0.022, 0.024, 0.028) * cRun;
 
