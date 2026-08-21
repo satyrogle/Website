@@ -296,6 +296,14 @@ const FRAG_MAP = `#include <map_fragment>
   // than by tuning, and it needs no bounds at all.
   float cCut = step(-30.0, cAcross);
 
+  // THE CROWN STAYS CLEAN. Jacob: "dim the static on the top". Up there
+  // the band and its cracks thin out into scattered grain, and
+  // scattered grain on a near-black spire against a dark sky is
+  // STATIC - it stops reading as corrosion and starts reading as noise
+  // in the image. The corrosion fades out over the upper third so the
+  // crown is stone again.
+  float cTop = smoothstep(170.0, 96.0, vMonoW.y);
+
   cAcross += 26.0 * (monoFbm(vec2(cAlong * 0.010, 5.0)) - 0.5);
   // WIDER. 30 to 50 read as a belt across a tall mass; 46 to 76 gives
   // the corrosion a territory, which is what the references show.
@@ -303,7 +311,7 @@ const FRAG_MAP = `#include <map_fragment>
   float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
   // clustered, so it takes hold in patches rather than filling the band
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
-  band *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
+  band *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut * cTop;
 
   // the vesicular field. Warped BEFORE the level set is taken, or the
   // veins inherit the noise's own roundness and come out as bubbles
@@ -337,7 +345,7 @@ const FRAG_MAP = `#include <map_fragment>
   // the halo multiplier comes down as the band widens, or the cracks
   // scale with it and swallow the intact stone again
   float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.55, abs(cAcross));
-  halo *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
+  halo *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut * cTop;
   float cCrack = smoothstep(0.76, 0.99, cWebRaw)
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
                * halo * (1.0 - band * 0.85);
@@ -395,8 +403,10 @@ const FRAG_MAP = `#include <map_fragment>
              * step(0.52, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.12, belowCut)
              * smoothstep(-12.0, 3.0, vMonoW.z) * cSideAmt;
-  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.9 + 0.6 * graze);
-  diffuseColor.rgb += vec3(0.030, 0.033, 0.038) * cRun;
+  // dimmer again, Jacob 2026-08-21: the runs support the cut edge, they
+  // are not a feature of their own
+  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.45 + 0.35 * graze);
+  diffuseColor.rgb += vec3(0.016, 0.018, 0.021) * cRun;
 
   // the cracks are thin bright residue too, and fainter than the band
   diffuseColor.rgb += diffuseColor.rgb * cCrack * (1.2 + 0.8 * graze);
@@ -422,7 +432,7 @@ const FRAG_MAP = `#include <map_fragment>
   // only real light in the frame.
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
-            + cRun * 0.012) * (1.0 - uCalm * 0.45);
+            + cRun * 0.005) * (1.0 - uCalm * 0.45);
   }
 }`;
 
