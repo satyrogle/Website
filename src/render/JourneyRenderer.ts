@@ -264,23 +264,6 @@ const FRAG_MAP = `#include <map_fragment>
   // side of it.
   float cS = sideS * clamp(outward, 0.0, 1.0);
 
-  // THE CUT, from Jacob's marked screenshot and confirmed with him
-  // before building: the bottom corner of the LEFT-on-screen spire
-  // carries no corrosion at all - no band, no pits, no web, no cracks,
-  // no weeping. Bare stone.
-  //
-  // Three boundaries. Outboard and below are the blade's own silhouette
-  // and the ground, so they need no cut. The only edge drawn here is
-  // the VERTICAL one inboard, and it is a hard step: the corrosion
-  // stops dead rather than fading, which is the right angle he asked
-  // for where it meets the ground.
-  //
-  // The camera looks down -z with +y up, so +x is screen RIGHT and the
-  // left spire is sideS = -1. cS is negative there, so -cS is that
-  // blade's outward fraction: 0 at the cleft, 1 at the silhouette.
-  float cCut = 1.0 - step(0.5, -sideS)
-                   * step(0.25, -cS)
-                   * step(vMonoW.y, 25.0);
   vec2 CP = vec2(cS * 34.0, vMonoW.y);
   vec2 BP = vec2(cS * 95.0, vMonoW.y);
 
@@ -296,6 +279,23 @@ const FRAG_MAP = `#include <map_fragment>
   // low on the mass where the blades are broad.
   float cAcross = -BP.x * CSA + BP.y * CCA - 60.0;
   float cAlong  =  BP.x * CCA + BP.y * CSA;
+
+  // THE CUT IS A DIAGONAL, PARALLEL TO THE BAND ITSELF. Jacob: "i just
+  // didnt wanted any shader after the diagonal line so it looks
+  // coherent".
+  //
+  // That is the whole thing, and both earlier attempts missed it by
+  // treating the mark as a REGION to bound - a strip, then a rectangle
+  // at the foot - which needed a height and a width guessed from a
+  // screenshot, twice, wrongly. It is not a region. It is an EDGE: the
+  // corrosion stops along one straight line and there is bare stone
+  // below it.
+  //
+  // cAcross is already the band's own axis, so a constant value of it
+  // is a line parallel to the band. Coherent by construction rather
+  // than by tuning, and it needs no bounds at all.
+  float cCut = step(-30.0, cAcross);
+
   cAcross += 26.0 * (monoFbm(vec2(cAlong * 0.010, 5.0)) - 0.5);
   // WIDER. 30 to 50 read as a belt across a tall mass; 46 to 76 gives
   // the corrosion a territory, which is what the references show.
