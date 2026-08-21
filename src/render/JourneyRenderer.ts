@@ -289,9 +289,19 @@ const FRAG_MAP = `#include <map_fragment>
   dlc.disease *= dlAmt;
   dlc.particle *= dlAmt;
 
-  float corruptRough = clamp(0.44 + 0.30*dlNoise2(vec2(ang*13.0, vMonoW.y*0.19))
-                             + 0.18*dlc.disease - 0.24*dlc.claw,
-                             0.22, 0.94);
+  // The kit's range was 0.44 to 0.94 against base stone at 0.48, so the
+  // corrupted band was often no rougher than what surrounds it and had
+  // nothing to separate it. Roughness only reads as a CONTRAST.
+  //
+  // Inverted: the diseased surface is markedly SMOOTHER than the matte
+  // stone it sits in - 0.10 to 0.42 against 0.48 - so the rake light
+  // lays a sheen on the band and on nothing else. Wet, slick, wrong.
+  // That is still a pure material-state failure, still zero displacement
+  // and almost zero emission; it simply picks the side of the base
+  // roughness that the light can actually show.
+  float corruptRough = clamp(0.20 + 0.17*dlNoise2(vec2(ang*13.0, vMonoW.y*0.19))
+                             + 0.10*dlc.disease - 0.12*dlc.claw,
+                             0.09, 0.44);
   vMonoRough = mix(vMonoRough, corruptRough, dlc.mask);
 
   // Minimal value shift: "surface rewritten", not painted.
@@ -1057,6 +1067,8 @@ export class JourneyRenderer {
   })();
   private rimLight!: THREE.DirectionalLight;
   private witnessLight!: THREE.DirectionalLight;
+  /** the grazing key that lets the corruption's roughness read */
+  private rakeLight!: THREE.DirectionalLight;
   private keyLight!: THREE.DirectionalLight;
   private fillLight!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
@@ -1327,6 +1339,29 @@ export class JourneyRenderer {
 
     // the witness light: a cold front fill that arrives only with
     // understanding, so the revealed lattice is legible at the return
+    // THE RAKE. Jacob: "i dont see shit", then "fck the brief
+    // instructions just use the visual identity".
+    //
+    // The corruption is a ROUGHNESS effect and roughness is invisible
+    // without a specular to modulate. The landing key sits at
+    // [0.85, 0.55, 0.12] - side-on, which is right for the FORM: it
+    // separates the prongs and gives the mass weight, and it is not
+    // moving. But it strikes the corrupted face nearly head on, and a
+    // head-on light leaves nothing for a roughness change to break.
+    // Measured on/off it was altering 17 percent of the hero's pixels
+    // by a mean of 10/255, which a diff sees and an eye cannot.
+    //
+    // So this is a second, weak key placed to lay a specular SHEEN
+    // across the corrupted blade rather than to light it. Off the
+    // camera axis so it does not flatten the form the main key models,
+    // and low enough in intensity that it reads as a sheen on one face
+    // instead of a second sun in the scene. The corruption then shows
+    // as the sheen failing across the diseased band - which is what a
+    // material-state failure IS.
+    this.rakeLight = new THREE.DirectionalLight(0xdfe8f2, 0.9);
+    this.rakeLight.position.set(0.60, 0.26, 0.76);
+    this.scene.add(this.rakeLight);
+
     this.witnessLight = new THREE.DirectionalLight(0x9fb4cc, 0);
     this.witnessLight.position.set(0.2, 0.5, 1.0);
     this.scene.add(this.witnessLight);
