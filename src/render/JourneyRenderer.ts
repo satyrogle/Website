@@ -264,23 +264,15 @@ const FRAG_MAP = `#include <map_fragment>
   // side of it.
   float cS = sideS * clamp(outward, 0.0, 1.0);
 
-  // THE CUT. Jacob marked it on a screenshot: a right-angled region at
-  // the FOOT of the left blade, bounded by a vertical edge inboard, the
-  // ground below, and the blade's own silhouette outboard. No
-  // corrosion in it - no band, no cracks, no weeping.
-  //
-  // The first reading of "the last 10% ... in a right angle" was a
-  // full-height strip down that blade's outer edge, which is not what
-  // the mark shows; this replaces it rather than stacking a second cut.
-  // "Right angle" describes the SHAPE of the region, not just a hard
-  // boundary: it is a rectangle in (outward, height), so its two cut
-  // edges meet square and the third side is the silhouette itself.
+  // THE CUT. Jacob: "delete the last 10% shader on left spire in a
+  // right angle". The outer tenth of the LEFT blade carries no
+  // corrosion at all, and the boundary is a hard step rather than a
+  // fade - a square edge, so where it meets the band's own diagonal it
+  // makes a right angle instead of dissolving.
   //
   // sideS is -1 on the left blade, so cS runs 0 at the cleft to -1 at
   // that blade's outer edge; -cS is therefore its outward fraction.
-  float cCut = 1.0 - step(0.5, -sideS)
-                   * step(0.25, -cS)
-                   * step(vMonoW.y, 42.0);
+  float cCut = 1.0 - step(0.5, -sideS) * step(0.90, -cS);
   vec2 CP = vec2(cS * 34.0, vMonoW.y);
   vec2 BP = vec2(cS * 95.0, vMonoW.y);
 
