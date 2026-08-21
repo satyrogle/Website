@@ -24,6 +24,12 @@ uniform vec3 uInner;
 uniform float uInnerAmt;
 uniform float uSignal;
 uniform float uAlign;
+// THE ROT ANSWERS THE WATCHER. The world height it is attending to, and
+// how present it is. The MASS reacting to where the visitor points is
+// far worse than a light doing it alone - it means the monument is
+// aware, not that there is a lamp inside it.
+uniform float uWatchY;
+uniform float uWatchAmt;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -436,9 +442,10 @@ const FRAG_MAP = `#include <map_fragment>
   // Kept at the same threshold as before: on stone this dark, anything
   // the eye can call a patch is too much, and the fissure must stay the
   // only real light in the frame.
+  float wResp = exp(-pow((vMonoW.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
-            + cRun * 0.005) * (1.0 - uCalm * 0.45);
+            + cRun * 0.005) * (1.0 - uCalm * 0.45) * (1.0 + wResp * 2.2);
   }
 }`;
 
@@ -1242,6 +1249,7 @@ export class JourneyRenderer {
   private watchX = 0;
   private watchY = 0;
   private watchAmt = 0;
+  private watchDrift = 0;
   private parY = 0;
   /** the signal the skin carries: driven by the law, not by a clock */
   private signal = 0;
@@ -1586,7 +1594,7 @@ export class JourneyRenderer {
           // project is supposed to unsettle with.
           float watchY = 0.5 + uWatch.y * 0.34;
           float dy = vUvF.y - watchY;
-          float node = exp(-dy * dy * 260.0);
+          float node = exp(-dy * dy * 420.0);
           // it narrows where it concentrates: attention, not a lamp
           float pinch = 1.0 - 0.34 * node * uWatchAmt;
           u = smoothstep(halfW * pinch, halfW * pinch * 0.72, d);
@@ -1601,7 +1609,11 @@ export class JourneyRenderer {
           // everywhere it is not attending to. That also reads better:
           // the light gathering somewhere is attention; the light
           // getting brighter everywhere is a lamp.
-          float watch = mix(1.0, mix(0.38, 1.25, node), uWatchAmt);
+          // Deeper. At 0.38 the rest of the blade was still clearly lit,
+          // so the concentration read as a highlight ON a light. At 0.20
+          // the crack goes nearly out where it is not attending, and
+          // what is left is one point of interest in a dead seam.
+          float watch = mix(1.0, mix(0.20, 1.35, node), uWatchAmt);
 
           outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail * watch * turn, 1.0);
         }`,
@@ -2045,6 +2057,8 @@ export class JourneyRenderer {
       uInnerAmt: { value: 0 },
       uSignal: { value: 0 },
       uAlign: { value: 0 },
+      uWatchY: { value: 90 },
+      uWatchAmt: { value: 0 },
       uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
@@ -2355,15 +2369,34 @@ ${SKY_LAW}`
       // attention. It fades out entirely once the visitor is inside the
       // cleft, where the blade is overhead and there is nothing left to
       // watch from.
-      const watchK = 1 - Math.exp(-dt * 2.2);
+      // IT DECIDES TO LOOK. A constant follow rate is a cursor readout,
+      // and a readout is never sinister - it is a widget. The turn rate
+      // scales with how far the pointer has got from where it is
+      // already attending, so small movements are IGNORED and a real
+      // move brings it round fast. Being beneath its notice is worse
+      // than being tracked.
+      const werr = Math.hypot(px - this.watchX, py - this.watchY);
+      const wrate = 0.22 + 8.0 * smooth01(werr, 0.09, 0.42);
+      const watchK = 1 - Math.exp(-dt * wrate);
       this.watchX += (px - this.watchX) * watchK;
       this.watchY += (py - this.watchY) * watchK;
+      // and it never holds perfectly still. Something motionless is an
+      // object; something that drifts while it waits is alive
+      this.watchDrift += dt;
+      const wdrift = Math.sin(this.watchDrift * 0.23) * 0.055
+                   + Math.sin(this.watchDrift * 0.071) * 0.030;
       const wantWatch = this.pointerNdc ? 1 : 0;
       this.watchAmt += (wantWatch - this.watchAmt) * (1 - Math.exp(-dt * 1.1));
       const fu = this.fissureMat.uniforms;
-      (fu.uWatch!.value as THREE.Vector2).set(this.watchX, this.watchY);
-      fu.uWatchAmt!.value =
+      (fu.uWatch!.value as THREE.Vector2).set(this.watchX, this.watchY + wdrift);
+      const wAmt =
         this.watchAmt * (1 - smooth01(progress, 0.44, 0.56)) * (reduced ? 0.35 : 1);
+      fu.uWatchAmt!.value = wAmt;
+      // the same height in world units, so the rot can answer it: the
+      // plane is 184 tall centred at 90, and the node sits at
+      // 0.5 + 0.34*wy along it
+      this.stoneU.uWatchY!.value = 90 + 62.6 * (this.watchY + wdrift);
+      this.stoneU.uWatchAmt!.value = wAmt;
       this.parY += (py - this.parY) * (1 - Math.exp(-dt * 1.6));
       const yaw =
         (this.parX * 0.11 + Math.sin(t * 0.5) * 0.02 + Math.sin(t * 0.13) * 0.012) * reach;
