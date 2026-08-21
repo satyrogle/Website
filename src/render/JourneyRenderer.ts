@@ -272,6 +272,13 @@ if (gl_FrontFacing) {
  * number: it is solved, not judged, and judging it is Jacob's.
  */
 const LANDING_FOG = 0.00106;
+
+/**
+ * How much denser the landing air is at the plain than at the hero's
+ * mid-height. Solved against the plain the visitor used to see, not
+ * judged: sweep it with window.__dl.setGround.
+ */
+const GROUND_HAZE = 2.08;
 const INTERIOR_FOG = 0.005;
 
 const LIGHT_KEYS: Array<{
@@ -951,7 +958,9 @@ export class JourneyRenderer {
     // swept, then taken UP on Jacob's call - 1.0 was the dial's ceiling
     // so "a little more" had to come from the coefficients above, not
     // from here.
-    uGBite: { value: 1.0 }
+    uGBite: { value: 1.0 },
+    // THE GROUND HAZE. See the note in the ground fragment.
+    uGHaze: { value: GROUND_HAZE }
   };
   private fissureMat!: THREE.ShaderMaterial;
   private hazeMat!: THREE.ShaderMaterial;
@@ -1733,6 +1742,7 @@ uniform float uGSeverity;
 uniform float uGDecay;
 uniform float uGTime;
 uniform float uGBite;
+uniform float uGHaze;
 float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
 ${SKY_LAW}`
             )
@@ -1821,7 +1831,25 @@ ${SKY_LAW}`
   // Out here the ground fogs toward the SKY instead, evaluated along
   // its own bearing so the azimuth drift matches at the join. The
   // plain stops being an object with an edge and becomes distance.
-  float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+  // THE GROUND HAZE, 2026-08-21. Jacob: "the ground is too bright now,
+  // keep hero fix".
+  //
+  // Measured first, and it killed three guesses. Cutting the plain's
+  // albedo to a quarter moved it 16 percent; sanding it fully matte,
+  // 22 to 33; dropping its skylight to nothing, 2. None of those is
+  // what lights this plain. What lit it was that it had STOPPED being
+  // fogged: the landing air was thinned from 0.0022 to 0.00106 to give
+  // the hero its stone back, and the plain took the same gift, which it
+  // did not need. Fog was always the term holding the ground down.
+  //
+  // So the air gets its height back instead. FogExp2 is uniform in y,
+  // which no air is: haze pools low, and the plain lies in it along its
+  // whole length while the monument stands up out of it. uGHaze is how
+  // much denser the air is down here than at the hero's mid-height, so
+  // the ground fogs as it did before and the hero keeps its 35 percent.
+  // One lever, on the term that was doing the work all along.
+  float gDensity = fogDensity * uGHaze;
+  float fogFactor = 1.0 - exp(-gDensity * gDensity * vFogDepth * vFogDepth);
   vec3 bearing = normalize(vec3(vGroundW.x - cameraPosition.x, 0.0, vGroundW.z - cameraPosition.z));
   // lid amount is zero here on purpose: the bearing is horizontal, so
   // the lid contributes nothing at the horizon anyway and the ground
@@ -1900,6 +1928,11 @@ ${SKY_LAW}`
   /** Landing air density, FogExp2. Review pin; see THE AIR. */
   setFog(density: number): void {
     this.landingFog = Math.max(0, Math.min(INTERIOR_FOG, density));
+  }
+
+  /** Air density at the plain, as a multiple of the hero's. See THE GROUND HAZE. */
+  setGround(amount: number): void {
+    this.groundU.uGHaze!.value = Math.max(1, Math.min(6, amount));
   }
 
   /** How far the plain has failed at the foot, 0 to 1. Review pin. */

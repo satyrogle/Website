@@ -109,6 +109,7 @@ function boot(): void {
       setShaft: (amount: number): void => renderer.setShaft(amount),
       setChoirDim: (amount: number): void => renderer.setChoirDim(amount),
       setFog: (density: number): void => renderer.setFog(density),
+      setGround: (amount: number): void => renderer.setGround(amount),
       setBite: (amount: number): void => renderer.setBite(amount)
     };
     const renderOnly = (): void => {
