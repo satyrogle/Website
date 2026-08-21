@@ -1524,30 +1524,13 @@ export class JourneyRenderer {
           float d = abs(vUvF.x - 0.5);
           // softness scales with the cut, so the edge stays proportionate
           // instead of swallowing the gap where the slit is thinnest
-          float core = smoothstep(halfW, halfW * 0.72, d);
-
-          // THE SLOT IS LIT TO ITS WALLS. Jacob: "the spires are too
-          // apart you can see a gap after the light beam in the middle".
-          //
-          // The core is a hairline by design, and it is right - but the
-          // SLIT is not a hairline. monument.py cuts it at 5.0 - 3.9t
-          // half-width, so at mid height it is six units across while
-          // the lit core is three. The rest of the slot had nothing in
-          // it, so a strip of black showed either side of the beam and
-          // the two prongs read as standing apart rather than parted.
-          //
-          // Widening the core was already tried and rejected - ten units
-          // of white blows out the base. So the core keeps its width and
-          // a much dimmer FILL carries to the slit walls instead. That
-          // is what a light sitting inside a slot actually does: the
-          // whole slot glows, brightest on the axis. The stone still
-          // crops it, so the prongs decide where it ends.
-          //
-          //   slit half-width 5.04 falling to 1.36 over the plane's
-          //   184 units, plus 15 percent overspill, over 14 units wide
-          float slitW = 0.414 - 0.302 * vUvF.y;
-          float fill = smoothstep(slitW, slitW * 0.80, d);
-          float u = max(core, fill * 0.26);
+          // The beam is a hairline and stays one. What fills the rest of
+          // the slot is BLACK, not a dim glow - see the occluder plane
+          // below. Jacob: "lit the gap with black colour instead of
+          // white". Adding light there was the wrong reading: the gap
+          // was showing SKY through the open slit, so it needed
+          // blocking, not lighting.
+          float u = smoothstep(halfW, halfW * 0.72, d);
           // THE GAP AT THE CROWN. Jacob: "there is a gap between two
           // spires". The top fade ran over the last TEN percent of the
           // plane, which is 18 units, so the light died from about
@@ -1634,6 +1617,43 @@ export class JourneyRenderer {
       // foot. The overspill is buried in stone at every height: the
       // prongs run from the cut plane out to 31*(1-0.9t), which is
       // never less than 5 units of cover on each side.
+      // THE SLOT'S BACK WALL. The slit is open, so at heights where no
+      // stone lies behind it the visitor sees straight through to the
+      // SKY - a pale strip either side of the beam, which read as the
+      // two prongs standing apart rather than as one mass parted.
+      //
+      // This is an opaque near-black plane sitting just behind the
+      // beam, cropped to the slit's own profile so the stone still
+      // decides its shape. It DISCARDS outside that profile rather than
+      // drawing black, which matters: an opaque plane that paints black
+      // everywhere is exactly what put a dark plate across the sky
+      // behind the crown once already, and discard cannot do that.
+      const slotMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `
+          out vec2 vUvS;
+          void main() {
+            vUvS = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `
+          precision highp float;
+          in vec2 vUvS;
+          out vec4 outColor;
+          void main() {
+            // the slit: 5.04 falling to 1.36 over the plane's 184 units,
+            // over 14 units of width. The same numbers the beam uses.
+            float slitW = 0.400 - 0.292 * vUvS.y;
+            if (abs(vUvS.x - 0.5) > slitW) discard;
+            outColor = vec4(0.004, 0.005, 0.007, 1.0);
+          }`,
+        side: THREE.DoubleSide
+      });
+      const slot = new THREE.Mesh(new THREE.PlaneGeometry(14, 184), slotMat);
+      slot.position.set(0, 90, -3.4);
+      slot.frustumCulled = false;
+      this.scene.add(slot);
+
       const fis = new THREE.Mesh(new THREE.PlaneGeometry(14, 184), this.fissureMat);
       fis.position.set(0, 90, -2.2);
       fis.frustumCulled = false;
