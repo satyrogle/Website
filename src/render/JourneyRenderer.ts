@@ -205,6 +205,33 @@ const FRAG_MAP = `#include <map_fragment>
   // facet boundary, so its derivative finds every edge in the body
   float edge = smoothstep(0.35, 1.6, length(fwidth(vNormal)) * 26.0);
 
+  // THE LAMINATION. Jacob, 2026-08-21: "shader material sucks too".
+  //
+  // It was near-flat: fine sintered grain, a facet tone, and courses.
+  // Nothing in it said what the stone IS. His reference sheets are
+  // laminated slate - the mass splits along VERTICAL planes, so every
+  // face carries fine vertical striation at several scales, each
+  // splinter sits at its own depth with its own tone, and light rakes
+  // across the lips where one splinter stands proud of the next. That
+  // vertical grain is doing most of the work in making those sheets
+  // look expensive, and none of it was here.
+  //
+  // Lanes, not noise: a splinter has two edges and a constant tone
+  // between them, which is exactly what noise cannot give.
+  float splLane = ang * 165.0;
+  float splI = floor(splLane);
+  float splF = fract(splLane);
+  float splH = monoHash(vec3(splI, sideS, 41.0));
+  float splH2 = monoHash(vec3(floor(splLane * 0.34), sideS, 47.0));
+  // each splinter is a slab of the face at its own depth and tone
+  float splTone = 0.80 + 0.40 * splH * (0.55 + 0.75 * splH2);
+  // and the lip where it stands proud of its neighbour catches the key
+  float splLip = smoothstep(0.13, 0.0, splF) + smoothstep(0.87, 1.0, splF);
+  // PLATE JOINTS: the lamination is interrupted across the height, so
+  // the vertical grain does not run the full 195 like combed hair
+  float plateY = vMonoW.y * 0.055 + 3.1 * splH2;
+  float plateJ = smoothstep(0.06, 0.0, abs(fract(plateY) - 0.5) - 0.44);
+
   // sintered grain: fine, irregular, no periodicity to lock onto, and
   // a slow large scale drift over the top of it
   float micro = monoHash(floor(vec3(ang * 130.0, vMonoW.y * 26.0, sideS)));
@@ -218,11 +245,18 @@ const FRAG_MAP = `#include <map_fragment>
   rough -= scratch * 0.26;
   rough -= edge * 0.18;
   rough += pit * 0.20;
+  // splinters differ in finish as well as tone, and a lip is polished
+  rough += (splH - 0.5) * 0.16 + plateJ * 0.10 - splLip * 0.14;
   vMonoRough = clamp(rough, 0.24, 0.92);
 
   // albedo barely moves: a hint of darkening in the deepest grooves,
   // and only where the light is already raking
   diffuseColor.rgb *= facetTone;
+  // the lamination, applied before everything the surface carries: it
+  // is the stone, not something on it
+  diffuseColor.rgb *= splTone;
+  diffuseColor.rgb += diffuseColor.rgb * splLip * graze * (0.35 + 0.9 * splH);
+  diffuseColor.rgb *= 1.0 - plateJ * 0.42;
   diffuseColor.rgb *= 1.0 - glyph * 0.10 * graze;
   // a scratch is a polished cut: it catches, never darkens
   diffuseColor.rgb += diffuseColor.rgb * scratch * (0.55 + 0.45 * graze) * 1.8;
@@ -348,26 +382,45 @@ const FRAG_MAP = `#include <map_fragment>
                     + g2 * smoothstep(0.02, 0.34, mass) * 0.75, 0.0, 1.0);
   float crust = mass * grain;
 
-  // THE DRIPS. Sampled from the swathe ABOVE this fragment and decayed
-  // downward, so a run can only exist under something that could have
-  // produced it. Narrow lanes, and broken along their length, because
-  // a dried run is dotted rather than continuous.
-  float dripLane = monoHash(vec3(floor(P.x * 2.6), 7.0, 0.0));
+  // THE BLEED. Jacob, 2026-08-21: "i like the down part which is like
+  // cool bleeding effect elongate it more so it populates more of the
+  // hero". So this is now the subject and the swathe above is only its
+  // SOURCE - the band steps back and the runs carry the body.
+  //
+  // Still sampled from the swathe ABOVE the fragment, so a run can only
+  // exist under something that could have produced it. What changed is
+  // reach: four samples out to 150 units with a slow exponential decay
+  // instead of two at 27 with a fast one, so a bleed that starts at the
+  // band can run most of the way to the foot.
+  //
+  // Each lane also carries its OWN length, because runs that all stop
+  // at the same height read as a printed edge. And they stay broken
+  // along their run: a dried bleed is dotted, never continuous.
   float run = 0.0;
-  run = max(run, swatheAt(P + vec2(0.0, 11.0)) * 0.55);
-  run = max(run, swatheAt(P + vec2(0.0, 27.0)) * 0.30);
-  float dripGrain = step(0.46, monoHash(vec3(floor(gp * vec2(1.0, 0.55)), 5.0)));
-  run *= step(0.58, dripLane) * dripGrain
-       * smoothstep(0.72, 0.30, mass);   // only BELOW the crust, not in it
+  run = max(run, swatheAt(P + vec2(0.0,  20.0)) * 0.92);
+  run = max(run, swatheAt(P + vec2(0.0,  52.0)) * 0.74);
+  run = max(run, swatheAt(P + vec2(0.0,  95.0)) * 0.52);
+  run = max(run, swatheAt(P + vec2(0.0, 150.0)) * 0.33);
+  float laneI = floor(P.x * 4.2);
+  float dripLane = monoHash(vec3(laneI, 7.0, 0.0));
+  // per-lane reach: some barely leave the band, some run right down
+  float laneLen = 26.0 + 150.0 * fract(dripLane * 5.7);
+  float below = max(0.0, 118.0 - P.y);
+  float dripGrain = step(0.40, monoHash(vec3(floor(gp * vec2(1.4, 0.42)), 5.0)));
+  run *= step(0.44, dripLane) * dripGrain
+       * smoothstep(laneLen, laneLen * 0.25, below)
+       * smoothstep(0.62, 0.22, mass);   // below the crust, not inside it
 
-  float swirl = crust + run * 0.55;
+  float swirl = crust * 0.75 + run * 0.95;
   // the stone the swathe sits on is sick: discoloured wherever the
   // field reaches, including where no grain landed
   float sick = max(0.0, mass * 1.15 - crust);
   diffuseColor.rgb *= 1.0 - sick * 0.30;
-  // and the crust is a pale MATERIAL, not only an emitter. This is what
-  // stops it reading as a glow painted over the stone
-  diffuseColor.rgb += vec3(0.055, 0.058, 0.064) * crust * 1.5;
+  // the crust is a pale MATERIAL, not only an emitter, which is what
+  // stops it reading as a glow painted over the stone. Dimmer than it
+  // was: the band is the source now, not the subject
+  diffuseColor.rgb += vec3(0.055, 0.058, 0.064) * crust * 0.9;
+  diffuseColor.rgb += vec3(0.050, 0.053, 0.060) * run * 1.5;
 
   // it is still coming from the break: deepest where the tears cross
   // near the cleft, shallow out on the far flank
