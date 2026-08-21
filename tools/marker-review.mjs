@@ -1,15 +1,11 @@
 // Review pass for the marker-quality monument: walks the journey at
 // exact scroll progresses, headed Chrome on the real GPU (headless is
 // not GPU truth). Playwright lives in the main dark-lattice checkout:
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/marker-review.mjs
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/marker-review.mjs
+import { captures, launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5180';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures/marker';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures('marker');
 
 const STOPS = [
   ['01-opening', 0.001, 3000],
@@ -64,7 +60,7 @@ async function stats(page, label) {
   console.log(label, JSON.stringify(s));
 }
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.mouse.move(8, 8);

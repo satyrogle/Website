@@ -1,7 +1,5 @@
-import { createRequire } from 'node:module';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
-const b = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+import { launch } from './env.mjs';
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1200, height: 800 } });
 const msgs = [];
 p.on('console', (m) => { if (!/useProgram/.test(m.text())) msgs.push(m.type() + ': ' + m.text().slice(0, 1800)); });

@@ -1,22 +1,18 @@
 // Smoke capture of the genesis build (localhost:5180), headed Chrome on
-// the real GPU: headless is not GPU truth. Playwright is not a dependency
-// of this repo; run it from a checkout that has it:
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/capture.mjs
+// the real GPU where there is one: headless is not GPU truth. See tools/env.mjs.
+//   node tools/capture.mjs
 //
 // Produces: desktop frames for every stop, a flat static-frame audit,
 // a mobile pass, and the real still used by the WebGL fallback.
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-// playwright lives in the main dark-lattice checkout, not here
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+import { BASE, SOFTWARE, captures, launch, repoPath } from './env.mjs';
 
-const BASE = 'http://localhost:5180';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures';
-const STILL = 'C:/Users/jacob/dark-lattice-genesis/public/still/world.jpg';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures();
+// The shipped fallback still is a real capture of this world on a real GPU,
+// and the ledger says so. A software rasteriser must never be allowed to
+// overwrite it, so off-GPU the still goes to captures/ for comparison only.
+const STILL = SOFTWARE ? OUT + '/13-still-SOFTWARE-NOT-SHIPPABLE.jpg' : repoPath('public', 'still', 'world.jpg');
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 
 async function stats(page, label) {
   const s = await page.evaluate(
@@ -67,8 +63,8 @@ async function stats(page, label) {
   await page.mouse.click(1100, 620);
   await page.waitForTimeout(900);
   console.log(
-    'CHIP',
-    await page.evaluate(() => (document.getElementById('record-chip') || {}).textContent || 'EMPTY')
+    'NEWEST RECORD',
+    await page.evaluate(() => (document.querySelector('#record-list li') || {}).textContent || 'EMPTY')
   );
   await page.screenshot({ path: OUT + '/02-mark.png' });
 
@@ -112,7 +108,7 @@ async function stats(page, label) {
   await page.goto(BASE + '/?bare=1', { waitUntil: 'networkidle' });
   await page.waitForTimeout(5000);
   await page.screenshot({ path: STILL, type: 'jpeg', quality: 62 });
-  console.log('STILL exported to public/still/world.jpg');
+  console.log(SOFTWARE ? 'STILL held back: software render, ' + STILL : 'STILL exported to public/still/world.jpg');
   await page.close();
 }
 

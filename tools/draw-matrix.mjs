@@ -1,15 +1,11 @@
 // Does the draw need stratified decks to be legible? The decisive 2x2:
 // approved isotropic sky vs layered sky, each with and without the
 // bend. Headed Chrome on the real GPU.
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/draw-matrix.mjs
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/draw-matrix.mjs
+import { captures, launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5181';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures/draw/matrix';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures('draw/matrix');
 
 const CELLS = [
   ['a-approved', 1.0, 0.0],
@@ -23,7 +19,7 @@ const STOPS = [
   ['wide', 0.29, 0.4]
 ];
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.goto(`${BASE}/?harness=1&bare=1`, { waitUntil: 'networkidle' });
 await page.mouse.move(8, 8);

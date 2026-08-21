@@ -1,21 +1,17 @@
 // THE CONTACT, swept. How far the plain has failed where the mass went
 // into it. Same frame, same tick, five strengths, so the only variable
 // is the fracture. Headed Chrome on the real GPU.
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/bite-sweep.mjs
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/bite-sweep.mjs
+import { captures, launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5181';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures/bite';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures('bite');
 
 // 0 is the control. Too strong and the plain becomes crazy paving, so
 // the answer is expected low; 1.0 is only there to bracket it.
 const STRENGTHS = [0, 0.6, 0.8, 1.0];
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2 });
 await page.goto(`${BASE}/?harness=1&bare=1`, { waitUntil: 'networkidle' });
 // pointer centred so the camera sits on its authored pose

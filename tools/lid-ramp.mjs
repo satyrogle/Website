@@ -1,17 +1,13 @@
 // Does the lid RAMP or does it TURN ON? Walks the journey in fine
 // steps and reports the upper-sky mean at each, so a step change shows
 // up as a jump rather than as a slope. A world condition should slope.
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/lid-ramp.mjs
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/lid-ramp.mjs
+import { captures, launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5181';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures/lid/ramp';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures('lid/ramp');
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.goto(`${BASE}/?harness=1&bare=1`, { waitUntil: 'networkidle' });
 await page.mouse.move(8, 8);

@@ -1,16 +1,12 @@
 // What is the sky actually doing? Full frame, a sky-only crop, and a
 // vertical luminance profile to find banding the eye half-sees.
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/sky-look.mjs
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/sky-look.mjs
+import { captures, launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5181';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures/sky';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures('sky');
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.mouse.move(8, 8);

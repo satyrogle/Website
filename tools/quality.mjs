@@ -1,6 +1,6 @@
 // Quality harness for the genesis build (localhost:5180).
-// Headed Chrome on the real GPU. Run from a checkout with playwright:
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/quality.mjs
+// Headed Chrome on the real GPU where there is one. See tools/env.mjs.
+//   node tools/quality.mjs
 //
 // Tests, in the order the claims appear on the page:
 //   1. replay        same seed, same steps, same world (two fresh loads)
@@ -8,10 +8,7 @@
 //   3. accessibility landmarks, heading structure, nav anchors, focus
 //   4. reduced motion  content parity with animation removed
 //   5. console       zero errors across all of the above
-import { createRequire } from 'node:module';
-// playwright lives in the main dark-lattice checkout, not here
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+import { launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5180';
 const results = [];
@@ -22,7 +19,7 @@ function check(name, ok, detail) {
   console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  [' + detail + ']' : ''));
 }
 
-const browser = await chromium.launch({ headless: false });
+const browser = await launch();
 
 async function harnessPage(context) {
   const page = await context.newPage();
@@ -59,13 +56,14 @@ async function harnessPage(context) {
   const t0 = Date.now();
   const placed = await a.evaluate(() => window.__dl.placeMark(0.42, 0.55));
   const after = await a.evaluate(() => window.__dl.records());
-  const chip = await a.evaluate(
-    () => document.getElementById('record-chip').textContent
+  // The chip was removed from the hero in 02bebeb; the ledger is the record.
+  const newest = await a.evaluate(
+    () => (document.querySelector('#record-list li') || {}).textContent || 'NO LEDGER ROW'
   );
   check(
     'first action: press writes the record immediately',
-    placed === true && after === before + 1 && chip.includes('MARK 01') && Date.now() - t0 < 500,
-    chip
+    placed === true && after === before + 1 && newest.includes('MARK 01') && Date.now() - t0 < 500,
+    newest
   );
   await ctxA.close();
   await ctxB.close();
@@ -150,7 +148,20 @@ async function harnessPage(context) {
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(3000);
   await page.evaluate(() => document.getElementById('rule').scrollIntoView({ block: 'start' }));
-  await page.waitForTimeout(2500);
+  // Settle in FRAMES, not milliseconds. The camera has to arrive before a
+  // strobe reading means anything, and arrival costs frames: 2500ms buys 150
+  // of them on a real GPU and three on a software rasteriser, where this read
+  // 4.6% for a world measured calm at 0.2% once it had actually landed. The
+  // measurement window below stays wall-clock, because strobe is wall-clock.
+  await page.evaluate(
+    (n) =>
+      new Promise((done) => {
+        let i = 0;
+        const tick = () => (++i < n ? requestAnimationFrame(tick) : done());
+        requestAnimationFrame(tick);
+      }),
+    150
+  );
   const diff = await page.evaluate(
     () =>
       new Promise((resolve) => {

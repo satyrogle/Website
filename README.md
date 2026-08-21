@@ -62,13 +62,33 @@ URL switches: `?seed=N` replaces the default seed (20260818),
 `?bare=1` hides the DOM for world-only captures, `?harness=1` exposes
 `window.__dl` and stops auto-stepping for deterministic tests.
 
-## Tooling (run from a checkout that has playwright, e.g. ../dark-lattice)
+## Tooling
+
+Run from this checkout, with the dev server up. Frames land in
+`captures/` (gitignored).
 
 ```
-node ../dark-lattice-genesis/tools/capture.mjs      # full frame suite + fallback still
-node ../dark-lattice-genesis/tools/quality.mjs      # replay, first-action, a11y, reduced motion
-node ../dark-lattice-genesis/tools/seed-sweep.mjs 7 1187   # bare frames per seed
+node tools/capture.mjs             # full frame suite + fallback still
+node tools/quality.mjs             # replay, first-action, a11y, reduced motion
+node tools/seed-sweep.mjs 7 1187   # bare frames per seed
 ```
+
+Playwright is deliberately not a dependency of this repo: the site ships
+no test deps and nothing in the build needs a browser. `tools/env.mjs`
+borrows it, in order, from `DL_PLAYWRIGHT`, this checkout, a sibling
+`../dark-lattice` checkout, then a global install.
+
+The same file decides how Chrome runs. Headed on the real GPU wherever a
+display exists — headless is not GPU truth, and that has not changed. On
+a display-less box the tools fall back to headless with a software GL
+backend and say so on every run: enough to read geometry, draw order,
+composition and layout; **not** enough to judge tone, bloom or grade, and
+never enough to re-export `public/still/world.jpg`, which the capture
+holds back rather than overwrite. `DL_HEADLESS=1` forces headless,
+`DL_HEADLESS=0` forces headed, `DL_BASE` moves the dev server.
+
+Anything that gates a check waits in rendered frames, not milliseconds,
+so a slow renderer cannot fail a test the world passes.
 
 ## Architecture
 

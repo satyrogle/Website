@@ -1,13 +1,11 @@
 // How alive is the landing frame? Samples the canvas over 20 seconds
 // and reports, per band of the frame, how much actually changes. A
 // still image scores ~0 everywhere.
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/motion-check.mjs
-import { createRequire } from 'node:module';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/motion-check.mjs
+import { launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5181';
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.goto(`${BASE}/?bare=1`, { waitUntil: 'networkidle' });
 // pointer parked away from the monument and NOT moved again, so what is

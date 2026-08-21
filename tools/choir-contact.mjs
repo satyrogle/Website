@@ -1,14 +1,10 @@
 // Where do the choir masses meet the ground? Crops the contact band at
 // three stops, headed Chrome on the real GPU.
-//   (from ../dark-lattice)  node ../dark-lattice-genesis/tools/choir-contact.mjs
-import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
-const require = createRequire('file:///C:/Users/jacob/dark-lattice/package.json');
-const { chromium } = require('playwright');
+//   node tools/choir-contact.mjs
+import { captures, launch } from './env.mjs';
 
 const BASE = process.env.DL_BASE || 'http://localhost:5180';
-const OUT = 'C:/Users/jacob/dark-lattice-genesis/captures/contact';
-mkdirSync(OUT, { recursive: true });
+const OUT = captures('contact');
 
 const STOPS = [
   ['a-opening', 0.001],
@@ -17,7 +13,7 @@ const STOPS = [
   ['d-return', 0.95]
 ];
 
-const browser = await chromium.launch({ headless: false, args: ['--hide-scrollbars'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.mouse.move(8, 8);
