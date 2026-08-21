@@ -24,80 +24,9 @@ uniform vec3 uInner;
 uniform float uInnerAmt;
 uniform float uSignal;
 uniform float uAlign;
-// review pin: sweep the corruption live rather than rebuilding to judge it
-uniform float uCorrupt;
 float vMonoEng;
 float vMonoRough = 0.9;
-float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-
-// ---- DL HERO CORRUPTION, from Jacob's implementation kit, 2026-08-21.
-// Verbatim from DL_corruption_threejs.glsl. The kit is the source of
-// truth and says so: "Do not reinterpret the concept from reference
-// art." Spec and original in docs/. This is SURFACE REWRITING, not
-// geometry damage - the silhouette must be identical with it on or off.
-float dlHash2(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
-float dlNoise2(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f*f*(3.0-2.0*f);
-    float a = dlHash2(i);
-    float b = dlHash2(i + vec2(1.0,0.0));
-    float c = dlHash2(i + vec2(0.0,1.0));
-    float d = dlHash2(i + vec2(1.0,1.0));
-    return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
-}
-
-struct DLCorruption {
-    float mask;
-    float claw;
-    float disease;
-    float particle;
-};
-
-DLCorruption dlCorruption(vec3 wp, float ang, float sideS) {
-    float h = clamp(wp.y / 195.0, 0.0, 1.0);
-    float s = clamp(ang / 3.0 + 0.5, 0.0, 1.0);
-    // ONE privileged face only.
-    float faceGate = step(0.0, sideS);
-    // Diagonal brush path: lower-left to upper-right.
-    float center = 0.79 - 0.58 * s;
-    float nA = dlNoise2(vec2(s*5.0, h*7.0));
-    float nB = dlNoise2(vec2(s*22.0 + 8.0, h*31.0 - 3.0));
-    float wobble = (nA-0.5)*0.065 + (nB-0.5)*0.020;
-    float taper = smoothstep(0.03,0.14,s) * (1.0-smoothstep(0.86,0.98,s));
-    float width = (0.073 + (nA-0.5)*0.032) * taper;
-    float d = abs(h - center + wobble);
-    float broad = 1.0 - smoothstep(max(width*0.70,0.004), max(width,0.010), d);
-    // Disease breakup: clustered, uneven, never a clean painted stripe.
-    float cell = dlNoise2(vec2(s*46.0, h*57.0));
-    float disease = smoothstep(0.49,0.72, cell + (nB-0.5)*0.24) * broad;
-    // Four implied claw currents, fragmented and partly swallowed.
-    float claw = 0.0;
-    const float offs[4] = float[4](-0.040, -0.012, 0.020, 0.051);
-    const float widths[4] = float[4](0.010, 0.007, 0.012, 0.008);
-    for (int i=0; i<4; i++) {
-        float br = dlNoise2(vec2(s*(70.0+float(i)*9.0), h*(83.0+float(i)*13.0)));
-        float ld = abs((h-center) - offs[i] + (nA-0.5)*0.018 + (br-0.5)*0.010);
-        float lane = 1.0 - smoothstep(widths[i]*0.55, widths[i]*1.60, ld);
-        lane *= smoothstep(0.43,0.64,br);
-        claw = max(claw, lane);
-    }
-    claw *= broad;
-    float mask = clamp(broad*0.72 + claw*0.55 + disease*0.35, 0.0, 1.0);
-    // Matrix-particle memory: sparse quantized events, never a glowing slash.
-    vec2 q = floor(vec2(s*380.0, h*520.0));
-    float ph = dlHash2(q);
-    float particle = step(0.982 + (1.0-claw)*0.012, ph) * mask;
-    DLCorruption o;
-    o.mask = mask * faceGate;
-    o.claw = claw * faceGate;
-    o.disease = disease * faceGate;
-    o.particle = particle * faceGate;
-    return o;
-}`;
+float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
 
 const FRAG_MAP = `#include <map_fragment>
 {
@@ -263,53 +192,73 @@ const FRAG_MAP = `#include <map_fragment>
   float wave = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(wavePhase));
   vMonoRough = clamp(vMonoRough - wave * prox * 0.16, 0.05, 0.95);
 
-  // ---- THE CORRUPTION, per the kit's insert block ----
-  // Channel priority is the spec's, and it is the thing every previous
-  // attempt got backwards: roughness 50, normal 25, breakup 15, albedo
-  // 7, emission 3. Mine were built almost entirely in albedo and
-  // emission, which is why they read as paint and glow. A material
-  // state failure lives in how the surface RESPONDS to light, not in
-  // what colour it is - and the spec requires the effect to still read
-  // with emission disabled entirely.
+  // ---- THE CLAW WOUND ----
+  // Jacob, 2026-08-21: "i need something like wound with light in a
+  // claw pattern stop wasting time ... ignore the packs directions
+  // totally". So the implementation kit is out entirely, and so is
+  // every subtle version: rivulets, helix, disease field, granular
+  // crust, bleed, and the kit's roughness-only corruption which
+  // measured real on a diff and was invisible to him on the screen.
   //
-  // The eczema goes and does not return: emission gated by a hash
-  // lighting five percent of cells at random is scattered specks with
-  // no source, which is a skin condition rather than a mark.
-  DLCorruption dlc = dlCorruption(vMonoW, ang, sideS);
-  // 0 to 1 is the kit's design exactly. Above 1 pushes PAST the spec's
-  // restraint, which exists because Jacob cannot see the effect at the
-  // landing camera: measured on/off, it changes 17 percent of the
-  // hero's pixels but by a mean of only 10/255, and on near-black stone
-  // that is invisible to the eye however real it is to a diff. The spec
-  // is a floor for subtlety, not a ceiling on his judgement.
-  float dlAmt = min(uCorrupt, 1.0);
-  float dlBoost = max(0.0, uCorrupt - 1.0);
-  dlc.mask *= dlAmt;
-  dlc.claw *= dlAmt;
-  dlc.disease *= dlAmt;
-  dlc.particle *= dlAmt;
-
-  // The kit's range was 0.44 to 0.94 against base stone at 0.48, so the
-  // corrupted band was often no rougher than what surrounds it and had
-  // nothing to separate it. Roughness only reads as a CONTRAST.
+  // Three things, plainly: a CLAW PATTERN, a WOUND, and LIGHT in it.
+  // Four parallel gashes raked across one blade, each with a dark torn
+  // lip so it reads as opened rather than painted, and each carrying
+  // light down inside the opening. Built to be SEEN at the landing
+  // camera - that is the requirement that every previous attempt
+  // failed, whatever else it got right.
   //
-  // Inverted: the diseased surface is markedly SMOOTHER than the matte
-  // stone it sits in - 0.10 to 0.42 against 0.48 - so the rake light
-  // lays a sheen on the band and on nothing else. Wet, slick, wrong.
-  // That is still a pure material-state failure, still zero displacement
-  // and almost zero emission; it simply picks the side of the base
-  // roughness that the light can actually show.
-  float corruptRough = clamp(0.20 + 0.17*dlNoise2(vec2(ang*13.0, vMonoW.y*0.19))
-                             + 0.10*dlc.disease - 0.12*dlc.claw,
-                             0.09, 0.44);
-  vMonoRough = mix(vMonoRough, corruptRough, dlc.mask);
+  // World x is the surface coordinate, not ang. ang measures position
+  // around the section by DEPTH, so across a flat face it barely moves
+  // and a stroke built on it collapses into a horizontal bracelet
+  // wrapping the monument. This was found the hard way.
+  vec2 W = vec2(vMonoW.x, vMonoW.y);
+  vec2 wq = W - vec2(13.0, 86.0);
+  const float WA = 1.02;
+  float wal =  wq.x * cos(WA) + wq.y * sin(WA);
+  float wac = -wq.x * sin(WA) + wq.y * cos(WA);
+  const float WLEN = 42.0;
+  // it arcs, because whatever made it was travelling through. Gentle:
+  // a strong arc curls the set into a hook and reads as a logo swoosh
+  wac += 0.34 * wal * wal / WLEN;
+  float wt = wal / WLEN;
 
-  // Minimal value shift: "surface rewritten", not painted.
-  diffuseColor.rgb *= mix(1.0, (0.78 - 0.34 * dlBoost) + 0.30*dlNoise2(vec2(ang*29.0, vMonoW.y*0.41)), dlc.mask);
-  diffuseColor.rgb += vec3(0.022,0.028,0.036) * dlc.disease * (0.45 + 1.5 * dlBoost);
+  float wound = 0.0;
+  float wlip = 0.0;
+  if (abs(wt) < 1.0) {
+    // enters shallow, bites deepest a little past the middle, trails
+    float wdep = pow(max(0.0, 1.0 - wt * wt), 0.55) * (1.0 + 0.32 * wt);
+    for (int g = 0; g < 4; g++) {
+      float fg = float(g) - 1.5;
+      float gh = fract(0.23 + float(g) * 0.31);
+      // the inner claws bite deeper and run wider than the outer two
+      float rank = 1.0 - 0.34 * abs(fg) / 1.5;
+      float off = fg * 4.6 * (0.85 + 0.3 * gh);
+      // ragged: neither edge is even and the width wanders along the run
+      float rag = 0.55 + 0.9 * monoHash(vec3(floor(wal * 1.5), gh * 40.0, sideS));
+      float w = (1.15 + 1.0 * gh) * wdep * rank * rag;
+      float d = abs(wac - off);
+      wound = max(wound, smoothstep(w, w * 0.30, d));
+      wlip = max(wlip, smoothstep(w * 2.6, w * 0.92, d));
+    }
+    // the lip is stone lifted at the edge of the opening, so it
+    // shadows - and it must not darken the opening it surrounds
+    wlip = max(0.0, wlip - wound) * wdep;
+  }
+  // one blade, and it wraps the near corner rather than appearing
+  // identically on the far side of the mass
+  float wface = step(0.0, sideS) * smoothstep(-10.0, 4.0, vMonoW.z);
+  wound *= wface;
+  wlip *= wface;
+  diffuseColor.rgb *= 1.0 - wlip * 0.66;
 
-  // Tiny cold pinpricks only. No continuous emissive line.
-  vMonoEng = dlc.particle * (0.22 + 0.55 * dlBoost) * (1.0 - uCalm * 0.45);
+  // 1.0 clipped to white where the gashes converge and they merged into
+  // one mass, which loses the claw. 0.72 keeps every gash separate and
+  // still reads from the landing camera.
+  float lit = wound * 0.72;
+  // cross-gap alignment: when the eye is square to the fissure, the
+  // two faces momentarily agree
+  lit *= 1.0 + uAlign * 0.8;
+  vMonoEng = lit * (1.0 - uCalm * 0.45);
   }
 }`;
 
@@ -1067,8 +1016,6 @@ export class JourneyRenderer {
   })();
   private rimLight!: THREE.DirectionalLight;
   private witnessLight!: THREE.DirectionalLight;
-  /** the grazing key that lets the corruption's roughness read */
-  private rakeLight!: THREE.DirectionalLight;
   private keyLight!: THREE.DirectionalLight;
   private fillLight!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
@@ -1339,29 +1286,6 @@ export class JourneyRenderer {
 
     // the witness light: a cold front fill that arrives only with
     // understanding, so the revealed lattice is legible at the return
-    // THE RAKE. Jacob: "i dont see shit", then "fck the brief
-    // instructions just use the visual identity".
-    //
-    // The corruption is a ROUGHNESS effect and roughness is invisible
-    // without a specular to modulate. The landing key sits at
-    // [0.85, 0.55, 0.12] - side-on, which is right for the FORM: it
-    // separates the prongs and gives the mass weight, and it is not
-    // moving. But it strikes the corrupted face nearly head on, and a
-    // head-on light leaves nothing for a roughness change to break.
-    // Measured on/off it was altering 17 percent of the hero's pixels
-    // by a mean of 10/255, which a diff sees and an eye cannot.
-    //
-    // So this is a second, weak key placed to lay a specular SHEEN
-    // across the corrupted blade rather than to light it. Off the
-    // camera axis so it does not flatten the form the main key models,
-    // and low enough in intensity that it reads as a sheen on one face
-    // instead of a second sun in the scene. The corruption then shows
-    // as the sheen failing across the diseased band - which is what a
-    // material-state failure IS.
-    this.rakeLight = new THREE.DirectionalLight(0xdfe8f2, 0.9);
-    this.rakeLight.position.set(0.60, 0.26, 0.76);
-    this.scene.add(this.rakeLight);
-
     this.witnessLight = new THREE.DirectionalLight(0x9fb4cc, 0);
     this.witnessLight.position.set(0.2, 0.5, 1.0);
     this.scene.add(this.witnessLight);
@@ -1823,7 +1747,6 @@ export class JourneyRenderer {
       uInnerAmt: { value: 0 },
       uSignal: { value: 0 },
       uAlign: { value: 0 },
-      uCorrupt: { value: 1 },
       uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
@@ -2064,11 +1987,6 @@ ${SKY_LAW}`
    * Review affordance only, and the reason the ramp's two endpoints are
    * measured frames rather than numbers someone wrote down.
    */
-  /** How present the hero corruption is, 0 to 1. Review pin. */
-  setCorrupt(amount: number): void {
-    this.stoneU.uCorrupt!.value = Math.max(0, Math.min(3, amount));
-  }
-
   setLid(amount: number): void {
     this.lidOverride = Math.max(0, Math.min(1, amount));
     this.skyMat.uniforms.uLid!.value = this.lidOverride;
