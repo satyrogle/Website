@@ -364,15 +364,27 @@ const FRAG_MAP = `#include <map_fragment>
   cWeep *= smoothstep(-cHalf * 0.15, -cHalf * 0.95, cAcross);
   // narrow threads with their own lengths, broken along the run because
   // a dried weep is dotted rather than continuous
+  // TONED DOWN, Jacob 2026-08-21: "it looks odd". Four things were
+  // making it odd rather than one, and lowering the brightness alone
+  // would have left the shape wrong:
+  //   - too many threads. 62 percent of lanes ran, so it read as a
+  //     curtain hanging off the band rather than as a few runs. 38.
+  //   - too long. Up to 94 units, most of the way to the foot, which
+  //     is where an earlier version was rejected outright for taking
+  //     over the monument. 8 to 42.
+  //   - too solid. The break-up passed 60 percent of each thread, so
+  //     the runs were near continuous lines; a dried weep is mostly
+  //     gaps. 38 percent.
+  //   - too bright, and that is last, not first.
   float cLane = monoHash(vec3(floor(cS * 52.0), 21.0, sideS));
-  float cRunLen = 16.0 + 78.0 * fract(cLane * 5.3);
+  float cRunLen = 8.0 + 34.0 * fract(cLane * 5.3);
   float cDrop = max(0.0, -(cAcross + cHalf) / 0.868);
-  float cRun = step(0.38, cLane)
-             * step(0.40, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
+  float cRun = step(0.62, cLane)
+             * step(0.62, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.18, cDrop)
              * cWeep * smoothstep(-12.0, 3.0, vMonoW.z);
-  diffuseColor.rgb += diffuseColor.rgb * cRun * (1.5 + 0.9 * graze);
-  diffuseColor.rgb += vec3(0.052, 0.057, 0.066) * cRun;
+  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.7 + 0.5 * graze);
+  diffuseColor.rgb += vec3(0.022, 0.024, 0.028) * cRun;
 
   // the cracks are thin bright residue too, and fainter than the band
   diffuseColor.rgb += diffuseColor.rgb * cCrack * (1.2 + 0.8 * graze);
@@ -380,7 +392,7 @@ const FRAG_MAP = `#include <map_fragment>
 
   // roughness follows the damage: the pits are matte voids, the cWeb is
   // a hard remaining edge
-  vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.5) * 0.22, 0.08, 0.96);
+  vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22, 0.08, 0.96);
 
   // NOTHING EMITS. Sparse bright points were tried here and they are
   // the eczema again by another name: isolated dots on a surface read
