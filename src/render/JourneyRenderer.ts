@@ -272,10 +272,16 @@ const FRAG_MAP = `#include <map_fragment>
   // the band on end. 0.287 over 0.958 gives about fifty over the full
   // width - a tilt, not a climb.
   const float CCA = 0.958, CSA = 0.287;
-  float cAcross = -BP.x * CSA + BP.y * CCA - 91.0;
+  // LOWERED, Jacob 2026-08-21. The offset IS the crossing height: at
+  // the cleft the coordinate is zero, so the centreline sits at
+  // offset / 0.958. 91 put it at y=95, mid-height. 60 puts it at 63,
+  // low on the mass where the blades are broad.
+  float cAcross = -BP.x * CSA + BP.y * CCA - 60.0;
   float cAlong  =  BP.x * CCA + BP.y * CSA;
   cAcross += 26.0 * (monoFbm(vec2(cAlong * 0.010, 5.0)) - 0.5);
-  float cHalf = 30.0 + 20.0 * monoFbm(vec2(cAlong * 0.014, 11.0));
+  // WIDER. 30 to 50 read as a belt across a tall mass; 46 to 76 gives
+  // the corrosion a territory, which is what the references show.
+  float cHalf = 46.0 + 30.0 * monoFbm(vec2(cAlong * 0.014, 11.0));
   float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
   // clustered, so it takes hold in patches rather than filling the band
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
@@ -310,7 +316,9 @@ const FRAG_MAP = `#include <map_fragment>
   // which defeats the point of the band being an event. 1.9x, and only
   // the top quarter of the web survives out here, gated again by a
   // slow field so the veins arrive in runs rather than evenly.
-  float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.9, abs(cAcross));
+  // the halo multiplier comes down as the band widens, or the cracks
+  // scale with it and swallow the intact stone again
+  float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.55, abs(cAcross));
   halo *= smoothstep(-12.0, 3.0, vMonoW.z);
   float cCrack = smoothstep(0.76, 0.99, cWebRaw)
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
