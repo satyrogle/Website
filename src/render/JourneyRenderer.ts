@@ -219,49 +219,60 @@ const FRAG_MAP = `#include <map_fragment>
   // clean falloff - a smooth radius around the cleft reads as a lamp
   // sitting behind the stone, which is the opposite of something
   // escaping through it.
-  // Reach is deliberately SHORT. The first pass ran the front to 25
-  // units at the foot against a face only 31 wide, so the corruption
-  // took the whole lower monument and the base went to flat white with
-  // the engraving fully lit inside it - a circuit board, not a
-  // discharge. What sells this is a narrow, ragged, ACTIVE margin
-  // against a lot of intact dark stone.
-  float heavy = 1.0 - smoothstep(0.0, 110.0, vMonoW.y);
-  float front = 1.0 + 4.6 * heavy * heavy
-              + 3.4 * monoNoise(vec2(ang * 5.0, vMonoW.y * 0.055), sideS)
-              + 1.6 * monoNoise(vec2(ang * 13.0, vMonoW.y * 0.16), sideS + 5.0);
-  float bleed = smoothstep(front, front * 0.30, fromFissure);
-
-  // it seeps ALONG the engraving, because the grooves are where the
-  // stone is already open. Continuous runs down a lane, never dots -
-  // but mostly a wash, with the script only catching inside it. Letting
-  // glyph carry it turned the margin into legible text
-  float seep = bleed * (0.30 + 0.70 * glyph);
-
-  // and the foot is wet with it. This is the excretion: not a glow
-  // added at the bottom, but the same light having run all the way down
-  // and having nowhere left to go.
+  // ---- THE SWIRL ----
+  // Jacob, 2026-08-21, replacing the vertical construction outright:
+  // "instead of doing the light glow vertically on the hero do a swirl
+  // around the total hero from top to bottom ... so it looks like the
+  // light is swirling around".
   //
-  // DISCRETE RIVULETS, because every soft version of this failed the
-  // same way. A smoothstep falloff has no edge, so low on the face it
-  // came out as a soft ellipse either side of the cleft: two headlights,
-  // a blob by the project's own name for it, twice. Material that has
-  // RUN has a width, a hard side, and a height where it stopped.
+  // Also gone with it, and he is right: "there are 2 lines in the
+  // bottom on either sides that make it look off". The rivulets were
+  // gated at front*2.4, which at the foot reaches 25 units, so a couple
+  // of them landed far out on the flanks with intact dark stone between
+  // them and the break. Detached from their source they read as two
+  // thin standing lamps, not as discharge.
   //
-  // Each lane is its own rivulet: about half run at all, each with its
-  // own width and its own reach, and they exist only near the break
-  // they came out of.
-  float lane = ang * 34.0;
-  float lh = monoHash(vec3(floor(lane), sideS, 3.0));
-  float rHalf = 0.10 + 0.28 * fract(lh * 7.0);
-  float rStop = 3.0 + 24.0 * fract(lh * 13.0);
-  float excrete = step(0.55, lh)
-                * smoothstep(rHalf, rHalf * 0.5, abs(fract(lane) - 0.5))
-                * smoothstep(rStop, rStop * 0.3, vMonoW.y)
-                * smoothstep(front * 2.4, 0.0, fromFissure);
-  // and the line where it reaches the plain and stops being the
-  // monument's problem
-  excrete = max(excrete, smoothstep(2.6, 0.0, vMonoW.y)
-                       * smoothstep(front * 2.0, 0.0, fromFissure) * 0.9);
+  // A swirl needs an azimuth around the WHOLE body, and ang is not one:
+  // it is a per-face parameter, built from depth and flank, which runs
+  // the same way on both prongs. Two independent bands, one per half,
+  // never a wrap. This is the world azimuth about the vertical axis, so
+  // it is continuous around the whole monument no matter which prong a
+  // fragment belongs to.
+  float az = atan(vMonoW.z, vMonoW.x) * 0.15915494;
+
+  // The band is a HELIX: its phase is azimuth minus height, so a line
+  // of constant phase climbs as it goes round. 2.4 turns over the 195
+  // it stands - few enough that each pass reads separately at this
+  // camera, and a whole number was avoided so the turns do not stack
+  // into a vertical seam.
+  //
+  // The phase is warped before the band is taken, or this is a barber
+  // pole: a perfectly regular stripe wrapping a cone is a candy cane,
+  // and it is the same failure as any other nameable repeated element.
+  float phase = az - vMonoW.y * 0.0186 + uTime * 0.0135;
+  phase += 0.055 * monoNoise(vec2(az * 3.0, vMonoW.y * 0.035), 1.0);
+  phase += 0.022 * monoNoise(vec2(az * 9.0, vMonoW.y * 0.11), 6.0);
+
+  // distance to the nearest band centre, in turns
+  float band = abs(fract(phase) - 0.5) * 2.0;
+  // the band breathes in width along its own length rather than being
+  // a constant ribbon, so it thins and swells the way something flowing
+  // would
+  float bw = 0.085 + 0.075 * monoNoise(vec2(az * 5.0, vMonoW.y * 0.05), 11.0);
+  float swirl = smoothstep(bw, bw * 0.25, band);
+
+  // it is still coming from the break: brightest where the helix passes
+  // close to the cleft, faintest on the far flank
+  swirl *= 0.35 + 0.65 * exp(-fromFissure * 0.055);
+  // and still heavy, so it gathers toward the foot
+  swirl *= 0.55 + 0.45 * (1.0 - smoothstep(0.0, 150.0, vMonoW.y));
+
+  // the engraving catches inside the band and nowhere else
+  float seep = swirl * (0.55 + 0.45 * glyph);
+
+  // where the swirl reaches the plain it has nowhere left to go
+  float excrete = smoothstep(9.0, 0.0, vMonoW.y)
+                * smoothstep(26.0, 0.0, fromFissure) * (0.4 + 0.6 * swirl);
 
   // the old wave GATED the light on and off, which is what let single
   // cells blink independently. It only modulates now, gently, so the
@@ -269,9 +280,9 @@ const FRAG_MAP = `#include <map_fragment>
   // temporal-calm ceiling the harness enforces
   float wavePhase = vMonoW.y * 0.055 - uTime * 0.42 - uSignal * 2.4;
   float wave = 0.74 + 0.26 * sin(wavePhase);
-  vMonoRough = clamp(vMonoRough - bleed * 0.22, 0.05, 0.95);
+  vMonoRough = clamp(vMonoRough - swirl * 0.22, 0.05, 0.95);
 
-  float lit = seep * wave * 0.22 + excrete * 0.60;
+  float lit = seep * wave * 0.30 + excrete * 0.45;
   // cross-gap alignment: when the eye is square to the fissure, the
   // two faces momentarily agree
   lit *= 1.0 + uAlign * 1.2;
