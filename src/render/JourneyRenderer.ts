@@ -475,8 +475,10 @@ const FRAG_MAP = `#include <map_fragment>
     float wob2 = 0.75 + 0.5 * monoNoise(vec2(vMonoW.y * 1.7 + uMarks[mi].w, md * 2.2));
     mkPit = max(mkPit, smoothstep(mr * wob2, mr * wob2 * 0.45, md));
     mkRim = max(mkRim, exp(-pow((md - mr * wob2) / 0.5, 2.0)) * (0.3 + 0.7 * grow));
-    // and the arrival flares, briefly, like the wake passing
-    mkRim += exp(-md * md * 0.4) * exp(-age * 2.6) * 1.6;
+    // NO ARRIVAL FLARE. It was exp(-age*2.6)*1.6 over the whole patch,
+    // which is a bright dot that swells and dies on top of the mark:
+    // a pimple BURSTING, which is worse than the pimple was. A press
+    // opens the stone and the opening stays; it does not perform.
   }
   diffuseColor.rgb *= 1.0 - mkPit * 0.72;
   vMonoRough = clamp(vMonoRough + mkPit * 0.3, 0.05, 0.96);
@@ -489,16 +491,39 @@ const FRAG_MAP = `#include <map_fragment>
   // two seconds and read as a flicker. Slower, three times as wide, and
   // with a soft body behind the front, so it reads as a wave moving
   // through the rot rather than a ring blinking past.
+  // Measured before changing it: mean luminance over the mass was 44.0
+  // with the pointer ON the hero and 42.8 just after leaving. The wake
+  // was at FULL while attention rested - uWakeT is zero then, so the
+  // front sat at radius zero as a static pool - and only decayed once
+  // the pointer left. That is the hover lamp again wearing a different
+  // name, and it is the opposite of a wave.
+  //
+  // The wave IS the leaving. Nothing while the cursor rests; a front
+  // that departs the moment it goes, travels out, and dies. The soft
+  // body behind it is gone too - a body is a pool, and a pool is what
+  // was wrong.
   float wakeD = distance(vMonoW, uWakePos);
-  float wakeR = uWakeT * 34.0;
-  float wakeFront = exp(-pow((wakeD - wakeR) / 42.0, 2.0));
-  float wakeBody = smoothstep(wakeR, wakeR * 0.25, wakeD) * 0.45;
-  float wake = (wakeFront + wakeBody) * exp(-uWakeT * 0.55);
+  float wakeGo = smoothstep(0.0, 0.10, uWakeT);
+  float wakeR = uWakeT * 46.0;
+  float wake = exp(-pow((wakeD - wakeR) / 24.0, 2.0))
+             * wakeGo * exp(-uWakeT * 0.75);
+
+  // THE WAKE RIDES THE STONE. Jacob: "there is no fucking wave". It was
+  // multiplied into the rot's EMISSION, and that base is 0.028 - so
+  // even six times it is nothing, and outside the corroded band, where
+  // the web is zero, it was multiplying zero. The wave existed and
+  // could not be seen anywhere.
+  //
+  // It lifts the face itself now, so it crosses the whole monument
+  // whether or not the rot has reached there.
+  diffuseColor.rgb += diffuseColor.rgb * wake * 5.0;
+  diffuseColor.rgb += vec3(0.085, 0.094, 0.112) * wake;
+
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
             + cRun * 0.005) * (1.0 - uCalm * 0.45)
-            * (1.0 + wResp * 2.2 + wake * 5.5)
-            + mkRim * 0.030 * (1.0 - uCalm * 0.45);
+            * (1.0 + wResp * 2.2)
+            + mkRim * 0.016 * (1.0 - uCalm * 0.45);
   }
 }`;
 
