@@ -367,42 +367,27 @@ const FRAG_MAP = `#include <map_fragment>
 
   // the runs: fine vertical streaks descending out of the band, where
   // it has wept down the face. Broken, because a dried run is dotted
-  // THE WEEPING. Sourced from the band ABOVE this fragment, so a run
-  // can only exist under something that could have produced it. The
-  // band is linear in height - cAcross carries 0.868 per unit of y - so
-  // the mask above is just an offset, no re-evaluation and no second
-  // field. Four samples with a decaying weight give the reach.
-  float cWeep = 0.0;
-  for (int i = 1; i <= 4; i++) {
-    float a2 = cAcross + 0.868 * float(i) * 15.0;
-    cWeep = max(cWeep, (1.0 - smoothstep(cHalf * 0.22, cHalf, abs(a2)))
-                       * (1.0 - float(i) * 0.17));
-  }
-  // strictly BELOW the band, never inside it
-  cWeep *= smoothstep(-cHalf * 0.15, -cHalf * 0.95, cAcross);
-  // narrow threads with their own lengths, broken along the run because
-  // a dried weep is dotted rather than continuous
-  // TONED DOWN, Jacob 2026-08-21: "it looks odd". Four things were
-  // making it odd rather than one, and lowering the brightness alone
-  // would have left the shape wrong:
-  //   - too many threads. 62 percent of lanes ran, so it read as a
-  //     curtain hanging off the band rather than as a few runs. 38.
-  //   - too long. Up to 94 units, most of the way to the foot, which
-  //     is where an earlier version was rejected outright for taking
-  //     over the monument. 8 to 42.
-  //   - too solid. The break-up passed 60 percent of each thread, so
-  //     the runs were near continuous lines; a dried weep is mostly
-  //     gaps. 38 percent.
-  //   - too bright, and that is last, not first.
+  // THE WEEPING, HUNG FROM THE CUT. Jacob: "the cut looks straight add
+  // some weeping to it maybe".
+  //
+  // It was sourced from the band above and then killed below the cut,
+  // which is what left the edge reading as a ruled line. Now it hangs
+  // FROM the cut itself and lives only below it, so the same term that
+  // makes the boundary coherent also breaks it: threads of uneven
+  // length reach past the line by different amounts and the straight
+  // edge stops being straight without being blurred.
+  //
+  // Distance below the cut, in world units: cAcross carries CCA per
+  // unit of height, so dividing by it converts back.
+  float belowCut = max(0.0, -(cAcross + 30.0) / CCA);
   float cLane = monoHash(vec3(floor(cS * 52.0), 21.0, sideS));
-  float cRunLen = 8.0 + 34.0 * fract(cLane * 5.3);
-  float cDrop = max(0.0, -(cAcross + cHalf) / 0.868);
-  float cRun = step(0.62, cLane)
-             * step(0.62, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
-             * smoothstep(cRunLen, cRunLen * 0.18, cDrop)
-             * cWeep * smoothstep(-12.0, 3.0, vMonoW.z) * cCut;
-  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.7 + 0.5 * graze);
-  diffuseColor.rgb += vec3(0.022, 0.024, 0.028) * cRun;
+  float cRunLen = 5.0 + 26.0 * fract(cLane * 5.3);
+  float cRun = step(0.48, cLane)
+             * step(0.52, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
+             * smoothstep(cRunLen, cRunLen * 0.12, belowCut)
+             * smoothstep(-12.0, 3.0, vMonoW.z);
+  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.9 + 0.6 * graze);
+  diffuseColor.rgb += vec3(0.030, 0.033, 0.038) * cRun;
 
   // the cracks are thin bright residue too, and fainter than the band
   diffuseColor.rgb += diffuseColor.rgb * cCrack * (1.2 + 0.8 * graze);
