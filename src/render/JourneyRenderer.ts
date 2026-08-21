@@ -248,58 +248,87 @@ const FRAG_MAP = `#include <map_fragment>
   // turn rates failed the same way for the same reason, which is the
   // signal that the construction was wrong rather than its numbers.
   //
-  // A CLAW TEAR is not a band. It is a FINITE stroke: it starts, it
-  // runs, it tapers to nothing at both ends, it curves because whatever
-  // dragged it was moving, and it frays because the surface is not
-  // uniform. Claw marks come in sets of parallel gashes of uneven width
-  // and length. That is the whole difference - a band has no ends, and
-  // ends are the only thing that make a mark read as a mark.
+  // A WOUND, NOT A LINE. Jacob: "imagine a alpha lion or siberian tiger
+  // took a jab at a person with its claws how the wound will look i
+  // want that kind of shader".
   //
-  // Strokes are placed by CELL rather than by loop over instances: the
-  // surface parameter is diced, each cell may carry one set, and the
-  // nine cells around a fragment are tested so no set is clipped at a
-  // cell edge. az is scaled to 120 units a turn so a stroke has roughly
-  // the same length whichever way it is raked.
+  // The previous pass drew bright strokes ON the stone, which is paint.
+  // A claw wound is the opposite: the surface is PARTED. What the eye
+  // actually reads in one is
+  //   - a dark torn LIP either side, where the material is lifted and
+  //     shadowed. This is the single most important term and it was
+  //     entirely missing; without it any stroke is decoration.
+  //   - an OPENING that gapes widest a little past the middle of the
+  //     stroke and closes to nothing at both ends, because a claw
+  //     enters shallow, bites deep, and trails out.
+  //   - what lies UNDER, visible only down inside the opening.
+  //   - a BRUISE around the whole set, damaged but not broken.
+  //   - four gashes at even claw spacing, arcing together, with the
+  //     inner two biting deeper and running longer than the outer two.
+  //   - ragged edges. Flesh and stone both tear irregularly.
+  //
+  // Placed by CELL rather than by looping over instances: the surface
+  // parameter is diced, each cell may carry one strike, and the nine
+  // cells around a fragment are tested so no strike is clipped at a
+  // cell edge. az is scaled to 120 units a turn so a strike keeps its
+  // proportions whichever way it is raked. Fewer and larger than the
+  // stroke version - a few deliberate wounds, not a scratched hide.
   vec2 P = vec2(az * 120.0, vMonoW.y);
-  vec2 cellI = floor(P / 41.0);
-  float swirl = 0.0;
+  vec2 cellI = floor(P / 57.0);
+  float swirl = 0.0;   // the opening: what shows from inside
+  float torn = 0.0;    // the lifted lip: darkens the stone
+  float bruise = 0.0;  // damaged, not opened
   for (int oy = -1; oy <= 1; oy++) {
     for (int ox = -1; ox <= 1; ox++) {
       vec2 ci = cellI + vec2(float(ox), float(oy));
       float h0 = monoHash(vec3(ci, 1.0));
-      if (h0 < 0.34) continue;          // not every cell is torn
+      if (h0 < 0.43) continue;          // not every cell was struck
       float h1 = monoHash(vec3(ci, 2.0));
       float h2 = monoHash(vec3(ci, 3.0));
       float h3 = monoHash(vec3(ci, 4.0));
-      vec2 c = (ci + vec2(h1, h2)) * 41.0;
+      vec2 c = (ci + vec2(h1, h2)) * 57.0;
       // raked steeply, never axis aligned: a horizontal tear reads as a
       // course line and a vertical one as a drip
-      float a = 1.02 + (h3 - 0.5) * 1.45;
+      float a = 1.02 + (h3 - 0.5) * 1.5;
       vec2 dir = vec2(cos(a), sin(a));
       vec2 nrm = vec2(-dir.y, dir.x);
       vec2 q = P - c;
       float al = dot(q, dir);
       float ac = dot(q, nrm);
-      float len = 20.0 + 32.0 * fract(h1 * 7.3);
-      // the drag curves, because the thing making it was moving
-      ac += (fract(h2 * 11.7) - 0.5) * 1.15 * al * al / len;
+      float len = 30.0 + 40.0 * fract(h1 * 7.3);
+      // the swipe arcs, because the paw travels through
+      ac += (fract(h2 * 11.7) - 0.5) * 1.6 * al * al / len;
       float t = al / len;
       if (abs(t) > 1.0) continue;
-      // pointed at both ends, fattest a little past the middle
-      float taper = pow(max(0.0, 1.0 - t * t), 0.7) * (1.0 + 0.35 * t);
-      for (int g = 0; g < 3; g++) {
+      // enters shallow, bites deepest a little past the middle, trails
+      float depth = pow(max(0.0, 1.0 - t * t), 0.55) * (1.0 + 0.42 * t);
+      float claws = 4.2 + 2.6 * fract(h1 * 3.9);   // paw spread
+      for (int g = 0; g < 4; g++) {
+        float fg = float(g) - 1.5;
         float gh = fract(h3 * (3.7 + float(g) * 5.1) + h0);
-        float off = (float(g) - 1.0) * (2.4 + 2.6 * gh);
-        float w = (0.5 + 1.7 * gh) * taper;
-        if (w < 0.02) continue;
-        // DRY BRUSH. A solid gash is a painted line; a real drag skips,
-        // catches and thins along its run
-        float dry = smoothstep(0.16, 0.60,
-          monoNoise(vec2(al * 0.30, off * 0.7 + gh * 40.0), 8.0));
-        swirl = max(swirl, smoothstep(w, w * 0.12, abs(ac - off)) * dry);
+        // the inner claws bite deeper and run longer than the outer
+        float rank = 1.0 - 0.42 * abs(fg) / 1.5;
+        float off = fg * claws;
+        // ragged: the tear wanders and its width is never even
+        float rag = 0.62 + 0.76 * monoNoise(vec2(al * 0.34, gh * 50.0), 8.0);
+        float w = (1.15 + 1.35 * gh) * depth * rank * rag;
+        if (w < 0.015) continue;
+        float d = abs(ac - off);
+        // the opening, and the lifted lip either side of it
+        float open = smoothstep(w, w * 0.30, d);
+        float lip = smoothstep(w * 2.9, w * 0.85, d);
+        swirl = max(swirl, open);
+        torn = max(torn, lip);
       }
+      // one bruise for the whole strike, not one per claw
+      bruise = max(bruise, smoothstep(claws * 3.4, claws * 0.7,
+                     abs(ac)) * depth);
     }
   }
+  // the lip is stone that has been lifted, so it shadows; and it must
+  // not darken the opening it surrounds
+  torn = max(0.0, torn - swirl);
+  diffuseColor.rgb *= 1.0 - bruise * 0.34 - torn * 0.62;
 
   // it is still coming from the break: deepest where the tears cross
   // near the cleft, shallow out on the far flank
@@ -322,7 +351,7 @@ const FRAG_MAP = `#include <map_fragment>
   float wave = 0.74 + 0.26 * sin(wavePhase);
   vMonoRough = clamp(vMonoRough - swirl * 0.22, 0.05, 0.95);
 
-  float lit = seep * wave * 0.30 + excrete * 0.45;
+  float lit = seep * wave * 0.42 + excrete * 0.45;
   // cross-gap alignment: when the eye is square to the fissure, the
   // two faces momentarily agree
   lit *= 1.0 + uAlign * 1.2;
