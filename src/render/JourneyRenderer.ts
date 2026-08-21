@@ -248,87 +248,95 @@ const FRAG_MAP = `#include <map_fragment>
   // turn rates failed the same way for the same reason, which is the
   // signal that the construction was wrong rather than its numbers.
   //
-  // A WOUND, NOT A LINE. Jacob: "imagine a alpha lion or siberian tiger
-  // took a jab at a person with its claws how the wound will look i
-  // want that kind of shader".
+  // NOT A LITERAL TEAR EITHER. Jacob: "not like literal tear bro like
+  // uneven brush stroke that look weird but like a disease on it on
+  // stroke diagonally looks like a wound resembles claw pattern".
   //
-  // The previous pass drew bright strokes ON the stone, which is paint.
-  // A claw wound is the opposite: the surface is PARTED. What the eye
-  // actually reads in one is
-  //   - a dark torn LIP either side, where the material is lifted and
-  //     shadowed. This is the single most important term and it was
-  //     entirely missing; without it any stroke is decoration.
-  //   - an OPENING that gapes widest a little past the middle of the
-  //     stroke and closes to nothing at both ends, because a claw
-  //     enters shallow, bites deep, and trails out.
-  //   - what lies UNDER, visible only down inside the opening.
-  //   - a BRUISE around the whole set, damaged but not broken.
-  //   - four gashes at even claw spacing, arcing together, with the
-  //     inner two biting deeper and running longer than the outer two.
-  //   - ragged edges. Flesh and stone both tear irregularly.
+  // The anatomical version was correct and wrong. Four clean parallel
+  // gashes with lifted lips is a diagram of a claw wound, and reading
+  // as an accurate diagram is its own failure - the eye names it
+  // instantly and it stops being unsettling. What he wants is a DISEASE
+  // that only RESEMBLES a claw rake: the resemblance is a suggestion,
+  // never the subject.
+  //
+  // So every term that made it anatomical is gone. No lip, no clean
+  // taper, no even paw spacing, no inner-claws-bite-deeper. What
+  // replaces them:
+  //   - DIAGONAL and consistent. All strokes rake the same way with
+  //     little variance, so the body reads as having been dragged
+  //     across once rather than scratched at random.
+  //   - UNEVEN width, driven by noise ALONG the run rather than by a
+  //     taper, so it swells and pinches and never resolves into a
+  //     shape. A taper is a designed object; this should look wrong.
+  //   - BROKEN. A patch field eats the stroke into discontinuous
+  //     smears, so it spreads and skips like something growing on the
+  //     surface instead of something cut into it.
+  //   - MOTTLED inside, so there is no clean core to read as a line.
+  //   - a BLOTCHY discolouration rather than a shadowed lip - the
+  //     stone around it is sick, not lifted.
+  //   - three strokes at UNEVEN spacing, which suggests a rake without
+  //     ever being one.
   //
   // Placed by CELL rather than by looping over instances: the surface
-  // parameter is diced, each cell may carry one strike, and the nine
-  // cells around a fragment are tested so no strike is clipped at a
-  // cell edge. az is scaled to 120 units a turn so a strike keeps its
-  // proportions whichever way it is raked. Fewer and larger than the
-  // stroke version - a few deliberate wounds, not a scratched hide.
+  // parameter is diced, each cell may carry one stroke group, and the
+  // nine cells around a fragment are tested so nothing is clipped at a
+  // cell edge. az is scaled to 120 units a turn so a stroke keeps its
+  // proportions whichever way it lies.
   vec2 P = vec2(az * 120.0, vMonoW.y);
   vec2 cellI = floor(P / 57.0);
-  float swirl = 0.0;   // the opening: what shows from inside
-  float torn = 0.0;    // the lifted lip: darkens the stone
-  float bruise = 0.0;  // damaged, not opened
+  float swirl = 0.0;   // the infection itself
+  float sick = 0.0;    // discoloured stone around it
   for (int oy = -1; oy <= 1; oy++) {
     for (int ox = -1; ox <= 1; ox++) {
       vec2 ci = cellI + vec2(float(ox), float(oy));
       float h0 = monoHash(vec3(ci, 1.0));
-      if (h0 < 0.43) continue;          // not every cell was struck
+      if (h0 < 0.43) continue;
       float h1 = monoHash(vec3(ci, 2.0));
       float h2 = monoHash(vec3(ci, 3.0));
       float h3 = monoHash(vec3(ci, 4.0));
       vec2 c = (ci + vec2(h1, h2)) * 57.0;
-      // raked steeply, never axis aligned: a horizontal tear reads as a
-      // course line and a vertical one as a drip
-      float a = 1.02 + (h3 - 0.5) * 1.5;
+      // one diagonal, held: variance small enough that the whole body
+      // reads as raked the same way
+      float a = 0.92 + (h3 - 0.5) * 0.44;
       vec2 dir = vec2(cos(a), sin(a));
       vec2 nrm = vec2(-dir.y, dir.x);
       vec2 q = P - c;
       float al = dot(q, dir);
       float ac = dot(q, nrm);
       float len = 30.0 + 40.0 * fract(h1 * 7.3);
-      // the swipe arcs, because the paw travels through
-      ac += (fract(h2 * 11.7) - 0.5) * 1.6 * al * al / len;
+      ac += (fract(h2 * 11.7) - 0.5) * 1.4 * al * al / len;
       float t = al / len;
       if (abs(t) > 1.0) continue;
-      // enters shallow, bites deepest a little past the middle, trails
-      float depth = pow(max(0.0, 1.0 - t * t), 0.55) * (1.0 + 0.42 * t);
-      float claws = 4.2 + 2.6 * fract(h1 * 3.9);   // paw spread
-      for (int g = 0; g < 4; g++) {
-        float fg = float(g) - 1.5;
+      // it only fades near the very ends, so the run keeps its
+      // irregularity instead of resolving into a lens shape
+      float ends = smoothstep(1.0, 0.72, abs(t));
+      float spread = 3.0 + 4.2 * fract(h1 * 3.9);
+      for (int g = 0; g < 3; g++) {
         float gh = fract(h3 * (3.7 + float(g) * 5.1) + h0);
-        // the inner claws bite deeper and run longer than the outer
-        float rank = 1.0 - 0.42 * abs(fg) / 1.5;
-        float off = fg * claws;
-        // ragged: the tear wanders and its width is never even
-        float rag = 0.62 + 0.76 * monoNoise(vec2(al * 0.34, gh * 50.0), 8.0);
-        float w = (1.15 + 1.35 * gh) * depth * rank * rag;
-        if (w < 0.015) continue;
+        // uneven spacing: a rake suggested, never measured out
+        float off = (float(g) - 1.0) * spread * (0.55 + 0.9 * gh);
+        // width wanders along the run: swelling, pinching, never even
+        float w = (0.9 + 2.4 * monoNoise(vec2(al * 0.42, gh * 60.0), 8.0))
+                * (0.5 + 0.9 * gh) * ends;
+        if (w < 0.02) continue;
         float d = abs(ac - off);
-        // the opening, and the lifted lip either side of it
-        float open = smoothstep(w, w * 0.30, d);
-        float lip = smoothstep(w * 2.9, w * 0.85, d);
-        swirl = max(swirl, open);
-        torn = max(torn, lip);
+        // BROKEN: a blotch field eats it into smears, so it spreads
+        // and skips rather than running continuously
+        float blotch = smoothstep(0.30, 0.66,
+          monoNoise(vec2(al * 0.55, (ac - off) * 0.9 + gh * 30.0), 14.0));
+        float body = smoothstep(w, w * 0.15, d) * blotch;
+        // mottled, so there is no clean core to read as a line
+        float mott = 0.38 + 0.62 * monoNoise(
+          vec2(al * 1.9, (ac - off) * 2.3 + gh * 12.0), 21.0);
+        swirl = max(swirl, body * mott);
+        sick = max(sick, smoothstep(w * 3.2, w * 0.6, d) * blotch);
       }
-      // one bruise for the whole strike, not one per claw
-      bruise = max(bruise, smoothstep(claws * 3.4, claws * 0.7,
-                     abs(ac)) * depth);
     }
   }
-  // the lip is stone that has been lifted, so it shadows; and it must
-  // not darken the opening it surrounds
-  torn = max(0.0, torn - swirl);
-  diffuseColor.rgb *= 1.0 - bruise * 0.34 - torn * 0.62;
+  // the stone around it is sick, not lifted: a blotchy discolouration,
+  // and it must not darken the infection it surrounds
+  sick = max(0.0, sick - swirl);
+  diffuseColor.rgb *= 1.0 - sick * 0.44;
 
   // it is still coming from the break: deepest where the tears cross
   // near the cleft, shallow out on the far flank
