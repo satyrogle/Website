@@ -406,13 +406,26 @@ const FRAG_MAP = `#include <map_fragment>
   // a hard remaining edge
   vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22, 0.08, 0.96);
 
-  // NOTHING EMITS. Sparse bright points were tried here and they are
-  // the eczema again by another name: isolated dots on a surface read
-  // as a skin condition, and this project has already killed that once.
-  // The corrosion is entirely a darkening with a bright residue, which
-  // is what the references show - the band is DARKER than the stone and
-  // only the remaining web catches light.
-  vMonoEng = 0.0;
+  // THE ROT EMITS FROM INSIDE. Jacob: "what about the emission from the
+  // rot". It was zero, on the reading that his sheets show the band
+  // DARKER than the stone with only the web catching light - true of
+  // the sheets, but it drops the thing he chose at the start: the light
+  // IS the corruption.
+  //
+  // So the PITS carry it, not the web. The holes are where the material
+  // is gone and what is behind it shows through, which inverts the
+  // read: dark lace over light rather than bright residue on dark. That
+  // is also why it cannot become the eczema again - emission here is
+  // bound to a structure, not scattered across a surface as points.
+  //
+  // Deep in the band only. At the edges the pits close to nothing, so
+  // the glow ends where the rot does and never bleeds onto clean stone.
+  // 0.50 across every pit blew the entire mass to white - the pits
+  // cover a lot of area and FRAG_EMISSIVE multiplies by 2.4 on top.
+  // Only the DEEPEST voids carry it, deep in the band, at a twentieth
+  // of that. The rot glows from within; it does not light the monument.
+  float cGlow = smoothstep(0.55, 1.0, cPit) * smoothstep(0.45, 0.88, band);
+  vMonoEng = (cGlow * 0.035 + cRun * 0.015) * (1.0 - uCalm * 0.45);
   }
 }`;
 
@@ -1818,10 +1831,24 @@ export class JourneyRenderer {
     // The crown light stays. It belongs to the tall horn alone, it is a
     // third the size, and it reads as part of the fissure rather than
     // as weather.
-    // the crown light belongs to the tall horn alone, never centred
+    // CENTRED AND LARGER, on Jacob's instruction 2026-08-21:
+    // "reposition the halo dude it should be centre of twospires and a
+    // lil big am i not right".
+    //
+    // This overrides the placement law written directly above, which is
+    // his to override - but it is recorded rather than quietly deleted,
+    // because the law was paid for. A lit void framed by two forms is
+    // an EYE, and eye-of-sauron is a kill word this project has already
+    // been burned by once. If the frame starts reading that way, this
+    // line is the cause and moving x back off the axis is the fix.
+    //
+    // Two things hold it back from that read for now: it sits BEHIND
+    // the crown at z-34 so the horns occlude its centre rather than
+    // framing a clean disc, and it is set below the tall tip so it does
+    // not float as a separate body above the monument.
     const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
-    this.crownHalo = makeHalo('#cdd6e2', 64);
-    this.crownHalo.position.set(tallTip.x * 2.2, tallTip.y + 2, tallTip.z - 34);
+    this.crownHalo = makeHalo('#cdd6e2', 88);
+    this.crownHalo.position.set(0, tallTip.y - 16, tallTip.z - 34);
     this.scene.add(this.crownHalo);
 
     // --- the air: dust motes over the water, rising slowly ---
