@@ -380,12 +380,21 @@ const FRAG_MAP = `#include <map_fragment>
   // Distance below the cut, in world units: cAcross carries CCA per
   // unit of height, so dividing by it converts back.
   float belowCut = max(0.0, -(cAcross + 30.0) / CCA);
+  // Asymmetric on purpose. Jacob marked the left spire and asked the
+  // weeping there to "stop at the line": on that blade the runs barely
+  // clear the cut, just enough to keep the edge from reading as ruled,
+  // while the right keeps its length. The two sides are not meant to
+  // match - a symmetric pair of drip curtains would be the decoration
+  // problem again, and the corrosion already crosses the cleft as one
+  // event, so it can weep unevenly the way anything real does.
+  float cSideLen = sideS < 0.0 ? 0.26 : 1.0;
+  float cSideAmt = sideS < 0.0 ? 0.55 : 1.0;
   float cLane = monoHash(vec3(floor(cS * 52.0), 21.0, sideS));
-  float cRunLen = 5.0 + 26.0 * fract(cLane * 5.3);
+  float cRunLen = (5.0 + 26.0 * fract(cLane * 5.3)) * cSideLen;
   float cRun = step(0.48, cLane)
              * step(0.52, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.12, belowCut)
-             * smoothstep(-12.0, 3.0, vMonoW.z);
+             * smoothstep(-12.0, 3.0, vMonoW.z) * cSideAmt;
   diffuseColor.rgb += diffuseColor.rgb * cRun * (0.9 + 0.6 * graze);
   diffuseColor.rgb += vec3(0.030, 0.033, 0.038) * cRun;
 
