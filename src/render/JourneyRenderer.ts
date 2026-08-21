@@ -1190,13 +1190,41 @@ export class JourneyRenderer {
         uniform float uNear;
         out vec4 outColor;
         void main() {
-          // pure, featureless white: the core has no gradient of its
-          // own, only soft edges and an irregular width
-          float wob = 0.055 * sin(vUvF.y * 21.0) + 0.03 * sin(vUvF.y * 53.0 + 1.7);
-          float halfW = 0.30 + wob;
+          // THE LIGHT FILLS THE SLOT; THE STONE GIVES IT ITS SHAPE.
+          //
+          // Not the halfway bug - that was depthWrite, see the material.
+          // This is the separate fault the diagnosis turned up. The
+          // plane was a fixed 4.6 across with a 2.8-unit core, while
+          // monument.py cuts the slit at 5.0 - 3.9t half-width: 2.2
+          // across at the crown, 10 across at the foot. So the light
+          // overflowed the gap high up and the prongs cropped it into a
+          // solid bar, and at the foot it covered barely a quarter of a
+          // ten-unit slot with the rest left black. One light, two
+          // different reads, and neither of them decided by the stone.
+          //
+          // So the plane is WIDER than the slit at every height and its
+          // lit width tracks the cut, overspilling by a quarter into
+          // stone that hides it. The prongs become the only thing that
+          // decides the seam's width, at every height and every angle.
+          //
+          // Filling the slit EXACTLY, though, turns the foot into a
+          // floodlight: the slot is ten across down there, and ten units
+          // of white at this intensity blows out the whole base and puts
+          // the frame back to one blinding wedge. So the blade keeps a
+          // hairline width of its own - 4.4 across at the foot, 2.0 at
+          // the crown - which is under the slit low down, where the
+          // extra slot depth stays honestly dark, and OVER it high up,
+          // where the prongs close to 2.2 and crop it.
+          //
+          //   world half-width 2.2 at the foot to 1.0 at the crown,
+          //   over a 14-unit plane
+          float wob = 0.008 * sin(vUvF.y * 21.0) + 0.004 * sin(vUvF.y * 53.0 + 1.7);
+          float halfW = 0.157 - 0.086 * vUvF.y + wob;
           float d = abs(vUvF.x - 0.5);
-          float u = smoothstep(halfW, halfW - 0.09, d);
-          float v = smoothstep(0.0, 0.05, vUvF.y) * smoothstep(1.0, 0.80, vUvF.y);
+          // softness scales with the cut, so the edge stays proportionate
+          // instead of swallowing the gap where the slit is thinnest
+          float u = smoothstep(halfW, halfW * 0.72, d);
+          float v = smoothstep(0.0, 0.04, vUvF.y) * smoothstep(1.0, 0.90, vUvF.y);
           // spec: emission colour pure #FFFFFF, intensity 8 to 15
           vec3 holy = vec3(1.0);
           vec3 cold = vec3(0.86, 0.93, 1.0);
@@ -1211,16 +1239,51 @@ export class JourneyRenderer {
           // Jacob could not see the monument standing around it. 1.9
           // still clips to white in the core and still carries the
           // bloom; it just stops being the only thing the frame has.
-          float near = mix(1.9, 0.85, uNear);
+          // 1.2 keeps the core bright without saturating, so the whole
+          // seam reads as one continuous hairline.
+          float near = mix(1.2, 0.85, uNear);
           outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail, 1.0);
         }`,
       uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 }, uNear: { value: 0 } },
       side: THREE.DoubleSide,
-      depthWrite: false
+      // THIS ONE FLAG WAS THE "LIT ONLY HALFWAY".
+      //
+      // The blade is opaque - alpha 1.0, no blending - but it was set
+      // not to write depth, so it painted colour into the framebuffer
+      // without ever claiming those pixels. Through the open slit there
+      // is no stone to write depth either, so the buffer stayed at the
+      // clear value and ANY geometry drawn afterwards passed the test
+      // and overwrote the light.
+      //
+      // Above the horizon the slit opens onto sky, nothing is drawn
+      // after it, and the blade survives at full strength. Below the
+      // horizon the slit opens onto the plain, the terrain draws later
+      // and paints straight over it. That put a hard edge across the
+      // seam at exactly the horizon line - and the horizon moves with
+      // the camera, which is precisely why the cut-off slid up and down
+      // the spire on every camera move.
+      //
+      // Ruled out along the way, so none of it gets retried: not length
+      // (184 tall spans the whole slit), not intensity (1.9 to 1.2 left
+      // the ratio identical), not occlusion (depthTest off changed
+      // nothing at all), and not width (a 14-unit plane widened the lit
+      // part above the line and moved the line not one pixel).
+      depthWrite: true
     });
     {
-      const fis = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 150), this.fissureMat);
-      fis.position.set(0, 78, -7.0);
+      // 184 tall at y=90 covers the whole slit top to bottom, and
+      // z=-2.2 keeps the plane inside the slot: the prongs are
+      // 17*(1-0.9t) deep, so the shallowest point the plane reaches is
+      // still 2.7 deep and no thickness can ever stand in front of it.
+      //
+      // 14 wide, against a slit that is 10 across at its widest. The
+      // plane must always be wider than the hole - see the shader - or
+      // the light reads as a solid bar high up and a thread at the
+      // foot. The overspill is buried in stone at every height: the
+      // prongs run from the cut plane out to 31*(1-0.9t), which is
+      // never less than 5 units of cover on each side.
+      const fis = new THREE.Mesh(new THREE.PlaneGeometry(14, 184), this.fissureMat);
+      fis.position.set(0, 90, -2.2);
       fis.frustumCulled = false;
       this.scene.add(fis);
     }
@@ -1245,14 +1308,30 @@ export class JourneyRenderer {
           uniform float uDecay;
           out vec4 outColor;
           void main() {
-            // a plume: wide and soft at the foot, narrowing as it rises,
-            // never a hard shape
+            // a plume: soft at the foot, narrowing as it rises, never a
+            // hard shape - and never wider than the cut it belongs to.
+            //
+            // THIS WAS THE "LIT ONLY HALFWAY". The seam was colour-coded
+            // bottom-red / top-green and sampled down the frame. Above
+            // screen y=740 the readings varied red-to-green, which is the
+            // fissure plane itself. Below y=760 red and green came back
+            // EQUAL - flat grey, not this gradient at all. What sat there
+            // was THIS sheet: on a 46-unit plane, 0.10 + 0.34*rise made it
+            // up to twenty units across against the fissure's 4.6, so it
+            // spilled well outside the slit and laid a soft grey band down
+            // the lower monument. The eye read one light that went dim at
+            // a fixed height, and it appeared to move with the camera
+            // because the crossover depends on the viewing angle. Neither
+            // a length problem nor an occlusion problem, which is why a
+            // taller plane and a forward move both failed to shift it.
+            //
+            // Air beside the cut, never a stand-in for it.
             float rise = vH.y;
-            float w = 0.10 + 0.34 * rise;
+            float w = 0.035 + 0.055 * rise;
             float across = smoothstep(w, 0.0, abs(vH.x - 0.5));
-            float fade = smoothstep(0.0, 0.06, rise) * smoothstep(1.0, 0.42, rise);
+            float fade = smoothstep(0.0, 0.05, rise) * smoothstep(1.0, 0.30, rise);
             vec3 tint = mix(vec3(1.0, 0.99, 0.97), vec3(0.80, 0.88, 1.0), uSeverity);
-            outColor = vec4(tint * across * fade * 0.16 * (1.0 - uDecay * 0.6), 1.0);
+            outColor = vec4(tint * across * fade * 0.075 * (1.0 - uDecay * 0.6), 1.0);
           }`,
         uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 } },
         blending: THREE.AdditiveBlending,

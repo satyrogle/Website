@@ -30,8 +30,8 @@ OUT_GLB = os.path.join(ROOT, "public", "models", "choir.glb")
 # response are now the same event. And the visitor meets the alignment
 # twice, once at the start understanding nothing, once at the end
 # understanding what they are looking at.
-CAM_W = (0.0, 14.0, 300.0)
-LOOK_W = (0.0, 96.0, 0.0)
+CAM_W = (0.0, 95.0, 620.0)
+LOOK_W = (0.0, 117.0, 0.0)
 
 
 def w2b(p):

@@ -135,6 +135,7 @@ body.no-webgl main { pointer-events: auto; }
 }
 
 .display {
+  text-shadow: 0 2px 26px rgba(2, 3, 4, 0.55);
   font-family: var(--sans);
   font-stretch: 76%;
   font-weight: 590;
@@ -167,6 +168,7 @@ body.no-webgl main { pointer-events: auto; }
 }
 
 .lede {
+  text-shadow: 0 1px 18px rgba(2, 3, 4, 0.6);
   font-size: 1.25rem;
   font-weight: 420;
   line-height: 1.5;
@@ -249,12 +251,8 @@ body.no-webgl main { pointer-events: auto; }
      opaque bar across the top of the sky. The nav is bone white on a
      dark world; it does not need that much, and the sky is the thing
      being hidden. Lighter and falling away immediately. */
-  background: linear-gradient(
-    to bottom,
-    rgba(2, 3, 4, 0.6) 0%,
-    rgba(2, 3, 4, 0.26) 46%,
-    transparent 100%
-  );
+  /* likewise: the nav is bone white against a sky measuring about
+     (7,12,22). It never needed a band behind it. */
 }
 
 .wordmark {
@@ -353,24 +351,14 @@ html.js [data-reveal].is-visible .stop-head .rule {
      Now it is weighted to the left, where every word actually sits,
      and clears well before the monument. The bottom lift is a third
      of what it was and dies at 34%. */
-  background:
-    linear-gradient(
-      to right,
-      rgba(2, 3, 4, 0.76) 0%,
-      rgba(2, 3, 4, 0.42) 24%,
-      transparent 50%
-    ),
-    linear-gradient(to top, rgba(2, 3, 4, 0.5) 0%, transparent 34%);
+  /* NO DARK CANVAS. Every version of this scrim - full width at 0.82,
+     left-weighted, and later a bottom-left radial - laid a visible dark
+     veil over the lower frame, and one version got mistaken for a
+     shadow in the RENDER for an hour of debugging. The copy is bone
+     white on a near-black world. Legibility comes from a text-shadow on
+     the type itself now, which costs no frame area at all. */
 }
 
-.hero-rule {
-  grid-column: 1 / 13;
-  display: flex;
-  align-items: baseline;
-  gap: 1.25rem;
-  margin-bottom: 2.5rem;
-}
-.hero-rule .rule { flex: 1; height: 1px; background: var(--bone-16); }
 
 /* Measured at 2270px: "Everything here" ran to x=1017 and the Spire's
    left prong starts at x=916, so the headline sat 101px inside the
@@ -397,13 +385,6 @@ html.js [data-reveal].is-visible .stop-head .rule {
   grid-column: 1 / 6;
 }
 
-.hero-side {
-  grid-column: 8 / 13;
-  align-self: end;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
 
 .fieldnote {
   font-family: var(--mono);
@@ -415,13 +396,6 @@ html.js [data-reveal].is-visible .stop-head .rule {
   max-width: 26rem;
 }
 
-.scrollcue {
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.42em;
-  text-transform: uppercase;
-  color: var(--bone-38);
-}
 
 /* ---------- the rule stop: the turn ---------- */
 
@@ -735,7 +709,6 @@ html.bare .chip { visibility: hidden; }
   .stop__inner { grid-column: 1 / 10; }
   .stop--right .stop__inner { grid-column: 4 / 13; }
   .hero-copy { grid-column: 1 / 8; }
-  .hero-side { grid-column: 8 / 13; }
   .telemetry { display: none; }
   .site-head { grid-template-columns: auto 1fr; }
   .site-nav { justify-content: end; }
@@ -753,8 +726,7 @@ html.bare .chip { visibility: hidden; }
   .stop--turn .stop__inner { grid-column: 1; }
 
   .stop--hero { padding-bottom: 12vh; }
-  .stop--hero h1, .hero-rule, .hero-copy, .hero-side { grid-column: 1; }
-  .hero-side { margin-top: 1.5rem; }
+  .stop--hero h1, .hero-copy { grid-column: 1; }
 
   .site-head {
     grid-template-columns: 1fr;

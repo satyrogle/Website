@@ -37,8 +37,23 @@ function cleftKey(y: number, d: number): [number, number, number] {
  */
 const KEYS: PathKey[] = [
   // ENTER: the approved opening frame, held
-  { p: 0.0, pos: [0, 14, 300], look: [0, 96, 0], fov: 40, sev: 0.0 },
-  { p: 0.045, pos: [3, 14, 288], look: [0, 95, 0], fov: 40, sev: 0.0 },
+  // THE PROCESSIONAL VIEW, solved against Jacob's reference frame
+  // 2026-08-21. That image gives the ground ~45 percent of the frame
+  // and reads the hero as a distant tower at ~44 percent of frame
+  // height. At (0,14,300) the eye pitched up 15.3 degrees and the
+  // ground got TWELVE percent - which is why every trench, section and
+  // reflection built into it was invisible.
+  //
+  // (0,95,620) looking at y=117 pitches up 2 degrees: horizon at 55
+  // percent, ground 45 percent, hero spanning 17.9 of the 40 degree
+  // field with 12.9 degrees of clearance above the crown. The hero is
+  // deliberately SMALLER than it was - that is what the reference does,
+  // and it is what lets the domain carry the frame.
+  //
+  // choir.py computes its alignment plane FROM this pose. Both move
+  // together or the six cuts stop coinciding.
+  { p: 0.0, pos: [0, 95, 620], look: [0, 117, 0], fov: 40, sev: 0.0 },
+  { p: 0.045, pos: [6, 95, 602], look: [0, 116, 0], fov: 40, sev: 0.0 },
   // travel: around the flank, so the wedge reads as depth not as a card
   { p: 0.115, pos: [86, 26, 150], look: [0, 78, 0], fov: 43, sev: 0.03 },
   // SYSTEM: dwell low, the halves towering
