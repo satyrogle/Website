@@ -240,30 +240,70 @@ const FRAG_MAP = `#include <map_fragment>
   // fragment belongs to.
   float az = atan(vMonoW.z, vMonoW.x) * 0.15915494;
 
-  // The band is a HELIX: its phase is azimuth minus height, so a line
-  // of constant phase climbs as it goes round. 2.4 turns over the 195
-  // it stands - few enough that each pass reads separately at this
-  // camera, and a whole number was avoided so the turns do not stack
-  // into a vertical seam.
+  // THE HELIX IS DEAD. Jacob, 2026-08-21: "NOOOO its slant lines on it
+  // use it like a claw tear brush stroke kind of thing now it looks
+  // idiotic". A band of constant phase is a stripe however hard the
+  // phase is warped - warping bends the stripe, it does not stop it
+  // being one, and wrapped round a cone a stripe is a barber pole. Both
+  // turn rates failed the same way for the same reason, which is the
+  // signal that the construction was wrong rather than its numbers.
   //
-  // The phase is warped before the band is taken, or this is a barber
-  // pole: a perfectly regular stripe wrapping a cone is a candy cane,
-  // and it is the same failure as any other nameable repeated element.
-  float phase = az - vMonoW.y * 0.0186 + uTime * 0.0135;
-  phase += 0.055 * monoNoise(vec2(az * 3.0, vMonoW.y * 0.035), 1.0);
-  phase += 0.022 * monoNoise(vec2(az * 9.0, vMonoW.y * 0.11), 6.0);
+  // A CLAW TEAR is not a band. It is a FINITE stroke: it starts, it
+  // runs, it tapers to nothing at both ends, it curves because whatever
+  // dragged it was moving, and it frays because the surface is not
+  // uniform. Claw marks come in sets of parallel gashes of uneven width
+  // and length. That is the whole difference - a band has no ends, and
+  // ends are the only thing that make a mark read as a mark.
+  //
+  // Strokes are placed by CELL rather than by loop over instances: the
+  // surface parameter is diced, each cell may carry one set, and the
+  // nine cells around a fragment are tested so no set is clipped at a
+  // cell edge. az is scaled to 120 units a turn so a stroke has roughly
+  // the same length whichever way it is raked.
+  vec2 P = vec2(az * 120.0, vMonoW.y);
+  vec2 cellI = floor(P / 41.0);
+  float swirl = 0.0;
+  for (int oy = -1; oy <= 1; oy++) {
+    for (int ox = -1; ox <= 1; ox++) {
+      vec2 ci = cellI + vec2(float(ox), float(oy));
+      float h0 = monoHash(vec3(ci, 1.0));
+      if (h0 < 0.34) continue;          // not every cell is torn
+      float h1 = monoHash(vec3(ci, 2.0));
+      float h2 = monoHash(vec3(ci, 3.0));
+      float h3 = monoHash(vec3(ci, 4.0));
+      vec2 c = (ci + vec2(h1, h2)) * 41.0;
+      // raked steeply, never axis aligned: a horizontal tear reads as a
+      // course line and a vertical one as a drip
+      float a = 1.02 + (h3 - 0.5) * 1.45;
+      vec2 dir = vec2(cos(a), sin(a));
+      vec2 nrm = vec2(-dir.y, dir.x);
+      vec2 q = P - c;
+      float al = dot(q, dir);
+      float ac = dot(q, nrm);
+      float len = 20.0 + 32.0 * fract(h1 * 7.3);
+      // the drag curves, because the thing making it was moving
+      ac += (fract(h2 * 11.7) - 0.5) * 1.15 * al * al / len;
+      float t = al / len;
+      if (abs(t) > 1.0) continue;
+      // pointed at both ends, fattest a little past the middle
+      float taper = pow(max(0.0, 1.0 - t * t), 0.7) * (1.0 + 0.35 * t);
+      for (int g = 0; g < 3; g++) {
+        float gh = fract(h3 * (3.7 + float(g) * 5.1) + h0);
+        float off = (float(g) - 1.0) * (2.4 + 2.6 * gh);
+        float w = (0.5 + 1.7 * gh) * taper;
+        if (w < 0.02) continue;
+        // DRY BRUSH. A solid gash is a painted line; a real drag skips,
+        // catches and thins along its run
+        float dry = smoothstep(0.16, 0.60,
+          monoNoise(vec2(al * 0.30, off * 0.7 + gh * 40.0), 8.0));
+        swirl = max(swirl, smoothstep(w, w * 0.12, abs(ac - off)) * dry);
+      }
+    }
+  }
 
-  // distance to the nearest band centre, in turns
-  float band = abs(fract(phase) - 0.5) * 2.0;
-  // the band breathes in width along its own length rather than being
-  // a constant ribbon, so it thins and swells the way something flowing
-  // would
-  float bw = 0.085 + 0.075 * monoNoise(vec2(az * 5.0, vMonoW.y * 0.05), 11.0);
-  float swirl = smoothstep(bw, bw * 0.25, band);
-
-  // it is still coming from the break: brightest where the helix passes
-  // close to the cleft, faintest on the far flank
-  swirl *= 0.35 + 0.65 * exp(-fromFissure * 0.055);
+  // it is still coming from the break: deepest where the tears cross
+  // near the cleft, shallow out on the far flank
+  swirl *= 0.30 + 0.70 * exp(-fromFissure * 0.045);
   // and still heavy, so it gathers toward the foot
   swirl *= 0.55 + 0.45 * (1.0 - smoothstep(0.0, 150.0, vMonoW.y));
 
