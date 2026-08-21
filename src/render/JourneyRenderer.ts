@@ -1524,7 +1524,30 @@ export class JourneyRenderer {
           float d = abs(vUvF.x - 0.5);
           // softness scales with the cut, so the edge stays proportionate
           // instead of swallowing the gap where the slit is thinnest
-          float u = smoothstep(halfW, halfW * 0.72, d);
+          float core = smoothstep(halfW, halfW * 0.72, d);
+
+          // THE SLOT IS LIT TO ITS WALLS. Jacob: "the spires are too
+          // apart you can see a gap after the light beam in the middle".
+          //
+          // The core is a hairline by design, and it is right - but the
+          // SLIT is not a hairline. monument.py cuts it at 5.0 - 3.9t
+          // half-width, so at mid height it is six units across while
+          // the lit core is three. The rest of the slot had nothing in
+          // it, so a strip of black showed either side of the beam and
+          // the two prongs read as standing apart rather than parted.
+          //
+          // Widening the core was already tried and rejected - ten units
+          // of white blows out the base. So the core keeps its width and
+          // a much dimmer FILL carries to the slit walls instead. That
+          // is what a light sitting inside a slot actually does: the
+          // whole slot glows, brightest on the axis. The stone still
+          // crops it, so the prongs decide where it ends.
+          //
+          //   slit half-width 5.04 falling to 1.36 over the plane's
+          //   184 units, plus 15 percent overspill, over 14 units wide
+          float slitW = 0.414 - 0.302 * vUvF.y;
+          float fill = smoothstep(slitW, slitW * 0.80, d);
+          float u = max(core, fill * 0.26);
           // THE GAP AT THE CROWN. Jacob: "there is a gap between two
           // spires". The top fade ran over the last TEN percent of the
           // plane, which is 18 units, so the light died from about
