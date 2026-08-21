@@ -455,11 +455,20 @@ if (gl_FrontFacing) {
   vec3 sig = mix(vec3(1.0, 0.98, 0.94), vec3(0.72, 0.86, 1.0), uSeverity);
   // only fragments ever light, and they are small and hard edged
   totalEmissiveRadiance += sig * vMonoEng * 2.4;
-  float hd = distance(vMonoW, uHover);
-  float camD = distance(cameraPosition, uHover);
-  float sigma = clamp(camD * 0.16, 2.5, 15.0);
-  float lampF = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
-  totalEmissiveRadiance += sig * lampF * 0.16;
+  // NO HOVER LAMP. Jacob: "when you hover cursor over the spire there
+  // is glow as well which is undercutting the sinister part".
+  //
+  // He is right, and the cause is that TWO things answered the pointer
+  // and they were saying opposite things. A soft warm pool under the
+  // cursor is an interaction affordance - it means "you may touch
+  // this", which is welcoming - and the watcher in the cleft means
+  // something is aware of you. Run together, the friendly one wins,
+  // because a glow under your hand is the older and more familiar
+  // signal.
+  //
+  // One input, one response, and it is the predatory one. The press
+  // still works and still writes to the ledger; it simply no longer
+  // announces itself in advance.
   if (uInnerAmt > 0.001) {
     vec3 iv = uInner - vMonoW;
     totalEmissiveRadiance += vec3(0.45, 0.5, 0.6) * (uInnerAmt / (1.0 + dot(iv, iv) * 0.02));
@@ -706,17 +715,10 @@ const CLAD_FRAG = /* glsl */ `
       col *= 1.0 - eng * 0.24;
       // the visitor's lamp: where you point, the records wake. Warm
       // light early; the same touch turns cold as the truth arrives.
-      float hd = distance(vWorld, uHover);
-      // the pool of attention stays hand-sized on screen: its reach
-      // shrinks as the camera closes
-      float camD = distance(cameraPosition, uHover);
-      float sigma = clamp(camD * 0.16, 2.5, 15.0);
-      float lamp = exp(-hd * hd / (2.0 * sigma * sigma)) * uHoverAmt;
-      float breathe = 1.0 - (1.0 - uCalm) * 0.08 * (0.5 + 0.5 * sin(uTime * 1.1));
-      vec3 lampCol = mix(vec3(1.0, 0.88, 0.68), vec3(0.5, 0.78, 1.0), uSeverity);
-      // the stone itself takes the colour of the attention it is given
-      col = mix(col, col * lampCol * 1.3, lamp * 0.45);
-      col += lampCol * eng * lamp * breathe * 0.7 * mix(1.0, 0.5, vDying);
+      // the hover lamp is gone here too - see the note in
+      // FRAG_EMISSIVE. It was the warmest thing in the frame, at
+      // (1.0, 0.88, 0.68), which is exactly why it read as an
+      // invitation.
     }
     // the traveller's light, inside the wall
     if (uInnerAmt > 0.001) {
@@ -1574,7 +1576,13 @@ export class JourneyRenderer {
           // bloom; it just stops being the only thing the frame has.
           // 1.2 keeps the core bright without saturating, so the whole
           // seam reads as one continuous hairline.
-          float near = mix(1.2, 0.85, uNear);
+          // 1.2 clips the core to white down the entire length of the
+          // blade. On an OLED that is not "bright", it is a strip of
+          // full-output pixels in a frame that is otherwise near-black,
+          // and it hurts to look at. It also costs the watcher its
+          // effect, because a saturated pixel cannot get brighter where
+          // the attention lands.
+          float near = mix(0.68, 0.55, uNear);
           // ---- THE WATCHER ----
           // Jacob asked for "an eye or something sinister looking from
           // the middle of the light crack" that follows the cursor.
