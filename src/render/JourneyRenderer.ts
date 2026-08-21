@@ -279,8 +279,29 @@ const FRAG_MAP = `#include <map_fragment>
   float cPit = smoothstep(0.02, -0.16, cf);
   // pits open up at the core of the band and close to nothing at its
   // edge, so the band ends in fine veins rather than stopping
+  float cWebRaw = cWeb;
   cPit *= smoothstep(0.18, 0.78, band);
   cWeb *= smoothstep(0.02, 0.34, band);
+
+  // THE CRACKS, spreading past the band into intact stone. The band has
+  // to fray outward or it reads as a decal with a boundary, which is
+  // what Jacob's sheets never do: theirs sends fine veins running well
+  // clear of the corroded mass. The same web field carries them, so
+  // they are continuous with it and cannot look bolted on - but out
+  // here only the STRONGEST veins survive, and they break along their
+  // length so the network thins to isolated hairlines rather than
+  // fading uniformly.
+  // Reach and selectivity both matter. At 3.1x the half width the halo
+  // covered a hundred and fifty units and the cracks became a second
+  // TEXTURE over most of the blade - the intact stone disappeared,
+  // which defeats the point of the band being an event. 1.9x, and only
+  // the top quarter of the web survives out here, gated again by a
+  // slow field so the veins arrive in runs rather than evenly.
+  float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.9, abs(cAcross));
+  halo *= step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
+  float cCrack = smoothstep(0.76, 0.99, cWebRaw)
+               * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
+               * halo * (1.0 - band * 0.85);
 
   // THE STONE IS EATEN, not painted. The pits are voids and the cWeb is
   // what is left standing between them - so this is a DARKENING with a
@@ -307,22 +328,38 @@ const FRAG_MAP = `#include <map_fragment>
 
   // the runs: fine vertical streaks descending out of the band, where
   // it has wept down the face. Broken, because a dried run is dotted
-  float cLane = monoHash(vec3(floor(CP.x * 3.1), 21.0, sideS));
-  float cBelow = max(0.0, 96.0 - CP.y);
-  float cRunLen = 12.0 + 66.0 * fract(cLane * 5.3);
-  float cSrc = 0.0;
-  cSrc = max(cSrc, 1.0 - smoothstep(cHalf * 0.4, cHalf, abs(cAcross + 16.0)));
-  cSrc = max(cSrc, 1.0 - smoothstep(cHalf * 0.4, cHalf, abs(cAcross + 38.0)) * 1.6);
-  float cRun = step(0.42, cLane)
-             * smoothstep(cRunLen, cRunLen * 0.2, cBelow)
-             * step(0.55, monoNoise(vec2(CP.x * 26.0, CP.y * 0.9)))
-             * cSrc * step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
-  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.9 + 0.8 * graze);
-  diffuseColor.rgb += vec3(0.030, 0.033, 0.038) * cRun;
+  // THE WEEPING. Sourced from the band ABOVE this fragment, so a run
+  // can only exist under something that could have produced it. The
+  // band is linear in height - cAcross carries 0.868 per unit of y - so
+  // the mask above is just an offset, no re-evaluation and no second
+  // field. Four samples with a decaying weight give the reach.
+  float cWeep = 0.0;
+  for (int i = 1; i <= 4; i++) {
+    float a2 = cAcross + 0.868 * float(i) * 15.0;
+    cWeep = max(cWeep, (1.0 - smoothstep(cHalf * 0.22, cHalf, abs(a2)))
+                       * (1.0 - float(i) * 0.17));
+  }
+  // strictly BELOW the band, never inside it
+  cWeep *= smoothstep(-cHalf * 0.15, -cHalf * 0.95, cAcross);
+  // narrow threads with their own lengths, broken along the run because
+  // a dried weep is dotted rather than continuous
+  float cLane = monoHash(vec3(floor(cS * 52.0), 21.0, sideS));
+  float cRunLen = 16.0 + 78.0 * fract(cLane * 5.3);
+  float cDrop = max(0.0, -(cAcross + cHalf) / 0.868);
+  float cRun = step(0.38, cLane)
+             * step(0.40, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
+             * smoothstep(cRunLen, cRunLen * 0.18, cDrop)
+             * cWeep * step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
+  diffuseColor.rgb += diffuseColor.rgb * cRun * (1.5 + 0.9 * graze);
+  diffuseColor.rgb += vec3(0.052, 0.057, 0.066) * cRun;
+
+  // the cracks are thin bright residue too, and fainter than the band
+  diffuseColor.rgb += diffuseColor.rgb * cCrack * (1.2 + 0.8 * graze);
+  diffuseColor.rgb += vec3(0.040, 0.044, 0.051) * cCrack;
 
   // roughness follows the damage: the pits are matte voids, the cWeb is
   // a hard remaining edge
-  vMonoRough = clamp(vMonoRough + cPit * 0.30 - cWeb * band * 0.22, 0.08, 0.96);
+  vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.5) * 0.22, 0.08, 0.96);
 
   // NOTHING EMITS. Sparse bright points were tried here and they are
   // the eczema again by another name: isolated dots on a surface read
