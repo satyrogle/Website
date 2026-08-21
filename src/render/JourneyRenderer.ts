@@ -280,21 +280,27 @@ const FRAG_MAP = `#include <map_fragment>
   float cAcross = -BP.x * CSA + BP.y * CCA - 60.0;
   float cAlong  =  BP.x * CCA + BP.y * CSA;
 
-  // THE CUT IS A DIAGONAL, PARALLEL TO THE BAND ITSELF. Jacob: "i just
-  // didnt wanted any shader after the diagonal line so it looks
-  // coherent".
+  // THE LOWER BOUNDARY DISSOLVES; IT IS NOT CUT. Jacob: "its in a
+  // straight line no matter you added the weeping ... can you make it
+  // zig zag like top part of rot", then chose dissolving over jagged.
   //
-  // That is the whole thing, and both earlier attempts missed it by
-  // treating the mark as a REGION to bound - a strip, then a rectangle
-  // at the foot - which needed a height and a width guessed from a
-  // screenshot, twice, wrongly. It is not a region. It is an EDGE: the
-  // corrosion stops along one straight line and there is bare stone
-  // below it.
+  // step() on a constant value of the band's own axis is a
+  // mathematically perfect diagonal, so the edge read as drawn however
+  // much weeping hung below it - the runs broke the silhouette, they
+  // could not break the LINE. And the top of the rot was never like
+  // that: its edge is irregular because three things vary along it -
+  // the centreline wanders, the half width breathes, and a clustering
+  // field eats into it. The bottom had none of that, because it was one
+  // number.
   //
-  // cAcross is already the band's own axis, so a constant value of it
-  // is a line parallel to the band. Coherent by construction rather
-  // than by tuning, and it needs no bounds at all.
-  float cCut = step(-30.0, cAcross);
+  // So the same mechanism now works the bottom. A soft ramp replaces
+  // the step, and a clustering field breaks it into patches - weighted
+  // so it only bites NEAR the boundary and leaves the body of the band
+  // solid. The result has no line anywhere: the rot thins into stone.
+  float cSoft = smoothstep(-70.0, -20.0, cAcross);
+  float cBreak = smoothstep(0.26, 0.70,
+    monoFbm(vec2(cAlong * 0.050, cAcross * 0.070 + 61.0)));
+  float cCut = cSoft * mix(cBreak, 1.0, cSoft * cSoft);
 
   // THE CROWN STAYS CLEAN. Jacob: "dim the static on the top". Up there
   // the band and its cracks thin out into scattered grain, and
