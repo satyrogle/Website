@@ -26,7 +26,22 @@ uniform float uSignal;
 uniform float uAlign;
 float vMonoEng;
 float vMonoRough = 0.9;
-float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
+float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+// Smooth value noise on the same hash. The corruption's front was first
+// built from monoHash(floor(...)) directly, which is a grid of constant
+// cells: it drew the spreading edge as a staircase of axis-aligned
+// RECTANGLES down the base. Nameable repeated element, so nameable that
+// it read as brickwork. Interpolating the cells is the whole fix.
+float monoNoise(vec2 p, float k) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = monoHash(vec3(i, k));
+  float b = monoHash(vec3(i + vec2(1.0, 0.0), k));
+  float c = monoHash(vec3(i + vec2(0.0, 1.0), k));
+  float d = monoHash(vec3(i + vec2(1.0, 1.0), k));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}`;
 
 const FRAG_MAP = `#include <map_fragment>
 {
@@ -183,20 +198,83 @@ const FRAG_MAP = `#include <map_fragment>
     diffuseColor.rgb *= mix(1.0, mix(gt, 0.8, uCalm), dying);
   }
 
-  // ---- PROXIMITY / SIGNAL ----
-  // Activity is a function of distance from the fissure. The wave of
-  // roughness travels first; light follows it, and only ever in
-  // fragments, never a whole glyph
-  float prox = exp(-fromFissure * 0.22);
-  float wavePhase = vMonoW.y * 0.055 - uTime * 0.42 - uSignal * 2.4;
-  float wave = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(wavePhase));
-  vMonoRough = clamp(vMonoRough - wave * prox * 0.16, 0.05, 0.95);
+  // ---- THE CORRUPTION ----
+  // Jacob, 2026-08-21: the light in the cleft IS the decay - "although
+  // it is evil it is holy to me dark holy" - and the base "should be
+  // excreting corruption decay", where instead it "feels like it has
+  // eczema".
+  //
+  // The eczema was literal. Emission was gated by a hash that lit about
+  // five percent of cells at random, so the skin carried isolated
+  // bright specks scattered across it with no source and no direction.
+  // Random dots on a surface IS a skin condition - that is the whole
+  // read, and it is the visible-primitives law again: the eye named the
+  // repeated element, so the element had failed.
+  //
+  // Corruption has an origin, a direction and a front. This comes OUT
+  // of the fissure, so it is strongest where the stone is already
+  // broken. It runs DOWN, because it is heavy. And it reaches furthest
+  // at the foot, where it has been collecting for however long this has
+  // been happening. The front is warped at two scales so it is never a
+  // clean falloff - a smooth radius around the cleft reads as a lamp
+  // sitting behind the stone, which is the opposite of something
+  // escaping through it.
+  // Reach is deliberately SHORT. The first pass ran the front to 25
+  // units at the foot against a face only 31 wide, so the corruption
+  // took the whole lower monument and the base went to flat white with
+  // the engraving fully lit inside it - a circuit board, not a
+  // discharge. What sells this is a narrow, ragged, ACTIVE margin
+  // against a lot of intact dark stone.
+  float heavy = 1.0 - smoothstep(0.0, 110.0, vMonoW.y);
+  float front = 1.0 + 4.6 * heavy * heavy
+              + 3.4 * monoNoise(vec2(ang * 5.0, vMonoW.y * 0.055), sideS)
+              + 1.6 * monoNoise(vec2(ang * 13.0, vMonoW.y * 0.16), sideS + 5.0);
+  float bleed = smoothstep(front, front * 0.30, fromFissure);
 
-  float frag = step(0.945, monoHash(vec3(floor(ang * 26.0), floor(vMonoW.y * 2.2), sideS)));
-  float lit = glyph * frag * wave * prox;
+  // it seeps ALONG the engraving, because the grooves are where the
+  // stone is already open. Continuous runs down a lane, never dots -
+  // but mostly a wash, with the script only catching inside it. Letting
+  // glyph carry it turned the margin into legible text
+  float seep = bleed * (0.30 + 0.70 * glyph);
+
+  // and the foot is wet with it. This is the excretion: not a glow
+  // added at the bottom, but the same light having run all the way down
+  // and having nowhere left to go.
+  //
+  // DISCRETE RIVULETS, because every soft version of this failed the
+  // same way. A smoothstep falloff has no edge, so low on the face it
+  // came out as a soft ellipse either side of the cleft: two headlights,
+  // a blob by the project's own name for it, twice. Material that has
+  // RUN has a width, a hard side, and a height where it stopped.
+  //
+  // Each lane is its own rivulet: about half run at all, each with its
+  // own width and its own reach, and they exist only near the break
+  // they came out of.
+  float lane = ang * 34.0;
+  float lh = monoHash(vec3(floor(lane), sideS, 3.0));
+  float rHalf = 0.10 + 0.28 * fract(lh * 7.0);
+  float rStop = 3.0 + 24.0 * fract(lh * 13.0);
+  float excrete = step(0.55, lh)
+                * smoothstep(rHalf, rHalf * 0.5, abs(fract(lane) - 0.5))
+                * smoothstep(rStop, rStop * 0.3, vMonoW.y)
+                * smoothstep(front * 2.4, 0.0, fromFissure);
+  // and the line where it reaches the plain and stops being the
+  // monument's problem
+  excrete = max(excrete, smoothstep(2.6, 0.0, vMonoW.y)
+                       * smoothstep(front * 2.0, 0.0, fromFissure) * 0.9);
+
+  // the old wave GATED the light on and off, which is what let single
+  // cells blink independently. It only modulates now, gently, so the
+  // discharge breathes instead of flickering - and stays inside the
+  // temporal-calm ceiling the harness enforces
+  float wavePhase = vMonoW.y * 0.055 - uTime * 0.42 - uSignal * 2.4;
+  float wave = 0.74 + 0.26 * sin(wavePhase);
+  vMonoRough = clamp(vMonoRough - bleed * 0.22, 0.05, 0.95);
+
+  float lit = seep * wave * 0.22 + excrete * 0.60;
   // cross-gap alignment: when the eye is square to the fissure, the
   // two faces momentarily agree
-  lit *= 1.0 + uAlign * 2.2;
+  lit *= 1.0 + uAlign * 1.2;
   vMonoEng = lit * (1.0 - uCalm * 0.45);
   }
 }`;
@@ -1834,6 +1912,23 @@ ${SKY_LAW}`
     float live = smoothstep(0.46, 0.78, chan);
     float carry = seam * live * uGBite * exp(-r * 0.014);
     diffuseColor.rgb += lit * carry * (0.42 + 0.9 * uGDecay);
+
+    // THE DISCHARGE. What the monument excretes has to arrive somewhere,
+    // or the base is leaking onto a floor that never noticed. The spill
+    // rides the fracture network the contact already opened - it is FED
+    // from the foot, never radiating from it. A clean falloff on the
+    // axis is a ring, a ring here is a radial bloom, and that is on the
+    // banned-construction list, so the reach is gated by the same warped
+    // field the seams come from and arrives in tongues instead.
+    //
+    // Two terms, because a discharge is both: the wet ground right at
+    // the foot where it pools, and the long runs where it has found the
+    // cracks and gone.
+    float tongue = smoothstep(0.30, 0.86, skyFbm(q * 0.62 + 3.1));
+    float pool = exp(-r * 0.055) * (0.55 + 0.45 * tongue);
+    float run = seam * tongue * exp(-r * 0.019);
+    diffuseColor.rgb += lit * (pool * 0.55 + run * 1.25)
+                      * uGBite * (1.0 + 1.2 * uGDecay);
   }
 }`
             )
