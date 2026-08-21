@@ -253,20 +253,33 @@ const FRAG_MAP = `#include <map_fragment>
   // outward is distance from the cut plane over the half width: 0 at
   // the cleft, 1 at the outer edge, monotonic the whole way. It is
   // already computed at the top of this shader for the plate law.
-  float cS = clamp(outward, 0.0, 1.0);
+  // SIGNED, so it crosses BOTH spires as one event. Jacob: "tilt it
+  // horizontally so it is on both of the spires". Unsigned, outward is
+  // 0 at the cleft on each blade and 1 at each outer edge, so a band
+  // built on it comes out MIRRORED - two symmetric marks, which reads
+  // as decoration rather than as something that happened. Multiplying
+  // by sideS runs the coordinate continuously from the left blade's
+  // outer edge, through the cleft, to the right blade's outer edge, so
+  // the band carries across the gap and the texture lines up either
+  // side of it.
+  float cS = sideS * clamp(outward, 0.0, 1.0);
   vec2 CP = vec2(cS * 34.0, vMonoW.y);
   vec2 BP = vec2(cS * 95.0, vMonoW.y);
 
-  // the band: one diagonal, crossing mid-height, edges dissolving
-  const float CCA = 0.868, CSA = 0.497;
-  float cAcross = -BP.x * CSA + BP.y * CCA - 59.0;
+  // the band: one SHALLOW diagonal crossing the whole monument. 0.497
+  // over 0.868 rose 0.57 per unit across, which on a coordinate now
+  // spanning both blades would climb a hundred and ten units and stand
+  // the band on end. 0.287 over 0.958 gives about fifty over the full
+  // width - a tilt, not a climb.
+  const float CCA = 0.958, CSA = 0.287;
+  float cAcross = -BP.x * CSA + BP.y * CCA - 91.0;
   float cAlong  =  BP.x * CCA + BP.y * CSA;
   cAcross += 26.0 * (monoFbm(vec2(cAlong * 0.010, 5.0)) - 0.5);
   float cHalf = 30.0 + 20.0 * monoFbm(vec2(cAlong * 0.014, 11.0));
   float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
   // clustered, so it takes hold in patches rather than filling the band
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
-  band *= step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
+  band *= smoothstep(-12.0, 3.0, vMonoW.z);
 
   // the vesicular field. Warped BEFORE the level set is taken, or the
   // veins inherit the noise's own roundness and come out as bubbles
@@ -298,7 +311,7 @@ const FRAG_MAP = `#include <map_fragment>
   // the top quarter of the web survives out here, gated again by a
   // slow field so the veins arrive in runs rather than evenly.
   float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.9, abs(cAcross));
-  halo *= step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
+  halo *= smoothstep(-12.0, 3.0, vMonoW.z);
   float cCrack = smoothstep(0.76, 0.99, cWebRaw)
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
                * halo * (1.0 - band * 0.85);
@@ -349,7 +362,7 @@ const FRAG_MAP = `#include <map_fragment>
   float cRun = step(0.38, cLane)
              * step(0.40, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.18, cDrop)
-             * cWeep * step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
+             * cWeep * smoothstep(-12.0, 3.0, vMonoW.z);
   diffuseColor.rgb += diffuseColor.rgb * cRun * (1.5 + 0.9 * graze);
   diffuseColor.rgb += vec3(0.052, 0.057, 0.066) * cRun;
 
