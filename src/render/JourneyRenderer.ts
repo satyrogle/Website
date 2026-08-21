@@ -41,6 +41,45 @@ float monoNoise(vec2 p, float k) {
   float c = monoHash(vec3(i + vec2(0.0, 1.0), k));
   float d = monoHash(vec3(i + vec2(1.0, 1.0), k));
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float monoFbm(vec2 p, float k) {
+  float s = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++) {
+    s += a * monoNoise(p, k + float(i) * 3.0);
+    p *= 2.07;
+    a *= 0.5;
+  }
+  return s / 0.875;
+}
+/**
+ * THE SWATHE. One broad diagonal band of infection crossing the body,
+ * built as a FIELD rather than as stroke instances.
+ *
+ * Jacob's reference sheets show one dominant diagonal event per face
+ * rather than a set of separate marks, and its edges do not taper -
+ * they thin into cloud and speckle. So: a centreline that wanders, a
+ * width that breathes, and fbm eating the whole thing so it knots where
+ * it has taken hold and dissolves where it has not.
+ */
+float swatheAt(vec2 P) {
+  const float CA = 0.855;   // about 31 degrees off horizontal
+  const float SA = 0.518;
+  float across = -P.x * SA + P.y * CA;
+  float along  =  P.x * CA + P.y * SA;
+  // The band's centreline crosses at MID-HEIGHT. Without this offset
+  // across=0 lands at y=0, so the swathe sat on the foot and ran off
+  // the bottom of the model: only its upper edge was ever visible and
+  // it read as the lower third being encrusted rather than as a band
+  // crossing the body. A band needs both its edges in frame.
+  across -= 81.0;
+  // the centreline wanders, so it is never a ruled diagonal
+  across += 17.0 * (monoFbm(vec2(along * 0.0085, 4.0), 3.0) - 0.5);
+  float halfW = 16.0 + 12.0 * monoFbm(vec2(along * 0.013, 9.0), 12.0);
+  float band = 1.0 - smoothstep(halfW * 0.30, halfW, abs(across));
+  // knots and voids, with no clean boundary anywhere
+  float mass = monoFbm(vec2(along * 0.055, across * 0.075), 17.0);
+  return clamp(smoothstep(0.30, 0.74, band * 0.72 + mass * 0.55) * band, 0.0, 1.0);
 }`;
 
 const FRAG_MAP = `#include <map_fragment>
@@ -277,66 +316,58 @@ const FRAG_MAP = `#include <map_fragment>
   //   - three strokes at UNEVEN spacing, which suggests a rake without
   //     ever being one.
   //
-  // Placed by CELL rather than by looping over instances: the surface
-  // parameter is diced, each cell may carry one stroke group, and the
-  // nine cells around a fragment are tested so nothing is clipped at a
-  // cell edge. az is scaled to 120 units a turn so a stroke keeps its
-  // proportions whichever way it lies.
+  // REBUILT AGAINST JACOB'S REFERENCE SHEETS, 2026-08-21. Qualities
+  // extracted, never the picture copied:
+  //
+  //   1. ONE broad diagonal swathe per face, not a set of marks. So it
+  //      is a FIELD now, not stroke instances placed in cells. Every
+  //      instanced version read as several separate events because it
+  //      WAS several separate events.
+  //   2. The light is GRANULAR - thousands of individual crystalline
+  //      grains, a crust. Never a wash and never a smooth core. This is
+  //      the single biggest difference from every previous pass, all of
+  //      which lit continuous shapes.
+  //   3. Vertical DRIP TRAILS hang below it, where it has run and dried.
+  //   4. Dense knots, edges dissolving into speckle rather than tapering.
+  //   5. Restrained value: grey-white mineral bloom, not white-hot. The
+  //      crust is mostly bright ALBEDO with only a little emission, so
+  //      it takes the scene's own light like a material instead of
+  //      glowing like a lamp.
   vec2 P = vec2(az * 120.0, vMonoW.y);
-  vec2 cellI = floor(P / 57.0);
-  float swirl = 0.0;   // the infection itself
-  float sick = 0.0;    // discoloured stone around it
-  for (int oy = -1; oy <= 1; oy++) {
-    for (int ox = -1; ox <= 1; ox++) {
-      vec2 ci = cellI + vec2(float(ox), float(oy));
-      float h0 = monoHash(vec3(ci, 1.0));
-      if (h0 < 0.43) continue;
-      float h1 = monoHash(vec3(ci, 2.0));
-      float h2 = monoHash(vec3(ci, 3.0));
-      float h3 = monoHash(vec3(ci, 4.0));
-      vec2 c = (ci + vec2(h1, h2)) * 57.0;
-      // one diagonal, held: variance small enough that the whole body
-      // reads as raked the same way
-      float a = 0.92 + (h3 - 0.5) * 0.44;
-      vec2 dir = vec2(cos(a), sin(a));
-      vec2 nrm = vec2(-dir.y, dir.x);
-      vec2 q = P - c;
-      float al = dot(q, dir);
-      float ac = dot(q, nrm);
-      float len = 30.0 + 40.0 * fract(h1 * 7.3);
-      ac += (fract(h2 * 11.7) - 0.5) * 1.4 * al * al / len;
-      float t = al / len;
-      if (abs(t) > 1.0) continue;
-      // it only fades near the very ends, so the run keeps its
-      // irregularity instead of resolving into a lens shape
-      float ends = smoothstep(1.0, 0.72, abs(t));
-      float spread = 3.0 + 4.2 * fract(h1 * 3.9);
-      for (int g = 0; g < 3; g++) {
-        float gh = fract(h3 * (3.7 + float(g) * 5.1) + h0);
-        // uneven spacing: a rake suggested, never measured out
-        float off = (float(g) - 1.0) * spread * (0.55 + 0.9 * gh);
-        // width wanders along the run: swelling, pinching, never even
-        float w = (0.9 + 2.4 * monoNoise(vec2(al * 0.42, gh * 60.0), 8.0))
-                * (0.5 + 0.9 * gh) * ends;
-        if (w < 0.02) continue;
-        float d = abs(ac - off);
-        // BROKEN: a blotch field eats it into smears, so it spreads
-        // and skips rather than running continuously
-        float blotch = smoothstep(0.30, 0.66,
-          monoNoise(vec2(al * 0.55, (ac - off) * 0.9 + gh * 30.0), 14.0));
-        float body = smoothstep(w, w * 0.15, d) * blotch;
-        // mottled, so there is no clean core to read as a line
-        float mott = 0.38 + 0.62 * monoNoise(
-          vec2(al * 1.9, (ac - off) * 2.3 + gh * 12.0), 21.0);
-        swirl = max(swirl, body * mott);
-        sick = max(sick, smoothstep(w * 3.2, w * 0.6, d) * blotch);
-      }
-    }
-  }
-  // the stone around it is sick, not lifted: a blotchy discolouration,
-  // and it must not darken the infection it surrounds
-  sick = max(0.0, sick - swirl);
-  diffuseColor.rgb *= 1.0 - sick * 0.44;
+  float mass = swatheAt(P);
+
+  // THE GRAIN. A rotated anisotropic lattice, so the cells never line
+  // up with the body's own axes and cannot read as pixels; two
+  // frequencies so there are coarse crystals inside a fine dust.
+  vec2 gp = vec2(P.x * 3.1 + P.y * 1.15, P.y * 3.6 - P.x * 0.85);
+  float g1 = step(0.86, monoHash(vec3(floor(gp), 1.0)));
+  float g2 = step(0.93, monoHash(vec3(floor(gp * 2.7), 2.0)));
+  // denser at the heart of the swathe, scattering to single grains at
+  // its edge, which is what makes the edge dissolve instead of stop
+  float grain = clamp(g1 * smoothstep(0.10, 0.62, mass)
+                    + g2 * smoothstep(0.02, 0.34, mass) * 0.75, 0.0, 1.0);
+  float crust = mass * grain;
+
+  // THE DRIPS. Sampled from the swathe ABOVE this fragment and decayed
+  // downward, so a run can only exist under something that could have
+  // produced it. Narrow lanes, and broken along their length, because
+  // a dried run is dotted rather than continuous.
+  float dripLane = monoHash(vec3(floor(P.x * 2.6), 7.0, 0.0));
+  float run = 0.0;
+  run = max(run, swatheAt(P + vec2(0.0, 11.0)) * 0.55);
+  run = max(run, swatheAt(P + vec2(0.0, 27.0)) * 0.30);
+  float dripGrain = step(0.46, monoHash(vec3(floor(gp * vec2(1.0, 0.55)), 5.0)));
+  run *= step(0.58, dripLane) * dripGrain
+       * smoothstep(0.72, 0.30, mass);   // only BELOW the crust, not in it
+
+  float swirl = crust + run * 0.55;
+  // the stone the swathe sits on is sick: discoloured wherever the
+  // field reaches, including where no grain landed
+  float sick = max(0.0, mass * 1.15 - crust);
+  diffuseColor.rgb *= 1.0 - sick * 0.30;
+  // and the crust is a pale MATERIAL, not only an emitter. This is what
+  // stops it reading as a glow painted over the stone
+  diffuseColor.rgb += vec3(0.055, 0.058, 0.064) * crust * 1.5;
 
   // it is still coming from the break: deepest where the tears cross
   // near the cleft, shallow out on the far flank
@@ -359,7 +390,7 @@ const FRAG_MAP = `#include <map_fragment>
   float wave = 0.74 + 0.26 * sin(wavePhase);
   vMonoRough = clamp(vMonoRough - swirl * 0.22, 0.05, 0.95);
 
-  float lit = seep * wave * 0.42 + excrete * 0.45;
+  float lit = seep * wave * 0.30 + excrete * 0.40;
   // cross-gap alignment: when the eye is square to the fissure, the
   // two faces momentarily agree
   lit *= 1.0 + uAlign * 1.2;
