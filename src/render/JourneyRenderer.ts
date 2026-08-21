@@ -27,59 +27,74 @@ uniform float uAlign;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-// Smooth value noise on the same hash. The corruption's front was first
-// built from monoHash(floor(...)) directly, which is a grid of constant
-// cells: it drew the spreading edge as a staircase of axis-aligned
-// RECTANGLES down the base. Nameable repeated element, so nameable that
-// it read as brickwork. Interpolating the cells is the whole fix.
-float monoNoise(vec2 p, float k) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = monoHash(vec3(i, k));
-  float b = monoHash(vec3(i + vec2(1.0, 0.0), k));
-  float c = monoHash(vec3(i + vec2(0.0, 1.0), k));
-  float d = monoHash(vec3(i + vec2(1.0, 1.0), k));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+
+// ---- DL HERO CORRUPTION, from Jacob's implementation kit, 2026-08-21.
+// Verbatim from DL_corruption_threejs.glsl. The kit is the source of
+// truth and says so: "Do not reinterpret the concept from reference
+// art." Spec and original in docs/. This is SURFACE REWRITING, not
+// geometry damage - the silhouette must be identical with it on or off.
+float dlHash2(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
-float monoFbm(vec2 p, float k) {
-  float s = 0.0;
-  float a = 0.5;
-  for (int i = 0; i < 3; i++) {
-    s += a * monoNoise(p, k + float(i) * 3.0);
-    p *= 2.07;
-    a *= 0.5;
-  }
-  return s / 0.875;
+
+float dlNoise2(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f*f*(3.0-2.0*f);
+    float a = dlHash2(i);
+    float b = dlHash2(i + vec2(1.0,0.0));
+    float c = dlHash2(i + vec2(0.0,1.0));
+    float d = dlHash2(i + vec2(1.0,1.0));
+    return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
 }
-/**
- * THE SWATHE. One broad diagonal band of infection crossing the body,
- * built as a FIELD rather than as stroke instances.
- *
- * Jacob's reference sheets show one dominant diagonal event per face
- * rather than a set of separate marks, and its edges do not taper -
- * they thin into cloud and speckle. So: a centreline that wanders, a
- * width that breathes, and fbm eating the whole thing so it knots where
- * it has taken hold and dissolves where it has not.
- */
-float swatheAt(vec2 P) {
-  const float CA = 0.855;   // about 31 degrees off horizontal
-  const float SA = 0.518;
-  float across = -P.x * SA + P.y * CA;
-  float along  =  P.x * CA + P.y * SA;
-  // The band's centreline crosses at MID-HEIGHT. Without this offset
-  // across=0 lands at y=0, so the swathe sat on the foot and ran off
-  // the bottom of the model: only its upper edge was ever visible and
-  // it read as the lower third being encrusted rather than as a band
-  // crossing the body. A band needs both its edges in frame.
-  across -= 81.0;
-  // the centreline wanders, so it is never a ruled diagonal
-  across += 17.0 * (monoFbm(vec2(along * 0.0085, 4.0), 3.0) - 0.5);
-  float halfW = 16.0 + 12.0 * monoFbm(vec2(along * 0.013, 9.0), 12.0);
-  float band = 1.0 - smoothstep(halfW * 0.30, halfW, abs(across));
-  // knots and voids, with no clean boundary anywhere
-  float mass = monoFbm(vec2(along * 0.055, across * 0.075), 17.0);
-  return clamp(smoothstep(0.30, 0.74, band * 0.72 + mass * 0.55) * band, 0.0, 1.0);
+
+struct DLCorruption {
+    float mask;
+    float claw;
+    float disease;
+    float particle;
+};
+
+DLCorruption dlCorruption(vec3 wp, float ang, float sideS) {
+    float h = clamp(wp.y / 195.0, 0.0, 1.0);
+    float s = clamp(ang / 3.0 + 0.5, 0.0, 1.0);
+    // ONE privileged face only.
+    float faceGate = step(0.0, sideS);
+    // Diagonal brush path: lower-left to upper-right.
+    float center = 0.79 - 0.58 * s;
+    float nA = dlNoise2(vec2(s*5.0, h*7.0));
+    float nB = dlNoise2(vec2(s*22.0 + 8.0, h*31.0 - 3.0));
+    float wobble = (nA-0.5)*0.065 + (nB-0.5)*0.020;
+    float taper = smoothstep(0.03,0.14,s) * (1.0-smoothstep(0.86,0.98,s));
+    float width = (0.073 + (nA-0.5)*0.032) * taper;
+    float d = abs(h - center + wobble);
+    float broad = 1.0 - smoothstep(max(width*0.70,0.004), max(width,0.010), d);
+    // Disease breakup: clustered, uneven, never a clean painted stripe.
+    float cell = dlNoise2(vec2(s*46.0, h*57.0));
+    float disease = smoothstep(0.49,0.72, cell + (nB-0.5)*0.24) * broad;
+    // Four implied claw currents, fragmented and partly swallowed.
+    float claw = 0.0;
+    const float offs[4] = float[4](-0.040, -0.012, 0.020, 0.051);
+    const float widths[4] = float[4](0.010, 0.007, 0.012, 0.008);
+    for (int i=0; i<4; i++) {
+        float br = dlNoise2(vec2(s*(70.0+float(i)*9.0), h*(83.0+float(i)*13.0)));
+        float ld = abs((h-center) - offs[i] + (nA-0.5)*0.018 + (br-0.5)*0.010);
+        float lane = 1.0 - smoothstep(widths[i]*0.55, widths[i]*1.60, ld);
+        lane *= smoothstep(0.43,0.64,br);
+        claw = max(claw, lane);
+    }
+    claw *= broad;
+    float mask = clamp(broad*0.72 + claw*0.55 + disease*0.35, 0.0, 1.0);
+    // Matrix-particle memory: sparse quantized events, never a glowing slash.
+    vec2 q = floor(vec2(s*380.0, h*520.0));
+    float ph = dlHash2(q);
+    float particle = step(0.982 + (1.0-claw)*0.012, ph) * mask;
+    DLCorruption o;
+    o.mask = mask * faceGate;
+    o.claw = claw * faceGate;
+    o.disease = disease * faceGate;
+    o.particle = particle * faceGate;
+    return o;
 }`;
 
 const FRAG_MAP = `#include <map_fragment>
@@ -205,14 +220,6 @@ const FRAG_MAP = `#include <map_fragment>
   // facet boundary, so its derivative finds every edge in the body
   float edge = smoothstep(0.35, 1.6, length(fwidth(vNormal)) * 26.0);
 
-  // NO LAMINATION. It was added on 2026-08-21 for "shader material
-  // sucks too" - vertical splinter lanes, per-lane tone, lip catches
-  // and plate joints - and Jacob's verdict was "it lost its identity".
-  // He was right, and it was THIS, not the swathe: rewriting the base
-  // stone changed what the monument is made of, and the identity is the
-  // clean near-black split spire. The wound may cover it; the material
-  // under the wound may not be replaced. Do not reintroduce it.
-
   // sintered grain: fine, irregular, no periodicity to lock onto, and
   // a slow large scale drift over the top of it
   float micro = monoHash(floor(vec3(ang * 130.0, vMonoW.y * 26.0, sideS)));
@@ -245,184 +252,40 @@ const FRAG_MAP = `#include <map_fragment>
     diffuseColor.rgb *= mix(1.0, mix(gt, 0.8, uCalm), dying);
   }
 
-  // ---- THE CORRUPTION ----
-  // Jacob, 2026-08-21: the light in the cleft IS the decay - "although
-  // it is evil it is holy to me dark holy" - and the base "should be
-  // excreting corruption decay", where instead it "feels like it has
-  // eczema".
-  //
-  // The eczema was literal. Emission was gated by a hash that lit about
-  // five percent of cells at random, so the skin carried isolated
-  // bright specks scattered across it with no source and no direction.
-  // Random dots on a surface IS a skin condition - that is the whole
-  // read, and it is the visible-primitives law again: the eye named the
-  // repeated element, so the element had failed.
-  //
-  // Corruption has an origin, a direction and a front. This comes OUT
-  // of the fissure, so it is strongest where the stone is already
-  // broken. It runs DOWN, because it is heavy. And it reaches furthest
-  // at the foot, where it has been collecting for however long this has
-  // been happening. The front is warped at two scales so it is never a
-  // clean falloff - a smooth radius around the cleft reads as a lamp
-  // sitting behind the stone, which is the opposite of something
-  // escaping through it.
-  // ---- THE SWIRL ----
-  // Jacob, 2026-08-21, replacing the vertical construction outright:
-  // "instead of doing the light glow vertically on the hero do a swirl
-  // around the total hero from top to bottom ... so it looks like the
-  // light is swirling around".
-  //
-  // Also gone with it, and he is right: "there are 2 lines in the
-  // bottom on either sides that make it look off". The rivulets were
-  // gated at front*2.4, which at the foot reaches 25 units, so a couple
-  // of them landed far out on the flanks with intact dark stone between
-  // them and the break. Detached from their source they read as two
-  // thin standing lamps, not as discharge.
-  //
-  // A swirl needs an azimuth around the WHOLE body, and ang is not one:
-  // it is a per-face parameter, built from depth and flank, which runs
-  // the same way on both prongs. Two independent bands, one per half,
-  // never a wrap. This is the world azimuth about the vertical axis, so
-  // it is continuous around the whole monument no matter which prong a
-  // fragment belongs to.
-  float az = atan(vMonoW.z, vMonoW.x) * 0.15915494;
-
-  // THE HELIX IS DEAD. Jacob, 2026-08-21: "NOOOO its slant lines on it
-  // use it like a claw tear brush stroke kind of thing now it looks
-  // idiotic". A band of constant phase is a stripe however hard the
-  // phase is warped - warping bends the stripe, it does not stop it
-  // being one, and wrapped round a cone a stripe is a barber pole. Both
-  // turn rates failed the same way for the same reason, which is the
-  // signal that the construction was wrong rather than its numbers.
-  //
-  // NOT A LITERAL TEAR EITHER. Jacob: "not like literal tear bro like
-  // uneven brush stroke that look weird but like a disease on it on
-  // stroke diagonally looks like a wound resembles claw pattern".
-  //
-  // The anatomical version was correct and wrong. Four clean parallel
-  // gashes with lifted lips is a diagram of a claw wound, and reading
-  // as an accurate diagram is its own failure - the eye names it
-  // instantly and it stops being unsettling. What he wants is a DISEASE
-  // that only RESEMBLES a claw rake: the resemblance is a suggestion,
-  // never the subject.
-  //
-  // So every term that made it anatomical is gone. No lip, no clean
-  // taper, no even paw spacing, no inner-claws-bite-deeper. What
-  // replaces them:
-  //   - DIAGONAL and consistent. All strokes rake the same way with
-  //     little variance, so the body reads as having been dragged
-  //     across once rather than scratched at random.
-  //   - UNEVEN width, driven by noise ALONG the run rather than by a
-  //     taper, so it swells and pinches and never resolves into a
-  //     shape. A taper is a designed object; this should look wrong.
-  //   - BROKEN. A patch field eats the stroke into discontinuous
-  //     smears, so it spreads and skips like something growing on the
-  //     surface instead of something cut into it.
-  //   - MOTTLED inside, so there is no clean core to read as a line.
-  //   - a BLOTCHY discolouration rather than a shadowed lip - the
-  //     stone around it is sick, not lifted.
-  //   - three strokes at UNEVEN spacing, which suggests a rake without
-  //     ever being one.
-  //
-  // REBUILT AGAINST JACOB'S REFERENCE SHEETS, 2026-08-21. Qualities
-  // extracted, never the picture copied:
-  //
-  //   1. ONE broad diagonal swathe per face, not a set of marks. So it
-  //      is a FIELD now, not stroke instances placed in cells. Every
-  //      instanced version read as several separate events because it
-  //      WAS several separate events.
-  //   2. The light is GRANULAR - thousands of individual crystalline
-  //      grains, a crust. Never a wash and never a smooth core. This is
-  //      the single biggest difference from every previous pass, all of
-  //      which lit continuous shapes.
-  //   3. Vertical DRIP TRAILS hang below it, where it has run and dried.
-  //   4. Dense knots, edges dissolving into speckle rather than tapering.
-  //   5. Restrained value: grey-white mineral bloom, not white-hot. The
-  //      crust is mostly bright ALBEDO with only a little emission, so
-  //      it takes the scene's own light like a material instead of
-  //      glowing like a lamp.
-  vec2 P = vec2(az * 120.0, vMonoW.y);
-  float mass = swatheAt(P);
-
-  // THE GRAIN. A rotated anisotropic lattice, so the cells never line
-  // up with the body's own axes and cannot read as pixels; two
-  // frequencies so there are coarse crystals inside a fine dust.
-  vec2 gp = vec2(P.x * 3.1 + P.y * 1.15, P.y * 3.6 - P.x * 0.85);
-  // COVERAGE RISES WITH DEPTH. The threshold was a constant 0.86, so
-  // even the heart of the wound was only fourteen percent covered and
-  // the whole thing could never be anything but dust - which is exactly
-  // why it read as a haze rather than as torn matter. The core is now
-  // nearly solid and the threshold climbs outward, so the stroke has a
-  // body and dissolves into scattered grains only at its edge.
-  float cover = smoothstep(0.12, 0.80, mass);
-  float thr = mix(0.95, 0.10, cover);
-  float g1 = step(thr, monoHash(vec3(floor(gp), 1.0)));
-  float g2 = step(mix(0.99, 0.55, cover), monoHash(vec3(floor(gp * 2.7), 2.0)));
-  float grain = clamp(g1 + g2 * 0.7, 0.0, 1.0);
-  float crust = mass * grain;
-
-  // THE BLEED, SUBORDINATE. Jacob, 2026-08-21: "it is single stroke of
-  // flesh wound".
-  //
-  // The previous pass made the runs the subject and let them carry the
-  // whole body, which is why the monument came out looking like falling
-  // code with a haze at the top. In his sheets the STROKE is the
-  // subject: one thick torn band of raw matter with defined edges, and
-  // the runs are a short consequence hanging under it. So the reach
-  // comes back in - three samples to 88 units, not four to 150 - lane
-  // reach is halved, and the weight inverts. Runs below the wound, not
-  // a curtain over the monument.
-  float run = 0.0;
-  run = max(run, swatheAt(P + vec2(0.0, 16.0)) * 0.85);
-  run = max(run, swatheAt(P + vec2(0.0, 42.0)) * 0.55);
-  run = max(run, swatheAt(P + vec2(0.0, 88.0)) * 0.28);
-  float laneI = floor(P.x * 4.2);
-  float dripLane = monoHash(vec3(laneI, 7.0, 0.0));
-  // per-lane reach: some barely leave the wound, some run well below it
-  float laneLen = 14.0 + 74.0 * fract(dripLane * 5.7);
-  float below = max(0.0, 118.0 - P.y);
-  float dripGrain = step(0.52, monoHash(vec3(floor(gp * vec2(1.4, 0.42)), 5.0)));
-  run *= step(0.50, dripLane) * dripGrain
-       * smoothstep(laneLen, laneLen * 0.25, below)
-       * smoothstep(0.62, 0.22, mass);   // below the crust, not inside it
-
-  float swirl = crust * 1.15 + run * 0.42;
-  // the stone the swathe sits on is sick: discoloured wherever the
-  // field reaches, including where no grain landed
-  float sick = max(0.0, mass * 1.15 - crust);
-  diffuseColor.rgb *= 1.0 - sick * 0.30;
-  // the crust is a pale MATERIAL, not only an emitter, which is what
-  // stops it reading as a glow painted over the stone. The stroke is
-  // the subject again, so it carries the weight and the runs do not
-  diffuseColor.rgb += vec3(0.055, 0.058, 0.064) * crust * 2.1;
-  diffuseColor.rgb += vec3(0.050, 0.053, 0.060) * run * 0.7;
-
-  // it is still coming from the break: deepest where the tears cross
-  // near the cleft, shallow out on the far flank
-  swirl *= 0.30 + 0.70 * exp(-fromFissure * 0.045);
-  // and still heavy, so it gathers toward the foot
-  swirl *= 0.55 + 0.45 * (1.0 - smoothstep(0.0, 150.0, vMonoW.y));
-
-  // the engraving catches inside the band and nowhere else
-  float seep = swirl * (0.55 + 0.45 * glyph);
-
-  // where the swirl reaches the plain it has nowhere left to go
-  float excrete = smoothstep(9.0, 0.0, vMonoW.y)
-                * smoothstep(26.0, 0.0, fromFissure) * (0.4 + 0.6 * swirl);
-
-  // the old wave GATED the light on and off, which is what let single
-  // cells blink independently. It only modulates now, gently, so the
-  // discharge breathes instead of flickering - and stays inside the
-  // temporal-calm ceiling the harness enforces
+  // ---- PROXIMITY / SIGNAL ----
+  // Activity is a function of distance from the fissure. The wave of
+  // roughness travels first; light follows it, and only ever in
+  // fragments, never a whole glyph
+  float prox = exp(-fromFissure * 0.22);
   float wavePhase = vMonoW.y * 0.055 - uTime * 0.42 - uSignal * 2.4;
-  float wave = 0.74 + 0.26 * sin(wavePhase);
-  vMonoRough = clamp(vMonoRough - swirl * 0.22, 0.05, 0.95);
+  float wave = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(wavePhase));
+  vMonoRough = clamp(vMonoRough - wave * prox * 0.16, 0.05, 0.95);
 
-  float lit = seep * wave * 0.30 + excrete * 0.40;
-  // cross-gap alignment: when the eye is square to the fissure, the
-  // two faces momentarily agree
-  lit *= 1.0 + uAlign * 1.2;
-  vMonoEng = lit * (1.0 - uCalm * 0.45);
+  // ---- THE CORRUPTION, per the kit's insert block ----
+  // Channel priority is the spec's, and it is the thing every previous
+  // attempt got backwards: roughness 50, normal 25, breakup 15, albedo
+  // 7, emission 3. Mine were built almost entirely in albedo and
+  // emission, which is why they read as paint and glow. A material
+  // state failure lives in how the surface RESPONDS to light, not in
+  // what colour it is - and the spec requires the effect to still read
+  // with emission disabled entirely.
+  //
+  // The eczema goes and does not return: emission gated by a hash
+  // lighting five percent of cells at random is scattered specks with
+  // no source, which is a skin condition rather than a mark.
+  DLCorruption dlc = dlCorruption(vMonoW, ang, sideS);
+
+  float corruptRough = clamp(0.44 + 0.30*dlNoise2(vec2(ang*13.0, vMonoW.y*0.19))
+                             + 0.18*dlc.disease - 0.24*dlc.claw,
+                             0.22, 0.94);
+  vMonoRough = mix(vMonoRough, corruptRough, dlc.mask);
+
+  // Minimal value shift: "surface rewritten", not painted.
+  diffuseColor.rgb *= mix(1.0, 0.78 + 0.30*dlNoise2(vec2(ang*29.0, vMonoW.y*0.41)), dlc.mask);
+  diffuseColor.rgb += vec3(0.022,0.028,0.036) * dlc.disease * 0.45;
+
+  // Tiny cold pinpricks only. No continuous emissive line.
+  vMonoEng = dlc.particle * 0.22 * (1.0 - uCalm * 0.45);
   }
 }`;
 
@@ -2059,23 +1922,6 @@ ${SKY_LAW}`
     float live = smoothstep(0.46, 0.78, chan);
     float carry = seam * live * uGBite * exp(-r * 0.014);
     diffuseColor.rgb += lit * carry * (0.42 + 0.9 * uGDecay);
-
-    // THE DISCHARGE. What the monument excretes has to arrive somewhere,
-    // or the base is leaking onto a floor that never noticed. The spill
-    // rides the fracture network the contact already opened - it is FED
-    // from the foot, never radiating from it. A clean falloff on the
-    // axis is a ring, a ring here is a radial bloom, and that is on the
-    // banned-construction list, so the reach is gated by the same warped
-    // field the seams come from and arrives in tongues instead.
-    //
-    // Two terms, because a discharge is both: the wet ground right at
-    // the foot where it pools, and the long runs where it has found the
-    // cracks and gone.
-    float tongue = smoothstep(0.30, 0.86, skyFbm(q * 0.62 + 3.1));
-    float pool = exp(-r * 0.055) * (0.55 + 0.45 * tongue);
-    float run = seam * tongue * exp(-r * 0.019);
-    diffuseColor.rgb += lit * (pool * 0.55 + run * 1.25)
-                      * uGBite * (1.0 + 1.2 * uGDecay);
   }
 }`
             )

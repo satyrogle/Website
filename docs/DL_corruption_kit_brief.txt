@@ -1,0 +1,21 @@
+Implement the attached Dark Lattice hero corruption system exactly from the supplied assets and spec. Do not reinterpret the concept from reference art.
+
+SOURCE OF TRUTH:
+1. DL_HERO_CORRUPTION_SPEC.md
+2. DL_corruption_mask_4k.png
+3. DL_corruption_claw_memory_4k.png
+4. DL_corruption_roughness_4k.png
+5. DL_corruption_height_4k.png
+6. DL_corruption_emission_4k.png
+7. DL_corruption_threejs.glsl
+
+This is NOT geometry damage. Do not boolean, cut, tear, fracture, gouge, displace the silhouette, or add literal claw scratches.
+
+Implement one diagonal surface-state corruption on one outer Split Spire face. Preserve all existing camera, sky, lid, draw, Choir, fissure, geometry, scroll path, and lighting unless required only to expose the material at close range.
+
+Run three captures:
+- landing: effect should be barely legible;
+- three-quarter/mid journey: diagonal disease band becomes visible;
+- close surface read: broken claw-memory currents and sparse matrix particles become visible.
+
+Do not tune by taste before checking the acceptance criteria in the spec.
