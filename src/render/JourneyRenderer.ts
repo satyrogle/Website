@@ -1238,6 +1238,10 @@ export class JourneyRenderer {
   private pointerNdc: { x: number; y: number } | null = null;
   private hoverAmt = 0;
   private parX = 0;
+  /** the watcher's smoothed aim, and how present it is */
+  private watchX = 0;
+  private watchY = 0;
+  private watchAmt = 0;
   private parY = 0;
   /** the signal the skin carries: driven by the law, not by a clock */
   private signal = 0;
@@ -1489,6 +1493,8 @@ export class JourneyRenderer {
         uniform float uSeverity;
         uniform float uDecay;
         uniform float uNear;
+        uniform vec2 uWatch;
+        uniform float uWatchAmt;
         out vec4 outColor;
         void main() {
           // THE LIGHT FILLS THE SLOT; THE STONE GIVES IT ITS SHAPE.
@@ -1561,9 +1567,52 @@ export class JourneyRenderer {
           // 1.2 keeps the core bright without saturating, so the whole
           // seam reads as one continuous hairline.
           float near = mix(1.2, 0.85, uNear);
-          outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail, 1.0);
+          // ---- THE WATCHER ----
+          // Jacob asked for "an eye or something sinister looking from
+          // the middle of the light crack" that follows the cursor.
+          //
+          // NOT an eye. A lit void framed by two forms IS one, and
+          // eye-of-sauron is a kill word this project has already paid
+          // for - the law is written beside the crown halo. A literal
+          // iris in the cleft is also "a fully obvious monster on first
+          // load", which the reject list names outright.
+          //
+          // So the light WATCHES instead of looking. A concentration
+          // slides along the blade to the pointer's height and the beam
+          // tightens and brightens there, as though the attention of
+          // whatever is behind the slit has moved. No iris, no pupil,
+          // no shape that can be read as a face - the menace is that it
+          // TRACKS, which is behaviour, and behaviour is what this
+          // project is supposed to unsettle with.
+          float watchY = 0.5 + uWatch.y * 0.34;
+          float dy = vUvF.y - watchY;
+          float node = exp(-dy * dy * 260.0);
+          // it narrows where it concentrates: attention, not a lamp
+          float pinch = 1.0 - 0.34 * node * uWatchAmt;
+          u = smoothstep(halfW * pinch, halfW * pinch * 0.72, d);
+          // and the far side of the slot dims as it turns, so the
+          // concentration reads as facing somewhere rather than sitting
+          float turn = 1.0 - 0.30 * uWatchAmt * node * abs(uWatch.x)
+                     * step(0.0, -uWatch.x * (vUvF.x - 0.5));
+          // BRIGHTENING DOES NOTHING HERE. The blade already clips to
+          // white down its whole length, so a concentration that only
+          // adds intensity is invisible - the pixels are saturated
+          // before it starts. It has to work by the beam DIMMING
+          // everywhere it is not attending to. That also reads better:
+          // the light gathering somewhere is attention; the light
+          // getting brighter everywhere is a lamp.
+          float watch = mix(1.0, mix(0.38, 1.25, node), uWatchAmt);
+
+          outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail * watch * turn, 1.0);
         }`,
-      uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 }, uNear: { value: 0 } },
+      uniforms: {
+        uSeverity: { value: 0 },
+        uDecay: { value: 0 },
+        uNear: { value: 0 },
+        // THE WATCHER. x and y in -1..1, smoothed toward the pointer.
+        uWatch: { value: new THREE.Vector2(0, 0) },
+        uWatchAmt: { value: 0 }
+      },
       side: THREE.DoubleSide,
       // Jacob, 2026-08-21: "there is a something in the back of crown
       // making it look weird i think its the light crack silhouette".
@@ -2299,6 +2348,22 @@ ${SKY_LAW}`
       const px = this.pointerNdc ? this.pointerNdc.x : 0;
       const py = this.pointerNdc ? this.pointerNdc.y : 0;
       this.parX += (px - this.parX) * (1 - Math.exp(-dt * 1.6));
+
+      // THE WATCHER follows the pointer, slowly. The lag is the whole
+      // effect: something that snaps to the cursor is a UI widget,
+      // something that takes half a second to come round is paying
+      // attention. It fades out entirely once the visitor is inside the
+      // cleft, where the blade is overhead and there is nothing left to
+      // watch from.
+      const watchK = 1 - Math.exp(-dt * 2.2);
+      this.watchX += (px - this.watchX) * watchK;
+      this.watchY += (py - this.watchY) * watchK;
+      const wantWatch = this.pointerNdc ? 1 : 0;
+      this.watchAmt += (wantWatch - this.watchAmt) * (1 - Math.exp(-dt * 1.1));
+      const fu = this.fissureMat.uniforms;
+      (fu.uWatch!.value as THREE.Vector2).set(this.watchX, this.watchY);
+      fu.uWatchAmt!.value =
+        this.watchAmt * (1 - smooth01(progress, 0.44, 0.56)) * (reduced ? 0.35 : 1);
       this.parY += (py - this.parY) * (1 - Math.exp(-dt * 1.6));
       const yaw =
         (this.parX * 0.11 + Math.sin(t * 0.5) * 0.02 + Math.sin(t * 0.13) * 0.012) * reach;
