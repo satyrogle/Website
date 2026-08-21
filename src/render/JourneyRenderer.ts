@@ -26,7 +26,20 @@ uniform float uSignal;
 uniform float uAlign;
 float vMonoEng;
 float vMonoRough = 0.9;
-float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`;
+float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float monoNoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
+  float a0 = monoHash(vec3(i, 0.0));
+  float b0 = monoHash(vec3(i + vec2(1.0,0.0), 0.0));
+  float c0 = monoHash(vec3(i + vec2(0.0,1.0), 0.0));
+  float d0 = monoHash(vec3(i + vec2(1.0,1.0), 0.0));
+  return mix(mix(a0,b0,f.x), mix(c0,d0,f.x), f.y);
+}
+float monoFbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { s += a * monoNoise(p); p *= 2.03; a *= 0.5; }
+  return s / 0.9375;
+}`;
 
 const FRAG_MAP = `#include <map_fragment>
 {
@@ -192,73 +205,132 @@ const FRAG_MAP = `#include <map_fragment>
   float wave = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(wavePhase));
   vMonoRough = clamp(vMonoRough - wave * prox * 0.16, 0.05, 0.95);
 
-  // ---- THE CLAW WOUND ----
-  // Jacob, 2026-08-21: "i need something like wound with light in a
-  // claw pattern stop wasting time ... ignore the packs directions
-  // totally". So the implementation kit is out entirely, and so is
-  // every subtle version: rivulets, helix, disease field, granular
-  // crust, bleed, and the kit's roughness-only corruption which
-  // measured real on a diff and was invisible to him on the screen.
+  // ---- THE CORROSION ----
+  // Jacob's third set of references, 2026-08-21: "something like this
+  // not tribal tattooing my hero".
   //
-  // Three things, plainly: a CLAW PATTERN, a WOUND, and LIGHT in it.
-  // Four parallel gashes raked across one blade, each with a dark torn
-  // lip so it reads as opened rather than painted, and each carrying
-  // light down inside the opening. Built to be SEEN at the landing
-  // camera - that is the requirement that every previous attempt
-  // failed, whatever else it got right.
+  // The glowing claw gashes are dead. Bright lines drawn on a face are
+  // a tattoo however they are shaped, and that is the one word that
+  // covers every version so far - rivulets, helix, claw sets, swathe,
+  // bleed, gashes. All of them ADDED marks to the surface.
   //
-  // World x is the surface coordinate, not ang. ang measures position
-  // around the section by DEPTH, so across a flat face it barely moves
-  // and a stroke built on it collapses into a horizontal bracelet
-  // wrapping the monument. This was found the hard way.
-  vec2 W = vec2(vMonoW.x, vMonoW.y);
-  vec2 wq = W - vec2(13.0, 86.0);
-  const float WA = 1.02;
-  float wal =  wq.x * cos(WA) + wq.y * sin(WA);
-  float wac = -wq.x * sin(WA) + wq.y * cos(WA);
-  const float WLEN = 42.0;
-  // it arcs, because whatever made it was travelling through. Gentle:
-  // a strong arc curls the set into a hook and reads as a logo swoosh
-  wac += 0.34 * wal * wal / WLEN;
-  float wt = wal / WLEN;
+  // What his references show is the opposite: the surface is EATEN.
+  // A diagonal band where the stone has gone vesicular - open dark
+  // pits of varying size, with a thin bright cWeb of remaining material
+  // between them, densest at the core and thinning to fine veins at the
+  // edges. The band reads DARKER than the stone around it, because most
+  // of it is holes. Only the webbing catches light. Nothing glows.
+  //
+  // The cWeb is the ZERO SET of a warped field divided by its own
+  // gradient - not a threshold on noise and not cells. This project has
+  // the lesson recorded twice: a threshold admits half the volume and
+  // reads as smoke, and Voronoi always resolves into a repeating unit,
+  // which is what killed the golf-ball core. Dividing by the gradient
+  // gives every vein the same width however steep the field is there,
+  // which is what makes it read as structure rather than as noise.
+  //
+  // Surface coordinate is a sheared projection of world x and z, so it
+  // varies across the front faces AND the flanks. World x alone streaks
+  // on the flank; ang alone barely moves across the front, which is the
+  // fault that made an earlier stroke wrap the monument as a bracelet.
+  // THE HORIZONTAL IS outward, AND ONLY outward. Three coordinates
+  // were tried and measured before this one, all wrong for the same
+  // underlying reason - none of them runs monotonically across the
+  // visible face:
+  //
+  //   world x       - constant along the flank, so the pattern smears.
+  //   a sheared x/z projection - mixes DEPTH into the horizontal, so it
+  //     varies fastest where the surface turns away and the band chased
+  //     the blade's silhouette. Scaling it up (2.7, then 9.0) only made
+  //     it track the edge harder.
+  //   ang           - looked right and is not. The prong's cut edge is
+  //     at MAXIMUM depth, so across the visible face across falls 1
+  //     to 0 while the outward term rises 0 to 1.2, and the two very
+  //     nearly cancel: ang spans 1.5 to 1.2, three tenths, effectively
+  //     constant. That is also the real reason an earlier stroke built
+  //     on ang collapsed into a bracelet.
+  //
+  // outward is distance from the cut plane over the half width: 0 at
+  // the cleft, 1 at the outer edge, monotonic the whole way. It is
+  // already computed at the top of this shader for the plate law.
+  float cS = clamp(outward, 0.0, 1.0);
+  vec2 CP = vec2(cS * 34.0, vMonoW.y);
+  vec2 BP = vec2(cS * 95.0, vMonoW.y);
 
-  float wound = 0.0;
-  float wlip = 0.0;
-  if (abs(wt) < 1.0) {
-    // enters shallow, bites deepest a little past the middle, trails
-    float wdep = pow(max(0.0, 1.0 - wt * wt), 0.55) * (1.0 + 0.32 * wt);
-    for (int g = 0; g < 4; g++) {
-      float fg = float(g) - 1.5;
-      float gh = fract(0.23 + float(g) * 0.31);
-      // the inner claws bite deeper and run wider than the outer two
-      float rank = 1.0 - 0.34 * abs(fg) / 1.5;
-      float off = fg * 4.6 * (0.85 + 0.3 * gh);
-      // ragged: neither edge is even and the width wanders along the run
-      float rag = 0.55 + 0.9 * monoHash(vec3(floor(wal * 1.5), gh * 40.0, sideS));
-      float w = (1.15 + 1.0 * gh) * wdep * rank * rag;
-      float d = abs(wac - off);
-      wound = max(wound, smoothstep(w, w * 0.30, d));
-      wlip = max(wlip, smoothstep(w * 2.6, w * 0.92, d));
-    }
-    // the lip is stone lifted at the edge of the opening, so it
-    // shadows - and it must not darken the opening it surrounds
-    wlip = max(0.0, wlip - wound) * wdep;
-  }
-  // one blade, and it wraps the near corner rather than appearing
-  // identically on the far side of the mass
-  float wface = step(0.0, sideS) * smoothstep(-10.0, 4.0, vMonoW.z);
-  wound *= wface;
-  wlip *= wface;
-  diffuseColor.rgb *= 1.0 - wlip * 0.66;
+  // the band: one diagonal, crossing mid-height, edges dissolving
+  const float CCA = 0.868, CSA = 0.497;
+  float cAcross = -BP.x * CSA + BP.y * CCA - 59.0;
+  float cAlong  =  BP.x * CCA + BP.y * CSA;
+  cAcross += 26.0 * (monoFbm(vec2(cAlong * 0.010, 5.0)) - 0.5);
+  float cHalf = 30.0 + 20.0 * monoFbm(vec2(cAlong * 0.014, 11.0));
+  float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
+  // clustered, so it takes hold in patches rather than filling the band
+  band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
+  band *= step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
 
-  // 1.0 clipped to white where the gashes converge and they merged into
-  // one mass, which loses the claw. 0.72 keeps every gash separate and
-  // still reads from the landing camera.
-  float lit = wound * 0.72;
-  // cross-gap alignment: when the eye is square to the fissure, the
-  // two faces momentarily agree
-  lit *= 1.0 + uAlign * 0.8;
-  vMonoEng = lit * (1.0 - uCalm * 0.45);
+  // the vesicular field. Warped BEFORE the level set is taken, or the
+  // veins inherit the noise's own roundness and come out as bubbles
+  vec2 cq = CP * 0.52;
+  cq += (vec2(monoFbm(cq * 0.42), monoFbm(cq * 0.42 + 19.7)) - 0.5) * 3.4;
+  float cf = monoFbm(cq) - 0.5;
+  float cg = length(vec2(dFdx(cf), dFdy(cf))) + 1e-6;
+  float cWeb = (1.0 - smoothstep(0.0, 2.2, abs(cf) / cg));
+  // the pits: where the field runs deep, the material is simply gone
+  float cPit = smoothstep(0.02, -0.16, cf);
+  // pits open up at the core of the band and close to nothing at its
+  // edge, so the band ends in fine veins rather than stopping
+  cPit *= smoothstep(0.18, 0.78, band);
+  cWeb *= smoothstep(0.02, 0.34, band);
+
+  // THE STONE IS EATEN, not painted. The pits are voids and the cWeb is
+  // what is left standing between them - so this is a DARKENING with a
+  // thin bright residue, and the emissive channel is barely used.
+  // THE WEB CARRIES IT, NOT THE PITS. Two faults found by rendering:
+  //
+  // 1. The web highlight was multiplied by graze at 1.1 + 2.4*graze, so
+  //    it was three and a half times stronger at the silhouette than
+  //    across the face - and the corrosion hugged the blade's outer
+  //    EDGE, following the contour instead of crossing it. It looked
+  //    like the band was misplaced when it was simply only visible
+  //    where the surface turned away.
+  // 2. Darkening does nothing here. The stone is already near black, so
+  //    removing 88 percent of almost nothing is invisible. The pits
+  //    cannot be what reads; the surviving WEB between them has to be,
+  //    and the holes read as the gaps in it.
+  //
+  // So the web gets an absolute term that does not depend on how lit
+  // the fragment already was, and graze is reduced to a modest lift
+  // rather than the whole effect.
+  diffuseColor.rgb *= 1.0 - cPit * 0.88;
+  diffuseColor.rgb += diffuseColor.rgb * cWeb * band * (1.6 + 0.9 * graze);
+  diffuseColor.rgb += vec3(0.058, 0.063, 0.072) * cWeb * band;
+
+  // the runs: fine vertical streaks descending out of the band, where
+  // it has wept down the face. Broken, because a dried run is dotted
+  float cLane = monoHash(vec3(floor(CP.x * 3.1), 21.0, sideS));
+  float cBelow = max(0.0, 96.0 - CP.y);
+  float cRunLen = 12.0 + 66.0 * fract(cLane * 5.3);
+  float cSrc = 0.0;
+  cSrc = max(cSrc, 1.0 - smoothstep(cHalf * 0.4, cHalf, abs(cAcross + 16.0)));
+  cSrc = max(cSrc, 1.0 - smoothstep(cHalf * 0.4, cHalf, abs(cAcross + 38.0)) * 1.6);
+  float cRun = step(0.42, cLane)
+             * smoothstep(cRunLen, cRunLen * 0.2, cBelow)
+             * step(0.55, monoNoise(vec2(CP.x * 26.0, CP.y * 0.9)))
+             * cSrc * step(0.0, sideS) * smoothstep(-12.0, 3.0, vMonoW.z);
+  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.9 + 0.8 * graze);
+  diffuseColor.rgb += vec3(0.030, 0.033, 0.038) * cRun;
+
+  // roughness follows the damage: the pits are matte voids, the cWeb is
+  // a hard remaining edge
+  vMonoRough = clamp(vMonoRough + cPit * 0.30 - cWeb * band * 0.22, 0.08, 0.96);
+
+  // NOTHING EMITS. Sparse bright points were tried here and they are
+  // the eczema again by another name: isolated dots on a surface read
+  // as a skin condition, and this project has already killed that once.
+  // The corrosion is entirely a darkening with a bright residue, which
+  // is what the references show - the band is DARKER than the stone and
+  // only the remaining web catches light.
+  vMonoEng = 0.0;
   }
 }`;
 
