@@ -406,30 +406,23 @@ const FRAG_MAP = `#include <map_fragment>
   // a hard remaining edge
   vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22, 0.08, 0.96);
 
-  // THE ROT EMITS FROM INSIDE. Jacob: "what about the emission from the
-  // rot". It was zero, on the reading that his sheets show the band
-  // DARKER than the stone with only the web catching light - true of
-  // the sheets, but it drops the thing he chose at the start: the light
-  // IS the corruption.
+  // THE WEB EMITS, NOT THE PITS. Jacob: "i think we are emitting the
+  // wrong shader of rot emit the other stuff not the ones already".
   //
-  // So the PITS carry it, not the web. The holes are where the material
-  // is gone and what is behind it shows through, which inverts the
-  // read: dark lace over light rather than bright residue on dark. That
-  // is also why it cannot become the eczema again - emission here is
-  // bound to a structure, not scattered across a surface as points.
+  // The pits were carrying it, on the idea that light comes from inside
+  // the holes. But the pits are the part that is GONE - the voids - and
+  // a void has nothing to emit. What is left standing is the web, the
+  // surviving lace between the holes, and that is the material the rot
+  // has actually turned into. So it is the web that glows, the cracks
+  // that carry it out past the band, and the weeping that carries it
+  // down.
   //
-  // Deep in the band only. At the edges the pits close to nothing, so
-  // the glow ends where the rot does and never bleeds onto clean stone.
-  // 0.50 across every pit blew the entire mass to white - the pits
-  // cover a lot of area and FRAG_EMISSIVE multiplies by 2.4 on top.
-  // Only the DEEPEST voids carry it, deep in the band, at a twentieth
-  // of that. The rot glows from within; it does not light the monument.
-  float cGlow = smoothstep(0.55, 1.0, cPit) * smoothstep(0.45, 0.88, band);
-  // Still too hot at 0.035 - on stone this dark, anything the eye can
-  // call a "patch" is already too much. It has to sit at the threshold
-  // of being noticed, or the pits stop reading as depth and start
-  // reading as lamps.
-  vMonoEng = (cGlow * 0.014 + cRun * 0.006) * (1.0 - uCalm * 0.45);
+  // Kept at the same threshold as before: on stone this dark, anything
+  // the eye can call a patch is too much, and the fissure must stay the
+  // only real light in the frame.
+  vMonoEng = (cWeb * band * 0.028
+            + cCrack * 0.020
+            + cRun * 0.012) * (1.0 - uCalm * 0.45);
   }
 }`;
 
