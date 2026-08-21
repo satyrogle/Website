@@ -1525,7 +1525,19 @@ export class JourneyRenderer {
           // softness scales with the cut, so the edge stays proportionate
           // instead of swallowing the gap where the slit is thinnest
           float u = smoothstep(halfW, halfW * 0.72, d);
-          float v = smoothstep(0.0, 0.04, vUvF.y) * smoothstep(1.0, 0.90, vUvF.y);
+          // THE GAP AT THE CROWN. Jacob: "there is a gap between two
+          // spires". The top fade ran over the last TEN percent of the
+          // plane, which is 18 units, so the light died from about
+          // y=164 - while the slit stays open to y=175, where the short
+          // prong ends. Eleven units of open slit with no light behind
+          // it, seen against the sky: a dark wedge between the two
+          // tips, exactly where the eye goes first.
+          //
+          // The fade is now the last two percent. The blade runs to the
+          // top of the slit and the stone closes it, which is the same
+          // rule the width follows - the prongs decide the shape, not
+          // the plane.
+          float v = smoothstep(0.0, 0.04, vUvF.y) * smoothstep(1.0, 0.98, vUvF.y);
           // spec: emission colour pure #FFFFFF, intensity 8 to 15
           vec3 holy = vec3(1.0);
           vec3 cold = vec3(0.86, 0.93, 1.0);
