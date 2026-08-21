@@ -108,6 +108,7 @@ function boot(): void {
       setStrata: (amount: number): void => renderer.setStrata(amount),
       setShaft: (amount: number): void => renderer.setShaft(amount),
       setChoirDim: (amount: number): void => renderer.setChoirDim(amount),
+      setFog: (density: number): void => renderer.setFog(density),
       setBite: (amount: number): void => renderer.setBite(amount)
     };
     const renderOnly = (): void => {

@@ -235,6 +235,45 @@ if (gl_FrontFacing) {
  * brightness), near-darkness inside the cleft, cold witness light for
  * the return. Lerped by scroll progress.
  */
+/**
+ * THE AIR, re-solved 2026-08-21. Jacob: the hero "is engulfed in the
+ * background and the colour and seems small like part of choir".
+ *
+ * Three complaints, one fault, and it was not the rig or the albedo -
+ * both were rebalanced on 2026-08-19 and both were correct for where
+ * the camera stood THEN. The landing pose moved the same week from
+ * (0,14,300) to (0,95,620) for the processional reference frame.
+ * FogExp2 is quadratic in distance, so more than doubling it did not
+ * double the veil, it squared it:
+ *
+ *   at 300 units, density 0.0022 -> 35% fog, 65% of the stone survives
+ *   at 620 units, density 0.0022 -> 84% fog, 16% of the stone survives
+ *
+ * Five sixths of the hero was being discarded and replaced with flat
+ * fog colour before it reached the frame. Every facet tone, machined
+ * edge, inscribed glyph and raking key highlight was multiplied by
+ * 0.16, which is why the mass reads as a cutout: what is left is the
+ * fog colour, #05070c at luminance 0.027, against a sky measured at
+ * 0.165 across the horizon. A dark shape on a lighter ground is a
+ * silhouette, and a silhouette carries no size cue but its outline.
+ * That is also why it reads as one of the choir: the choir sits at
+ * 99.9% fog, so hero and witnesses were being painted the same colour,
+ * and aerial perspective then puts them at the same distance, and
+ * anything at the choir's distance must be the choir's size.
+ *
+ * LANDING_FOG is solved to give the hero back the 35% veil the rig was
+ * balanced against, at the distance the camera actually stands now:
+ * f = 1 - exp(-(density * 620)^2) = 0.353. The choir, at 1226 units,
+ * still sits at 82% and stays world-behind. INTERIOR_FOG is untouched,
+ * so the air still thickens exactly as far on the way in - only the
+ * landing changes, because only the landing's distance changed.
+ *
+ * Sweep it with window.__dl.setFog(density) rather than trusting this
+ * number: it is solved, not judged, and judging it is Jacob's.
+ */
+const LANDING_FOG = 0.00106;
+const INTERIOR_FOG = 0.005;
+
 const LIGHT_KEYS: Array<{
   p: number;
   i: number;
@@ -859,6 +898,7 @@ export class JourneyRenderer {
   private readonly skyMat: THREE.ShaderMaterial;
   /** review pin for the lid; null means the severity ramp owns it */
   private lidOverride: number | null = null;
+  private landingFog = LANDING_FOG;
   private readonly strikeAttr: THREE.InstancedBufferAttribute;
   private readonly markGeom: THREE.BufferGeometry;
   private readonly markPos = new Float32Array(12 * 3);
@@ -1857,6 +1897,11 @@ ${SKY_LAW}`
     this.choir.setDim(amount);
   }
 
+  /** Landing air density, FogExp2. Review pin; see THE AIR. */
+  setFog(density: number): void {
+    this.landingFog = Math.max(0, Math.min(INTERIOR_FOG, density));
+  }
+
   /** How far the plain has failed at the foot, 0 to 1. Review pin. */
   setBite(amount: number): void {
     this.groundU.uGBite!.value = Math.max(0, Math.min(1, amount));
@@ -1931,7 +1976,10 @@ ${SKY_LAW}`
     // the air thickens on the way in and clears again with the return,
     // so the revealed lattice is seen, not swallowed
     const fogDensity =
-      0.0022 + 0.0028 * smooth01(progress, 0.3, 0.7) * (1 - smooth01(progress, 0.86, 0.97));
+      this.landingFog +
+      (INTERIOR_FOG - this.landingFog) *
+        smooth01(progress, 0.3, 0.7) *
+        (1 - smooth01(progress, 0.86, 0.97));
     const fogColor = lerpColor('#05070c', '#03050b', sev);
     (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
     (this.scene.fog as THREE.FogExp2).density = fogDensity;
