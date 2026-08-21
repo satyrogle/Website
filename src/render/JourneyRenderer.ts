@@ -261,24 +261,35 @@ if (gl_FrontFacing) {
  * and aerial perspective then puts them at the same distance, and
  * anything at the choir's distance must be the choir's size.
  *
- * LANDING_FOG is solved to give the hero back the 35% veil the rig was
- * balanced against, at the distance the camera actually stands now:
- * f = 1 - exp(-(density * 620)^2) = 0.353. The choir, at 1226 units,
- * still sits at 82% and stays world-behind. INTERIOR_FOG is untouched,
- * so the air still thickens exactly as far on the way in - only the
- * landing changes, because only the landing's distance changed.
+ * That diagnosis was right and the remedy was solved for the wrong
+ * camera. 0.00106 gives the 35% veil at 620 units - but the landing
+ * went back to (0,14,300) on 2026-08-21, and the whole reason the hero
+ * was drowning was that the camera had moved out to 620 in the first
+ * place. Fix the distance and the air does not need rescuing: at 300
+ * units 0.0022 IS the 35% veil, which is what the rig was balanced
+ * against on 2026-08-19 and what this number always meant.
+ *
+ * Leaving it thinned would have double-counted the correction and
+ * stripped the aerial perspective out of the frame entirely.
  *
  * Sweep it with window.__dl.setFog(density) rather than trusting this
  * number: it is solved, not judged, and judging it is Jacob's.
  */
-const LANDING_FOG = 0.00106;
+const LANDING_FOG = 0.0022;
 
 /**
  * How much denser the landing air is at the plain than at the hero's
- * mid-height. Solved against the plain the visitor used to see, not
- * judged: sweep it with window.__dl.setGround.
+ * mid-height.
+ *
+ * 2.08 existed only to hold the plain down under the thinned air, and
+ * that air is gone. Jacob, 2026-08-21: "now haze is too much you over
+ * did it so we wont see the choir hovering but that made it worse".
+ * Back to 1.0 - uniform, no ground term at all. The height falloff is
+ * kept in the shader because haze genuinely does pool low and it is one
+ * uniform away, but it is OFF until a frame asks for it, not on because
+ * a sweep liked it.
  */
-const GROUND_HAZE = 2.08;
+const GROUND_HAZE = 1.0;
 const INTERIOR_FOG = 0.005;
 
 const LIGHT_KEYS: Array<{
@@ -1295,6 +1306,22 @@ export class JourneyRenderer {
         }`,
       uniforms: { uSeverity: { value: 0 }, uDecay: { value: 0 }, uNear: { value: 0 } },
       side: THREE.DoubleSide,
+      // Jacob, 2026-08-21: "there is a something in the back of crown
+      // making it look weird i think its the light crack silhouette".
+      // He was right, and it was mine. This material wrote alpha 1.0
+      // with no blending, so everywhere the lit core falls away it was
+      // painting SOLID BLACK, not nothing. At 4.6 wide that black hid
+      // inside the slit. At 14 wide - see below - it protrudes past the
+      // prongs near the crown, where they narrow to 6.3 from the axis,
+      // and its top corners drew a dark plate across the sky behind the
+      // tips.
+      //
+      // A blade of light is additive. Black then contributes nothing
+      // and there is no plate to see. This also cannot bring back the
+      // halfway bug: transparent geometry draws after ALL opaque
+      // geometry, so the terrain no longer gets a turn after this.
+      transparent: true,
+      blending: THREE.AdditiveBlending,
       // THIS ONE FLAG WAS THE "LIT ONLY HALFWAY".
       //
       // The blade is opaque - alpha 1.0, no blending - but it was set
