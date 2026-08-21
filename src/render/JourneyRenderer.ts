@@ -38,6 +38,9 @@ uniform float uWatchAmt;
 // after you stop looking is the sinister half of the same gesture.
 uniform vec3 uWakePos;
 uniform float uWakeT;
+// presses: xyz world position, w born time in seconds
+uniform vec4 uMarks[12];
+uniform int uMarkN;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -450,16 +453,52 @@ const FRAG_MAP = `#include <map_fragment>
   // Kept at the same threshold as before: on stone this dark, anything
   // the eye can call a patch is too much, and the fissure must stay the
   // only real light in the frame.
+  // THE PRESSES EAT THE STONE. A sprite at a press point is a decal
+  // however it is drawn - filled it was a pimple, and as a bare ring at
+  // landing distance it was STILL a white speck, because a ring under
+  // twenty pixels is indistinguishable from a dot. So no sprite: the
+  // press joins the corrosion field itself. Each mark darkens a small
+  // bitten patch of face and rims it with the same pale residue the rot
+  // carries, so a visitor's touch is a place the monument has been
+  // EATEN, in the one language this surface already speaks.
+  float mkPit = 0.0;
+  float mkRim = 0.0;
+  for (int mi = 0; mi < 12; mi++) {
+    if (mi >= uMarkN) break;
+    float md = distance(vMonoW, uMarks[mi].xyz);
+    float age = uTime - uMarks[mi].w;
+    if (age < 0.0 || md > 6.0) continue;
+    // it opens over half a second, and stays
+    float grow = clamp(age * 2.0, 0.0, 1.0);
+    float mr = (1.1 + 0.9 * monoHash(vec3(uMarks[mi].xyz))) * grow;
+    // ragged edge, from the same hash family as everything else here
+    float wob2 = 0.75 + 0.5 * monoNoise(vec2(vMonoW.y * 1.7 + uMarks[mi].w, md * 2.2));
+    mkPit = max(mkPit, smoothstep(mr * wob2, mr * wob2 * 0.45, md));
+    mkRim = max(mkRim, exp(-pow((md - mr * wob2) / 0.5, 2.0)) * (0.3 + 0.7 * grow));
+    // and the arrival flares, briefly, like the wake passing
+    mkRim += exp(-md * md * 0.4) * exp(-age * 2.6) * 1.6;
+  }
+  diffuseColor.rgb *= 1.0 - mkPit * 0.72;
+  vMonoRough = clamp(vMonoRough + mkPit * 0.3, 0.05, 0.96);
+
   float wResp = exp(-pow((vMonoW.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
-  // the wake: a thin shell expanding from where the attention was, gone
-  // within a few seconds
+  // the wake: a shell expanding from where the attention was. Jacob on
+  // the first version: "still not like the wave you built earlier". The
+  // one he liked was the old hover pool's fade sweeping the whole mass;
+  // a 15-unit shell at 78 units a second crossed the monument in under
+  // two seconds and read as a flicker. Slower, three times as wide, and
+  // with a soft body behind the front, so it reads as a wave moving
+  // through the rot rather than a ring blinking past.
   float wakeD = distance(vMonoW, uWakePos);
-  float wakeR = uWakeT * 78.0;
-  float wake = exp(-pow((wakeD - wakeR) / 15.0, 2.0)) * exp(-uWakeT * 1.05);
+  float wakeR = uWakeT * 34.0;
+  float wakeFront = exp(-pow((wakeD - wakeR) / 42.0, 2.0));
+  float wakeBody = smoothstep(wakeR, wakeR * 0.25, wakeD) * 0.45;
+  float wake = (wakeFront + wakeBody) * exp(-uWakeT * 0.55);
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
             + cRun * 0.005) * (1.0 - uCalm * 0.45)
-            * (1.0 + wResp * 2.2 + wake * 5.5);
+            * (1.0 + wResp * 2.2 + wake * 5.5)
+            + mkRim * 0.030 * (1.0 - uCalm * 0.45);
   }
 }`;
 
@@ -2107,6 +2146,10 @@ export class JourneyRenderer {
       uWatchAmt: { value: 0 },
       uWakePos: { value: new THREE.Vector3(0, -999, 0) },
       uWakeT: { value: 99 },
+      // the visitor's presses, as world positions + born times. The
+      // stone eats at these points instead of a sprite being glued on.
+      uMarks: { value: Array.from({ length: 12 }, () => new THREE.Vector4(0, -999, 0, -99)) },
+      uMarkN: { value: 0 },
       uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
@@ -2652,8 +2695,13 @@ ${SKY_LAW}`
       this.markPos[m * 3 + 1] = mk.y;
       this.markPos[m * 3 + 2] = mk.z;
       this.markBorn[m] = mk.bornTick / 60;
+      // the same marks, into the stone's own field - see THE PRESSES
+      // EAT THE STONE. The sprite path is retired: draw range stays 0.
+      const mv = this.stoneU.uMarks!.value as THREE.Vector4[];
+      mv[m]!.set(mk.x, mk.y, mk.z, mk.bornTick / 60);
     }
-    this.markGeom.setDrawRange(0, marks.length);
+    this.stoneU.uMarkN!.value = marks.length;
+    this.markGeom.setDrawRange(0, 0);
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;
 
