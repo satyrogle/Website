@@ -110,7 +110,8 @@ function boot(): void {
       setChoirDim: (amount: number): void => renderer.setChoirDim(amount),
       setFog: (density: number): void => renderer.setFog(density),
       setGround: (amount: number): void => renderer.setGround(amount),
-      setBite: (amount: number): void => renderer.setBite(amount)
+      setBite: (amount: number): void => renderer.setBite(amount),
+      setCorrupt: (amount: number): void => renderer.setCorrupt(amount)
     };
     const renderOnly = (): void => {
       requestAnimationFrame(renderOnly);

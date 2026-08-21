@@ -24,6 +24,8 @@ uniform vec3 uInner;
 uniform float uInnerAmt;
 uniform float uSignal;
 uniform float uAlign;
+// review pin: sweep the corruption live rather than rebuilding to judge it
+uniform float uCorrupt;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -274,6 +276,18 @@ const FRAG_MAP = `#include <map_fragment>
   // lighting five percent of cells at random is scattered specks with
   // no source, which is a skin condition rather than a mark.
   DLCorruption dlc = dlCorruption(vMonoW, ang, sideS);
+  // 0 to 1 is the kit's design exactly. Above 1 pushes PAST the spec's
+  // restraint, which exists because Jacob cannot see the effect at the
+  // landing camera: measured on/off, it changes 17 percent of the
+  // hero's pixels but by a mean of only 10/255, and on near-black stone
+  // that is invisible to the eye however real it is to a diff. The spec
+  // is a floor for subtlety, not a ceiling on his judgement.
+  float dlAmt = min(uCorrupt, 1.0);
+  float dlBoost = max(0.0, uCorrupt - 1.0);
+  dlc.mask *= dlAmt;
+  dlc.claw *= dlAmt;
+  dlc.disease *= dlAmt;
+  dlc.particle *= dlAmt;
 
   float corruptRough = clamp(0.44 + 0.30*dlNoise2(vec2(ang*13.0, vMonoW.y*0.19))
                              + 0.18*dlc.disease - 0.24*dlc.claw,
@@ -281,11 +295,11 @@ const FRAG_MAP = `#include <map_fragment>
   vMonoRough = mix(vMonoRough, corruptRough, dlc.mask);
 
   // Minimal value shift: "surface rewritten", not painted.
-  diffuseColor.rgb *= mix(1.0, 0.78 + 0.30*dlNoise2(vec2(ang*29.0, vMonoW.y*0.41)), dlc.mask);
-  diffuseColor.rgb += vec3(0.022,0.028,0.036) * dlc.disease * 0.45;
+  diffuseColor.rgb *= mix(1.0, (0.78 - 0.34 * dlBoost) + 0.30*dlNoise2(vec2(ang*29.0, vMonoW.y*0.41)), dlc.mask);
+  diffuseColor.rgb += vec3(0.022,0.028,0.036) * dlc.disease * (0.45 + 1.5 * dlBoost);
 
   // Tiny cold pinpricks only. No continuous emissive line.
-  vMonoEng = dlc.particle * 0.22 * (1.0 - uCalm * 0.45);
+  vMonoEng = dlc.particle * (0.22 + 0.55 * dlBoost) * (1.0 - uCalm * 0.45);
   }
 }`;
 
@@ -1774,6 +1788,7 @@ export class JourneyRenderer {
       uInnerAmt: { value: 0 },
       uSignal: { value: 0 },
       uAlign: { value: 0 },
+      uCorrupt: { value: 1 },
       uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
@@ -2014,6 +2029,11 @@ ${SKY_LAW}`
    * Review affordance only, and the reason the ramp's two endpoints are
    * measured frames rather than numbers someone wrote down.
    */
+  /** How present the hero corruption is, 0 to 1. Review pin. */
+  setCorrupt(amount: number): void {
+    this.stoneU.uCorrupt!.value = Math.max(0, Math.min(3, amount));
+  }
+
   setLid(amount: number): void {
     this.lidOverride = Math.max(0, Math.min(1, amount));
     this.skyMat.uniforms.uLid!.value = this.lidOverride;
