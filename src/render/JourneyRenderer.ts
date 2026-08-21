@@ -348,53 +348,54 @@ const FRAG_MAP = `#include <map_fragment>
   // up with the body's own axes and cannot read as pixels; two
   // frequencies so there are coarse crystals inside a fine dust.
   vec2 gp = vec2(P.x * 3.1 + P.y * 1.15, P.y * 3.6 - P.x * 0.85);
-  float g1 = step(0.86, monoHash(vec3(floor(gp), 1.0)));
-  float g2 = step(0.93, monoHash(vec3(floor(gp * 2.7), 2.0)));
-  // denser at the heart of the swathe, scattering to single grains at
-  // its edge, which is what makes the edge dissolve instead of stop
-  float grain = clamp(g1 * smoothstep(0.10, 0.62, mass)
-                    + g2 * smoothstep(0.02, 0.34, mass) * 0.75, 0.0, 1.0);
+  // COVERAGE RISES WITH DEPTH. The threshold was a constant 0.86, so
+  // even the heart of the wound was only fourteen percent covered and
+  // the whole thing could never be anything but dust - which is exactly
+  // why it read as a haze rather than as torn matter. The core is now
+  // nearly solid and the threshold climbs outward, so the stroke has a
+  // body and dissolves into scattered grains only at its edge.
+  float cover = smoothstep(0.12, 0.80, mass);
+  float thr = mix(0.95, 0.10, cover);
+  float g1 = step(thr, monoHash(vec3(floor(gp), 1.0)));
+  float g2 = step(mix(0.99, 0.55, cover), monoHash(vec3(floor(gp * 2.7), 2.0)));
+  float grain = clamp(g1 + g2 * 0.7, 0.0, 1.0);
   float crust = mass * grain;
 
-  // THE BLEED. Jacob, 2026-08-21: "i like the down part which is like
-  // cool bleeding effect elongate it more so it populates more of the
-  // hero". So this is now the subject and the swathe above is only its
-  // SOURCE - the band steps back and the runs carry the body.
+  // THE BLEED, SUBORDINATE. Jacob, 2026-08-21: "it is single stroke of
+  // flesh wound".
   //
-  // Still sampled from the swathe ABOVE the fragment, so a run can only
-  // exist under something that could have produced it. What changed is
-  // reach: four samples out to 150 units with a slow exponential decay
-  // instead of two at 27 with a fast one, so a bleed that starts at the
-  // band can run most of the way to the foot.
-  //
-  // Each lane also carries its OWN length, because runs that all stop
-  // at the same height read as a printed edge. And they stay broken
-  // along their run: a dried bleed is dotted, never continuous.
+  // The previous pass made the runs the subject and let them carry the
+  // whole body, which is why the monument came out looking like falling
+  // code with a haze at the top. In his sheets the STROKE is the
+  // subject: one thick torn band of raw matter with defined edges, and
+  // the runs are a short consequence hanging under it. So the reach
+  // comes back in - three samples to 88 units, not four to 150 - lane
+  // reach is halved, and the weight inverts. Runs below the wound, not
+  // a curtain over the monument.
   float run = 0.0;
-  run = max(run, swatheAt(P + vec2(0.0,  20.0)) * 0.92);
-  run = max(run, swatheAt(P + vec2(0.0,  52.0)) * 0.74);
-  run = max(run, swatheAt(P + vec2(0.0,  95.0)) * 0.52);
-  run = max(run, swatheAt(P + vec2(0.0, 150.0)) * 0.33);
+  run = max(run, swatheAt(P + vec2(0.0, 16.0)) * 0.85);
+  run = max(run, swatheAt(P + vec2(0.0, 42.0)) * 0.55);
+  run = max(run, swatheAt(P + vec2(0.0, 88.0)) * 0.28);
   float laneI = floor(P.x * 4.2);
   float dripLane = monoHash(vec3(laneI, 7.0, 0.0));
-  // per-lane reach: some barely leave the band, some run right down
-  float laneLen = 26.0 + 150.0 * fract(dripLane * 5.7);
+  // per-lane reach: some barely leave the wound, some run well below it
+  float laneLen = 14.0 + 74.0 * fract(dripLane * 5.7);
   float below = max(0.0, 118.0 - P.y);
-  float dripGrain = step(0.40, monoHash(vec3(floor(gp * vec2(1.4, 0.42)), 5.0)));
-  run *= step(0.44, dripLane) * dripGrain
+  float dripGrain = step(0.52, monoHash(vec3(floor(gp * vec2(1.4, 0.42)), 5.0)));
+  run *= step(0.50, dripLane) * dripGrain
        * smoothstep(laneLen, laneLen * 0.25, below)
        * smoothstep(0.62, 0.22, mass);   // below the crust, not inside it
 
-  float swirl = crust * 0.75 + run * 0.95;
+  float swirl = crust * 1.15 + run * 0.42;
   // the stone the swathe sits on is sick: discoloured wherever the
   // field reaches, including where no grain landed
   float sick = max(0.0, mass * 1.15 - crust);
   diffuseColor.rgb *= 1.0 - sick * 0.30;
   // the crust is a pale MATERIAL, not only an emitter, which is what
-  // stops it reading as a glow painted over the stone. Dimmer than it
-  // was: the band is the source now, not the subject
-  diffuseColor.rgb += vec3(0.055, 0.058, 0.064) * crust * 0.9;
-  diffuseColor.rgb += vec3(0.050, 0.053, 0.060) * run * 1.5;
+  // stops it reading as a glow painted over the stone. The stroke is
+  // the subject again, so it carries the weight and the runs do not
+  diffuseColor.rgb += vec3(0.055, 0.058, 0.064) * crust * 2.1;
+  diffuseColor.rgb += vec3(0.050, 0.053, 0.060) * run * 0.7;
 
   // it is still coming from the break: deepest where the tears cross
   // near the cleft, shallow out on the far flank
