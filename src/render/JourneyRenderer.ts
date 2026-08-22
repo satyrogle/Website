@@ -2636,7 +2636,18 @@ float pHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
   float r = length(vPlinthW.xz);
   float axis = abs(vPlinthW.x) / (1.6 + r * 0.085);
   float lane = exp(-axis * axis) * exp(-r * 0.012);
+  // THE COLD LANDING. Sinister gate 4, 2026-08-22, from the paper
+  // list. The seam is warm, the break carries the seam's warm white,
+  // the lane spills warm down the treads - but where the light LANDS,
+  // the pool at the mouth, it is already cold. Not a second tint on a
+  // second surface: one temperature gradient by distance from the
+  // mouth, so the light leaves the blade warm and arrives cold, and
+  // the boundary is nowhere. Severity does not chill the pool; it
+  // brings the world to the pool's temperature. Same falloff constant
+  // as the ground lane's, or platform and plain would disagree about
+  // the temperature at the same distance.
   vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
+  lit = mix(lit, vec3(0.50, 0.78, 1.14), exp(-r * 0.030));
   float top = smoothstep(0.55, 0.9, vPlinthN.y);
   float face = smoothstep(0.55, 0.9, vPlinthN.z);
   diffuseColor.rgb += lit * lane * (top * 0.34 + face * 0.16) * (1.0 - uGDecay * 0.5);
@@ -3057,6 +3068,12 @@ ${SKY_LAW}`
   float axis = abs(vGroundW.x) / (1.6 + r * 0.085);
   float streak = exp(-axis * axis) * exp(-r * 0.0075) * step(-1.0, vGroundW.z);
   vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
+  // THE COLD LANDING, sinister gate 4, 2026-08-22. The pool, where
+  // the light actually LANDS at the mouth, is already cold; the lane
+  // warms as it runs out toward the visitor. One temperature gradient
+  // by distance, no boundary anywhere. The plinth carries the same
+  // law and the same constant.
+  lit = mix(lit, vec3(0.50, 0.78, 1.14), exp(-r * 0.030));
   diffuseColor.rgb += lit * streak * 0.26 * (1.0 - uGDecay * 0.5);
 
   // THE STANDING SHADOW. The mass blocks the sky, so the plain darkens
