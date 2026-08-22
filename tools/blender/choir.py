@@ -30,8 +30,14 @@ OUT_GLB = os.path.join(ROOT, "public", "models", "choir.glb")
 # response are now the same event. And the visitor meets the alignment
 # twice, once at the start understanding nothing, once at the end
 # understanding what they are looking at.
-CAM_W = (0.0, 95.0, 620.0)
-LOOK_W = (0.0, 117.0, 0.0)
+# STALE POSE FIXED, 2026-08-22. This carried (0, 95, 620) - the
+# processional stand the runtime abandoned on 2026-08-21 - so the
+# shipped choir.glb's cuts coincide from a pose no camera key visits.
+# Updated to the gate-6 opening. THE GLB HAS NOT BEEN RE-EXPORTED:
+# run this script in Blender and re-export before the alignment
+# reveal is judged again.
+CAM_W = (0.0, 10.0, 262.0)
+LOOK_W = (0.0, 86.0, 0.0)
 
 
 def w2b(p):

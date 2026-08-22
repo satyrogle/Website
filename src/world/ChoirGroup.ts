@@ -88,6 +88,19 @@ const CHOIR_FRAG_MAP = `#include <map_fragment>
   // facet tone, machined edge, groove light and all - instead of
   // hollowing out one term and leaving the highlights where they were.
   diffuseColor.rgb *= uCDim;
+
+  // THE RIM, gate 3 of the reference picture, 2026-08-22. Added AFTER
+  // the dim on purpose: the dim is the mass's own light giving way, but
+  // this is the SKY's light grazing the silhouette, and since gate 1
+  // dropped the sky to near-black it is the only thing keeping these
+  // from vanishing into it. A third of the Spire's strength - witnesses,
+  // not subjects.
+  {
+    vec3 rimV = normalize(vViewPosition);
+    float graze = pow(1.0 - abs(dot(n, rimV)), 3.0);
+    float up = 0.35 + 0.65 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
+    diffuseColor.rgb += vec3(0.30, 0.38, 0.55) * graze * up * 0.085;
+  }
 }`;
 
 export class ChoirGroup {

@@ -178,8 +178,12 @@ export class LatticeWorld {
     this.markCounter++;
     const label = 'MARK ' + String(this.markCounter).padStart(2, '0');
 
-    // seat the mark onto the outer face of the nearer half
-    const my = Math.min(TOWER_TOP - CELL, Math.max(CELL, y));
+    // seat the mark onto the outer face of the nearer half. The floor is
+    // the plinth's top lip (6.4 + a cell), not the old ground line: a
+    // press seated below that would open the stone behind the platform
+    // where no one can ever see it, and an invisible consequence is a
+    // broken press. Law change 2026-08-22, deterministic as before.
+    const my = Math.min(TOWER_TOP - CELL, Math.max(6.4 + CELL, y));
     const t = my / TOWER_TOP;
     const side: 0 | 1 = x < 0 ? 0 : 1;
     const s = side === 0 ? -1 : 1;

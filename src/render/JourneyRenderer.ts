@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -30,14 +31,14 @@ uniform float uAlign;
 // aware, not that there is a lamp inside it.
 uniform float uWatchY;
 uniform float uWatchAmt;
-// THE WAKE. Where the visitor's attention last rested on the mass, and
-// how long ago it left. Jacob liked the ripple the old hover pool made
-// when the cursor was taken away, and it went out with the lamp. It
-// comes back COLD: not a warm pool sliding under the hand, but a wave
-// that leaves the last place it was touched and dies. Being noticed
-// after you stop looking is the sinister half of the same gesture.
-uniform vec3 uWakePos;
-uniform float uWakeT;
+// gate 3: how hard the sky's grazing light finds the outer edges
+uniform float uRim;
+// NO WAKE ON THE STONE. Three passes put a travelling front on the face
+// here - into the rot's emission, then into the albedo - and Jacob
+// rejected all three. Measuring the leaving against the build he liked
+// says why: the ripple he asked for was never on the stone. It was the
+// SEAM crossing the bloom threshold, and it lives in the fissure
+// material now. See THE SURGE there.
 // presses: xyz world position, w born time in seconds
 uniform vec4 uMarks[12];
 uniform int uMarkN;
@@ -373,6 +374,45 @@ const FRAG_MAP = `#include <map_fragment>
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
                * halo * (1.0 - band * 0.85);
 
+  // ---- GATE 4: MACRO CONCEALS, MICRO REVEALS ----
+  // The reference picture, 2026-08-22. At the opening distance the web
+  // resolved to a field of white dots covering two thirds of the face -
+  // every vein is a couple of pixels at any range, so distance turns
+  // structure into coverage, and coverage kills the material read. The
+  // picture's faces are mostly clean dark stone broken by a FEW large
+  // fractures that catch light.
+  //
+  // So the read is graded by distance, which is this project's own law
+  // applied to its own skin. Far away the fine web and the runs fade
+  // and a sparse set of macro fractures carries the corrosion's
+  // presence; close in, the fractures stay physical and the web comes
+  // back as the discovery. The FIELDS are untouched - band, pits, web,
+  // cracks, engine glint, watcher response, presses all keep their
+  // mechanism - only what the eye is given at each range changes.
+  float viewDist = length(vViewPosition);
+  float far = smoothstep(80.0, 240.0, viewDist);
+  float webVis = 1.0 - far * 0.85;
+
+  // the macro fractures: the same level-set-over-gradient family as the
+  // web, an order of magnitude coarser, so they are continuous with it
+  // rather than a second language. The gradient divide keeps each break
+  // a clean line at every distance instead of dissolving.
+  vec2 mq = CP * 0.075;
+  mq += (vec2(monoFbm(mq * 0.5 + 7.0), monoFbm(mq * 0.5 + 23.0)) - 0.5) * 1.8;
+  float mf = monoFbm(mq) - 0.5;
+  float mg = length(vec2(dFdx(mf), dFdy(mf))) + 1e-6;
+  float mLine = 1.0 - smoothstep(0.0, 1.7, abs(mf) / mg);
+  // few survive: a slow selector breaks the network into three or four
+  // long breaks per face rather than a lattice
+  float mSel = smoothstep(0.84, 0.98, monoFbm(CP * 0.016 + 51.0));
+  float mFrac = mLine * mSel * halo;
+  // a break is a lip that catches light, strongest where the light
+  // rakes - the scratch law at fracture scale. It strengthens with
+  // distance as it takes the web's job, and stays modest up close.
+  diffuseColor.rgb += diffuseColor.rgb * mFrac * (0.8 + 1.3 * graze) * (0.4 + 0.6 * far);
+  diffuseColor.rgb += vec3(0.050, 0.055, 0.066) * mFrac * far;
+  vMonoRough = clamp(vMonoRough - mFrac * 0.16, 0.05, 0.95);
+
   // THE STONE IS EATEN, not painted. The pits are voids and the cWeb is
   // what is left standing between them - so this is a DARKENING with a
   // thin bright residue, and the emissive channel is barely used.
@@ -393,8 +433,10 @@ const FRAG_MAP = `#include <map_fragment>
   // the fragment already was, and graze is reduced to a modest lift
   // rather than the whole effect.
   diffuseColor.rgb *= 1.0 - cPit * 0.88;
-  diffuseColor.rgb += diffuseColor.rgb * cWeb * band * (1.6 + 0.9 * graze);
-  diffuseColor.rgb += vec3(0.058, 0.063, 0.072) * cWeb * band;
+  // gate 4: the fine web is the close-range discovery. webVis fades its
+  // LIGHT at distance; the field itself never moves.
+  diffuseColor.rgb += diffuseColor.rgb * cWeb * band * (1.6 + 0.9 * graze) * webVis;
+  diffuseColor.rgb += vec3(0.058, 0.063, 0.072) * cWeb * band * webVis;
 
   // the runs: fine vertical streaks descending out of the band, where
   // it has wept down the face. Broken, because a dried run is dotted
@@ -427,8 +469,9 @@ const FRAG_MAP = `#include <map_fragment>
              * smoothstep(cRunLen, cRunLen * 0.12, belowCut)
              * smoothstep(-12.0, 3.0, vMonoW.z) * cSideAmt;
   // dimmer again, Jacob 2026-08-21: the runs support the cut edge, they
-  // are not a feature of their own
-  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.45 + 0.35 * graze);
+  // are not a feature of their own. Gate 4: and they are micro detail,
+  // so they fade at range with the web.
+  diffuseColor.rgb += diffuseColor.rgb * cRun * (0.45 + 0.35 * graze) * webVis;
   diffuseColor.rgb += vec3(0.016, 0.018, 0.021) * cRun;
 
   // the cracks are thin bright residue too, and fainter than the band
@@ -461,6 +504,18 @@ const FRAG_MAP = `#include <map_fragment>
   // bitten patch of face and rims it with the same pale residue the rot
   // carries, so a visitor's touch is a place the monument has been
   // EATEN, in the one language this surface already speaks.
+  // A ROUND BITE IS A PIMPLE. Jacob, after gate 4 cleaned the face:
+  // "pimples are popping". The old mark was a radial pit with a pale
+  // ring, opening in half a second - and on calm stone a disc arriving
+  // fast reads as a blemish popping in, whatever it is made of. Three
+  // changes, all toward the corrosion's own language:
+  //
+  // 1. The local vesicular field decides what survives inside the bite,
+  //    so a mark is ragged and directional like the rot, never a coin.
+  // 2. It seeps in over about two seconds instead of popping in half of
+  //    one. An opening performs; a taking does not.
+  // 3. The rim is nearly gone - residue, not a ring. The DARKNESS is
+  //    the mark.
   float mkPit = 0.0;
   float mkRim = 0.0;
   for (int mi = 0; mi < 12; mi++) {
@@ -468,57 +523,21 @@ const FRAG_MAP = `#include <map_fragment>
     float md = distance(vMonoW, uMarks[mi].xyz);
     float age = uTime - uMarks[mi].w;
     if (age < 0.0 || md > 6.0) continue;
-    // it opens over half a second, and stays
-    float grow = clamp(age * 2.0, 0.0, 1.0);
-    float mr = (1.1 + 0.9 * monoHash(vec3(uMarks[mi].xyz))) * grow;
+    float grow = clamp(age * 0.55, 0.0, 1.0);
+    float mr = (1.3 + 0.9 * monoHash(vec3(uMarks[mi].xyz))) * grow;
     // ragged edge, from the same hash family as everything else here
     float wob2 = 0.75 + 0.5 * monoNoise(vec2(vMonoW.y * 1.7 + uMarks[mi].w, md * 2.2));
-    mkPit = max(mkPit, smoothstep(mr * wob2, mr * wob2 * 0.45, md));
-    mkRim = max(mkRim, exp(-pow((md - mr * wob2) / 0.5, 2.0)) * (0.3 + 0.7 * grow));
-    // NO ARRIVAL FLARE. It was exp(-age*2.6)*1.6 over the whole patch,
-    // which is a bright dot that swells and dies on top of the mark:
-    // a pimple BURSTING, which is worse than the pimple was. A press
-    // opens the stone and the opening stays; it does not perform.
+    float body = smoothstep(mr * wob2, mr * wob2 * 0.35, md);
+    // eaten in the rot's own pattern: cf is the corrosion field already
+    // computed above, so the bite and the band share one structure
+    float eaten = 0.40 + 0.60 * smoothstep(0.14, -0.10, cf);
+    mkPit = max(mkPit, body * eaten);
+    mkRim = max(mkRim, exp(-pow((md - mr * wob2) / 0.5, 2.0)) * 0.22 * grow);
   }
   diffuseColor.rgb *= 1.0 - mkPit * 0.72;
   vMonoRough = clamp(vMonoRough + mkPit * 0.3, 0.05, 0.96);
 
   float wResp = exp(-pow((vMonoW.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
-  // the wake: a shell expanding from where the attention was. Jacob on
-  // the first version: "still not like the wave you built earlier". The
-  // one he liked was the old hover pool's fade sweeping the whole mass;
-  // a 15-unit shell at 78 units a second crossed the monument in under
-  // two seconds and read as a flicker. Slower, three times as wide, and
-  // with a soft body behind the front, so it reads as a wave moving
-  // through the rot rather than a ring blinking past.
-  // Measured before changing it: mean luminance over the mass was 44.0
-  // with the pointer ON the hero and 42.8 just after leaving. The wake
-  // was at FULL while attention rested - uWakeT is zero then, so the
-  // front sat at radius zero as a static pool - and only decayed once
-  // the pointer left. That is the hover lamp again wearing a different
-  // name, and it is the opposite of a wave.
-  //
-  // The wave IS the leaving. Nothing while the cursor rests; a front
-  // that departs the moment it goes, travels out, and dies. The soft
-  // body behind it is gone too - a body is a pool, and a pool is what
-  // was wrong.
-  float wakeD = distance(vMonoW, uWakePos);
-  float wakeGo = smoothstep(0.0, 0.10, uWakeT);
-  float wakeR = uWakeT * 46.0;
-  float wake = exp(-pow((wakeD - wakeR) / 24.0, 2.0))
-             * wakeGo * exp(-uWakeT * 0.75);
-
-  // THE WAKE RIDES THE STONE. Jacob: "there is no fucking wave". It was
-  // multiplied into the rot's EMISSION, and that base is 0.028 - so
-  // even six times it is nothing, and outside the corroded band, where
-  // the web is zero, it was multiplying zero. The wave existed and
-  // could not be seen anywhere.
-  //
-  // It lifts the face itself now, so it crosses the whole monument
-  // whether or not the rot has reached there.
-  diffuseColor.rgb += diffuseColor.rgb * wake * 5.0;
-  diffuseColor.rgb += vec3(0.085, 0.094, 0.112) * wake;
-
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
             + cRun * 0.005) * (1.0 - uCalm * 0.45)
@@ -550,6 +569,32 @@ if (gl_FrontFacing) {
   if (uInnerAmt > 0.001) {
     vec3 iv = uInner - vMonoW;
     totalEmissiveRadiance += vec3(0.45, 0.5, 0.6) * (uInnerAmt / (1.0 + dot(iv, iv) * 0.02));
+  }
+
+  // ---- THE RIM ----
+  // Gate 3 of the reference picture, 2026-08-22. With the sky dropped to
+  // near-black (gate 1), the shadow side of the mass sank into it and the
+  // silhouette died - the exact failure the skyAt comment predicts for a
+  // near-black object on a near-black sky. The picture separates them
+  // with pale light grazing the outer edges, sourced by its backlit
+  // cloud break.
+  //
+  // Built as a fresnel response to SKY light, not a fixed backlight: the
+  // camera orbits this monument across the whole journey, and a sun
+  // nailed to one azimuth reads correctly from the opening and wrongly
+  // from everywhere else. View-grazing edges catch a cold sky-coloured
+  // light, biased upward twice - by the surface facing the sky and by
+  // height on the mass - because the light this claims to be comes from
+  // above. Fades with decay like everything else, and lives in the
+  // material so the flat audit keeps it: this is the static-frame law
+  // being served, not bloom.
+  {
+    vec3 rimV = normalize(vViewPosition);
+    float graze = pow(1.0 - abs(dot(normal, rimV)), 3.0);
+    // the sky is up: normals with any upward lean catch more of it
+    float up = 0.35 + 0.65 * clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 rimC = mix(vec3(0.30, 0.38, 0.55), vec3(0.26, 0.36, 0.58), uSeverity);
+    totalEmissiveRadiance += rimC * graze * up * (0.30 + 0.70 * heightT) * uRim * (1.0 - uDecay);
   }
 }`;
 
@@ -968,7 +1013,7 @@ vec2 skyDrift(vec2 p, float a) {
   return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
 }
 
-vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strata, float shaftAmt, float time) {
+vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strata, float shaftAmt, float breakAmt, float time) {
   // The skin is #050607. A near-black object against a near-black sky
   // is nothing at all, which is why the spire vanished when the spec
   // albedo went in. Every reference sheet stands it against haze, so
@@ -990,8 +1035,16 @@ vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strat
   //
   // It is also about a quarter darker in luminance than the neutral sky
   // was, which gives the monument somewhere to be brighter THAN.
-  vec3 base = mix(vec3(0.0040, 0.0058, 0.0115), vec3(0.0030, 0.0048, 0.0105), sev);
-  vec3 glow = mix(vec3(0.0230, 0.0350, 0.0700), vec3(0.0130, 0.0220, 0.0500), sev);
+  //
+  // GATE 1 OF THE REFERENCE PICTURE, 2026-08-22: the whole field drops to
+  // about forty percent of that. Measured before the change, the clear
+  // sky sat at 12.7/255 and the horizon at 15.2 - a broad mid-navy wash
+  // that the monument's shadow side sank UNDER, so the frame read as a
+  // grey-blue card with a dark cutout. The picture's sky is near-black
+  // with structure. Hue untouched; the decks, lid and drift all scale
+  // with these two, which is the point of them being the only two.
+  vec3 base = mix(vec3(0.0017, 0.0024, 0.0048), vec3(0.0013, 0.0020, 0.0044), sev);
+  vec3 glow = mix(vec3(0.0097, 0.0147, 0.0294), vec3(0.0055, 0.0092, 0.0210), sev);
   vec3 col = base + glow * band * (0.35 + 0.65 * high);
 
   // THE DECKS. Three horizontal sheets of haze at real altitudes. A ray
@@ -1085,6 +1138,29 @@ vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strat
   // little of it back where a deck is lit from below
   col *= 1.0 - clamp(dens, 0.0, 1.0) * 0.38;
   col += glow * clamp(lit, 0.0, 1.5) * 0.26;
+
+  // ---- THE BREAK ----
+  // Gate 5 of the reference picture, 2026-08-22. The picture's sky is
+  // lit from one place: a torn opening in the weather above the tower,
+  // and everything else - the rim on the outer edges (gate 3), the pale
+  // crown, the silhouette - follows from that one source. Ours had a
+  // halo sprite at the tips with no reason in the sky for it; this is
+  // the reason, behind and above the crown, so the light the frame
+  // already carries finally has a source.
+  //
+  // NOT a disc, and the guards are structural, not tuning. An eclipse
+  // read needs a body with an edge: this is two very broad cosine
+  // powers, its centre sits well ABOVE the tips (the sight line to it
+  // from every journey camera clears the crown), and the decks occlude
+  // it, so it arrives as weather torn open rather than as an object.
+  // Severity takes it down by almost half: the return's sky closes.
+  {
+    vec3 toBreak = normalize(vec3(0.0, 360.0, 0.0) - eye);
+    float bAlign = max(dot(d, toBreak), 0.0);
+    float breakGlow = pow(bAlign, 34.0) * 0.72 + pow(bAlign, 7.0) * 0.28;
+    breakGlow *= 1.0 - clamp(dens, 0.0, 1.0) * 0.55;
+    col += glow * breakGlow * breakAmt * (1.0 - sev * 0.45) * 3.0;
+  }
 
   // THE LID. The faint inverted plain far above, met at the same
   // t = (H - eye.y) / d.y as any deck. Three things separate it from
@@ -1188,11 +1264,12 @@ const SKY_FRAG = /* glsl */ `
   uniform float uDraw;
   uniform float uStrata;
   uniform float uShaft;
+  uniform float uBreak;
   uniform float uTime;
   out vec4 outColor;
   ${SKY_LAW}
   void main() {
-    outColor = vec4(skyAt(normalize(vDir), cameraPosition, uSeverity, uLid, uDraw, uStrata, uShaft, uTime), 1.0);
+    outColor = vec4(skyAt(normalize(vDir), cameraPosition, uSeverity, uLid, uDraw, uStrata, uShaft, uBreak, uTime), 1.0);
   }
 `;
 
@@ -1260,6 +1337,9 @@ export class JourneyRenderer {
   private readonly scene = new THREE.Scene();
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
+  private readonly grade: ShaderPass;
+  /** ?flat=1: bloom held at zero so the static frame is audited bare */
+  flatAudit = false;
   private readonly cladMat: THREE.ShaderMaterial;
   private readonly markMat: THREE.ShaderMaterial;
   private readonly skyMat: THREE.ShaderMaterial;
@@ -1326,6 +1406,7 @@ export class JourneyRenderer {
   private hazeMat!: THREE.ShaderMaterial;
   private fieldMat!: THREE.ShaderMaterial;
   private mistMat!: THREE.ShaderMaterial;
+  private strataMat!: THREE.ShaderMaterial;
   private readonly choir: ChoirGroup;
   private frameGroup!: THREE.Group;
   private moteMat!: THREE.ShaderMaterial;
@@ -1345,9 +1426,10 @@ export class JourneyRenderer {
   private readonly hoverPoint = new THREE.Vector3(0, -999, 0);
   private pointerNdc: { x: number; y: number } | null = null;
   private hoverAmt = 0;
-  /** where attention last rested on the mass, and how long since */
-  private readonly wakePos = new THREE.Vector3(0, -999, 0);
+  /** seconds since attention left the mass; 99 until it ever has */
   private wakeT = 99;
+  /** the height along the seam it left from, 0 foot to 1 crown */
+  private wakeY = 0.5;
   private parX = 0;
   /** the watcher's smoothed aim, and how present it is */
   private watchX = 0;
@@ -1379,8 +1461,64 @@ export class JourneyRenderer {
     });
     this.composer = new EffectComposer(this.renderer, rt);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(2, 2), 0.34, 0.5, 1.0);
+    // THRESHOLD 0.78, NOT 1.0. At 1.0 the seam's surge was either over the
+    // line - a hard halo, which Jacob read as an object being carried
+    // along the crack - or under it and completely invisible, with no
+    // useful range between. Every attempt at "dim but still there" landed
+    // in that gap. Dropping the line gives the front somewhere to fade
+    // THROUGH, so its glow shrinks as it travels instead of holding.
+    //
+    // 0.78 is chosen against the resting frame, not for the surge: the
+    // blade at rest is 0.68 at its brightest and the tone-mapped stone
+    // sits well under that, so nothing that is lit now starts glowing.
+    // Verified by diffing the resting frame across the change - the only
+    // thing that moved was the seam during a wave.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(2, 2), 0.34, 0.5, 0.78);
     this.composer.addPass(this.bloom);
+
+    // ---- THE GRADE ----
+    // Gate 7 of the reference picture, 2026-08-22, and deliberately the
+    // smallest gate: most of the picture's grade fell out of gates 1 and
+    // 5 (the value flip and the break). What remained is a floor and a
+    // curve. The black point clips the last of the atmospheric haze off
+    // the deep sky, and a gentle pivot contrast in linear space snaps
+    // the stone's mids apart before ACES rolls the shoulder. It runs
+    // BEFORE tone mapping so it grades light, not pixels, and it stays
+    // in the flat audit: a curve is part of the static frame, bloom is
+    // not.
+    this.grade = new ShaderPass(
+      new THREE.ShaderMaterial({
+        uniforms: {
+          tDiffuse: { value: null },
+          // 0.0035 / 1.07 crushed the break to a tight halo and put the
+          // frame back under the 25 percent floor - the sky and the break
+          // live exactly in the lows a black point eats. Halved and
+          // gentled: the depth stays, the opening survives.
+          uLift: { value: 0.0012 },
+          uContrast: { value: 1.05 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform float uLift;
+          uniform float uContrast;
+          varying vec2 vUv;
+          void main() {
+            vec3 c = texture2D(tDiffuse, vUv).rgb;
+            c = max(c - uLift, 0.0);
+            // pivot at mid-grey in linear, so shadows crush and
+            // highlights open without the frame changing exposure
+            c = pow(c / 0.18, vec3(uContrast)) * 0.18;
+            gl_FragColor = vec4(c, 1.0);
+          }`
+      })
+    );
+    this.composer.addPass(this.grade);
     this.composer.addPass(new OutputPass());
 
     // --- sky ---
@@ -1402,6 +1540,8 @@ export class JourneyRenderer {
         uDraw: { value: 0.6 },
         uStrata: { value: 0.35 },
         uShaft: { value: 0.5 },
+        // gate 5: the torn opening above the crown. Review pin.
+        uBreak: { value: 1.0 },
         uTime: { value: 0 }
       },
       side: THREE.BackSide,
@@ -1607,6 +1747,14 @@ export class JourneyRenderer {
         uniform float uNear;
         uniform vec2 uWatch;
         uniform float uWatchAmt;
+        // THE SURGE. Seconds since the visitor's attention left the mass,
+        // the height along the seam it left from, and how hard the seam
+        // answers. See the note beside the term.
+        uniform float uWakeT;
+        uniform float uWakeY;
+        uniform float uSurge;
+        uniform float uSurgeTime;
+        uniform float uSurgeTail;
         out vec4 outColor;
         void main() {
           // THE LIGHT FILLS THE SLOT; THE STONE GIVES IT ITS SHAPE.
@@ -1725,7 +1873,134 @@ export class JourneyRenderer {
           // what is left is one point of interest in a dead seam.
           float watch = mix(1.0, mix(0.20, 1.35, node), uWatchAmt);
 
-          outColor = vec4(mix(holy, cold, uSeverity) * v * u * near * fail * watch * turn, 1.0);
+          // ---- THE SURGE ----
+          // Jacob, four times: "you removed the cool effect when you take
+          // away the cursor from the hero it ripples through out", then
+          // "not like the wave you built earlier", then "there is no
+          // fucking wave", then "wave is still not fixed".
+          //
+          // Three passes answered that by building a travelling front on
+          // the STONE. Driving the same leaving gesture against the build
+          // he liked, frame by frame with the camera pinned, says the
+          // ripple was never on the stone. At f864728 the seam sat at 1.2
+          // and the bloom pass thresholds at 1.0, so the core cleared it
+          // and a soft halo blossomed out across the whole frame. 3ef6cdf
+          // took the blade to 0.68 to stop it burning on an OLED - which
+          // it had to - and 0.68 can never reach 1.0, so the halo went out
+          // in the same commit that removed the hover lamp. That is why it
+          // read as the lamp's doing, and why three rebuilds of a "wave"
+          // never brought it back.
+          //
+          // So the seam SURGES instead of sitting bright. Rest stays at
+          // 0.68: nothing clips, nothing burns. When attention leaves the
+          // mass the whole length briefly overshoots the bloom threshold
+          // and settles. The ripple through the frame is the bloom
+          // answering, which is what it always was.
+          //
+          // Added OUTSIDE watch on purpose. The watcher holds the seam at
+          // a fifth of its level while a pointer is anywhere on the page,
+          // and a surge multiplied by that could never reach the
+          // threshold. This is the seam's own light, not the watcher's.
+          // Jacob: "wave is too fast now", then "the wave isnt propagating
+          // to each ends its just lame".
+          //
+          // The second note is the real one and he is right. Both earlier
+          // shapes were f(time) ALONE: every point of the seam brightened
+          // and dimmed in lockstep, so the whole length pulsed at once.
+          // That is a swell, not a wave. Nothing travelled, and a wave
+          // that does not travel has no reason to be called one.
+          //
+          // So it propagates. Jacob on the first travelling version: "the
+          // propagation is bit too slow and the split is awkward,
+          // execution flawless".
+          //
+          // IT SPLITS. Two fronts leave the height attention was at in the
+          // same instant, one for the crown and one for the foot, and each
+          // dies where it lands.
+          //
+          // Recorded because it cost four rounds: the split was RIGHT the
+          // first time it was built. "the split is awkward" was read here
+          // as remove the split, so it became one front to the crown -
+          // "its only propagating towards crown" - and then a single front
+          // that reflected off the crown and came back down, which reaches
+          // both ends but never at the same time. None of that was asked
+          // for. The note under "awkward" is the tail, not the topology,
+          // and the tail is uSurgeTail now rather than another guess.
+          //
+          // BOTH ENDS ARE REACHED AT THE SAME MOMENT. The split is almost
+          // never in the middle of the seam, so a shared SPEED lands the
+          // two fronts at different times and the thing reads lopsided -
+          // Jacob: "timing is off both should reach the same time". What
+          // is shared is the CLOCK, not the speed: one journey from 0 to 1
+          // that both fronts run, each covering its own distance in it, so
+          // the front with further to go simply travels faster. They leave
+          // together and they arrive together whatever height was touched.
+          //
+          // uSurgeTime is that journey, in seconds, swept live through
+          // __dl.setSurgeTime, because tempo cannot be judged from a
+          // number.
+          float prog = uWakeT / uSurgeTime;
+          float toCrown = 1.0 - uWakeY;
+          float toFoot = uWakeY;
+          // THEY COME UP ALREADY MOVING. Starting both fronts ON the split
+          // means the first thing that happens is a bright point at the
+          // touch height that then tears into two, and that flash is what
+          // Jacob was seeing. They appear a sixth of the way out instead,
+          // in motion, so there is never a moment where the pair is one
+          // object. The landing is unaffected: travel still reaches 1 when
+          // prog does.
+          float travel = mix(0.16, 1.0, prog);
+          float posUp = uWakeY + toCrown * travel;
+          float posDn = uWakeY - toFoot * travel;
+
+          // tight ahead of each front, softer behind it, so each carries a
+          // tail and reads as a wave with a direction rather than a band
+          // sliding on a rail. Both tails point back at the split.
+          float relUp = vUvF.y - posUp;
+          float relDn = posDn - vUvF.y;
+          float bandUp = exp(-pow(relUp / (relUp > 0.0 ? 0.085 : uSurgeTail), 2.0));
+          float bandDn = exp(-pow(relDn / (relDn > 0.0 ? 0.085 : uSurgeTail), 2.0));
+
+          // AND THE SPLIT IS LET GO OF. Both tails point back toward the
+          // touch height, so while the fronts are still close the seam
+          // between them stays lit and the pair reads as one lump being
+          // torn rather than two things leaving. Each tail is cut where it
+          // reaches back toward the split, measured along that front's own
+          // run so it works the same whichever end is nearer. What is
+          // behind a front goes dark; what is ahead of it is untouched, so
+          // the travel is exactly as it was.
+          float sUp = toCrown > 0.0001 ? (vUvF.y - uWakeY) / toCrown : 0.0;
+          float sDn = toFoot > 0.0001 ? (uWakeY - vUvF.y) / toFoot : 0.0;
+          bandUp *= smoothstep(0.0, travel * 0.72, sUp);
+          bandDn *= smoothstep(0.0, travel * 0.72, sDn);
+
+          // MAX, never a sum: adding the two would double the seam
+          // wherever their reach overlaps.
+          float band = max(bandUp, bandDn);
+          // IT SPENDS ITSELF. Holding the level so both fronts stayed at
+          // full brightness the whole way was wrong: Jacob, "earlier it
+          // went fast with less glow, now its like forced". A front that
+          // grinds to its end at constant strength reads as something
+          // being carried along the crack; one that flares and is spent
+          // reads as the structure doing something. So it decays as it
+          // runs, and with the bloom threshold at 0.78 there is now room
+          // for that decay to be seen as a shrinking glow rather than
+          // falling straight off a cliff into nothing.
+          float envelope = smoothstep(0.0, 0.07, prog)
+                         * exp(-prog * 0.8)
+                         * (1.0 - smoothstep(0.88, 1.04, prog));
+          float surge = prog < 1.2 ? band * envelope * uSurge : 0.0;
+
+          // THE BLOOM IS THE EFFECT, not decoration on top of it. Tried
+          // holding the front under the pass's threshold of 1.0 so it
+          // would travel without a halo - Jacob asked for exactly that -
+          // and the propagation disappeared outright: the seam is three or
+          // four pixels wide in a 1600-pixel frame, and a brightness
+          // change on a line that thin is not something an eye finds. The
+          // halo is what carries the front's position out to where it can
+          // be seen. Recorded so it is not tried a second time.
+          vec3 seam = mix(holy, cold, uSeverity) * v * u;
+          outColor = vec4(seam * (near * fail * watch * turn + surge * fail), 1.0);
         }`,
       uniforms: {
         uSeverity: { value: 0 },
@@ -1733,7 +2008,26 @@ export class JourneyRenderer {
         uNear: { value: 0 },
         // THE WATCHER. x and y in -1..1, smoothed toward the pointer.
         uWatch: { value: new THREE.Vector2(0, 0) },
-        uWatchAmt: { value: 0 }
+        uWatchAmt: { value: 0 },
+        // THE SURGE. 99 parks it: no surge at load, none under reduced
+        // motion. Amount is swept from rendered frames, not argued.
+        uWakeT: { value: 99 },
+        // where along the seam the fronts start, 0 foot to 1 crown
+        uWakeY: { value: 0.5 },
+        // 0.92 against a threshold of 0.78 and a resting seam of 0.136
+        // puts the front only about a quarter over the line at birth, so
+        // its halo is small from the start and shrinks as it spends
+        // itself. The old 1.25 against a threshold of 1.0 sat much further
+        // over and held there, which is the hard travelling glow.
+        uSurge: { value: 0.92 },
+        // seconds for the whole journey. Both fronts leave the split at
+        // zero and land on their own end at one, whatever the two
+        // distances are, so the far one simply travels faster.
+        uSurgeTime: { value: 0.5 },
+        // how long a tail each front drags back toward the split. Short
+        // detaches the two fronts cleanly; long keeps the origin lit while
+        // they pull away, which is the likeliest reading of "awkward".
+        uSurgeTail: { value: 0.185 }
       },
       side: THREE.DoubleSide,
       // Jacob, 2026-08-21: "there is a something in the back of crown
@@ -2049,6 +2343,430 @@ export class JourneyRenderer {
       }
     }
 
+    // --- THE FAR STANDING FIELD ---
+    // Gate 2 of the reference picture, 2026-08-22. The world used to end
+    // at the last choir mass: choir 560 to 1560 out, ridges inside 1140,
+    // and past that nothing until fog - so seven same-scale shapes stood
+    // on one plane and the frame read model-sized. The picture's scale
+    // comes from monoliths that keep receding in LAYERS.
+    //
+    // Three rings of standing silhouettes, 1850 to 3250 out - inside the
+    // shore's 3600, so every foot stays in ground. Each ring bakes a
+    // deeper blend toward the fog colour into its vertices, which is the
+    // whole recession: nearer rings cut darker against the horizon, the
+    // last is almost air. No facets, no lights, no response to anything -
+    // these are distance, not company. The old field note ("nothing out
+    // there competes with a vertical hero") still governs the NEAR plain;
+    // at these distances a 90-unit monolith subtends two degrees and
+    // competes with nothing.
+    {
+      const rng = mulberry32ish(world.seed ^ 0x3a91);
+      const pos: number[] = [];
+      const fade: number[] = [];
+      const idx: number[] = [];
+      const RINGS: ReadonlyArray<readonly [number, number, number]> = [
+        // distance, count, blend toward fog
+        [1850, 26, 0.5],
+        [2500, 36, 0.72],
+        [3250, 48, 0.88]
+      ];
+      for (const [dist, count, blend] of RINGS) {
+        for (let i = 0; i < count; i++) {
+          const a = ((i + rng() * 0.8) / count) * Math.PI * 2;
+          const d = dist * (0.92 + rng() * 0.16);
+          const cx = Math.cos(a) * d;
+          const cz = Math.sin(a) * d;
+          // heights grow with distance more slowly than distance does,
+          // so each layer subtends less: recession the eye can read
+          const h = (26 + rng() * 64) * Math.pow(d / 1400, 0.8);
+          const w = (7 + rng() * 16) * Math.pow(d / 1400, 0.9);
+          // stood across the sightline, with a slight taper and lean
+          const tx = -Math.sin(a);
+          const tz = Math.cos(a);
+          const lean = (rng() - 0.5) * 0.24;
+          const top = 0.42 + rng() * 0.3;
+          const b = pos.length / 3;
+          pos.push(cx - tx * w, -6, cz - tz * w);
+          pos.push(cx + tx * w, -6, cz + tz * w);
+          pos.push(cx + tx * w * top + tx * lean * h * 0.2, h, cz + tz * w * top + tz * lean * h * 0.2);
+          pos.push(cx - tx * w * top + tx * lean * h * 0.2, h, cz - tz * w * top + tz * lean * h * 0.2);
+          fade.push(blend, blend, blend, blend);
+          idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('aFade', new THREE.Float32BufferAttribute(fade, 1));
+      g.setIndex(idx);
+      this.strataMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `
+          in float aFade;
+          out float vFade;
+          void main() {
+            vFade = aFade;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `
+          precision highp float;
+          in float vFade;
+          uniform vec3 uFog;
+          out vec4 outColor;
+          void main() {
+            outColor = vec4(mix(vec3(0.006, 0.007, 0.010), uFog, vFade), 1.0);
+          }`,
+        uniforms: { uFog: { value: new THREE.Color('#020305') } },
+        side: THREE.DoubleSide
+      });
+      const strata = new THREE.Mesh(g, this.strataMat);
+      strata.frustumCulled = false;
+      this.scene.add(strata);
+    }
+
+    // --- THE SCREE ---
+    // Part of THE FOOT, 2026-08-22. The scroll strips cells off the
+    // monument and they fall - and until now they fell into nothing:
+    // the ground at the foot was shaven clean, which is half of why the
+    // mass read as a prop on a baseplate. These are the ones that have
+    // already landed, from failures before the visitor arrived. Same
+    // cell scale as the lattice, same stone family as the choir, sunk
+    // into the plain, densest under the blades' outer edges and off the
+    // cleft mouth where the falls funnel. They do nothing, respond to
+    // nothing, and never glow: wreckage is not a feature, it is
+    // evidence. Seeded like everything else.
+    {
+      const rng = mulberry32ish(world.seed ^ 0x7c25);
+      // 150 field pieces, then 45 drift fines - the wind's work, banked
+      // against the bottom riser east of the axis and along the east
+      // tier face. One prevailing wind, the same one that dropped the
+      // east pylon. The axis itself stays swept.
+      const N = 195;
+      const box = new THREE.BoxGeometry(1, 1, 1);
+      const stone = new THREE.MeshStandardMaterial({
+        color: 0x05060a,
+        roughness: 0.62,
+        metalness: 0.05
+      });
+      const scree = new THREE.InstancedMesh(box, stone, N);
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion();
+      const e = new THREE.Euler();
+      for (let i = 0; i < N; i++) {
+        // biased to the blades' flanks: a lobe each side of the cleft,
+        // thinning outward, with strays further off
+        const side = rng() < 0.5 ? -1 : 1;
+        const along = (rng() - 0.5) * 2; // along the cleft, -1..1
+        const away = Math.pow(rng(), 1.7); // hugs the mass
+        if (i >= 150) {
+          // drift fines: small, heavily sunk, clustered where the wind
+          // piles them
+          const s2 = CELL * (0.18 + rng() * 0.3);
+          const bank = rng() < 0.55;
+          const bx = bank
+            ? 15 - 11 * Math.pow(rng(), 1.6) // against the riser, east end
+            : 68.5 + (rng() - 0.5) * 2.4; // along the east tier face
+          const bz = bank ? 47.6 + rng() * 2.2 : (rng() - 0.5) * 66;
+          e.set((rng() - 0.5) * 0.4, rng() * Math.PI * 2, (rng() - 0.5) * 0.4);
+          q.setFromEuler(e);
+          m.compose(
+            // gate 5: the corridor is sacred - nothing banks inside x=6
+            new THREE.Vector3(bank ? Math.max(bx, 6.0) : bx, s2 * 0.16, bz),
+            q,
+            new THREE.Vector3(s2, s2 * 0.5, s2 * 0.8)
+          );
+          scree.setMatrixAt(i, m);
+          continue;
+        }
+        // a third lie ON the plinth - fragments that landed on the
+        // platform and stayed - the rest on the ground past its skirt,
+        // with strays thrown further out
+        const onPlinth = rng() < 0.34;
+        const stray = !onPlinth && rng() < 0.3;
+        const s = CELL * (0.5 + rng() * 0.95);
+        let x;
+        let z;
+        let y;
+        if (onPlinth) {
+          x = side * (9 + rng() * 26) + along * 4 * rng();
+          // held off the stair's mouth at the platform edge: a fragment
+          // there would float on the treads
+          z = -19 + rng() * 36;
+          y = 6.4 + s * 0.4; // resting on the top tier, slightly bedded
+        } else {
+          x = side * (72 + away * (stray ? 60 : 26)) * (0.35 + 0.65 * rng());
+          z = along * (46 + away * 30) + (stray ? 10 + rng() * 20 : 0);
+          // outside the skirt only: anything under a tier is buried
+          if (Math.abs(x) < 70 && Math.abs(z) < 43) z = Math.sign(z || 1) * (44 + rng() * 18);
+          // THE SWEPT FORECOURT, base gate 5. Nothing dares stand on the
+          // approach line: any piece that lands inside the corridor is
+          // pushed off it. Reverence reads as emptiness on the axis -
+          // the one place in this wreckage where there is no wreckage.
+          if (Math.abs(x) < 7 && z > 0 && z < 120) x = Math.sign(x || 1) * (7 + rng() * 4);
+          y = -s * (0.3 + rng() * 0.4) + s / 2; // sunk into the plain
+        }
+        e.set(rng() * 0.6 - 0.3, rng() * Math.PI * 2, rng() * 0.6 - 0.3);
+        q.setFromEuler(e);
+        m.compose(
+          new THREE.Vector3(x, y, z),
+          q,
+          new THREE.Vector3(s, s * (0.55 + rng() * 0.5), s * (0.7 + rng() * 0.5))
+        );
+        scree.setMatrixAt(i, m);
+      }
+      scree.instanceMatrix.needsUpdate = true;
+      this.scene.add(scree);
+    }
+
+    // --- THE PLINTH ---
+    // Jacob, 2026-08-22, pointing at the reference: "it has a base kind
+    // of thing". It does, and it is most of why its tower reads as built
+    // and ours read as grown out of dirt: the mass stands on an
+    // architectural podium. Three stepped tiers of the same near-black
+    // stone, wider than the blades, the top tier standing clear of the
+    // dunes (they run to +6 here; the platform tops at 6.4 so no dune
+    // ever pokes through it). The blades rise straight out of the stone
+    // - monument.py keeps full section below ground, so the join is
+    // solid by construction.
+    //
+    // The slit's light pools on the platform where it lands and drips
+    // down the step faces toward the visitor - the same lane law the
+    // ground uses, evaluated on the plinth's own surfaces. The pool is
+    // why the fissure's foot being occluded by the top tier reads as
+    // intended rather than cut: the light does not stop, it LANDS.
+    {
+      const plinthMat = new THREE.MeshStandardMaterial({
+        color: 0x05060a,
+        roughness: 0.46,
+        metalness: 0.05
+      });
+      plinthMat.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, this.groundU);
+        sh.vertexShader = sh.vertexShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+varying vec3 vPlinthW;
+varying vec3 vPlinthN;`
+          )
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+vPlinthW = (modelMatrix * vec4(position, 1.0)).xyz;
+vPlinthN = normalize(mat3(modelMatrix) * normal);`
+          );
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+varying vec3 vPlinthW;
+varying vec3 vPlinthN;
+uniform float uGSeverity;
+uniform float uGDecay;
+float pHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }`
+          )
+          .replace(
+            '#include <map_fragment>',
+            `#include <map_fragment>
+{
+  // coursed stone, at the platform's own scale
+  diffuseColor.rgb *= 0.88 + 0.24 * pHash(floor(vPlinthW.xz * 0.55) + floor(vPlinthW.y * 0.8));
+  // THE POOL. The slit's light lands on the top surfaces along the axis
+  // and drips down the south step faces; the same lane law as the
+  // ground, so platform and plain carry one light.
+  float r = length(vPlinthW.xz);
+  float axis = abs(vPlinthW.x) / (1.6 + r * 0.085);
+  float lane = exp(-axis * axis) * exp(-r * 0.012);
+  vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
+  float top = smoothstep(0.55, 0.9, vPlinthN.y);
+  float face = smoothstep(0.55, 0.9, vPlinthN.z);
+  diffuseColor.rgb += lit * lane * (top * 0.34 + face * 0.16) * (1.0 - uGDecay * 0.5);
+
+  // ---- THE WORN AXIS ----
+  // Base gate 4, 2026-08-22. The line of ten thousand approaches: a
+  // channel down the stair's centre and across the platform to the
+  // mouth, slightly darkened where the traffic ground its patina in.
+  // Upward faces only, the approach side only, fading out past the
+  // stair's foot where the walkers dispersed. The wear is the one
+  // thing here the monument did not do to itself - it is the record
+  // of everyone who came - and it aims the eye at the mouth for free.
+  float wear = exp(-vPlinthW.x * vPlinthW.x / 18.0)
+             * top
+             * smoothstep(-4.0, 2.0, vPlinthW.z)
+             * (1.0 - smoothstep(46.0, 54.0, vPlinthW.z));
+  diffuseColor.rgb *= 1.0 - wear * 0.15;
+}`
+          )
+          .replace(
+            '#include <roughnessmap_fragment>',
+            `#include <roughnessmap_fragment>
+{
+  // gate 4's other half: worn stone is SMOOTH stone. The channel
+  // polishes, so the slit's lane light finds it and the centreline
+  // glints where the edges stay dull - darker in albedo, brighter in
+  // response, which is exactly what real wear does.
+  float wtop = smoothstep(0.55, 0.9, vPlinthN.y);
+  float wearR = exp(-vPlinthW.x * vPlinthW.x / 18.0)
+              * wtop
+              * smoothstep(-4.0, 2.0, vPlinthW.z)
+              * (1.0 - smoothstep(46.0, 54.0, vPlinthW.z));
+  roughnessFactor = max(roughnessFactor - wearR * 0.2, 0.2);
+}`
+          );
+      };
+      // topY, halfX, halfZ, height, settle - each tier stands on the
+      // next. Base gate 3: the east flank has SUNK, a fraction more per
+      // tier of depth, pivoting so the west edge holds its line - one
+      // side of the architecture giving way over centuries while the
+      // blades behind it stay true vertical. The monument does not age;
+      // what people built around it does. The tilt is under a degree
+      // and it is the difference between finished yesterday and
+      // standing forever.
+      const TIERS: ReadonlyArray<readonly [number, number, number, number, number]> = [
+        [6.4, 38, 22, 2.4, 0.004],
+        [4.0, 52, 31, 2.2, 0.007],
+        [1.8, 68, 41, 4.6, 0.011]
+      ];
+      for (const [topY, hx, hz, h, settle] of TIERS) {
+        const tier = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, h, hz * 2), plinthMat);
+        // rotate about the centre, then lift so the WEST edge stays put:
+        // the east drops by the full 2*hx*settle and the seam stays shut
+        tier.position.set(0, topY - h / 2 + hx * settle, 0);
+        tier.rotation.z = settle;
+        this.scene.add(tier);
+      }
+
+      // ---- THE PROCESSIONAL STAIR ----
+      // Base gate 1 of the temple-entrance extraction, 2026-08-22. The
+      // tiers are 2.2 to 2.4 high: monolith slabs, and nothing anywhere
+      // in the frame carries a human measure. Thirteen treads at just
+      // under half a unit are that ruler. The moment they exist the
+      // blades become four hundred steps tall, and the scale ladder -
+      // step, tier, blade - snaps into place. Centred on the axis,
+      // narrower than the plinth, rising from the plain to the top
+      // platform on the approach side.
+      //
+      // Same material instance as the tiers, so the slit's light spills
+      // down the treads by the same lane law with nothing added: the
+      // beam falling down the entrance stair IS the reference's image,
+      // and here it costs nothing because the law already existed.
+      //
+      // Each step drops to below grade rather than sitting as a slab on
+      // the tiers, so from the flank the stair reads as one solid
+      // stepped mass cut into the podium, not a gangway laid over it.
+      {
+        const STEPS = 13;
+        const RISE = 6.4 / STEPS;
+        const RUN = 1.9;
+        const WIDTH = 30;
+        // Base gate 3: five treads have lost their east corner, and the
+        // pieces lie where they broke. Constants, not draws, so the
+        // scree's seeded stream stays untouched downstream.
+        const CHIPS = new Map<number, number>([
+          [2, 2.6],
+          [3, 1.4],
+          [6, 3.1],
+          [7, 1.8],
+          [10, 2.2]
+        ]);
+        for (let i = 0; i < STEPS; i++) {
+          const topY = RISE * (i + 1);
+          const frontZ = 22 + (STEPS - i) * RUN;
+          const chip = CHIPS.get(i) ?? 0;
+          const step = new THREE.Mesh(
+            new THREE.BoxGeometry(WIDTH - chip, topY + 0.6, RUN),
+            plinthMat
+          );
+          step.position.set(-chip / 2, (topY - 0.6) / 2, frontZ - RUN / 2);
+          this.scene.add(step);
+          if (chip > 0) {
+            // the corner that came off, lying below its notch
+            const frag = new THREE.Mesh(
+              new THREE.BoxGeometry(chip * 0.7, RISE * 0.8, RUN * 0.8),
+              plinthMat
+            );
+            frag.position.set(WIDTH / 2 - chip * 0.2 + 1.2, RISE * 0.35, frontZ + 1.1);
+            frag.rotation.set(0.14, 0.5 + i * 0.9, 0.1);
+            this.scene.add(frag);
+          }
+        }
+      }
+
+      // ---- THE PYLONS ----
+      // Base gate 2, 2026-08-22. Paired stones flanking the stair's foot,
+      // marking the axis - and one of the pair is down. Each is built the
+      // only way anything in this world is built: a stack of the
+      // monument's own cell courses, drystone-irregular, so the guardian
+      // and the monument obey one law. Which is exactly why one could
+      // fall: cells fail, and cells fall. The west pylon stands its nine
+      // courses; the east kept two, leaning, and the rest lie in a
+      // directional run where they landed, half sunk, falling AWAY from
+      // the axis so the forecourt stays swept. Never a colonnade: two
+      // stones, one lesson.
+      {
+        const prng = mulberry32ish(world.seed ^ 0x51ab);
+        const course = (
+          x: number,
+          y: number,
+          z: number,
+          rotY: number,
+          tilt: number,
+          sx: number,
+          sy: number,
+          sz: number
+        ): void => {
+          const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), plinthMat);
+          b.position.set(x, y, z);
+          b.rotation.set(tilt, rotY, tilt * 0.6);
+          this.scene.add(b);
+        };
+        const FOOT_Z = 52;
+        const AXIS_X = 21.5;
+        // the standing pylon: nine courses, a stele, not a candle
+        {
+          let y = 0;
+          for (let i = 0; i < 9; i++) {
+            const h = 1.35 + prng() * 0.35;
+            const w = 2.6 - i * 0.06 + (prng() - 0.5) * 0.18;
+            y += h / 2;
+            course(
+              -AXIS_X + (prng() - 0.5) * 0.22,
+              y,
+              FOOT_Z + (prng() - 0.5) * 0.22,
+              (prng() - 0.5) * 0.14,
+              (prng() - 0.5) * 0.02,
+              w,
+              h,
+              w * (0.9 + prng() * 0.2)
+            );
+            y += h / 2;
+          }
+        }
+        // the fallen pylon: a leaning two-course stump, and the run of
+        // courses where they landed - outward and east, off the axis
+        {
+          course(AXIS_X, 0.8, FOOT_Z, 0.1, 0.0, 2.7, 1.6, 2.6);
+          course(AXIS_X + 0.3, 2.2, FOOT_Z + 0.2, 0.24, 0.09, 2.5, 1.3, 2.4);
+          let d = 3.4;
+          for (let i = 0; i < 7; i++) {
+            const s = 2.3 - i * 0.1 + (prng() - 0.5) * 0.3;
+            const spread = (prng() - 0.5) * 2.6;
+            // half sunk: landed a long time ago
+            course(
+              AXIS_X + d * 0.72 + spread,
+              s * (0.24 + prng() * 0.14),
+              FOOT_Z + d + spread * 0.5,
+              prng() * Math.PI,
+              (prng() - 0.5) * 0.3,
+              s,
+              s * (0.6 + prng() * 0.3),
+              s * (0.8 + prng() * 0.3)
+            );
+            d += s * (0.9 + prng() * 0.5);
+          }
+        }
+      }
+    }
+
     // --- atmosphere ---
     // THE BACKING HALO IS REMOVED, 2026-08-19. A 180 unit additive
     // sprite off to the left at low height, and the bright patch on the
@@ -2161,6 +2879,7 @@ export class JourneyRenderer {
       uDecay: { value: 0 },
       uSeverity: { value: 0 },
       uCalm: { value: 0 },
+      uRim: { value: 1.0 },
       uHover: { value: new THREE.Vector3(0, -999, 0) },
       uHoverAmt: { value: 0 },
       uInner: { value: new THREE.Vector3(0, -999, 0) },
@@ -2169,8 +2888,6 @@ export class JourneyRenderer {
       uAlign: { value: 0 },
       uWatchY: { value: 90 },
       uWatchAmt: { value: 0 },
-      uWakePos: { value: new THREE.Vector3(0, -999, 0) },
-      uWakeT: { value: 99 },
       // the visitor's presses, as world positions + born times. The
       // stone eats at these points instead of a sprite being glued on.
       uMarks: { value: Array.from({ length: 12 }, () => new THREE.Vector4(0, -999, 0, -99)) },
@@ -2269,10 +2986,25 @@ ${SKY_LAW}`
   // the fissure lays a reflection down the floor: a long streak on the
   // monument's axis, tightest near the foot and spreading with distance
   float r = length(vGroundW.xz);
-  float axis = abs(vGroundW.x) / (2.2 + r * 0.10);
-  float streak = exp(-axis * axis) * exp(-r * 0.010) * step(-1.0, vGroundW.z);
+  // THE FOOT, 2026-08-22. Jacob: "need to do something about the base".
+  // Four faults, one treatment; the lane is the first. It was 2.2 wide
+  // at a mouth whose slit is under one unit of visible light, and it
+  // died by r=80 - a blob at the foot, not light CAST BY the slit. It
+  // leaves narrower and carries further now, a blade's throw.
+  float axis = abs(vGroundW.x) / (1.6 + r * 0.085);
+  float streak = exp(-axis * axis) * exp(-r * 0.0075) * step(-1.0, vGroundW.z);
   vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
-  diffuseColor.rgb += lit * streak * 0.30 * (1.0 - uGDecay * 0.5);
+  diffuseColor.rgb += lit * streak * 0.26 * (1.0 - uGDecay * 0.5);
+
+  // THE STANDING SHADOW. The mass blocks the sky, so the plain darkens
+  // where it stands - the contact the frame never had, which is most of
+  // why the monument read as placed on the ground rather than standing
+  // in it. The lane wins near the mouth: light escaping the slit falls
+  // INSIDE the shadow, which is exactly what makes both read as real.
+  // sized to the plinth's skirt, which is what stands on the plain now
+  vec2 fp = vec2(vGroundW.x / 74.0, vGroundW.z / 46.0);
+  float foot = 1.0 - smoothstep(0.86, 1.7, length(fp));
+  diffuseColor.rgb *= 1.0 - foot * 0.5 * (1.0 - streak * 0.75);
   // wet sheen in the middle distance. This was carrying the comment
   // about resolving into a horizon and it never could: past about a
   // thousand units the fog owns the pixel outright and no albedo
@@ -2304,6 +3036,8 @@ ${SKY_LAW}`
     float ff = skyFbm(q) - 0.4375;
     float grad = length(vec2(dFdx(ff), dFdy(ff))) + 1e-6;
     float seam = (1.0 - smoothstep(0.0, 3.0, abs(ff) / grad)) * bite;
+    // the lane stays continuous: the seams cut the stone, not the light
+    seam *= 1.0 - streak * 0.6;
     // a crack is a shadow before it is anything else
     diffuseColor.rgb *= 1.0 - seam * uGBite * 0.94;
 
@@ -2322,7 +3056,12 @@ ${SKY_LAW}`
     float chan = skyFbm(q * 0.42 + vec2(uGTime * 0.055, uGTime * -0.021));
     float live = smoothstep(0.46, 0.78, chan);
     float carry = seam * live * uGBite * exp(-r * 0.014);
-    diffuseColor.rgb += lit * carry * (0.42 + 0.9 * uGDecay);
+    // GATED ON DECAY, hard. At the opening uGDecay is zero: nothing has
+    // failed, so the plain has nothing to carry - and yet these were the
+    // brightest thing at the foot, pale worms wandering an intact floor.
+    // Consequence before cause, exactly the read the ledger forbids. The
+    // charge now arrives WITH the failure and grows with it.
+    diffuseColor.rgb += lit * carry * uGDecay * (0.55 + 0.9 * uGDecay);
   }
 }`
             )
@@ -2331,8 +3070,11 @@ ${SKY_LAW}`
               `#include <roughnessmap_fragment>
 {
   float rr = length(vGroundW.xz);
-  // polished where the light falls, dulling as it runs out to the dunes
-  roughnessFactor = mix(0.24, 0.72, smoothstep(40.0, 340.0, rr))
+  // polished where the light falls, dulling as it runs out to the dunes.
+  // 0.24 was mirror enough that every dune ridge drew a banded specular
+  // loop around the foot - the "water rings" read. 0.34 keeps the lane's
+  // response and loses the rings.
+  roughnessFactor = mix(0.34, 0.72, smoothstep(40.0, 340.0, rr))
                   + 0.06 * (gHash(floor(vGroundW.xz * 0.5)) - 0.5);
 }`
             )
@@ -2384,7 +3126,7 @@ ${SKY_LAW}`
   // shore's rim, so the horizon still has no edge.
   //
   // ANYTHING PLACED FURTHER OUT THAN 2400 WILL HOVER AGAIN.
-  vec3 far = mix(fogColor, skyAt(bearing, cameraPosition, uGSeverity, 0.0, 0.0, 1.0, 0.0, uGTime), smoothstep(2400.0, 3550.0, length(vGroundW.xz)));
+  vec3 far = mix(fogColor, skyAt(bearing, cameraPosition, uGSeverity, 0.0, 0.0, 1.0, 0.0, 0.0, uGTime), smoothstep(2400.0, 3550.0, length(vGroundW.xz)));
   gl_FragColor.rgb = mix(gl_FragColor.rgb, far, fogFactor);
 }
 #endif`
@@ -2431,6 +3173,17 @@ ${SKY_LAW}`
     this.skyMat.uniforms.uStrata!.value = Math.max(0.1, Math.min(1, amount));
   }
 
+  /** Gate 5 review pin: the torn opening above the crown. */
+  setBreak(amount: number): void {
+    this.skyMat.uniforms.uBreak!.value = Math.max(0, Math.min(3, amount));
+  }
+
+  /** Gate 7 review pin: black point and pivot contrast, in that order. */
+  setGrade(lift: number, contrast: number): void {
+    this.grade.material.uniforms.uLift!.value = Math.max(0, Math.min(0.02, lift));
+    this.grade.material.uniforms.uContrast!.value = Math.max(0.8, Math.min(1.4, contrast));
+  }
+
   /** How open the shaft is, 0 to 1. Review pin. */
   setShaft(amount: number): void {
     this.skyMat.uniforms.uShaft!.value = Math.max(0, Math.min(1, amount));
@@ -2454,6 +3207,66 @@ ${SKY_LAW}`
   /** How far the plain has failed at the foot, 0 to 1. Review pin. */
   setBite(amount: number): void {
     this.groundU.uGBite!.value = Math.max(0, Math.min(1, amount));
+  }
+
+  /**
+   * How hard the seam answers attention leaving the mass. 0 is silent;
+   * the surge only reads once the peak clears the bloom pass's threshold
+   * of 1.0, so this is a level to sweep against rendered frames, not a
+   * number to argue about.
+   */
+  setSurge(amount: number): void {
+    this.fissureMat.uniforms.uSurge!.value = Math.max(0, Math.min(4, amount));
+  }
+
+  /**
+   * Seconds for the whole journey: both fronts leave the split together
+   * and land on their own end together. Lower is quicker.
+   */
+  setSurgeTime(seconds: number): void {
+    this.fissureMat.uniforms.uSurgeTime!.value = Math.max(0.08, Math.min(6, seconds));
+  }
+
+  /** Gate 3 review pin: the sky's grazing light on the outer edges. */
+  setRim(amount: number): void {
+    this.stoneU.uRim!.value = Math.max(0, Math.min(3, amount));
+  }
+
+  /**
+   * Where a press lands: the point on the monument under the cursor.
+   *
+   * Jacob, 2026-08-22: "when i click on the hero holes are forming on
+   * the base wtf?" The old path put a mark 14 units ahead of the CAMERA
+   * - right for inside the cleft, where the wall is that close, and
+   * wrong everywhere else: at the opening the camera is hundreds of
+   * units out, so the point's height was the camera's height, the world
+   * clamped it onto the face, and every press seated at the foot
+   * whatever the visitor aimed at. The bright web used to bury the
+   * evidence; gate 4's clean base put it on display.
+   *
+   * Same raycast the hover lamp uses, so where the monument answers
+   * attention and where it takes a mark are one geometry. When the ray
+   * misses the tower entirely, the old fixed reach stands - pressing
+   * into the dark is still a press.
+   */
+  pressPoint(ndcX: number, ndcY: number): THREE.Vector3 {
+    this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const hit = this.raycaster.ray.intersectBox(this.towerBox, new THREE.Vector3());
+    if (hit) return hit;
+    const dir = new THREE.Vector3(ndcX, ndcY, 0.5)
+      .unproject(this.camera)
+      .sub(this.camera.position)
+      .normalize();
+    return this.camera.position.clone().add(dir.multiplyScalar(14));
+  }
+
+  /**
+   * How long a tail each front drags back toward the split, in uv. Short
+   * (0.08) detaches the two fronts cleanly; long (0.25) keeps the split
+   * point lit while they pull away.
+   */
+  setSurgeTail(uv: number): void {
+    this.fissureMat.uniforms.uSurgeTail!.value = Math.max(0.02, Math.min(0.6, uv));
   }
 
   /** The visitor's attention: where they point at the monument. */
@@ -2524,6 +3337,17 @@ ${SKY_LAW}`
       off.applyAxisAngle(right, pitch);
       off.multiplyScalar(1 + Math.sin(t * 0.21 + 4.0) * 0.02);
       this.camera.position.copy(lookP).add(off);
+      // THE FLOOR. Jacob, 2026-08-22: "the camera sway is going inside
+      // the ground". The pitch above rotates the camera's OFFSET around
+      // the look point, and at the opening that arm is 250 units long -
+      // a pointer at the bottom edge pitched the eye seventeen units
+      // DOWN, from a stand of ten, straight through the plain. It could
+      // always dip; gate 6's lower stand made it plunge. The dunes run
+      // to +6 out there and the stair treads to 6.4, so the eye never
+      // goes below 8.2: the sway keeps its full range everywhere except
+      // through the one boundary that is supposed to be solid. Inside
+      // the cleft every key sits at 20 or higher, so this never binds.
+      if (this.camera.position.y < 8.2) this.camera.position.y = 8.2;
       // the frame itself leans with the hand: the subject swings gently
       const sway = lookP.clone().addScaledVector(right.normalize(), -this.parX * 5.0);
       sway.y += -this.parY * 3.0 + Math.sin(t * 0.4 + 1.0) * 0.6;
@@ -2564,7 +3388,9 @@ ${SKY_LAW}`
       (INTERIOR_FOG - this.landingFog) *
         smooth01(progress, 0.3, 0.7) *
         (1 - smooth01(progress, 0.86, 0.97));
-    const fogColor = lerpColor('#05070c', '#03050b', sev);
+    // Gate 1: the fog tracks the darkened sky at the same forty percent,
+    // or every hazed slab reads as a paler cutout against it.
+    const fogColor = lerpColor('#020305', '#010205', sev);
     (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
     (this.scene.fog as THREE.FogExp2).density = fogDensity;
 
@@ -2584,20 +3410,23 @@ ${SKY_LAW}`
     }
     this.hoverAmt += (hoverTargetAmt - this.hoverAmt) * (1 - Math.exp(-dt * 5));
 
-    // THE WAKE. While the pointer is on the mass the release point
-    // tracks it and the clock stays at zero; the moment it leaves, the
-    // clock runs and a shell expands from wherever it was last. So the
-    // ripple fires on LEAVING, which is the half of the old hover
-    // behaviour worth keeping - the monument answering after the
-    // visitor has stopped looking at it.
+    // THE LEAVING CLOCK. Zero while the pointer is on the mass; it runs
+    // the moment attention goes, and the seam surges off it. Gated on the
+    // tower box rather than on the window, so it answers the cursor being
+    // taken off the HERO and not only the cursor leaving the page - which
+    // is the gesture Jacob has been describing all along.
+    // The height it left FROM travels with it: the blade plane is 184
+    // units tall centred at 90, which is the mapping the watcher already
+    // uses in the other direction at uWatchY.
     if (hoverTargetAmt > 0.5) {
-      this.wakePos.copy(this.hoverPoint);
       this.wakeT = 0;
+      this.wakeY = Math.max(0, Math.min(1, 0.5 + (this.hoverPoint.y - 90) / 184.1));
     } else if (this.wakeT < 8) {
       this.wakeT += dt;
     }
-    (this.stoneU.uWakePos!.value as THREE.Vector3).copy(this.wakePos);
-    this.stoneU.uWakeT!.value = reduced ? 99 : this.wakeT;
+    const fsu = this.fissureMat.uniforms;
+    fsu.uWakeT!.value = reduced ? 99 : this.wakeT;
+    fsu.uWakeY!.value = this.wakeY;
 
     for (const mat of [this.cladMat]) {
       const cu = mat.uniforms;
@@ -2644,6 +3473,7 @@ ${SKY_LAW}`
     (this.mistMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.fieldMat.uniforms.uSeverity!.value = sev;
     (this.fieldMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
+    (this.strataMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.hazeMat.uniforms.uSeverity!.value = sev;
     this.hazeMat.uniforms.uDecay!.value = decay;
     this.skyMat.uniforms.uTime!.value = reduced ? 0 : this.time;
@@ -2651,7 +3481,7 @@ ${SKY_LAW}`
     this.groundU.uGSeverity!.value = sev;
     this.groundU.uGDecay!.value = decay;
     // bloom must not smear the fissure across the walls in there
-    this.bloom.strength = 0.34 * (1 - inside * 0.72);
+    this.bloom.strength = this.flatAudit ? 0 : 0.34 * (1 - inside * 0.72);
 
     // holiness dims as the monument strips, and never smears the lens
     const crownFade = smooth01(this.camera.position.distanceTo(this.crownHalo.position), 40, 95);

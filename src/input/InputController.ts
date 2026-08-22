@@ -45,7 +45,7 @@ export class InputController {
   };
 
   private place(ndcX: number, ndcY: number): void {
-    const p = this.renderer.path.markPoint(this.renderer.camera, ndcX, ndcY);
+    const p = this.renderer.pressPoint(ndcX, ndcY);
     if (!this.world.placeMark(p.x, p.y, p.z)) this.onRefused();
   }
 

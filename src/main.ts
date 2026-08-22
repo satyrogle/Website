@@ -25,6 +25,11 @@ const REDUCED_STEP_EVERY = 8;
 function boot(): void {
   const params = new URLSearchParams(window.location.search);
   const harness = params.has('harness');
+  // ?flat=1 audits the static frame with bloom off. The capture tool has
+  // passed this flag since the first gate and NOTHING CONSUMED IT - the
+  // "flat audit" matched the lit frame to the decimal because it was the
+  // lit frame. The static-frame law is only a law if it is tested bare.
+  const flat = params.has('flat');
 
   const caps = detectCapabilities();
   const recorder = new EvidenceRecorder();
@@ -53,6 +58,7 @@ function boot(): void {
     return;
   }
 
+  renderer.flatAudit = flat;
   new ContentController(true, world.nodeCount);
   new ScrollDirector(state);
   new InputController(world, renderer, () => {
@@ -96,7 +102,7 @@ function boot(): void {
         sum: world.checksum()
       }),
       placeMark: (ndcX: number, ndcY: number): boolean => {
-        const p = renderer.path.markPoint(renderer.camera, ndcX, ndcY);
+        const p = renderer.pressPoint(ndcX, ndcY);
         return world.placeMark(p.x, p.y, p.z);
       },
       records: (): number => document.querySelectorAll('#record-list li').length,
@@ -110,7 +116,13 @@ function boot(): void {
       setChoirDim: (amount: number): void => renderer.setChoirDim(amount),
       setFog: (density: number): void => renderer.setFog(density),
       setGround: (amount: number): void => renderer.setGround(amount),
-      setBite: (amount: number): void => renderer.setBite(amount)
+      setBite: (amount: number): void => renderer.setBite(amount),
+      setSurge: (amount: number): void => renderer.setSurge(amount),
+      setSurgeTime: (seconds: number): void => renderer.setSurgeTime(seconds),
+      setSurgeTail: (uv: number): void => renderer.setSurgeTail(uv),
+      setRim: (amount: number): void => renderer.setRim(amount),
+      setBreak: (amount: number): void => renderer.setBreak(amount),
+      setGrade: (lift: number, contrast: number): void => renderer.setGrade(lift, contrast)
     };
     const renderOnly = (): void => {
       requestAnimationFrame(renderOnly);

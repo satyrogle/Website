@@ -60,15 +60,34 @@ const KEYS: PathKey[] = [
   // towers, the ground keeps about twelve percent, and the choir falls
   // far enough back to stop competing for scale.
   //
-  // choir.py computes its alignment plane FROM this pose. Both move
-  // together or the six cuts stop coinciding.
-  { p: 0.0, pos: [0, 14, 300], look: [0, 96, 0], fov: 40, sev: 0.0 },
-  { p: 0.045, pos: [3, 14, 288], look: [0, 95, 0], fov: 40, sev: 0.0 },
+  // GATE 6 OF THE REFERENCE PICTURE, 2026-08-22, on Jacob's approval -
+  // which satisfies the "does not move again without Jacob asking"
+  // condition above. Lower still, nearer, wider: eye down 14 to 10,
+  // stand in from 300 to 262, lens 40 to 45. Closer buys back exactly
+  // what the wider lens costs, so the monument KEEPS its size in frame
+  // - the 2026-08-21 restore note stands, the subject is not demoted -
+  // while the pitch steepens and the verticals converge harder. Looming
+  // is awe; mid-height is a product shot.
+  //
+  // The choir note that used to sit here ("choir.py computes its
+  // alignment plane FROM this pose") described a constraint that was
+  // ALREADY broken: choir.py's CAM_W is (0, 95, 620), the abandoned
+  // processional pose, so the shipped cuts have not coincided from the
+  // runtime opening since the restore. Moving this key breaks nothing
+  // that was whole. choir.py's constants now carry the new pose for
+  // whenever the masses are next exported.
+  { p: 0.0, pos: [0, 10, 262], look: [0, 86, 0], fov: 45, sev: 0.0 },
+  { p: 0.045, pos: [3, 10, 252], look: [0, 85, 0], fov: 45, sev: 0.0 },
   // travel: around the flank, so the wedge reads as depth not as a card
   { p: 0.115, pos: [86, 26, 150], look: [0, 78, 0], fov: 43, sev: 0.03 },
-  // SYSTEM: dwell low, the halves towering
-  { p: 0.15, pos: [64, 20, 92], look: [0, 62, 0], fov: 46, sev: 0.06 },
-  { p: 0.185, pos: [58, 22, 86], look: [0, 66, 0], fov: 46, sev: 0.08 },
+  // SYSTEM: dwell low, the halves towering. Look DROPPED 62 to 40,
+  // 2026-08-22: the base gates built an entrance - plinth, stair,
+  // pylons - and no stop in the whole journey ever looked at it; both
+  // close dwells pitched up past the foot. From here the entrance now
+  // holds the lower frame while the halves still run out the top of it.
+  // Jacob: "i cant actually see the progress of the base clearly".
+  { p: 0.15, pos: [64, 20, 92], look: [0, 40, 0], fov: 46, sev: 0.06 },
+  { p: 0.185, pos: [58, 22, 86], look: [0, 44, 0], fov: 46, sev: 0.08 },
   // DESK42: dwell wide, the spire entire on its shore
   { p: 0.255, pos: [96, 30, 240], look: [-4, 96, 0], fov: 44, sev: 0.12 },
   { p: 0.325, pos: [88, 32, 232], look: [-4, 98, 0], fov: 44, sev: 0.16 },
@@ -88,10 +107,12 @@ const KEYS: PathKey[] = [
   // STUDIO: dwell at the foot, above the scree line
   { p: 0.81, pos: [-58, 20, 62], look: [0, 68, 0], fov: 46, sev: 0.88 },
   { p: 0.86, pos: [-40, 16, 84], look: [0, 74, 0], fov: 46, sev: 0.87 },
-  // THE RETURN: distance given back, the opening frame again, known now
-  { p: 0.9, pos: [-14, 18, 128], look: [2, 82, 0], fov: 42, sev: 0.9 },
-  { p: 0.95, pos: [-8, 15, 190], look: [2, 90, 0], fov: 40, sev: 0.88 },
-  { p: 1.0, pos: [-4, 14, 240], look: [2, 94, 0], fov: 40, sev: 0.86 }
+  // THE RETURN: distance given back, the opening frame again, known now.
+  // Gate 6 moved the opening; the return moves with it, or the "same
+  // frame understood differently" contract breaks into two frames.
+  { p: 0.9, pos: [-14, 14, 128], look: [2, 78, 0], fov: 44, sev: 0.9 },
+  { p: 0.95, pos: [-8, 11, 190], look: [2, 82, 0], fov: 45, sev: 0.88 },
+  { p: 1.0, pos: [-4, 10, 224], look: [2, 84, 0], fov: 45, sev: 0.86 }
 ];
 
 export interface CameraState {
@@ -132,11 +153,11 @@ export class CameraPath {
     }
   }
 
-  /** Where a press lands: a fixed reach ahead of the camera. */
-  markPoint(camera: THREE.PerspectiveCamera, ndcX: number, ndcY: number): THREE.Vector3 {
-    const dir = new THREE.Vector3(ndcX, ndcY, 0.5).unproject(camera).sub(camera.position).normalize();
-    return camera.position.clone().add(dir.multiplyScalar(14));
-  }
+  // markPoint is gone, 2026-08-22. A fixed 14-unit reach ahead of the
+  // camera was right inside the cleft and wrong everywhere else: at the
+  // opening it seated every press at the monument's foot. The press ray
+  // lives in JourneyRenderer.pressPoint now, on the same raycast the
+  // hover uses, so attention and marking share one geometry.
 }
 
 function evaluate(p: number, outPos: THREE.Vector3, outLook: THREE.Vector3): void {
