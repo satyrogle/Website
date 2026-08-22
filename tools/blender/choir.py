@@ -192,27 +192,167 @@ for i, (wx, wz, h, w, d, yaw, lean, back_open) in enumerate(MASSES):
     clean(m)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
-    # taper: pull the top in, so it is a standing mass and not a box.
-    # t is height above the PLAIN, not along the block, and it clamps at
-    # zero: the buried length keeps the base section all the way down
+    # --- THE ROLES ---------------------------------------------------
+    # E0, 2026-08-22, Jacob's strike: "the choir read as generic dark
+    # towers and repeated tapered blocks". They did, and this file is
+    # why. Every mass was one cube, scaled, run through ONE taper
+    # (1 - 0.42 t^1.2 across, 1 - 0.34 t^1.2 deep) with the lean flipped
+    # by index parity, then given the SAME two struck corners. Six
+    # objects, one silhouette, six scales. Approving a silhouette sheet
+    # never guaranteed the geometry reproduced those silhouettes, and it
+    # did not.
+    #
+    # Each mass now gets its own profile law and its own crown
+    # treatment. The rule that has to hold in the frame: no two masses
+    # may share a base profile, a taper, a crown angle, or a
+    # height-to-width relationship that is another mass rescaled.
+    #
+    # Placements, heights, widths, the distance hierarchy, the fog
+    # relationship and the alignment plane are all UNTOUCHED - Jacob
+    # ruled that geometry is judged at the current placement first, and
+    # only moved if the silhouette pass proves placement is what is left.
+    #
+    # THE OVERHANG IS PERMANENTLY DEAD. It is not in this table and it
+    # does not come back; the RAKED BASTION carries that mass's job with
+    # a steep raked face instead of a projecting head.
+    #
+    #   role      -> (taper_x, taper_y, exponent, shear, one_edge_true)
+    ROLE = {
+        0: "cleaver",
+        1: "split",
+        2: "bastion",
+        4: "buttress",
+        5: "wall",
+        6: "witness",
+    }[i]
+    PROFILE = {
+        # a blade: loses most of its width and almost none of its depth,
+        # so it reads as an edge turned toward the frame
+        "cleaver": (0.74, 0.12, 0.85, 0.06, True),
+        # tall and nearly parallel-sided; the crown does the talking
+        "split": (0.26, 0.20, 1.25, 0.00, False),
+        # heavy, and leaning its whole mass one way: the rake replaces
+        # the dead Overhang without projecting anything
+        "bastion": (0.30, 0.46, 1.00, 0.30, False),
+        # stout and battered: splays fast at the foot, then stands
+        # nearly straight, and stays blunt on top
+        "buttress": (0.54, 0.46, 0.62, 0.00, False),
+        # broad and shallow: a wall, not a tower
+        "wall": (0.13, 0.32, 1.55, 0.04, True),
+        # simple, far, and eroded rather than machined
+        "witness": (0.40, 0.34, 1.15, 0.10, False),
+    }[ROLE]
+    tx, ty, te, shear, one_edge = PROFILE
+
+    # the profile. t is height above the PLAIN, not along the block, and
+    # it clamps at zero: the buried length keeps its base section all
+    # the way down, so each foot enters the terrain as straight stone.
     me = m.data
     for v in me.vertices:
         t = max(0.0, min(1.0, (v.co.z + (h - UNDER) * 0.5) / h))
-        v.co.x *= 1.0 - 0.42 * (t ** 1.2)
-        v.co.y *= 1.0 - 0.34 * (t ** 1.2)
-        v.co.x += w * 0.10 * (t ** 1.6) * (1.0 if i % 2 == 0 else -1.0)
+        k = t ** te
+        fx = 1.0 - tx * k
+        v.co.x *= fx
+        v.co.y *= 1.0 - ty * k
+        if one_edge:
+            # hold ONE side vertical and take the whole loss off the
+            # other: an asymmetric profile, which no amount of symmetric
+            # taper can produce
+            v.co.x += (w * 0.5) * (1.0 - fx)
+        v.co.x += w * shear * (t ** 1.4)
 
-    # a struck corner or two: machined, not eroded
-    for c in range(2):
+    # --- THE CROWN. One treatment per role, and none of them is the
+    # pair of struck corners every mass used to share.
+    if ROLE == "cleaver":
+        # one long slice takes the top down to an edge
         bpy.ops.mesh.primitive_cube_add(size=1, location=(
-            bx + (w * 0.6) * (1 if c == 0 else -1),
-            by + (d * 0.4) * (1 if c == 0 else -1),
-            h * (0.82 if c == 0 else 0.16),
+            bx - math.cos(yaw) * w * 0.52,
+            by - math.sin(yaw) * w * 0.52,
+            h * 0.94,
         ))
-        ch = bpy.context.active_object
-        ch.scale = (w * 0.6, d * 0.7, h * 0.30)
-        ch.rotation_euler = (math.radians(24 + c * 18), math.radians(15), yaw + 0.4)
-        cut(m, ch)
+        c = bpy.context.active_object
+        c.scale = (w * 1.5, d * 2.0, h * 0.5)
+        c.rotation_euler = (0.0, math.radians(34.0), yaw)
+        cut(m, c)
+    elif ROLE == "split":
+        # the crown is broken open: a slot driven down into the head,
+        # off the centre line so it is not a tuning fork
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx + math.cos(yaw) * w * 0.12,
+            by + math.sin(yaw) * w * 0.12,
+            h * 1.02,
+        ))
+        c = bpy.context.active_object
+        c.scale = (w * 0.20, d * 1.6, h * 0.46)
+        c.rotation_euler = (0.0, math.radians(5.0), yaw + 0.10)
+        cut(m, c)
+        # and one flank has gone with it
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx - math.cos(yaw) * w * 0.56,
+            by - math.sin(yaw) * w * 0.56,
+            h * 0.74,
+        ))
+        c2 = bpy.context.active_object
+        c2.scale = (w * 0.34, d * 0.9, h * 0.30)
+        c2.rotation_euler = (0.0, math.radians(12.0), yaw)
+        cut(m, c2)
+    elif ROLE == "bastion":
+        # a single steep rake down the leading face, from the crown to
+        # a third of the way down: weight, not overhang
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx + math.sin(yaw) * d * 0.72,
+            by - math.cos(yaw) * d * 0.72,
+            h * 0.86,
+        ))
+        c = bpy.context.active_object
+        c.scale = (w * 1.6, d * 1.1, h * 0.9)
+        c.rotation_euler = (math.radians(58.0), 0.0, yaw)
+        cut(m, c)
+    elif ROLE == "buttress":
+        # blunt on purpose: one shallow chip off a top corner and
+        # nothing else. Its silhouette is the batter, not the crown.
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx + math.cos(yaw) * w * 0.58,
+            by + math.sin(yaw) * w * 0.58,
+            h * 0.96,
+        ))
+        c = bpy.context.active_object
+        c.scale = (w * 0.42, d * 1.3, h * 0.16)
+        c.rotation_euler = (0.0, math.radians(19.0), yaw)
+        cut(m, c)
+    elif ROLE == "wall":
+        # a vertical recess up the face, and a stepped shoulder at one
+        # end: a wall reads by what is cut INTO it
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx + math.sin(yaw) * d * 0.62 - math.cos(yaw) * w * 0.18,
+            by - math.cos(yaw) * d * 0.62 - math.sin(yaw) * w * 0.18,
+            h * 0.46,
+        ))
+        c = bpy.context.active_object
+        c.scale = (w * 0.26, d * 0.34, h * 1.05)
+        c.rotation_euler = (0.0, 0.0, yaw)
+        cut(m, c)
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx + math.cos(yaw) * w * 0.60,
+            by + math.sin(yaw) * w * 0.60,
+            h * 0.88,
+        ))
+        c2 = bpy.context.active_object
+        c2.scale = (w * 0.46, d * 1.4, h * 0.34)
+        c2.rotation_euler = (0.0, 0.0, yaw)
+        cut(m, c2)
+    else:
+        # the far witness: one broad corner gone, softly, so at this
+        # distance it could be mistaken for terrain
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(
+            bx - math.cos(yaw) * w * 0.62,
+            by - math.sin(yaw) * w * 0.62,
+            h * 0.90,
+        ))
+        c = bpy.context.active_object
+        c.scale = (w * 0.9, d * 1.6, h * 0.42)
+        c.rotation_euler = (0.0, math.radians(27.0), yaw - 0.22)
+        cut(m, c)
 
     # --- THE BACK: structure, not finish. Deep cavities leave ribs
     if back_open:

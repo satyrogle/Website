@@ -340,6 +340,35 @@ const FRAG_MAP = `#include <map_fragment>
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
   band *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut * cTop;
 
+  // ---- THE HIERARCHY ----
+  // E0, 2026-08-22, Jacob's strike. Everything above defines the
+  // corrosion's TERRITORY: where the condition could take hold. Until
+  // now that was also its COVERAGE, so the whole visible face came out
+  // evenly infected and read as marbling, a mineral, a contour map -
+  // the monument's normal material rather than something happening TO
+  // it. The disease was not too strong. It was everywhere.
+  //
+  // The territory is now filtered into tiers by two coarse outbreak
+  // fields. oDom has a high threshold on a very low frequency, so there
+  // is exactly ONE place on the mass where the disease has won. oSec is
+  // finer and thresholded hard, so the secondary outbreaks are discrete
+  // patches with untouched stone between them and never a network. What
+  // is left over is a residue faint enough that only raking light finds
+  // it, which is what makes the same condition read as present
+  // everywhere while the mass stays majority clean graphite.
+  //
+  // This is deliberately a redistribution, not an attenuation: inside
+  // the dominant outbreak the corrosion is at full former strength. The
+  // fault was distribution, and no single strength number can fix a
+  // distribution.
+  //
+  // Asymmetry needs no term of its own. cAlong carries the sign of the
+  // body x, so the two blades sample different neighbourhoods of both
+  // fields and cannot mirror each other.
+  float oDom = smoothstep(0.55, 0.87, monoFbm(vec2(cAlong * 0.0068 + 2.3, cAcross * 0.0092 - 5.1)));
+  float oSec = smoothstep(0.52, 0.74, monoFbm(vec2(cAlong * 0.0185 + 17.6, cAcross * 0.0235 + 4.2)));
+  band *= clamp(oDom + oSec * 0.62 * (1.0 - oDom) + 0.13, 0.0, 1.0);
+
   // the vesicular field. Warped BEFORE the level set is taken, or the
   // veins inherit the noise's own roundness and come out as bubbles
   vec2 cq = CP * 0.52;
@@ -1181,6 +1210,37 @@ vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strat
   col *= 1.0 - clamp(dens, 0.0, 1.0) * 0.38;
   col += glow * clamp(lit, 0.0, 1.5) * 0.26;
 
+  // ---- SKY PRESSURE ----
+  // E0, 2026-08-22, replacing the deleted crown halo. That was a radial
+  // sprite, and a disc behind a crown is a nimbus whatever its opacity:
+  // it made the holiness read as applied to the object rather than
+  // produced by the world. The lock story cannot afford that.
+  //
+  // This is its opposite by construction. There is no radius in it
+  // anywhere. It is a VERTICAL term - narrow across the bearing to the
+  // monument, drawn out up the sky - so it can only ever read as the
+  // air standing up behind the blades, never as a body. Three guards
+  // make the difference structural rather than tuned:
+  //
+  //   - the horizontal falloff is on azimuth alone and the vertical
+  //     has no falloff at all until it thins with altitude, so no
+  //     iso-line of this term is ever a circle;
+  //   - it is pushed OFF the axis by 0.16 rad, so it never centres
+  //     between the horns, which is the eye the halo law forbids;
+  //   - its edge is broken by the same deck noise the sky already
+  //     carries, so it has no clean boundary to read as an object.
+  //
+  // It dims as severity rises, the way the halo's opacity used to: the
+  // holiness leaves as the monument strips.
+  {
+    float azim = atan(d.x, d.z) - 0.16;
+    azim = mod(azim + 3.14159265, 6.28318531) - 3.14159265;
+    float across = exp(-azim * azim * 5.2);
+    float up = smoothstep(-0.06, 0.30, d.y) * (1.0 - smoothstep(0.34, 0.95, d.y));
+    float ragged = 0.72 + 0.55 * skyFbm(vec2(azim * 260.0, d.y * 340.0));
+    col += glow * across * up * ragged * 0.42 * (1.0 - sev * 0.55);
+  }
+
   // ---- THE BREAK ----
   // Gate 5 of the reference picture, 2026-08-22. The picture's sky is
   // lit from one place: a torn opening in the weather above the tower,
@@ -1472,7 +1532,6 @@ export class JourneyRenderer {
   private stoneU!: Record<string, THREE.IUniform>;
   /** resolves once the authored monument is standing */
   readonly ready: Promise<void>;
-  private readonly crownHalo: THREE.Sprite;
   private readonly maxDpr: number;
   private time = 0;
 
@@ -2489,358 +2548,73 @@ export class JourneyRenderer {
       this.scene.add(strata);
     }
 
-    // --- THE SCREE ---
-    // Part of THE FOOT, 2026-08-22. The scroll strips cells off the
-    // monument and they fall - and until now they fell into nothing:
-    // the ground at the foot was shaven clean, which is half of why the
-    // mass read as a prop on a baseplate. These are the ones that have
-    // already landed, from failures before the visitor arrived. Same
-    // cell scale as the lattice, same stone family as the choir, sunk
-    // into the plain, densest under the blades' outer edges and off the
-    // cleft mouth where the falls funnel. They do nothing, respond to
-    // nothing, and never glow: wreckage is not a feature, it is
-    // evidence. Seeded like everything else.
-    {
-      const rng = mulberry32ish(world.seed ^ 0x7c25);
-      // 150 field pieces, then 45 drift fines - the wind's work, banked
-      // against the bottom riser east of the axis and along the east
-      // tier face. One prevailing wind, the same one that dropped the
-      // east pylon. The axis itself stays swept.
-      const N = 195;
-      const box = new THREE.BoxGeometry(1, 1, 1);
-      const stone = new THREE.MeshStandardMaterial({
-        color: 0x05060a,
-        roughness: 0.62,
-        metalness: 0.05
-      });
-      const scree = new THREE.InstancedMesh(box, stone, N);
-      const m = new THREE.Matrix4();
-      const q = new THREE.Quaternion();
-      const e = new THREE.Euler();
-      for (let i = 0; i < N; i++) {
-        // biased to the blades' flanks: a lobe each side of the cleft,
-        // thinning outward, with strays further off
-        const side = rng() < 0.5 ? -1 : 1;
-        const along = (rng() - 0.5) * 2; // along the cleft, -1..1
-        const away = Math.pow(rng(), 1.7); // hugs the mass
-        if (i >= 150) {
-          // drift fines: small, heavily sunk, clustered where the wind
-          // piles them
-          const s2 = CELL * (0.18 + rng() * 0.3);
-          const bank = rng() < 0.55;
-          const bx = bank
-            ? 15 - 11 * Math.pow(rng(), 1.6) // against the riser, east end
-            : 68.5 + (rng() - 0.5) * 2.4; // along the east tier face
-          const bz = bank ? 47.6 + rng() * 2.2 : (rng() - 0.5) * 66;
-          e.set((rng() - 0.5) * 0.4, rng() * Math.PI * 2, (rng() - 0.5) * 0.4);
-          q.setFromEuler(e);
-          m.compose(
-            // gate 5: the corridor is sacred - nothing banks inside x=6
-            new THREE.Vector3(bank ? Math.max(bx, 6.0) : bx, s2 * 0.16, bz),
-            q,
-            new THREE.Vector3(s2, s2 * 0.5, s2 * 0.8)
-          );
-          scree.setMatrixAt(i, m);
-          continue;
-        }
-        // a third lie ON the plinth - fragments that landed on the
-        // platform and stayed - the rest on the ground past its skirt,
-        // with strays thrown further out
-        const onPlinth = rng() < 0.34;
-        const stray = !onPlinth && rng() < 0.3;
-        const s = CELL * (0.5 + rng() * 0.95);
-        let x;
-        let z;
-        let y;
-        if (onPlinth) {
-          x = side * (9 + rng() * 26) + along * 4 * rng();
-          // held off the stair's mouth at the platform edge: a fragment
-          // there would float on the treads
-          z = -19 + rng() * 36;
-          y = 6.4 + s * 0.4; // resting on the top tier, slightly bedded
-        } else {
-          x = side * (72 + away * (stray ? 60 : 26)) * (0.35 + 0.65 * rng());
-          z = along * (46 + away * 30) + (stray ? 10 + rng() * 20 : 0);
-          // outside the skirt only: anything under a tier is buried
-          if (Math.abs(x) < 70 && Math.abs(z) < 43) z = Math.sign(z || 1) * (44 + rng() * 18);
-          // THE SWEPT FORECOURT, base gate 5. Nothing dares stand on the
-          // approach line: any piece that lands inside the corridor is
-          // pushed off it. Reverence reads as emptiness on the axis -
-          // the one place in this wreckage where there is no wreckage.
-          if (Math.abs(x) < 7 && z > 0 && z < 120) x = Math.sign(x || 1) * (7 + rng() * 4);
-          y = -s * (0.3 + rng() * 0.4) + s / 2; // sunk into the plain
-        }
-        e.set(rng() * 0.6 - 0.3, rng() * Math.PI * 2, rng() * 0.6 - 0.3);
-        q.setFromEuler(e);
-        m.compose(
-          new THREE.Vector3(x, y, z),
-          q,
-          new THREE.Vector3(s, s * (0.55 + rng() * 0.5), s * (0.7 + rng() * 0.5))
-        );
-        scree.setMatrixAt(i, m);
-      }
-      scree.instanceMatrix.needsUpdate = true;
-      this.scene.add(scree);
-    }
-
-    // --- THE PLINTH ---
-    // Jacob, 2026-08-22, pointing at the reference: "it has a base kind
-    // of thing". It does, and it is most of why its tower reads as built
-    // and ours read as grown out of dirt: the mass stands on an
-    // architectural podium. Three stepped tiers of the same near-black
-    // stone, wider than the blades, the top tier standing clear of the
-    // dunes (they run to +6 here; the platform tops at 6.4 so no dune
-    // ever pokes through it). The blades rise straight out of the stone
-    // - monument.py keeps full section below ground, so the join is
-    // solid by construction.
+    // --- THE ROOTS ---
+    // E0, 2026-08-22, Jacob's strikes. The plinth, the thirteen treads
+    // and the paired pylons are DELETED. They were built under the
+    // temple story and they were good at it, which is exactly the
+    // problem: under the lock story a processional stair is an
+    // invitation, a platform presents the object, and two stones
+    // flanking an axis are ceremony. The monument is not approached. It
+    // is contained.
     //
-    // The slit's light pools on the platform where it lands and drips
-    // down the step faces toward the visitor - the same lane law the
-    // ground uses, evaluated on the plinth's own surfaces. The pool is
-    // why the fissure's foot being occluded by the top tier reads as
-    // intended rather than cut: the light does not stop, it LANDS.
+    // What replaces them is not architecture. The blades enter the
+    // plain directly - monument.py lofts from t = -0.055, about ten
+    // units of full section below grade, so the join was always solid
+    // and the podium was merely hiding it. The ground is FORCED around
+    // the object instead of built to present it: a narrow asymmetric
+    // subsidence slot at each root, a deep contact shadow and a little
+    // of the fissure's light continuing below grade - all three in the
+    // ground shader, where a slot can be black without being a hole.
+    //
+    // Scale used to come from the treads, the only human ruler in the
+    // frame. It now has to come from spatial evidence: the
+    // viewer-height camera, the readable courses on the blades, the
+    // atmospheric gap out to the choir, the width of the roots
+    // themselves, and near/far parallax on the approach.
+    //
+    // The scree goes with them. A hundred and ninety five small pieces
+    // read as unfinished dressing, never as evidence.
     {
-      const plinthMat = new THREE.MeshStandardMaterial({
+      const ruinMat = new THREE.MeshStandardMaterial({
         color: 0x05060a,
-        roughness: 0.46,
+        roughness: 0.58,
         metalness: 0.05
       });
-      plinthMat.onBeforeCompile = (sh) => {
-        Object.assign(sh.uniforms, this.groundU);
-        sh.vertexShader = sh.vertexShader
-          .replace(
-            '#include <common>',
-            `#include <common>
-varying vec3 vPlinthW;
-varying vec3 vPlinthN;`
-          )
-          .replace(
-            '#include <begin_vertex>',
-            `#include <begin_vertex>
-vPlinthW = (modelMatrix * vec4(position, 1.0)).xyz;
-vPlinthN = normalize(mat3(modelMatrix) * normal);`
-          );
-        sh.fragmentShader = sh.fragmentShader
-          .replace(
-            '#include <common>',
-            `#include <common>
-varying vec3 vPlinthW;
-varying vec3 vPlinthN;
-uniform float uGSeverity;
-uniform float uGDecay;
-float pHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }`
-          )
-          .replace(
-            '#include <map_fragment>',
-            `#include <map_fragment>
-{
-  // coursed stone, at the platform's own scale
-  diffuseColor.rgb *= 0.88 + 0.24 * pHash(floor(vPlinthW.xz * 0.55) + floor(vPlinthW.y * 0.8));
-  // THE POOL. The slit's light lands on the top surfaces along the axis
-  // and drips down the south step faces; the same lane law as the
-  // ground, so platform and plain carry one light.
-  float r = length(vPlinthW.xz);
-  float axis = abs(vPlinthW.x) / (1.6 + r * 0.085);
-  float lane = exp(-axis * axis) * exp(-r * 0.012);
-  // THE COLD LANDING. Sinister gate 4, 2026-08-22, from the paper
-  // list. The seam is warm, the break carries the seam's warm white,
-  // the lane spills warm down the treads - but where the light LANDS,
-  // the pool at the mouth, it is already cold. Not a second tint on a
-  // second surface: one temperature gradient by distance from the
-  // mouth, so the light leaves the blade warm and arrives cold, and
-  // the boundary is nowhere. Severity does not chill the pool; it
-  // brings the world to the pool's temperature. Same falloff constant
-  // as the ground lane's, or platform and plain would disagree about
-  // the temperature at the same distance.
-  vec3 lit = mix(vec3(1.0), vec3(0.86, 0.93, 1.0), uGSeverity);
-  lit = mix(lit, vec3(0.50, 0.78, 1.14), exp(-r * 0.030));
-  float top = smoothstep(0.55, 0.9, vPlinthN.y);
-  float face = smoothstep(0.55, 0.9, vPlinthN.z);
-  diffuseColor.rgb += lit * lane * (top * 0.34 + face * 0.16) * (1.0 - uGDecay * 0.5);
-
-  // ---- THE WORN AXIS ----
-  // Base gate 4, 2026-08-22. The line of ten thousand approaches: a
-  // channel down the stair's centre and across the platform to the
-  // mouth, slightly darkened where the traffic ground its patina in.
-  // Upward faces only, the approach side only, fading out past the
-  // stair's foot where the walkers dispersed. The wear is the one
-  // thing here the monument did not do to itself - it is the record
-  // of everyone who came - and it aims the eye at the mouth for free.
-  float wear = exp(-vPlinthW.x * vPlinthW.x / 18.0)
-             * top
-             * smoothstep(-4.0, 2.0, vPlinthW.z)
-             * (1.0 - smoothstep(46.0, 54.0, vPlinthW.z));
-  diffuseColor.rgb *= 1.0 - wear * 0.15;
-}`
-          )
-          .replace(
-            '#include <roughnessmap_fragment>',
-            `#include <roughnessmap_fragment>
-{
-  // gate 4's other half: worn stone is SMOOTH stone. The channel
-  // polishes, so the slit's lane light finds it and the centreline
-  // glints where the edges stay dull - darker in albedo, brighter in
-  // response, which is exactly what real wear does.
-  float wtop = smoothstep(0.55, 0.9, vPlinthN.y);
-  float wearR = exp(-vPlinthW.x * vPlinthW.x / 18.0)
-              * wtop
-              * smoothstep(-4.0, 2.0, vPlinthW.z)
-              * (1.0 - smoothstep(46.0, 54.0, vPlinthW.z));
-  roughnessFactor = max(roughnessFactor - wearR * 0.2, 0.2);
-}`
-          );
-      };
-      // topY, halfX, halfZ, height, settle - each tier stands on the
-      // next. Base gate 3: the east flank has SUNK, a fraction more per
-      // tier of depth, pivoting so the west edge holds its line - one
-      // side of the architecture giving way over centuries while the
-      // blades behind it stay true vertical. The monument does not age;
-      // what people built around it does. The tilt is under a degree
-      // and it is the difference between finished yesterday and
-      // standing forever.
-      const TIERS: ReadonlyArray<readonly [number, number, number, number, number]> = [
-        [6.4, 38, 22, 2.4, 0.004],
-        [4.0, 52, 31, 2.2, 0.007],
-        [1.8, 68, 41, 4.6, 0.011]
-      ];
-      for (const [topY, hx, hz, h, settle] of TIERS) {
-        const tier = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, h, hz * 2), plinthMat);
-        // rotate about the centre, then lift so the WEST edge stays put:
-        // the east drops by the full 2*hx*settle and the seam stays shut
-        tier.position.set(0, topY - h / 2 + hx * settle, 0);
-        tier.rotation.z = settle;
-        this.scene.add(tier);
-      }
-
-      // ---- THE PROCESSIONAL STAIR ----
-      // Base gate 1 of the temple-entrance extraction, 2026-08-22. The
-      // tiers are 2.2 to 2.4 high: monolith slabs, and nothing anywhere
-      // in the frame carries a human measure. Thirteen treads at just
-      // under half a unit are that ruler. The moment they exist the
-      // blades become four hundred steps tall, and the scale ladder -
-      // step, tier, blade - snaps into place. Centred on the axis,
-      // narrower than the plinth, rising from the plain to the top
-      // platform on the approach side.
+      // THE RUIN, re-authored and kept. It used to be ruin OF the
+      // podium - tiers settling, treads with their corners off, a pylon
+      // down - and none of those exist now. The same asymmetry is
+      // carried by the ground itself: one flank where the plain broke
+      // and lifted when the object went into it. Slabs, not rubble:
+      // few, large, half-swallowed, east of the axis only, not one of
+      // them level and not one of them standing. Wreckage reads as
+      // consequence; gravel reads as set dressing.
       //
-      // Same material instance as the tiers, so the slit's light spills
-      // down the treads by the same lane law with nothing added: the
-      // beam falling down the entrance stair IS the reference's image,
-      // and here it costs nothing because the law already existed.
-      //
-      // Each step drops to below grade rather than sitting as a slab on
-      // the tiers, so from the flank the stair reads as one solid
-      // stepped mass cut into the podium, not a gangway laid over it.
-      {
-        const STEPS = 13;
-        const RISE = 6.4 / STEPS;
-        const RUN = 1.9;
-        const WIDTH = 30;
-        // Base gate 3: five treads have lost their east corner, and the
-        // pieces lie where they broke. Constants, not draws, so the
-        // scree's seeded stream stays untouched downstream.
-        const CHIPS = new Map<number, number>([
-          [2, 2.6],
-          [3, 1.4],
-          [6, 3.1],
-          [7, 1.8],
-          [10, 2.2]
-        ]);
-        for (let i = 0; i < STEPS; i++) {
-          const topY = RISE * (i + 1);
-          const frontZ = 22 + (STEPS - i) * RUN;
-          const chip = CHIPS.get(i) ?? 0;
-          const step = new THREE.Mesh(
-            new THREE.BoxGeometry(WIDTH - chip, topY + 0.6, RUN),
-            plinthMat
-          );
-          step.position.set(-chip / 2, (topY - 0.6) / 2, frontZ - RUN / 2);
-          this.scene.add(step);
-          if (chip > 0) {
-            // the corner that came off, lying below its notch
-            const frag = new THREE.Mesh(
-              new THREE.BoxGeometry(chip * 0.7, RISE * 0.8, RUN * 0.8),
-              plinthMat
-            );
-            frag.position.set(WIDTH / 2 - chip * 0.2 + 1.2, RISE * 0.35, frontZ + 1.1);
-            frag.rotation.set(0.14, 0.5 + i * 0.9, 0.1);
-            this.scene.add(frag);
-          }
-        }
-      }
-
-      // ---- THE PYLONS ----
-      // Base gate 2, 2026-08-22. Paired stones flanking the stair's foot,
-      // marking the axis - and one of the pair is down. Each is built the
-      // only way anything in this world is built: a stack of the
-      // monument's own cell courses, drystone-irregular, so the guardian
-      // and the monument obey one law. Which is exactly why one could
-      // fall: cells fail, and cells fall. The west pylon stands its nine
-      // courses; the east kept two, leaning, and the rest lie in a
-      // directional run where they landed, half sunk, falling AWAY from
-      // the axis so the forecourt stays swept. Never a colonnade: two
-      // stones, one lesson.
-      {
-        const prng = mulberry32ish(world.seed ^ 0x51ab);
-        const course = (
-          x: number,
-          y: number,
-          z: number,
-          rotY: number,
-          tilt: number,
-          sx: number,
-          sy: number,
-          sz: number
-        ): void => {
-          const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), plinthMat);
-          b.position.set(x, y, z);
-          b.rotation.set(tilt, rotY, tilt * 0.6);
-          this.scene.add(b);
-        };
-        const FOOT_Z = 52;
-        const AXIS_X = 21.5;
-        // the standing pylon: nine courses, a stele, not a candle
-        {
-          let y = 0;
-          for (let i = 0; i < 9; i++) {
-            const h = 1.35 + prng() * 0.35;
-            const w = 2.6 - i * 0.06 + (prng() - 0.5) * 0.18;
-            y += h / 2;
-            course(
-              -AXIS_X + (prng() - 0.5) * 0.22,
-              y,
-              FOOT_Z + (prng() - 0.5) * 0.22,
-              (prng() - 0.5) * 0.14,
-              (prng() - 0.5) * 0.02,
-              w,
-              h,
-              w * (0.9 + prng() * 0.2)
-            );
-            y += h / 2;
-          }
-        }
-        // the fallen pylon: a leaning two-course stump, and the run of
-        // courses where they landed - outward and east, off the axis
-        {
-          course(AXIS_X, 0.8, FOOT_Z, 0.1, 0.0, 2.7, 1.6, 2.6);
-          course(AXIS_X + 0.3, 2.2, FOOT_Z + 0.2, 0.24, 0.09, 2.5, 1.3, 2.4);
-          let d = 3.4;
-          for (let i = 0; i < 7; i++) {
-            const s = 2.3 - i * 0.1 + (prng() - 0.5) * 0.3;
-            const spread = (prng() - 0.5) * 2.6;
-            // half sunk: landed a long time ago
-            course(
-              AXIS_X + d * 0.72 + spread,
-              s * (0.24 + prng() * 0.14),
-              FOOT_Z + d + spread * 0.5,
-              prng() * Math.PI,
-              (prng() - 0.5) * 0.3,
-              s,
-              s * (0.6 + prng() * 0.3),
-              s * (0.8 + prng() * 0.3)
-            );
-            d += s * (0.9 + prng() * 0.5);
-          }
-        }
+      // The axis stays clear, as it always has. It is not reverence
+      // now - nothing is invited along it. It is simply that nothing
+      // survives in front of the mouth.
+      const rng = mulberry32ish(world.seed ^ 0x7c25);
+      const SLABS = 9;
+      for (let i = 0; i < SLABS; i++) {
+        const t = i / (SLABS - 1);
+        // a broken run off the east flank, going away from the eye and
+        // thinning as it goes
+        const x = 30 + t * 96 + (rng() - 0.5) * 16;
+        const z = 20 - t * 52 + (rng() - 0.5) * 18;
+        const w = 15.5 - t * 8.5 + (rng() - 0.5) * 3.5;
+        const h = 3.6 - t * 1.7 + rng() * 1.3;
+        const slab = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, w * (0.5 + rng() * 0.45)),
+          ruinMat
+        );
+        // half swallowed, and deeper the further out it went
+        slab.position.set(x, -h * (0.32 + t * 0.3) + (rng() - 0.5) * 0.5, z);
+        // tipped, never level: the ground moved under it
+        slab.rotation.set(
+          (rng() - 0.5) * 0.5,
+          0.4 + t * 1.1 + (rng() - 0.5) * 0.9,
+          (rng() - 0.5) * 0.44
+        );
+        this.scene.add(slab);
       }
     }
 
@@ -2880,10 +2654,25 @@ float pHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
     // the crown at z-34 so the horns occlude its centre rather than
     // framing a clean disc, and it is set below the tall tip so it does
     // not float as a separate body above the monument.
-    const tallTip = prongCentre(TIP_T[0] - 0.02, 0);
-    this.crownHalo = makeHalo('#cdd6e2', 112);
-    this.crownHalo.position.set(0, tallTip.y - 2, tallTip.z - 34);
-    this.scene.add(this.crownHalo);
+    // ---- AND THE CROWN HALO IS REMOVED TOO, E0, 2026-08-22. ----
+    // Everything above is kept as the record of why it was centred, and
+    // it is now moot. It was a 112-unit additive radial sprite: a disc,
+    // and a disc behind a crown is a saint's nimbus however it is
+    // tuned. It made the holiness read as GRAPHICALLY APPLIED rather
+    // than produced by the world, which is the one thing the lock story
+    // cannot afford - the exterior has to look holy because it is doing
+    // something, not because it has been haloed.
+    //
+    // Lowering its opacity was explicitly rejected: that keeps the disc
+    // and only dims it. The replacement is in the sky itself, at
+    // SKY PRESSURE in skyAt() - a narrow, vertically drawn, slightly
+    // irregular lift behind the blades, off-centre, with no radial
+    // falloff anywhere in it. The read must be that the sky is under
+    // pressure around this object, never that the object is radiating.
+    //
+    // The eye law from above survives its subject and still binds
+    // anything that ever goes back up there: never on the axis, and
+    // never a lit void framed by the two horns.
 
     // --- the air: dust motes over the water, rising slowly ---
     {
@@ -3087,10 +2876,56 @@ ${SKY_LAW}`
   // why the monument read as placed on the ground rather than standing
   // in it. The lane wins near the mouth: light escaping the slit falls
   // INSIDE the shadow, which is exactly what makes both read as real.
-  // sized to the plinth's skirt, which is what stands on the plain now
-  vec2 fp = vec2(vGroundW.x / 74.0, vGroundW.z / 46.0);
-  float foot = 1.0 - smoothstep(0.86, 1.7, length(fp));
-  diffuseColor.rgb *= 1.0 - foot * 0.5 * (1.0 - streak * 0.75);
+  // E0 re-cut this. It was sized to the plinth's skirt, 74 by 46, and
+  // the plinth is gone: it is cut to the ROOTS now, which is what
+  // actually stands on the plain. Tighter and deeper on purpose - a
+  // small shadow going very dark against the stone reads as a mass
+  // driven into the ground, where a wide soft one reads as a platform.
+  vec2 fp = vec2(vGroundW.x / 30.0, vGroundW.z / 21.0);
+  float foot = 1.0 - smoothstep(0.80, 2.10, length(fp));
+  diffuseColor.rgb *= 1.0 - foot * 0.62 * (1.0 - streak * 0.75);
+
+  // THE SUBSIDENCE SLOTS, E0, replacing the podium. The ground was
+  // FORCED around the object, never built to present it. Each root has
+  // one slot where the plain broke and dropped against the stone, and
+  // the two are deliberately unlike: the west tight and short, the east
+  // wider and running further back, because the east flank is the one
+  // that gave way - it is where the ruin lies. Each slot is the RIM of
+  // a falloff and never the whole disc, so the plain stays intact up to
+  // a lip and drops there. A continuous collar is forbidden: a collar
+  // is a plinth drawn in shadow.
+  {
+    float rw = length(vec2((vGroundW.x + 14.0) / 12.5, (vGroundW.z + 1.0) / 15.0));
+    float re = length(vec2((vGroundW.x - 15.5) / 17.0, (vGroundW.z - 3.0) / 20.0));
+    // UNDER THE STONE. E0 inspection, and the one correction it bought:
+    // with the podium gone the plain runs right up to the roots, and
+    // the standing shadow above could not darken it there because the
+    // lane cancels it - foot is multiplied by (1 - streak * 0.75) and
+    // the streak is at its strongest at the mouth. The roots came out
+    // sitting on a floor that was LIGHTER than the plain around them,
+    // which is the pasted-on read the plinth had been hiding.
+    //
+    // So the ground immediately against each root goes to almost
+    // nothing on its own term, and the lane does not lift it: light
+    // grazing past a root cannot get underneath it. Per root, never one
+    // disc - a single ellipse would close across the axis, and the
+    // corridor between the blades is exactly where the slit's light is
+    // supposed to reach the ground.
+    float under = max(1.0 - smoothstep(0.55, 1.18, rw), 1.0 - smoothstep(0.50, 1.20, re));
+    diffuseColor.rgb *= 1.0 - under * 0.88;
+    float slotW = smoothstep(1.30, 0.96, rw) * smoothstep(0.52, 0.90, rw);
+    float slotE = smoothstep(1.40, 0.94, re) * smoothstep(0.44, 0.84, re);
+    diffuseColor.rgb *= 1.0 - clamp(max(slotW, slotE * 1.15), 0.0, 1.0) * 0.85;
+  }
+  // and the axis keeps a slot of its own at the mouth, the only one
+  // with anything in it. A little of the fissure's light continues
+  // below grade and dies within a few units - cold on arrival like the
+  // pool above it, because it is the same light still landing.
+  {
+    float mouth = exp(-axis * axis * 2.2) * smoothstep(30.0, 5.0, r) * step(-2.0, vGroundW.z);
+    diffuseColor.rgb *= 1.0 - mouth * 0.55;
+    diffuseColor.rgb += vec3(0.50, 0.78, 1.14) * mouth * 0.42;
+  }
   // wet sheen in the middle distance. This was carrying the comment
   // about resolving into a horizon and it never could: past about a
   // thousand units the fog owns the pixel outright and no albedo
@@ -3604,10 +3439,9 @@ ${SKY_LAW}`
     // bloom must not smear the fissure across the walls in there
     this.bloom.strength = this.flatAudit ? 0 : 0.34 * (1 - inside * 0.72);
 
-    // holiness dims as the monument strips, and never smears the lens
-    const crownFade = smooth01(this.camera.position.distanceTo(this.crownHalo.position), 40, 95);
-    const breath = reduced ? 1 : 0.88 + 0.12 * Math.sin(this.time * 0.22);
-    this.crownHalo.material.opacity = 0.5 * (1 - decay) * crownFade * (2 - breath) * 0.5;
+    // holiness dims as the monument strips. The crown halo it used to
+    // drive is deleted (E0); the sky's pressure lift carries this now,
+    // and it is driven from the same decay term inside skyAt.
 
     // the traveller's light burns only inside the cleft
     this.innerLight.intensity = 24 * inside;
@@ -3738,44 +3572,7 @@ function mulberry32ish(seed: number): () => number {
   };
 }
 
-function makeHalo(color: string, scale: number): THREE.Sprite {
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
-  const ctx = c.getContext('2d')!;
-  const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
-  g.addColorStop(0, color);
-  g.addColorStop(0.4, colorWithAlpha(color, 0.22));
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
-  const tex = new THREE.CanvasTexture(c);
-  const mat = new THREE.SpriteMaterial({
-    map: tex,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    transparent: true,
-    opacity: 0.45
-  });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.setScalar(scale);
-  return sprite;
-}
 
-function colorWithAlpha(hex: string, a: number): string {
-  const c = new THREE.Color(hex);
-  return (
-    'rgba(' +
-    Math.round(c.r * 255) +
-    ',' +
-    Math.round(c.g * 255) +
-    ',' +
-    Math.round(c.b * 255) +
-    ',' +
-    a +
-    ')'
-  );
-}
 
 function lerpColor(a: string, b: string, t: number): THREE.Color {
   return new THREE.Color(a).lerp(new THREE.Color(b), t);

@@ -31,6 +31,9 @@ export const LEVELS = 130;
 export const HALF = (FOOT * CELL) / 2;
 export const TOWER_TOP = LEVELS * CELL;
 
+/** how high the plain heaps against the roots; the press floor rides it */
+const DUNE_CREST = 6;
+
 const CULL_COOLDOWN_TICKS = 1100;
 const FIXED_DT = 1 / 60;
 const MARK_COOLDOWN_TICKS = 30;
@@ -230,13 +233,17 @@ export class LatticeWorld {
   /**
    * The one seating law, shared by the visitor's presses and the prior
    * history, so a mark from before observation sits exactly as a mark
-   * from now does. The floor is the plinth's top lip (6.4 + a cell),
-   * not the old ground line: a press seated below that would open the
-   * stone behind the platform where no one can ever see it, and an
-   * invisible consequence is a broken press.
+   * from now does.
+   *
+   * The floor was the plinth's top lip. E0 deleted the plinth, so it is
+   * re-floored to the DUNES, which run to about +6 at the roots: a
+   * press seated below that opens the stone behind ground no one can
+   * see past, and an invisible consequence is a broken press. Same law,
+   * new reason - the number happens to land in nearly the same place,
+   * which is why the old lip worked at all.
    */
   private seatOnFace(x: number, y: number, z: number): { sx: number; my: number; sz: number } {
-    const my = Math.min(TOWER_TOP - CELL, Math.max(6.4 + CELL, y));
+    const my = Math.min(TOWER_TOP - CELL, Math.max(DUNE_CREST + CELL, y));
     const t = my / TOWER_TOP;
     const side: 0 | 1 = x < 0 ? 0 : 1;
     const s = side === 0 ? -1 : 1;
