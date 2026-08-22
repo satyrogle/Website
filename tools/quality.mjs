@@ -68,6 +68,30 @@ async function harnessPage(context) {
     placed === true && after === before + 1 && newest.includes('SEATED IN THE FACE') && Date.now() - t0 < 500,
     newest
   );
+
+  // --- 2b. the witnessed cull ---
+  // Gate 5, 2026-08-22: the seeded appointment fells one camera-facing
+  // cell between 52 and 76 seconds in, and the next natural strike is
+  // minutes out. Ninety seconds of law must therefore hold EXACTLY one
+  // CULLED row: zero means the appointment silently died, two means the
+  // cull became weather.
+  const culls = await a.evaluate(() => {
+    window.__dl.stepTo(5400);
+    const rows = Array.from(document.querySelectorAll('#record-list li'))
+      .map((li) => li.textContent || '')
+      .filter((r) => r.includes('STRUCK FROM THE FACE'));
+    return { rows, pits: window.__dl.cullPits() };
+  });
+  check(
+    'witnessed cull: exactly one unprompted strike inside a 90s dwell',
+    culls.rows.length === 1 && culls.rows[0].includes('CULLED'),
+    culls.rows.join(' | ') || 'no strike by T+5400'
+  );
+  check(
+    'witnessed cull: the struck cell faces the landing camera (z > 0)',
+    culls.pits.length === 1 && culls.pits[0].z > 0,
+    JSON.stringify(culls.pits)
+  );
   await ctxA.close();
   await ctxB.close();
 }

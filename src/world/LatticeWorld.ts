@@ -35,6 +35,7 @@ const CULL_COOLDOWN_TICKS = 1100;
 const FIXED_DT = 1 / 60;
 const MARK_COOLDOWN_TICKS = 30;
 const MAX_MARKS = 12;
+const MAX_CULL_PITS = 6;
 
 interface LawCell {
   index: number;
@@ -53,6 +54,14 @@ export interface Mark {
   label: string;
 }
 
+/** where the law struck a cell from the face: the stone keeps the pit */
+export interface CullPit {
+  x: number;
+  y: number;
+  z: number;
+  tick: number;
+}
+
 export class LatticeWorld {
   tick = 0;
   readonly seed: number;
@@ -68,6 +77,7 @@ export class LatticeWorld {
   strikesDirty = false;
 
   readonly marks: Mark[] = [];
+  readonly cullPits: CullPit[] = [];
 
   private readonly lawCells: LawCell[] = [];
   private readonly onEvent: (e: WorldEvent) => void;
@@ -130,6 +140,8 @@ export class LatticeWorld {
     this.nodeCount = seeds.length;
     this.strikeTimes = new Float32Array(this.nodeCount).fill(-1);
 
+    this.appointFirstCull();
+
     // its own stream, appended after all law generation, so the prior
     // history cannot disturb a single existing cell or threshold
     this.seedPriorHistory();
@@ -153,6 +165,16 @@ export class LatticeWorld {
       weakest.struck = true;
       this.strikeTimes[weakest.index] = this.tick / 60;
       this.strikesDirty = true;
+      // the face keeps the wound: the renderer opens the stone here,
+      // by the same absence law a press uses
+      const i3 = weakest.index * 3;
+      this.cullPits.push({
+        x: this.positions[i3]!,
+        y: this.positions[i3 + 1]!,
+        z: this.positions[i3 + 2]!,
+        tick: this.tick
+      });
+      if (this.cullPits.length > MAX_CULL_PITS) this.cullPits.shift();
       this.onEvent({
         kind: 'removed',
         tick: this.tick,
@@ -225,6 +247,46 @@ export class LatticeWorld {
     const across = 1 - Math.min(1, Math.abs(sz) / Math.max(1e-3, halfDepth));
     const sx = cut + s * (0.35 + reachAt(t) * (0.25 + 0.75 * across));
     return { sx, my, sz };
+  }
+
+  /**
+   * THE WITNESSED CULL. Sinister gate 5, 2026-08-22, from the paper
+   * list: one cell falls unprompted during a long dwell.
+   *
+   * The strike law is untouched - cells decay, the weakest at zero is
+   * struck, cooldown between strikes. What this seeds is an INITIAL
+   * CONDITION: one law cell on the camera-facing arc of the landing
+   * view, mid-height, whose health and decay meet zero at a seeded
+   * moment inside a long dwell (52 to 76 seconds in). Every other
+   * cell keeps its ordinary schedule; the next natural strike is
+   * more than two minutes out, so this one arrives alone.
+   *
+   * Not a script and not a timer: the same seed always appoints the
+   * same cell at the same tick, replayable like everything else. The
+   * visitor who stays long enough sees the system do to its own face
+   * what it has been doing in the record all along - a judgment with
+   * no one asking for it, logged CULLED while the stone is still
+   * falling. The visitor who leaves early is simply not shown.
+   */
+  private appointFirstCull(): void {
+    const h = mulberry32(this.seed ^ 0x3d09);
+    // the landing camera stands low on the axis, south of the tower:
+    // eligible cells FACE it, z toward the eye. No level band on top -
+    // the 420-cell cap means the law only covers the lower-mid courses
+    // (levels 26 to about 38), and a band the law does not cover
+    // silently empties the pool and hands the pick to the far side,
+    // which is exactly the unwitnessed cull this gate exists to forbid
+    let pool = this.lawCells.filter((c) => {
+      const i3 = c.index * 3;
+      const t = this.positions[i3 + 1]! / TOWER_TOP;
+      return this.positions[i3 + 2]! > depthAt(t) * 0.3;
+    });
+    if (pool.length === 0) pool = this.lawCells;
+    if (pool.length === 0) return;
+    const cell = pool[Math.floor(h() * pool.length)]!;
+    const tFirst = 52 + h() * 24; // seconds; seeded, never wall-clock
+    cell.health = 0.62;
+    cell.decay = 0.62 / tFirst;
   }
 
   /**

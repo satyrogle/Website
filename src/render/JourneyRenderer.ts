@@ -42,6 +42,9 @@ uniform float uRim;
 // presses: xyz world position, w born time in seconds
 uniform vec4 uMarks[12];
 uniform int uMarkN;
+// culls: xyz world position of a cell the law struck, w strike time
+uniform vec4 uCulls[6];
+uniform int uCullN;
 float vMonoEng;
 float vMonoRough = 0.9;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -534,6 +537,23 @@ const FRAG_MAP = `#include <map_fragment>
     mkPit = max(mkPit, body * eaten);
     mkRim = max(mkRim, exp(-pow((md - mr * wob2) / 0.5, 2.0)) * 0.22 * grow);
   }
+  // THE WITNESSED CULL, sinister gate 5, 2026-08-22. Where the law
+  // struck a cell from the face, the stone keeps the pit - the same
+  // bite law as a press, because absence has one law here, but with
+  // NO rim residue: a taking, with nothing to show for itself. It
+  // opens over the second the cell is still in the air.
+  for (int ci = 0; ci < 6; ci++) {
+    if (ci >= uCullN) break;
+    float cd = distance(vMonoW, uCulls[ci].xyz);
+    float cage = uTime - uCulls[ci].w;
+    if (cage < 0.0 || cd > 5.0) continue;
+    float cgrow = clamp(cage * 0.8, 0.0, 1.0);
+    // a whole cell is gone here, not a symbolic touch, so the pit runs
+    // a little wider than a press mark's: 1.6 to 2.2 units
+    float cr = (1.6 + 0.6 * monoHash(uCulls[ci].xyz)) * cgrow;
+    float cwob = 0.8 + 0.4 * monoNoise(vec2(vMonoW.y * 1.7 + uCulls[ci].w, cd * 2.2));
+    mkPit = max(mkPit, smoothstep(cr * cwob, cr * cwob * 0.3, cd));
+  }
   diffuseColor.rgb *= 1.0 - mkPit * 0.72;
   vMonoRough = clamp(vMonoRough + mkPit * 0.3, 0.05, 0.96);
 
@@ -730,25 +750,33 @@ const CLAD_VERT = /* glsl */ `
   out float vFog;
   out float vDying;
   out float vFall;
+  out float vStruck;
   out float vHeight;
   out vec2 vUv;
   out float vWorldY;
   out vec3 vWorld;
   void main() {
     vSeed = aSeed;
+    // culled by the law, as opposed to failed by the scroll's decay
+    float struckF = aStrike < 0.0 ? 0.0 : 1.0;
+    vStruck = struckF;
     // the standing monument is authored stone now; a cube exists only
     // in its moment of failure, as debris in the air. The fall is
-    // punctuation, never weather: it completes quickly and goes dark
+    // punctuation, never weather: it completes quickly and goes dark.
+    // A CULLED cell falls at half the decay's rate and keeps most of
+    // its size - one witnessed judgment, not weather, and a fall too
+    // fast to see is a fall that never happened. Gate 5, 2026-08-22.
     float over = max(0.0, uDecay - aThresh);
     // a live strike fells the cell regardless of scroll
     float sinceStrike = aStrike < 0.0 ? -1.0 : max(0.0, uTime - aStrike);
-    float fallT = max(over * 40.0, sinceStrike > 0.0 ? sinceStrike * 1.8 : 0.0);
+    float fallT = max(over * 40.0, sinceStrike > 0.0 ? sinceStrike * mix(1.8, 0.9, struckF) : 0.0);
     vFall = fallT;
     vDying = smoothstep(0.035, 0.0, aThresh - uDecay) * step(uDecay, aThresh);
 
     // masonry: no two cells cut quite alike
     float sizeVar = 0.93 + 0.1 * fract(aSeed * 7.31);
-    vec3 wp = position * sizeVar * clamp(1.0 - fallT * 0.85, 0.05, 1.0) + aOffset;
+    float shrink = clamp(1.0 - fallT * mix(0.85, 0.4, struckF), 0.05, 1.0);
+    vec3 wp = position * sizeVar * shrink + aOffset;
     if (fallT <= 0.0 || fallT > 2.0) wp = vec3(0.0, -9999.0, 0.0);
     if (fallT > 0.0) {
       float ang = fallT * (aSeed * 8.0 - 4.0) + uTime * 0.22 * (aSeed - 0.5) * (1.0 - uCalmV);
@@ -788,6 +816,7 @@ const CLAD_FRAG = /* glsl */ `
   in float vFog;
   in float vDying;
   in float vFall;
+  in float vStruck;
   in float vHeight;
   in vec2 vUv;
   in float vWorldY;
@@ -862,7 +891,20 @@ const CLAD_FRAG = /* glsl */ `
       col *= mix(1.0, mix(g, 0.8, uCalm), vDying);
     }
     if (vFall > 0.0) {
-      col *= clamp(1.0 - vFall * 1.1, 0.08, 1.0);
+      // The scroll's decay drops cells dark: they were dead already,
+      // and dozens fall at once, so dark is the only calm option. A
+      // CULLED cell is different, and there is only ever one at a
+      // time: the law takes it lit and it dies in the air. The pale
+      // fleck crossing the dark is what makes the witnessed cull
+      // witnessable at landing distance - sinister gate 5, 2026-08-22.
+      float dim = mix(
+        clamp(1.0 - vFall * 1.1, 0.08, 1.0),
+        clamp(1.0 - vFall * 0.45, 0.18, 1.0),
+        vStruck
+      );
+      col *= dim;
+      // the record's light leaves it in the air: taken lit, lands dark
+      col += vec3(0.85, 0.9, 1.0) * vStruck * clamp(1.0 - vFall * 0.7, 0.0, 1.0) * 0.5;
     }
     col = mix(col, uFogColor, vFog);
     outColor = vec4(col, 1.0);
@@ -2910,6 +2952,9 @@ float pHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453)
       // stone eats at these points instead of a sprite being glued on.
       uMarks: { value: Array.from({ length: 12 }, () => new THREE.Vector4(0, -999, 0, -99)) },
       uMarkN: { value: 0 },
+      // where the law struck cells from the face: the kept wounds
+      uCulls: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, -999, 0, -99)) },
+      uCullN: { value: 0 },
       uFogColor: { value: new THREE.Color('#07080a') },
       uFogDensity: { value: 0.0022 }
     });
@@ -3585,6 +3630,14 @@ ${SKY_LAW}`
       mv[m]!.set(mk.x, mk.y, mk.z, mk.bornTick / 60);
     }
     this.stoneU.uMarkN!.value = marks.length;
+    // the culls, by the same route: world state in, stone opens
+    const pits = this.world.cullPits;
+    const cvv = this.stoneU.uCulls!.value as THREE.Vector4[];
+    for (let ci = 0; ci < pits.length; ci++) {
+      const p = pits[ci]!;
+      cvv[ci]!.set(p.x, p.y, p.z, p.tick / 60);
+    }
+    this.stoneU.uCullN!.value = pits.length;
     this.markGeom.setDrawRange(0, 0);
     this.markGeom.attributes.position!.needsUpdate = true;
     this.markGeom.attributes.aBorn!.needsUpdate = true;

@@ -106,6 +106,11 @@ function boot(): void {
         return world.placeMark(p.x, p.y, p.z);
       },
       records: (): number => document.querySelectorAll('#record-list li').length,
+      // the witnessed cull's evidence: where the law has struck cells
+      // from the face, so the harness can assert the strike is on the
+      // camera-facing arc rather than trusting that it is
+      cullPits: (): Array<{ x: number; y: number; z: number; tick: number }> =>
+        world.cullPits.map((p) => ({ ...p })),
       // review affordance: sweep the lid's presence without a rebuild,
       // so its strength is chosen from rendered frames rather than from
       // a number written into a spec
