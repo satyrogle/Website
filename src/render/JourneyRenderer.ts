@@ -1155,11 +1155,27 @@ vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strat
   // it, so it arrives as weather torn open rather than as an object.
   // Severity takes it down by almost half: the return's sky closes.
   {
+    // SUBORDINATED, sinister gate 3, 2026-08-22. As built for the
+    // reference gate this had a broad pow(7) wing at full sky-blue,
+    // and it read as its own celestial body - a moon behind the crown,
+    // a SECOND light in a frame whose holiness depends on having one.
+    // Two demotions:
+    //
+    // The wing collapses (pow 12 at a third of its weight), so the
+    // break is a tear the crown's light escapes through, not a disc
+    // with an atmosphere.
+    //
+    // And at rest its tint leans to the SEAM's warm white rather than
+    // the sky's own blue, so the light up there is recognisably the
+    // blade's, arrived in the air - the sky answering the seam, owning
+    // nothing. Severity hands it back to the cold sky family as the
+    // whole frame goes cold.
     vec3 toBreak = normalize(vec3(0.0, 360.0, 0.0) - eye);
     float bAlign = max(dot(d, toBreak), 0.0);
-    float breakGlow = pow(bAlign, 34.0) * 0.72 + pow(bAlign, 7.0) * 0.28;
+    float breakGlow = pow(bAlign, 34.0) * 0.72 + pow(bAlign, 12.0) * 0.10;
     breakGlow *= 1.0 - clamp(dens, 0.0, 1.0) * 0.55;
-    col += glow * breakGlow * breakAmt * (1.0 - sev * 0.45) * 3.0;
+    vec3 bCol = mix(vec3(0.0315, 0.0300, 0.0270), glow * 1.05, sev * 0.8);
+    col += bCol * breakGlow * breakAmt * (1.0 - sev * 0.45) * 2.0;
   }
 
   // THE LID. The faint inverted plain far above, met at the same
@@ -1435,6 +1451,8 @@ export class JourneyRenderer {
   private watchX = 0;
   private watchY = 0;
   private watchAmt = 0;
+  /** false until the first pointer ever enters: the idle-attention gate */
+  private everPointed = false;
   private watchDrift = 0;
   private parY = 0;
   /** the signal the skin carries: driven by the law, not by a clock */
@@ -3272,6 +3290,7 @@ ${SKY_LAW}`
   /** The visitor's attention: where they point at the monument. */
   setPointer(ndcX: number, ndcY: number): void {
     this.pointerNdc = { x: ndcX, y: ndcY };
+    this.everPointed = true;
   }
 
   clearPointer(): void {
@@ -3314,7 +3333,17 @@ ${SKY_LAW}`
       this.watchDrift += dt;
       const wdrift = Math.sin(this.watchDrift * 0.23) * 0.055
                    + Math.sin(this.watchDrift * 0.071) * 0.030;
-      const wantWatch = this.pointerNdc ? 1 : 0;
+      // IT WAS ALREADY LOOKING. Sinister gate 2, 2026-08-22, from the
+      // paper list. Before any pointer has ever entered, the watcher is
+      // not asleep waiting to be summoned - it is settled at moderate
+      // presence, attending the centre of the screen, which is where
+      // the visitor is. The drift keeps it alive. The first mouse move
+      // does not wake it; it hands it a better target.
+      //
+      // Once a pointer has existed, absence means the visitor LEFT, and
+      // the watcher lets go as before - that release is the wave's
+      // moment and it stays untouched.
+      const wantWatch = this.pointerNdc ? 1 : this.everPointed ? 0 : 0.6;
       this.watchAmt += (wantWatch - this.watchAmt) * (1 - Math.exp(-dt * 1.1));
       const fu = this.fissureMat.uniforms;
       (fu.uWatch!.value as THREE.Vector2).set(this.watchX, this.watchY + wdrift);

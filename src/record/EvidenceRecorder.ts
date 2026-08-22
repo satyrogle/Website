@@ -17,7 +17,11 @@ export class EvidenceRecorder {
   }
 
   add(e: WorldEvent): void {
-    const tickLabel = 'T+' + String(e.tick).padStart(6, '0');
+    // negative ticks are the prior history: before observation began
+    const tickLabel =
+      e.tick < 0
+        ? 'T-' + String(-e.tick).padStart(6, '0')
+        : 'T+' + String(e.tick).padStart(6, '0');
 
     if (this.list) {
       const li = document.createElement('li');

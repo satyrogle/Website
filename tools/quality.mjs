@@ -62,7 +62,10 @@ async function harnessPage(context) {
   );
   check(
     'first action: press writes the record immediately',
-    placed === true && after === before + 1 && newest.includes('MARK 01') && Date.now() - t0 < 500,
+    // MARK 01 belongs to the prior history now - the ledger opens with a
+    // seeded past and the visitor's first press CONTINUES the count. The
+    // check asserts the seating and the increment, whatever the number.
+    placed === true && after === before + 1 && newest.includes('SEATED IN THE FACE') && Date.now() - t0 < 500,
     newest
   );
   await ctxA.close();
