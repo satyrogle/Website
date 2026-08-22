@@ -35,7 +35,7 @@ function grab({ w, h }) {
 }
 
 // DL_ONLY=4 or DL_ONLY=5 runs one gate's evidence alone
-const ONLY = process.env.DL_ONLY || '45';
+const ONLY = process.env.DL_ONLY || '456';
 
 // --- gate 4: the cold landing ---
 if (ONLY.includes('4')) {
@@ -195,6 +195,36 @@ if (ONLY.includes('5')) {
         .find((r) => r.includes('STRUCK FROM THE FACE')) || 'NO CULL ROW'
   );
   console.log('[gate5] ledger:', row);
+  await page.close();
+}
+
+// --- gate 6: the stillness ---
+// The same mean-abs-diff over the same 2s gap, taken while the world is
+// alive (15s in) and again deep in the dwell (70s in, past the 48-63s
+// ramp). The claim is that autonomous motion STOPS, so the second
+// number collapsing toward the seam's residual is the evidence.
+if (ONLY.includes('6')) {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  page.on('pageerror', (e) => console.log('[page error]', e.message));
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  const motion = async () => {
+    const a = await page.evaluate(grab, { w: 800, h: 450 });
+    await page.waitForTimeout(2000);
+    const b = await page.evaluate(grab, { w: 800, h: 450 });
+    let sum = 0;
+    for (let i = 0; i < 800 * 450; i++)
+      sum +=
+        Math.abs(a[i * 4] - b[i * 4]) +
+        Math.abs(a[i * 4 + 1] - b[i * 4 + 1]) +
+        Math.abs(a[i * 4 + 2] - b[i * 4 + 2]);
+    return +((100 * sum) / (800 * 450 * 3 * 255)).toFixed(4);
+  };
+  await page.waitForTimeout(15000);
+  const alive = await motion();
+  await page.waitForTimeout(53000);
+  const still = await motion();
+  console.log(`[gate6] motion alive(15s) ${alive}%  still(70s) ${still}%`);
+  await page.screenshot({ path: OUT + '/gate6-still.png' });
   await page.close();
 }
 

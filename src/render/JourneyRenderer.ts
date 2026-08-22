@@ -1496,6 +1496,12 @@ export class JourneyRenderer {
   /** false until the first pointer ever enters: the idle-attention gate */
   private everPointed = false;
   private watchDrift = 0;
+  /** seconds with no pointer and no scroll: the road into THE STILLNESS */
+  private idleT = 0;
+  /** 0 alive, 1 embalmed - gate 6's overrule, eased both ways */
+  private stillAmt = 0;
+  /** the clock the autonomous motions run on; it stops when the world does */
+  private ambientT = 0;
   private parY = 0;
   /** the signal the skin carries: driven by the law, not by a clock */
   private signal = 0;
@@ -3361,13 +3367,34 @@ ${SKY_LAW}`
 
   update(progress: number, dt: number, reduced: boolean): void {
     this.time += dt;
+    // THE STILLNESS. Sinister gate 6, 2026-08-22, from the paper list,
+    // and it knowingly OVERRULES the law written below: "the world is
+    // never embalmed". On Jacob's word. If the visitor neither points
+    // nor scrolls for about fifty seconds, every autonomous motion
+    // eases to a dead stop over the next fifteen - the camera's own
+    // drift, the sky's decks and lid, the watcher's idle sway, the
+    // motes, the ground's charge - and the world holds its breath
+    // until they move again. The drift existed so the world would
+    // read alive; a thing that stops pretending to be alive once you
+    // have watched it long enough is worse. Two things never freeze:
+    // the visitor's hand (input causality is a kill test and parX/parY
+    // stay live), and the seam with the monument's own skin - the
+    // world is embalmed, the system is not. The witnessed cull lands
+    // at 74 seconds, falling through a world that has gone completely
+    // still.
+    const idleNow = !this.pointerNdc && progress < 0.02;
+    this.idleT = idleNow ? this.idleT + dt : 0;
+    const wantStill = reduced ? 0 : smooth01(this.idleT, 48, 63);
+    this.stillAmt += (wantStill - this.stillAmt) * (1 - Math.exp(-dt * 0.9));
+    this.ambientT += dt * (1 - this.stillAmt);
     this.path.update(this.camera, progress, dt, reduced);
     const inside = smooth01(progress, 0.49, 0.53) * (1 - smooth01(progress, 0.65, 0.69));
     if (!reduced) {
       // the world is never embalmed: the camera orbits its subject,
       // drifting on its own and leaning with the visitor's hand. The
-      // hand's reach shrinks inside the cleft: the walls are close
-      const t = this.time;
+      // hand's reach shrinks inside the cleft: the walls are close.
+      // (Overruled during the long dwell - see THE STILLNESS above.)
+      const t = this.ambientT;
       const reach = 1 - inside * 0.8;
       const px = this.pointerNdc ? this.pointerNdc.x : 0;
       const py = this.pointerNdc ? this.pointerNdc.y : 0;
@@ -3391,8 +3418,10 @@ ${SKY_LAW}`
       this.watchX += (px - this.watchX) * watchK;
       this.watchY += (py - this.watchY) * watchK;
       // and it never holds perfectly still. Something motionless is an
-      // object; something that drifts while it waits is alive
-      this.watchDrift += dt;
+      // object; something that drifts while it waits is alive.
+      // (Except in THE STILLNESS: when the world stops pretending, so
+      // does the watcher - its attention stays, its idling does not.)
+      this.watchDrift += dt * (1 - this.stillAmt);
       const wdrift = Math.sin(this.watchDrift * 0.23) * 0.055
                    + Math.sin(this.watchDrift * 0.071) * 0.030;
       // IT WAS ALREADY LOOKING. Sinister gate 2, 2026-08-22, from the
@@ -3558,8 +3587,9 @@ ${SKY_LAW}`
     this.fissureMat.uniforms.uSeverity!.value = sev;
     this.fissureMat.uniforms.uDecay!.value = decay;
     this.fissureMat.uniforms.uNear!.value = inside;
-    this.fieldMat.uniforms.uTime!.value = reduced ? 0 : this.time;
-    this.mistMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    // ambient motions ride the stillness clock - gate 6
+    this.fieldMat.uniforms.uTime!.value = reduced ? 0 : this.ambientT;
+    this.mistMat.uniforms.uTime!.value = reduced ? 0 : this.ambientT;
 
     (this.mistMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.fieldMat.uniforms.uSeverity!.value = sev;
@@ -3567,8 +3597,8 @@ ${SKY_LAW}`
     (this.strataMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.hazeMat.uniforms.uSeverity!.value = sev;
     this.hazeMat.uniforms.uDecay!.value = decay;
-    this.skyMat.uniforms.uTime!.value = reduced ? 0 : this.time;
-    this.groundU.uGTime!.value = reduced ? 0 : this.time;
+    this.skyMat.uniforms.uTime!.value = reduced ? 0 : this.ambientT;
+    this.groundU.uGTime!.value = reduced ? 0 : this.ambientT;
     this.groundU.uGSeverity!.value = sev;
     this.groundU.uGDecay!.value = decay;
     // bloom must not smear the fissure across the walls in there
@@ -3630,7 +3660,7 @@ ${SKY_LAW}`
       if (mu.uFogDensity) mu.uFogDensity.value = fogDensity;
     }
     this.markMat.uniforms.uTime!.value = this.world.tick / 60;
-    this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.time;
+    this.moteMat.uniforms.uTime!.value = reduced ? 0 : this.ambientT;
     this.moteMat.uniforms.uSeverity!.value = sev;
     this.moteMat.uniforms.uAmt!.value =
       1 - smooth01(progress, 0.45, 0.62) * (1 - smooth01(progress, 0.64, 0.72));
