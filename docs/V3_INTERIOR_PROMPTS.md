@@ -111,3 +111,49 @@ Not by which is prettiest. By which one:
 5. carries no human scale anywhere in it.
 
 One image per file. No sheet.
+
+---
+
+# PICKED, 2026-08-23: THE APERTURE
+
+None of the three. Jacob's own generations produced a fourth grammar
+that beats all of them, and the pick is his image of a fissure interior
+looking OUT.
+
+**The frame:** the visitor stands inside the crack. Two rock walls fill
+the left and right of the frame, each with a blade of brilliant white
+down its edge - the seam they just came through, seen from inside. The
+gap between them opens onto an immense dark plain running to a hazed
+horizon, with a few low flat slab islands in the middle distance and
+sparse cold lights lying on the ground: some points, some short dashes.
+
+**Why it wins.** The Drop failed exactly one test - it did not read as
+inside anything - and the aperture fixes that without a ceiling, because
+the walls of the crack are in shot. It keeps everything the Drop won on:
+a real country with somewhere to go, slab islands for the stations to
+stand on, and a huge flat surface for a shadow to cross. And the entry
+lights already read as records rather than stars, because they lie ON
+the ground with dashes among them instead of hanging in a sky.
+
+**Also taken, for I4:** the aerial frame of a broad soft-edged shadow
+wedge lying diagonally across a plated plain with thin light seams
+running through it. That is the shadow road, and it is the reference
+gate V4 was going to ask for.
+
+**Also taken, for the corrosion:** the two macro stone frames - one
+dominant diagonal band of vesicular pitting on a clean black majority.
+That is the hierarchy E0.3 built, confirmed as a material target.
+
+**Refused, with reasons.** Green glowing veins: radioactive green is
+banned by the colour grammar and it reads as generic sci-fi. The rust
+and ochre corrosion: caramel crust is banned, and the palette is black,
+bone and one cold event colour. The studio-lit blocks on a fog stage:
+that is a product render, an object beside copy with the copy left off.
+The stepped ziggurat masses: that is the podium language E0 just
+deleted, and it cannot come back as the interior's grammar.
+
+**Carried in as hard constraints, learned from the misses:** no
+symmetric vanishing-point composition anywhere - that is how the
+Underside variants became a corridor. And the entry lights stay sparse
+and unevenly clustered; the moment they space out evenly they are a
+starfield, which is a paid-for kill word.
