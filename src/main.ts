@@ -127,6 +127,8 @@ function boot(): void {
       setSurgeTail: (uv: number): void => renderer.setSurgeTail(uv),
       setRim: (amount: number): void => renderer.setRim(amount),
       setBreak: (amount: number): void => renderer.setBreak(amount),
+      // the crowded record at the wound: 0 kills it, 3 shouts it
+      script: (a: number): void => renderer.setScript(a),
       // gate I1: 1 holds the brace open, 0 forces it shut, -1 is live
       still: (amount: number): void => renderer.setStill(amount),
       // gate I2: 0..1 holds the crossing open, -1 is live

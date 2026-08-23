@@ -33,6 +33,9 @@ uniform float uWatchY;
 uniform float uWatchAmt;
 // gate 3: how hard the sky's grazing light finds the outer edges
 uniform float uRim;
+// how hard the crowded record reads at the wound: a review pin, so its
+// strength is pointed at rather than guessed
+uniform float uScript;
 // NO WAKE ON THE STONE. Three passes put a travelling front on the face
 // here - into the rot's emission, then into the albedo - and Jacob
 // rejected all three. Measuring the leaving against the build he liked
@@ -107,19 +110,33 @@ const FRAG_MAP = `#include <map_fragment>
   // into vertical lanes and each lane carries a run of small marks
   // stacked down it, the way the spec sheets inscribe them. Two
   // systems overlaid at different lane widths.
+  // THE RECORD CROWDS AT THE WOUND, 2026-08-23. Jacob asked for the
+  // base to read corrupted and RUNIC. Literal fantasy runes are banned
+  // here and would be wrong anyway - the monument already has a runic
+  // language, which is the inscription it has carried since the first
+  // gate. So the answer is not a new alphabet, it is the SAME record,
+  // packed hard where the blight has it: entries crowd at the contact
+  // the way a ledger crowds around the event it is recording.
+  float footIns = exp(-max(vMonoW.y - 10.0, 0.0) / 28.0) * smoothstep(-3.0, 2.0, vMonoW.y);
   float glyph = 0.0;
-  for (int sys = 0; sys < 2; sys++) {
-    float laneW = sys == 0 ? 58.0 : 37.0;
-    float rowH = sys == 0 ? 0.72 : 1.15;
+  for (int sys = 0; sys < 3; sys++) {
+    // the third system exists only at the foot, and it is packed finer
+    // than anything else on the mass
+    if (sys == 2 && footIns < 0.02) continue;
+    float laneW = sys == 0 ? 58.0 : sys == 1 ? 37.0 : 104.0;
+    float rowH = sys == 0 ? 0.72 : sys == 1 ? 1.15 : 0.40;
     float lane = floor(ang * laneW);
     float lanePhase = monoHash(vec3(lane, sideS, float(sys) * 3.0));
-    // not every lane is inscribed: the density the spec asks for
-    if (lanePhase < 0.10) continue;
+    // not every lane is inscribed: the density the spec asks for, and
+    // more of them are as the ground is approached
+    float laneGate = sys == 2 ? 0.02 : 0.10 - footIns * 0.065;
+    if (lanePhase < laneGate) continue;
     float lx = fract(ang * laneW);
     float row = floor(vMonoW.y / rowH + lanePhase * 5.0);
     float ly = fract(vMonoW.y / rowH + lanePhase * 5.0);
     float gh = monoHash(vec3(lane, row, sideS + float(sys) * 7.0));
-    if (gh < 0.20) continue;
+    float rowGate = sys == 2 ? 0.10 : 0.20 - footIns * 0.11;
+    if (gh < rowGate) continue;
     // a mark: a vertical stem with one or two crossbars, or a short
     // stroke. Small, hard edged, machined
     float mark = 0.0;
@@ -135,7 +152,7 @@ const FRAG_MAP = `#include <map_fragment>
                 * smoothstep(barHalf, barHalf - 0.06, abs(lx - 0.5));
       mark = max(mark, bar);
     }
-    glyph = max(glyph, mark);
+    glyph = max(glyph, mark * (sys == 2 ? footIns : 1.0));
   }
 
   // long scratch lines: the fine diagonal hairlines the sheets carry
@@ -403,6 +420,22 @@ const FRAG_MAP = `#include <map_fragment>
     float fWeb = cWebRaw * footM;
     diffuseColor.rgb *= 1.0 - fPit * 0.6;
     diffuseColor.rgb += diffuseColor.rgb * fWeb * (1.6 + 1.2 * graze) + vec3(0.115, 0.122, 0.135) * fWeb;
+
+    // THE RECORD IS EATEN. Where the rot has taken the surface it has
+    // taken the writing with it, so the inscription at the wound is
+    // PARTIAL - half-marks, broken rows, whole entries missing - and
+    // that is the corruption Jacob asked for. What survives catches the
+    // light hard, because a groove that is still there is still a
+    // groove, and a fragment of a record is worse than none of it.
+    //
+    // Kept in albedo and roughness. No emission: glowing script is the
+    // licorice-veins failure this project has already paid for, and a
+    // record that lights up is announcing itself rather than being
+    // found.
+    float insc = glyph * footM * (1.0 - fPit * 0.9) * uScript;
+    diffuseColor.rgb += diffuseColor.rgb * insc * (0.8 + 1.3 * graze);
+    diffuseColor.rgb += vec3(0.062, 0.066, 0.075) * insc * 0.6;
+    vMonoRough = clamp(vMonoRough + insc * 0.2, 0.08, 0.96);
   }
 
   // THE CRACKS, spreading past the band into intact stone. The band has
@@ -3058,6 +3091,7 @@ export class JourneyRenderer {
       uSeverity: { value: 0 },
       uCalm: { value: 0 },
       uRim: { value: 1.0 },
+      uScript: { value: 1.0 },
       uHover: { value: new THREE.Vector3(0, -999, 0) },
       uHoverAmt: { value: 0 },
       uInner: { value: new THREE.Vector3(0, -999, 0) },
@@ -3533,6 +3567,11 @@ ${SKY_LAW}`
    * held breath can be judged as an A/B without waiting out a scroll or
    * a fifty second idle. -1 hands it back to the world.
    */
+  /** the crowded record at the wound. */
+  setScript(amount: number): void {
+    this.stoneU.uScript!.value = Math.max(0, Math.min(4, amount));
+  }
+
   setStill(amount: number): void {
     this.stillPin = amount < 0 ? -1 : Math.max(0, Math.min(1, amount));
   }
