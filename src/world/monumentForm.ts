@@ -43,14 +43,30 @@ const TOP_D = 0.1;
  */
 export const TIP_T: readonly [number, number] = [1.0, 0.9];
 
+/**
+ * THE FLARE, second attempt, 2026-08-23, to Jacob's mock ("something
+ * like this"): the blades splay into the plain like a trunk into
+ * ground, and the blight climbs the splay. First attempt died at 0.62
+ * as a tent and was reverted with everything else; the mock sits
+ * between - a shaft that stays a blade for its whole height and lets
+ * go only near the ground. Exponential so it is a fillet, not a cone.
+ * Mirrored in monument.py and FRAG_MAP, as the law requires.
+ */
+const FLARE_K = 0.42;
+const FLARE_T = 0.055;
+
+function flareAt(t: number): number {
+  return 1 + FLARE_K * Math.exp(-Math.max(t, 0) / FLARE_T);
+}
+
 /** width taper: how much section survives at height t */
 export function sectionAt(t: number): number {
-  return 1 - (1 - TOP_K) * Math.max(t, 0);
+  return (1 - (1 - TOP_K) * Math.max(t, 0)) * flareAt(t);
 }
 
 /** depth taper, independent of width */
 export function depthSectionAt(t: number): number {
-  return 1 - (1 - TOP_D) * Math.max(t, 0);
+  return (1 - (1 - TOP_D) * Math.max(t, 0)) * flareAt(t);
 }
 
 /**

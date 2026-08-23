@@ -69,7 +69,11 @@ const FRAG_MAP = `#include <map_fragment>
   // THE SPLIT SPIRE is a wedge: no twist to unwrap. Courses run across
   // the outer face by depth, then wrap the flank
   float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
-  float formS = 1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0);
+  // THE FLARE, mirrored from monumentForm.ts: the skin must agree with
+  // the geometry about where the stone is, or the courses slide off
+  // the splay at the foot.
+  float flareS = 1.0 + 0.42 * exp(-max(heightT, 0.0) / 0.055);
+  float formS = (1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0)) * flareS;
   float cutX = sideS * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
   float fromFissure = abs(vMonoW.x - cutX);
   float outward = fromFissure / max(31.0 * formS, 0.001);
@@ -391,11 +395,14 @@ const FRAG_MAP = `#include <map_fragment>
   // territory and it is the only place the corrosion is allowed to be
   // dense, which is what keeps the rest of the mass clean graphite.
   {
-    float footM = exp(-max(vMonoW.y - 6.0, 0.0) / 9.0) * smoothstep(-2.0, 2.0, vMonoW.y);
+    // Tuned to the mock: the lace wraps the whole flare and is BRIGHT -
+    // it catches the light, it does not hide in it - dense to about a
+    // quarter height and thinning to traces, never a hard stop.
+    float footM = exp(-max(vMonoW.y - 8.0, 0.0) / 26.0) * smoothstep(-2.0, 2.0, vMonoW.y);
     float fPit = smoothstep(0.02, -0.16, cf) * footM;
     float fWeb = cWebRaw * footM;
-    diffuseColor.rgb *= 1.0 - fPit * 0.55;
-    diffuseColor.rgb += diffuseColor.rgb * fWeb * (1.1 + 0.8 * graze) + vec3(0.048, 0.052, 0.060) * fWeb;
+    diffuseColor.rgb *= 1.0 - fPit * 0.6;
+    diffuseColor.rgb += diffuseColor.rgb * fWeb * (1.6 + 1.2 * graze) + vec3(0.115, 0.122, 0.135) * fWeb;
   }
 
   // THE CRACKS, spreading past the band into intact stone. The band has
@@ -3261,8 +3268,13 @@ ${SKY_LAW}`
   // approximated by their bounding ellipse per side. 1 is the line
   // where stone meets ground; everything the contact does is a falloff
   // from that line, so it all agrees about where the object IS.
+  // The footprint follows THE FLARE: at ground the section is 1.42x
+  // the shaft (FLARE_K 0.42), so the seam, the press shadow and the
+  // lace all sit at the stone's real edge. Keyed to the unflared
+  // width they would fall UNDER the splay and vanish - which is
+  // exactly what the first capture showed.
   float fdax = max(abs(vGroundW.x) - 5.0, 0.0);
-  float fd = length(vec2(fdax / 31.0, vGroundW.z / 17.0));
+  float fd = length(vec2(fdax / 44.0, vGroundW.z / 24.1));
 
   // THE SEAM. A hairline of black hugging the footprint: not a ring
   // pedestal, a containment seam - the width of a shadow a blade would
@@ -3288,12 +3300,17 @@ ${SKY_LAW}`
   // light lives - cold on arrival like the pool, because it is the
   // same light still landing.
   {
+    // Extended to the mock: on the approach side the incision runs out
+    // toward the visitor and off the bottom of the frame, a thin groove
+    // with the slit's own light lying in it, dying slowly along its
+    // length. Behind the monument it closes within the footprint.
     float cut = exp(-vGroundW.x * vGroundW.x / (1.5 * 1.5));
-    float run = 1.0 - smoothstep(21.0, 33.0, abs(vGroundW.z));
-    float trench = cut * run;
+    float runS = step(0.0, vGroundW.z) * (1.0 - smoothstep(200.0, 290.0, vGroundW.z));
+    float runN = step(vGroundW.z, 0.0) * (1.0 - smoothstep(21.0, 33.0, -vGroundW.z));
+    float trench = cut * max(runS, runN);
     diffuseColor.rgb *= 1.0 - trench * 0.82;
-    float glowZ = exp(-max(abs(vGroundW.z) - 17.0, 0.0) * 0.16) * step(0.0, vGroundW.z);
-    diffuseColor.rgb += vec3(0.50, 0.78, 1.14) * trench * glowZ * 0.5;
+    float glowZ = exp(-max(vGroundW.z - 17.0, 0.0) * 0.010) * step(0.0, vGroundW.z);
+    diffuseColor.rgb += vec3(0.50, 0.78, 1.14) * trench * glowZ * 0.42;
   }
 
   // THE BLIGHT AT THE CONTACT. From Jacob's reference: the porous web
@@ -3309,9 +3326,9 @@ ${SKY_LAW}`
     float bg = length(vec2(dFdx(bf), dFdy(bf))) + 1e-6;
     float bWeb = 1.0 - smoothstep(0.0, 1.9, abs(bf) / bg);
     float bPit = smoothstep(0.03, -0.14, bf);
-    float cling = exp(-max(fd - 1.0, 0.0) * 4.2) * (1.0 - under);
+    float cling = exp(-max(fd - 1.0, 0.0) * 3.0) * (1.0 - under);
     diffuseColor.rgb *= 1.0 - bPit * cling * 0.5;
-    diffuseColor.rgb += vec3(0.052, 0.056, 0.064) * bWeb * cling;
+    diffuseColor.rgb += vec3(0.105, 0.112, 0.124) * bWeb * cling;
   }
 
   // THE STRESS SEAMS. Four lines running outward from the seam: force
@@ -3321,8 +3338,8 @@ ${SKY_LAW}`
   // consequence, many read as decoration, and a uniform fan is a
   // sunburst, which is banned.
   {
-    vec4 SEAM_A = vec4(0.62, 2.48, 190.0, 0.0);  // bearing pairs: angle, angle, reach, -
-    vec4 SEAM_B = vec4(3.62, 5.05, 300.0, 0.0);
+    vec4 SEAM_A = vec4(0.62, 2.48, 320.0, 0.0);  // bearing pairs: angle, angle, reach, -
+    vec4 SEAM_B = vec4(3.62, 5.05, 470.0, 0.0);
     for (int si = 0; si < 4; si++) {
       float sang = si == 0 ? SEAM_A.x : si == 1 ? SEAM_A.y : si == 2 ? SEAM_B.x : SEAM_B.y;
       float sreach = (si < 2 ? SEAM_A.z : SEAM_B.z) * (1.0 + 0.35 * float(si == 3));

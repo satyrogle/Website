@@ -44,13 +44,21 @@ HALF_PROFILE = [
     (0.0, -1.0),
 ]
 
+
+# THE FLARE, mirrored from monumentForm.ts constant for constant.
+FLARE_K = 0.42
+FLARE_T = 0.055
+
+
+def flare_at(t):
+    return 1.0 + FLARE_K * math.exp(-max(t, 0.0) / FLARE_T)
 
 def section_at(t):
-    return 1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)
+    return (1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)) * flare_at(t)
 
 
 def depth_section_at(t):
-    return 1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)
+    return (1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)) * flare_at(t)
 
 
 def cut_plane_x(t, side):
@@ -86,15 +94,21 @@ def build_half(side, name, rings, edge_div, chisel):
     # Ending at exactly zero with a fanned cap left the terrain's dip
     # exposing the undersides, and exposing each one differently
     T_UNDER = -0.055
-    for i in range(rings):
-        f = i / (rings - 1)
-        t = T_UNDER + (t_top - T_UNDER) * f
-        k = 1.0 - (1.0 - TOP_K) * t
+    # extra rings through the flare zone only: the fillet is a curve and
+    # rings are three units apart, so without these it is linearly
+    # smeared into a cone - the tent failure was resolution, not only
+    # strength. The top of the mass is untouched.
+    ring_t = [T_UNDER + (t_top - T_UNDER) * (i / (rings - 1)) for i in range(rings)]
+    ring_t += [T_UNDER + (0.22 - T_UNDER) * (j / 13.0) for j in range(1, 13)]
+    ring_t = sorted(set(ring_t))
+    n_rings = len(ring_t)
+    for t in ring_t:
+        k = section_at(t)
         cx = cut_plane_x(max(t, 0.0), side)
-        kd = 1.0 - (1.0 - TOP_D) * t
+        kd = depth_section_at(t)
         for (pa, pb) in pts:
             verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * kd, t * H))
-    for i in range(rings - 1):
+    for i in range(n_rings - 1):
         b0, b1 = i * n, (i + 1) * n
         for j in range(n - 1):
             faces.append((b0 + j, b0 + j + 1, b1 + j + 1, b1 + j))
@@ -111,7 +125,7 @@ def build_half(side, name, rings, edge_div, chisel):
     k = section_at(t_top)
     cx = cut_plane_x(t_top, side)
     verts.append((cx + s * 0.06 * BASE_W * k, 0.0, t_top * H + 9.5))
-    last = (rings - 1) * n
+    last = (n_rings - 1) * n
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))
     faces.append((last + n - 1, last, apex))
