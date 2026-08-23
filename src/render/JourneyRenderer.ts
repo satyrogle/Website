@@ -33,6 +33,10 @@ uniform float uWatchY;
 uniform float uWatchAmt;
 // gate 3: how hard the sky's grazing light finds the outer edges
 uniform float uRim;
+// how hard the seam cracks and the weather runs read: review pins, so
+// their strength is chosen off rendered frames instead of guessed
+uniform float uFracture;
+uniform float uRuns;
 // NO WAKE ON THE STONE. Three passes put a travelling front on the face
 // here - into the rot's emission, then into the albedo - and Jacob
 // rejected all three. Measuring the leaving against the build he liked
@@ -514,9 +518,83 @@ const FRAG_MAP = `#include <map_fragment>
   diffuseColor.rgb += diffuseColor.rgb * cCrack * (1.2 + 0.8 * graze);
   diffuseColor.rgb += vec3(0.040, 0.044, 0.051) * cCrack;
 
+  // ---- THE FRACTURE ----
+  // 2026-08-23, from Jacob's ancient references. The loudest thing all
+  // three of them share is a system of big branching cracks travelling
+  // OUT of the seam across the face - thin, dark, and reading at the
+  // distance the landing is actually shot from. We had a fine web up
+  // close and sparse macro fractures far away, and nothing in between
+  // that came FROM the fissure.
+  //
+  // It also earns its place in the story rather than just ageing the
+  // stone: under the lock reading, cracks spreading outward from the
+  // seam are the containment failing away from the thing it holds,
+  // which is the same event as a cull.
+  //
+  // Built as the zero set of a warped field divided by its own
+  // gradient - the construction Jacob approved on the plain - because a
+  // threshold admits half the volume and reads as smoke, and cells
+  // always resolve into a repeating unit. The one change is ANISOTROPY:
+  // the field varies fast in height and slowly with distance from the
+  // seam, so its contours run outward instead of closing into a net.
+  // A net here would be the web again, one size larger.
+  float fracture = 0.0;
+  {
+    vec2 fq = vec2(fromFissure * 0.055, vMonoW.y * 0.165);
+    fq += (vec2(monoFbm(fq * 0.5), monoFbm(fq * 0.5 + 31.7)) - 0.5) * 1.9;
+    float ff = monoFbm(fq) - 0.5;
+    float fg = length(vec2(dFdx(ff), dFdy(ff))) + 1e-6;
+    fracture = 1.0 - smoothstep(0.0, 1.7, abs(ff) / fg);
+    // born at the seam and spent before it crosses the face
+    fracture *= exp(-fromFissure * 0.030) * cTop * uFracture;
+    // and it does not run over the crown shards or below the plain
+    fracture *= smoothstep(2.0, 14.0, vMonoW.y);
+    // a crack is a groove, not a drawn line: the far lip catches the
+    // grazing light while the channel itself keeps its dark
+    float lip = 1.0 - smoothstep(0.0, 2.6, abs(ff + fg * 1.9) / fg);
+    diffuseColor.rgb *= 1.0 - fracture * 0.74;
+    diffuseColor.rgb += diffuseColor.rgb * lip * exp(-fromFissure * 0.030) * cTop * graze * 0.9;
+  }
+
+  // ---- THE RUNS ----
+  // The other thing every reference has and we had none of: weather has
+  // come down this face for a very long time. Pale mineral streaks
+  // running straight down in WORLD y, narrow, wandering slightly,
+  // starting under something and fading out below it.
+  //
+  // Most columns carry nothing. A run on every column is rain on a
+  // window; a run every few metres is centuries.
+  float runs = 0.0;
+  {
+    float colW = 0.42;
+    float col = floor(ang / colW);
+    float pick = monoHash(vec3(col, sideS, 5.0));
+    if (pick < 0.30 && uRuns > 0.001) {
+      // where it started, and how far it got before it gave out
+      float top = 34.0 + 148.0 * monoHash(vec3(col, sideS, 9.0));
+      float len = 26.0 + 104.0 * monoHash(vec3(col, sideS, 13.0));
+      float below = top - vMonoW.y;
+      float along = smoothstep(0.0, 5.0, below) * (1.0 - smoothstep(len * 0.55, len, below));
+      // it wanders as it comes down; a straight one is a pinstripe
+      float wob = (monoNoise(vec2(col * 3.1, vMonoW.y * 0.075)) - 0.5) * 0.34;
+      float off = fract(ang / colW) - 0.5 + wob;
+      float w = 0.05 + 0.11 * monoHash(vec3(col, sideS, 17.0));
+      runs = along * exp(-off * off / (w * w));
+      // deposit, not damage: it lies ON the stone, pale and matte, and
+      // it is thickest just under the source
+      runs *= uRuns;
+      diffuseColor.rgb += vec3(0.030, 0.032, 0.037) * runs * (0.45 + 0.55 * graze);
+    }
+  }
+
   // roughness follows the damage: the pits are matte voids, the cWeb is
-  // a hard remaining edge
-  vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22, 0.08, 0.96);
+  // a hard remaining edge, and the runs are chalk lying on top
+  vMonoRough = clamp(
+    vMonoRough + cPit * 0.30 + runs * 0.26 + fracture * 0.18
+      - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22,
+    0.08,
+    0.96
+  );
 
   // THE WEB EMITS, NOT THE PITS. Jacob: "i think we are emitting the
   // wrong shader of rot emit the other stuff not the ones already".
@@ -3082,6 +3160,8 @@ export class JourneyRenderer {
       uSeverity: { value: 0 },
       uCalm: { value: 0 },
       uRim: { value: 1.0 },
+      uFracture: { value: 1.0 },
+      uRuns: { value: 1.0 },
       uHover: { value: new THREE.Vector3(0, -999, 0) },
       uHoverAmt: { value: 0 },
       uInner: { value: new THREE.Vector3(0, -999, 0) },
@@ -3521,6 +3601,15 @@ ${SKY_LAW}`
    * held breath can be judged as an A/B without waiting out a scroll or
    * a fifty second idle. -1 hands it back to the world.
    */
+  /** ancient pass review pins: the seam cracks, and the weather runs. */
+  setFracture(amount: number): void {
+    this.stoneU.uFracture!.value = Math.max(0, Math.min(4, amount));
+  }
+
+  setRuns(amount: number): void {
+    this.stoneU.uRuns!.value = Math.max(0, Math.min(4, amount));
+  }
+
   setStill(amount: number): void {
     this.stillPin = amount < 0 ? -1 : Math.max(0, Math.min(1, amount));
   }
