@@ -143,13 +143,104 @@ export function profilePoint(u: number): [number, number] {
   return [last[0], last[1]];
 }
 
+/**
+ * THE LOSS, 2026-08-23. Jacob: the hero "looks brand new but it should
+ * not, it should look battered rammed and old and ancient".
+ *
+ * The diagnosis was that the corrosion only ever modulated colour and
+ * roughness ON the surface, so it read as a finish - and a finish is a
+ * choice, which reads as new. Nothing had ever taken material OFF. An
+ * unbroken outline is the single loudest "this was made this morning"
+ * signal a form can send, and ours ran clean from foot to tip.
+ *
+ * So the outer boundary is eaten. This lives in the profile and NOT in
+ * boolean cutters, which is the standing law of this file: every cell
+ * is placed by surfacePoint, so damage that the runtime cannot ask
+ * about would leave cells hanging in the air where the stone used to
+ * be. Put it here and the cells, the marks and the camera all follow it
+ * for nothing.
+ *
+ * BRITTLE, never worn. Each chip is one flat facet at one depth with a
+ * hard boundary, because this stone breaks; a smooth falloff would
+ * round the mass into a pebble and trade new-looking for soft-looking,
+ * which is a worse frame. Three scales of chip, each rare, so a few big
+ * losses carry the silhouette and the small ones only break the line.
+ * A minority of cells break at every scale - a field where most of them
+ * did would be a cellular pattern, and a repeating unit is the Voronoi
+ * death this project has already paid for once.
+ *
+ * The rim light needs no separate treatment: a facet turns the normal,
+ * so the clean unbroken highlight down every edge - the second half of
+ * the same complaint - breaks up on its own.
+ */
+const CHIP: ReadonlyArray<readonly [number, number, number, number, number]> = [
+  // tCell, uCell, chanceOfBreaking, maxDepth, salt
+  [0.09, 0.15, 0.13, 0.115, 3],
+  [0.034, 0.062, 0.17, 0.052, 11],
+  [0.015, 0.04, 0.2, 0.022, 23]
+];
+
+function lossHash(x: number, y: number, salt: number): number {
+  const s = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function lossNoise(x: number, y: number, salt: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const a = lossHash(ix, iy, salt);
+  const b = lossHash(ix + 1, iy, salt);
+  const c = lossHash(ix, iy + 1, salt);
+  const d = lossHash(ix + 1, iy + 1, salt);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
+function ramp(x: number, e0: number, e1: number): number {
+  const f = Math.max(0, Math.min(1, (x - e0) / Math.max(1e-6, e1 - e0)));
+  return f * f * (3 - 2 * f);
+}
+
+/** how much of the section is gone at height t, arc u */
+export function lossAt(t: number, u: number): number {
+  const [a, b] = profilePoint(u);
+  // the cut face lines the fissure and has been sheltered its whole
+  // life; the outer corner of the section is what everything has ever
+  // hit. This also takes the loss to exactly zero at both ends of the
+  // arc, so the two halves still close on the cut plane.
+  const exposure = Math.min(1, Math.abs(a) * 1.25);
+  if (exposure <= 0.001) return 0;
+  const tc = Math.max(0, Math.min(1, t));
+  // blasted at the crown, battered at the foot, sheltered between:
+  // ageing with no direction reads as a law, and a law reads as new
+  const band = 0.3 + 0.85 * ramp(tc, 0.58, 1.0) + 0.6 * (1 - ramp(tc, 0.03, 0.26));
+  // and one bearing has taken more of it than the others
+  const bearing = 0.62 + 0.38 * b;
+  // warped, so the facets are not a grid wearing a costume
+  const wt = t + (lossNoise(t * 7.3, u * 5.1, 91) - 0.5) * 0.06;
+  const wu = u + (lossNoise(t * 6.1, u * 4.7, 57) - 0.5) * 0.05;
+  let loss = 0;
+  for (const [ht, hu, chance, depth, salt] of CHIP) {
+    const i = Math.floor(wt / ht);
+    const j = Math.floor(wu / hu);
+    if (lossHash(i, j, salt) > chance) continue;
+    // one depth for the whole cell: a facet, not a dent
+    loss = Math.max(loss, depth * (0.35 + 0.65 * lossHash(i, j, salt + 1)));
+  }
+  return Math.min(0.22, loss * exposure * band * bearing);
+}
+
 /** world position on a half's outer surface at height t, arc u */
 export function surfacePoint(t: number, side: 0 | 1, u: number): FormPoint {
   const [a, b] = profilePoint(u);
+  const k = 1 - lossAt(t, u);
   return {
-    x: cutPlaneX(t, side) + sgn(side) * -a * BASE_W * sectionAt(t),
+    x: cutPlaneX(t, side) + sgn(side) * -a * BASE_W * sectionAt(t) * k,
     y: t * FORM_H,
-    z: b * BASE_D * depthSectionAt(t)
+    z: b * BASE_D * depthSectionAt(t) * k
   };
 }
 
