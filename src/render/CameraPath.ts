@@ -21,6 +21,29 @@ interface PathKey {
  * on the exit side. Computed from the form so the travel turns with
  * the twist.
  */
+/**
+ * How far below the plain the interior lies. The passage goes DOWN
+ * through the roots to reach it, which is what the light continuing
+ * below grade at the mouth was always pointing at. Fog owns everything
+ * between, so neither world is ever visible from the other.
+ */
+export const INTERIOR_ORIGIN: readonly [number, number, number] = [60000, -900, 0];
+
+/**
+ * A point in the interior country, in its own local frame.
+ *
+ * The interior is 60000 units to one side rather than merely far below,
+ * and that is a rendering fact, not a fiction: the camera's far plane is
+ * 4200, so at this separation neither world can draw the other at all -
+ * no fog trick, no culling flag, no visibility bookkeeping that can rot.
+ * The 900-unit drop keeps the descent honest, because the visitor does
+ * go DOWN, and the translation happens inside the blackout where there
+ * is nothing on screen to translate.
+ */
+function inner(x: number, y: number, z: number): [number, number, number] {
+  return [INTERIOR_ORIGIN[0] + x, INTERIOR_ORIGIN[1] + y, INTERIOR_ORIGIN[2] + z];
+}
+
 function cleftKey(y: number, d: number): [number, number, number] {
   // the fissure of the split spire runs north-south and does not turn
   // with height: d is distance along it, negative on the approach side
@@ -99,14 +122,29 @@ const KEYS: PathKey[] = [
   // BRAWLER: inside the slit, walls close, the light a blade overhead
   { p: 0.53, pos: cleftKey(26, 26), look: cleftKey(40, -6), fov: 54, sev: 0.72 },
   { p: 0.6, pos: cleftKey(22, 8), look: cleftKey(58, -18), fov: 54, sev: 0.78 },
-  // travel: through the passage and out behind
-  { p: 0.64, pos: cleftKey(20, -14), look: cleftKey(34, -46), fov: 52, sev: 0.82 },
-  // TECHNOLOGY: emerged behind, the stripped face above
-  { p: 0.67, pos: cleftKey(34, -62), look: [0, 88, 0], fov: 47, sev: 0.87 },
-  { p: 0.74, pos: [-30, 40, -110], look: [0, 82, 0], fov: 47, sev: 0.9 },
-  // STUDIO: dwell at the foot, above the scree line
-  { p: 0.81, pos: [-58, 20, 62], look: [0, 68, 0], fov: 46, sev: 0.88 },
-  { p: 0.86, pos: [-40, 16, 84], look: [0, 74, 0], fov: 46, sev: 0.87 },
+  // THE DESCENT. Gate I3, 2026-08-23. The passage does not let out
+  // behind the monument any more - it goes DOWN, through the roots, and
+  // the far side of the fissure turns out to be a country. Everything
+  // between is solid and unlit, so the travel reads as depth rather
+  // than as a cut, and the eye has nothing to measure the drop by until
+  // the walls open.
+  { p: 0.62, pos: cleftKey(2, -10), look: cleftKey(-40, -30), fov: 52, sev: 0.82 },
+  { p: 0.648, pos: [0, -520, -30], look: [0, -900, -120], fov: 50, sev: 0.84 },
+  // the translation itself, wholly inside the blackout
+  { p: 0.658, pos: inner(20, 420, 1500), look: inner(0, 200, 600), fov: 50, sev: 0.85 },
+  // THE APERTURE. The V3 pick, and the frame the whole gate exists for:
+  // out from between the two walls of the crack onto the country. The
+  // eye sits low and the walls run off the top of the frame.
+  { p: 0.678, pos: inner(6, 96, 900), look: inner(-24, 148, -700), fov: 52, sev: 0.86 },
+  { p: 0.705, pos: inner(10, 104, 690), look: inner(-50, 148, -1000), fov: 50, sev: 0.87 },
+  // TECHNOLOGY: out from under the aperture, the country entire
+  { p: 0.745, pos: inner(-90, 140, 90), look: inner(-420, 170, -1500), fov: 48, sev: 0.88 },
+  { p: 0.79, pos: inner(-300, 155, -560), look: inner(-900, 180, -2100), fov: 48, sev: 0.89 },
+  // STUDIO: standing off the near island, the marks running past it
+  { p: 0.83, pos: inner(-760, 165, -1500), look: inner(-1800, 195, -2800), fov: 47, sev: 0.9 },
+  { p: 0.86, pos: inner(-980, 170, -1900), look: inner(-2100, 200, -3200), fov: 47, sev: 0.9 },
+  // THE ASCENT: back the way the visitor came, inside the blackout
+  { p: 0.878, pos: [0, -700, -60], look: [0, -200, 40], fov: 48, sev: 0.9 },
   // THE RETURN: distance given back, the opening frame again, known now.
   // Gate 6 moved the opening; the return moves with it, or the "same
   // frame understood differently" contract breaks into two frames.

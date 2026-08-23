@@ -9,7 +9,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorld';
 import { TIP_T, prongCentre, surfacePoint } from '../world/monumentForm';
 import { ChoirGroup } from '../world/ChoirGroup';
-import { CameraPath } from './CameraPath';
+import { CameraPath, INTERIOR_ORIGIN } from './CameraPath';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -1565,6 +1565,9 @@ export class JourneyRenderer {
   private stillPin = -1;
   /** review pin for the crossing: -1 is live, 0..1 holds it mid-swallow */
   private swallowPin = -1;
+  /** the country on the far side of the seam, 60000 units from here */
+  private interior!: THREE.Group;
+  private interiorFloorMat!: THREE.ShaderMaterial;
   /** the clock the autonomous motions run on; it stops when the world does */
   private ambientT = 0;
   private parY = 0;
@@ -2784,6 +2787,273 @@ export class JourneyRenderer {
     marks.frustumCulled = false;
     this.scene.add(marks);
 
+    // --- THE INTERIOR ---------------------------------------------
+    // Gate I3, 2026-08-23, built to match the frame Jacob picked at V3:
+    // THE APERTURE. He stands inside the crack, two walls of it filling
+    // the sides of the frame with a blade of white down each inner
+    // edge, and between them an immense dark country running to a hazed
+    // horizon - slab islands in the middle distance, sparse cold marks
+    // lying on the ground.
+    //
+    // It lives 2600 units BELOW the plain, and that is not a trick to
+    // hide it: E0 already put a little of the fissure's light below
+    // grade at the mouth, and this is what that light was coming from.
+    // The passage goes down through the roots and comes out here. The
+    // exterior is a long way overhead and fog owns everything between,
+    // so neither world can ever see the other.
+    //
+    // Impossibly larger than the outside, which is the second awe beat
+    // and the whole reason the interior exists.
+    {
+      const g = new THREE.Group();
+      g.position.set(INTERIOR_ORIGIN[0], INTERIOR_ORIGIN[1], INTERIOR_ORIGIN[2]);
+      const rng = mulberry32ish(world.seed ^ 0x1d7a);
+
+      // THE COUNTRY. One continuous surface, unlit by any lamp: it
+      // carries its own value so a 20000-unit plane costs nothing, and
+      // so nothing here can be blown out by the exterior's light score.
+      // A standard material would need a key, and a key down here would
+      // read as a second sun inside a sealed room.
+      const floorMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        uniforms: {
+          uTime: { value: 0 },
+          uHaze: { value: new THREE.Color('#0b1118') },
+          uShadow: { value: 0 }
+        },
+        vertexShader: /* glsl */ `
+          out vec3 vW;
+          void main() {
+            vW = (modelMatrix * vec4(position, 1.0)).xyz;
+            gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          precision highp float;
+          in vec3 vW;
+          uniform vec3 uHaze;
+          out vec4 outColor;
+          float iH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float iN(vec2 p) {
+            vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(iH(i), iH(i + vec2(1,0)), f.x),
+                       mix(iH(i + vec2(0,1)), iH(i + vec2(1,1)), f.x), f.y);
+          }
+          void main() {
+            float d = length(vW.xz);
+            // plated ground: broad slabs with darker joints, at a scale
+            // that only resolves in the middle distance. This is the
+            // mid-value structure the shadow road needs to cross - a
+            // featureless plane would swallow it whole.
+            vec2 q = vW.xz * 0.0052;
+            float plate = iN(floor(q * 6.0) + 0.5) * 0.5 + iN(q * 2.3) * 0.5;
+            float joint = 1.0 - smoothstep(0.0, 0.045, min(
+              abs(fract(q.x * 6.0) - 0.5), abs(fract(q.y * 6.0) - 0.5)));
+            vec3 col = vec3(0.017, 0.020, 0.026) * (0.72 + 0.56 * plate);
+            col *= 1.0 - joint * 0.45;
+            // grain, so the near ground is not a flat wash
+            col *= 0.90 + 0.20 * iN(vW.xz * 2.6);
+            // the horizon is haze, not an edge: the country never ends,
+            // it stops being visible. Same law the shore uses outside.
+            col = mix(col, uHaze, smoothstep(900.0, 3600.0, d));
+            outColor = vec4(col, 1.0);
+          }`
+      });
+      this.interiorFloorMat = floorMat;
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.frustumCulled = false;
+      g.add(floor);
+
+      // THE HORIZON. A band of cold haze standing on the far country,
+      // black above it. This is the interior's whole sky: there is no
+      // weather in here, no decks, no lid. It is a sealed volume and
+      // the only reason there is any light at all is that the country
+      // is enormous and the marks on it are many.
+      const bandMat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.BackSide,
+        uniforms: { uHaze: { value: new THREE.Color('#111a24') } },
+        vertexShader: /* glsl */ `
+          out vec3 vD;
+          void main() {
+            vD = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          precision highp float;
+          in vec3 vD;
+          uniform vec3 uHaze;
+          out vec4 outColor;
+          void main() {
+            vec3 d = normalize(vD);
+            // hugs the horizon and dies fast going up: a band, never a
+            // dome, because a lit dome in here would be a sky and this
+            // place does not have one
+            float band = exp(-max(d.y, 0.0) * 22.0) * smoothstep(-0.09, 0.02, d.y);
+            outColor = vec4(uHaze, band * 0.85);
+          }`
+      });
+      const band = new THREE.Mesh(new THREE.SphereGeometry(4050, 32, 16), bandMat);
+      band.frustumCulled = false;
+      g.add(band);
+
+      // THE ISLANDS. Low flat slabs standing off the country, unevenly
+      // grouped, none of them near the sightline out of the aperture -
+      // the view through the crack stays open, and they read as land
+      // rather than as objects placed for the camera. They are also
+      // where the stations will stand.
+      const islandMat = new THREE.MeshBasicMaterial({ color: 0x090c11, fog: false });
+      const ISLANDS: ReadonlyArray<readonly [number, number, number, number, number]> = [
+        // x, z, halfWidth, height, halfDepth
+        [-780, -1150, 300, 46, 150],
+        [-520, -2050, 500, 62, 190],
+        [640, -1450, 240, 32, 105],
+        [1150, -2500, 700, 88, 260],
+        [-1550, -2950, 560, 70, 215],
+        [300, -3550, 860, 110, 300]
+      ];
+      for (const [ix, iz, hw, ih, hd] of ISLANDS) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, ih, hd * 2), islandMat);
+        m.position.set(ix, ih * 0.5 - 6, iz);
+        m.rotation.y = (rng() - 0.5) * 0.9;
+        g.add(m);
+      }
+
+      // THE MARKS. The record, lying on the country. Points and short
+      // dashes, never spheres and never hanging in the air: a light
+      // above the ground is a star, and starfield is a kill word this
+      // project has already paid for. They lie flat, they are tiny, and
+      // they are CLUSTERED - evenly spaced marks are a starfield by
+      // another route, so they gather in loose groups with large empty
+      // country between.
+      {
+        const N = 150;
+        const quad = new THREE.PlaneGeometry(1, 1);
+        const markMat = new THREE.MeshBasicMaterial({ color: 0xdfe9f4, fog: false });
+        const marks = new THREE.InstancedMesh(quad, markMat, N);
+        const m4 = new THREE.Matrix4();
+        const q = new THREE.Quaternion();
+        const e = new THREE.Euler();
+        let cx = 0;
+        let cz = 0;
+        let left = 0;
+        for (let i = 0; i < N; i++) {
+          if (left === 0) {
+            // a new cluster, somewhere out in the country
+            const a = rng() * Math.PI * 2;
+            const r = 420 + Math.pow(rng(), 0.7) * 3000;
+            cx = Math.sin(a) * r;
+            cz = -Math.abs(Math.cos(a) * r) - 220;
+            left = 3 + Math.floor(rng() * 9);
+          }
+          left--;
+          const sx = cx + (rng() - 0.5) * 520;
+          const sz = cz + (rng() - 0.5) * 520;
+          // a third of them are dashes: a run of the record rather than
+          // a single entry, and the thing that stops the field reading
+          // as points of light
+          const dash = rng() < 0.34;
+          const len = dash ? 22 + rng() * 46 : 4 + rng() * 4;
+          const wid = dash ? 2.4 + rng() * 1.6 : len * (0.8 + rng() * 0.4);
+          e.set(-Math.PI / 2, 0, rng() * Math.PI);
+          q.setFromEuler(e);
+          m4.compose(
+            new THREE.Vector3(sx, 0.7, sz),
+            q,
+            new THREE.Vector3(len, wid, 1)
+          );
+          marks.setMatrixAt(i, m4);
+        }
+        marks.instanceMatrix.needsUpdate = true;
+        marks.frustumCulled = false;
+        g.add(marks);
+      }
+
+      // THE APERTURE. The two walls of the crack, standing either side
+      // of where the passage lets out, with a blade of the seam's own
+      // light down each inner edge. This is the half of the picture
+      // that makes the country read as INSIDE something rather than as
+      // a night landscape - the fault that killed the other three
+      // candidates. The walls are close, they are tall enough to leave
+      // the frame, and they are deliberately UNEQUAL: a matched pair
+      // either side of a centred gap is a vanishing-point composition,
+      // which is how two of the V3 candidates turned into a corridor.
+      {
+        // The walls are LIT ROCK, not silhouette. First build made them
+        // 0x04060a flat - near-black on a near-black country - so they
+        // vanished and only their light blades survived; the aperture,
+        // which is the entire reason this frame was picked, was not in
+        // the picture at all. They carry their own grazing value now,
+        // brightest along the inner edge where the seam light rakes
+        // them and falling away into the dark outboard, so the crack
+        // reads as stone the visitor is standing between.
+        const wallMat = new THREE.ShaderMaterial({
+          glslVersion: THREE.GLSL3,
+          uniforms: { uSide: { value: 1 } },
+          vertexShader: /* glsl */ `
+            out vec3 vL;
+            out vec3 vN;
+            void main() {
+              vL = position;
+              vN = normalize(normalMatrix * normal);
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`,
+          fragmentShader: /* glsl */ `
+            precision highp float;
+            in vec3 vL;
+            in vec3 vN;
+            uniform float uSide;
+            out vec4 outColor;
+            float wH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+            float wN(vec2 p) {
+              vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+              return mix(mix(wH(i), wH(i + vec2(1,0)), f.x),
+                         mix(wH(i + vec2(0,1)), wH(i + vec2(1,1)), f.x), f.y);
+            }
+            void main() {
+              // the rake: the seam is a vertical line down the inner
+              // edge, so the light falls off ACROSS the wall and barely
+              // at all up it. That is what keeps it a crack and stops it
+              // becoming a lit backdrop.
+              float across = clamp(0.5 + uSide * vL.x / 150.0, 0.0, 1.0);
+              float rake = pow(across, 2.6);
+              // fractured stone: coarse strata plus a finer break
+              float strata = wN(vec2(vL.y * 0.012, vL.z * 0.02));
+              float grain = wN(vec2(vL.y * 0.09 + strata * 2.0, vL.z * 0.13));
+              float f = 0.55 + 0.45 * strata;
+              f *= 0.72 + 0.42 * grain;
+              // facets catch it, hollows keep their dark
+              float face = 0.55 + 0.45 * max(vN.z, 0.0);
+              vec3 col = vec3(0.052, 0.060, 0.074) * f * face * (0.10 + 1.5 * rake);
+              outColor = vec4(col, 1.0);
+            }`
+        });
+        const lipMat = new THREE.MeshBasicMaterial({ color: 0xeef4fb, fog: false });
+        const wall = (x: number, w: number, h: number, z: number, rot: number, lipSide: number): void => {
+          const wm = wallMat.clone();
+          wm.uniforms.uSide!.value = -lipSide;
+          const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 260), wm);
+          m.position.set(x, h * 0.5 - 30, z);
+          m.rotation.y = rot;
+          g.add(m);
+          // the blade of light down its inner edge: the seam, from in
+          // here. Thin, hard, and it never touches the ground - the
+          // light arrives along the crack, it does not pool.
+          const lip = new THREE.Mesh(new THREE.PlaneGeometry(3.4, h * 0.86), lipMat);
+          lip.position.set(x + lipSide * (w * 0.5 + 1.2), h * 0.52, z + 131);
+          lip.rotation.y = rot;
+          g.add(lip);
+        };
+        wall(-172, 150, 940, 690, 0.16, 1);
+        wall(196, 210, 1180, 640, -0.10, -1);
+      }
+
+      this.scene.add(g);
+      this.interior = g;
+    }
+
     this.resize();
     window.addEventListener('resize', this.resize);
 
@@ -3564,8 +3834,30 @@ ${SKY_LAW}`
     const swallow = reduced
       ? 0
       : smooth01(progress, 0.478, 0.516) * (1 - smooth01(progress, 0.516, 0.556));
+    // THE BLACKOUT, gate I3. The same device held at full for the two
+    // passages through solid dark: down through the roots into the
+    // interior, and back up at the return. It is not a scene cut dressed
+    // up as an effect - the camera really does travel, and the visitor
+    // really is inside stone, where there is nothing to see. Holding the
+    // crossing open across it means the world change happens behind the
+    // one screen state that already means "you are in the rock".
+    const blackout = reduced
+      ? 0
+      : Math.max(
+          smooth01(progress, 0.6, 0.642) * (1 - smooth01(progress, 0.662, 0.686)),
+          smooth01(progress, 0.862, 0.876) * (1 - smooth01(progress, 0.884, 0.902))
+        );
     this.grade.uniforms.uSwallow!.value =
-      this.swallowPin >= 0 ? this.swallowPin : swallow;
+      this.swallowPin >= 0 ? this.swallowPin : Math.max(swallow, blackout);
+
+    // The exterior sky is a 700-unit shell around the origin, so from
+    // 60000 units away it would draw as a small bright body hanging in
+    // the interior. The interior has no sky of its own, by design: it is
+    // a sealed volume with a horizon band and black above it.
+    const inInterior = progress > 0.652 && progress < 0.875;
+    this.skyMat.visible = !inInterior;
+    this.interior.visible = inInterior || blackout > 0.01;
+    this.interiorFloorMat.uniforms.uTime!.value = reduced ? 0 : this.time;
 
     // holiness dims as the monument strips. The crown halo it used to
     // drive is deleted (E0); the sky's pressure lift carries this now,
