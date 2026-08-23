@@ -2649,22 +2649,30 @@ export class JourneyRenderer {
       // The axis stays clear, as it always has. It is not reverence
       // now - nothing is invited along it. It is simply that nothing
       // survives in front of the mouth.
+      // MOVED OUT AND SUNK, 2026-08-23. Jacob drew a ring round the
+      // nearest slab: at x=30 it stood beside the blade root, 15 wide
+      // and proud of the plain by two units, and at landing distance a
+      // small tipped rectangle next to the mass does not read as ruin -
+      // it reads as a bump, or as a polygon someone forgot. Wreckage
+      // needs distance from the thing it fell off and it needs to be
+      // MORE buried, not more visible: the run starts at 118 now, past
+      // the graded apron, and sits about two thirds under.
       const rng = mulberry32ish(world.seed ^ 0x7c25);
-      const SLABS = 9;
+      const SLABS = 7;
       for (let i = 0; i < SLABS; i++) {
         const t = i / (SLABS - 1);
         // a broken run off the east flank, going away from the eye and
         // thinning as it goes
-        const x = 30 + t * 96 + (rng() - 0.5) * 16;
-        const z = 20 - t * 52 + (rng() - 0.5) * 18;
-        const w = 15.5 - t * 8.5 + (rng() - 0.5) * 3.5;
-        const h = 3.6 - t * 1.7 + rng() * 1.3;
+        const x = 118 + t * 132 + (rng() - 0.5) * 22;
+        const z = 4 - t * 66 + (rng() - 0.5) * 26;
+        const w = 21.0 - t * 9.0 + (rng() - 0.5) * 4.0;
+        const h = 3.2 - t * 1.4 + rng() * 1.1;
         const slab = new THREE.Mesh(
           new THREE.BoxGeometry(w, h, w * (0.5 + rng() * 0.45)),
           ruinMat
         );
         // half swallowed, and deeper the further out it went
-        slab.position.set(x, -h * (0.32 + t * 0.3) + (rng() - 0.5) * 0.5, z);
+        slab.position.set(x, -h * (0.62 + t * 0.22) + (rng() - 0.5) * 0.35, z);
         // tipped, never level: the ground moved under it
         slab.rotation.set(
           (rng() - 0.5) * 0.5,
