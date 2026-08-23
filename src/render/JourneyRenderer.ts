@@ -384,6 +384,20 @@ const FRAG_MAP = `#include <map_fragment>
   cPit *= smoothstep(0.18, 0.78, band);
   cWeb *= smoothstep(0.02, 0.34, band);
 
+  // THE BLIGHT AT THE FOOT, 2026-08-23, from Jacob's mocks: the same
+  // vesicular condition the band carries mid-mass is DENSEST where the
+  // stone meets the ground, and it thins fast going up - the contact is
+  // the wound. Raw fields, not the band-gated ones: this has its own
+  // territory and it is the only place the corrosion is allowed to be
+  // dense, which is what keeps the rest of the mass clean graphite.
+  {
+    float footM = exp(-max(vMonoW.y - 6.0, 0.0) / 9.0) * smoothstep(-2.0, 2.0, vMonoW.y);
+    float fPit = smoothstep(0.02, -0.16, cf) * footM;
+    float fWeb = cWebRaw * footM;
+    diffuseColor.rgb *= 1.0 - fPit * 0.55;
+    diffuseColor.rgb += diffuseColor.rgb * fWeb * (1.1 + 0.8 * graze) + vec3(0.048, 0.052, 0.060) * fWeb;
+  }
+
   // THE CRACKS, spreading past the band into intact stone. The band has
   // to fray outward or it reads as a decal with a boundary, which is
   // what Jacob's sheets never do: theirs sends fine veins running well
@@ -2632,55 +2646,14 @@ export class JourneyRenderer {
     // The scree goes with them. A hundred and ninety five small pieces
     // read as unfinished dressing, never as evidence.
     {
-      const ruinMat = new THREE.MeshStandardMaterial({
-        color: 0x05060a,
-        roughness: 0.58,
-        metalness: 0.05
-      });
-      // THE RUIN, re-authored and kept. It used to be ruin OF the
-      // podium - tiers settling, treads with their corners off, a pylon
-      // down - and none of those exist now. The same asymmetry is
-      // carried by the ground itself: one flank where the plain broke
-      // and lifted when the object went into it. Slabs, not rubble:
-      // few, large, half-swallowed, east of the axis only, not one of
-      // them level and not one of them standing. Wreckage reads as
-      // consequence; gravel reads as set dressing.
-      //
-      // The axis stays clear, as it always has. It is not reverence
-      // now - nothing is invited along it. It is simply that nothing
-      // survives in front of the mouth.
-      // MOVED OUT AND SUNK, 2026-08-23. Jacob drew a ring round the
-      // nearest slab: at x=30 it stood beside the blade root, 15 wide
-      // and proud of the plain by two units, and at landing distance a
-      // small tipped rectangle next to the mass does not read as ruin -
-      // it reads as a bump, or as a polygon someone forgot. Wreckage
-      // needs distance from the thing it fell off and it needs to be
-      // MORE buried, not more visible: the run starts at 118 now, past
-      // the graded apron, and sits about two thirds under.
-      const rng = mulberry32ish(world.seed ^ 0x7c25);
-      const SLABS = 7;
-      for (let i = 0; i < SLABS; i++) {
-        const t = i / (SLABS - 1);
-        // a broken run off the east flank, going away from the eye and
-        // thinning as it goes
-        const x = 118 + t * 132 + (rng() - 0.5) * 22;
-        const z = 4 - t * 66 + (rng() - 0.5) * 26;
-        const w = 21.0 - t * 9.0 + (rng() - 0.5) * 4.0;
-        const h = 3.2 - t * 1.4 + rng() * 1.1;
-        const slab = new THREE.Mesh(
-          new THREE.BoxGeometry(w, h, w * (0.5 + rng() * 0.45)),
-          ruinMat
-        );
-        // half swallowed, and deeper the further out it went
-        slab.position.set(x, -h * (0.62 + t * 0.22) + (rng() - 0.5) * 0.35, z);
-        // tipped, never level: the ground moved under it
-        slab.rotation.set(
-          (rng() - 0.5) * 0.5,
-          0.4 + t * 1.1 + (rng() - 0.5) * 0.9,
-          (rng() - 0.5) * 0.44
-        );
-        this.scene.add(slab);
-      }
+      // THE RUIN IS GONE, 2026-08-23, Jacob's base brief: "kill the
+      // random right-side hole... it reads like test geometry". He was
+      // right twice - moved out and sunk it still read as an arbitrary
+      // prop, because wreckage with no visible cause is scenery. The
+      // world's reaction to the spire is carried by the contact now:
+      // the seam, the basin, the incision, the blight and the stress
+      // seams, all keyed to the footprint. Secondary ground events only
+      // return if they are consequences of the spire, not props.
     }
 
     // --- atmosphere ---
@@ -3199,6 +3172,12 @@ float apNoise(vec2 p) {
   float apEdge = 150.0 + 66.0 * apNoise(apW.xz * 0.010);
   float apFlat = 1.0 - smoothstep(apEdge * 0.42, apEdge, apR);
   transformed.y = mix(transformed.y, transformed.y - apW.y, apFlat);
+  // THE BASIN, from the base brief: the world sags under the mass.
+  // Broad and almost imperceptible - about a unit and a half at the
+  // seam easing to nothing by 150 out - so it never reads as a crater,
+  // only as ground that has been under this weight for a very long
+  // time. The dip is what stops the plain reading dead-flat.
+  transformed.y -= 1.6 * exp(-(apR * apR) / (95.0 * 95.0));
   // the graded ground faces up: a flattened vertex keeps the normal of
   // the dune it used to belong to, and that normal lights a slope that
   // is no longer there
@@ -3218,6 +3197,17 @@ uniform float uGTime;
 uniform float uGBite;
 uniform float uGHaze;
 float gHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
+float gN2(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  float a = gHash(i); float b = gHash(i + vec2(1.0, 0.0));
+  float c = gHash(i + vec2(0.0, 1.0)); float d = gHash(i + vec2(1.0, 1.0));
+  float n = a + (b - a) * f.x + (c - a) * f.y + (a - b - c + d) * f.x * f.y;
+  vec2 p2 = p * 2.13 + 7.7; vec2 i2 = floor(p2); vec2 f2 = fract(p2); f2 = f2 * f2 * (3.0 - 2.0 * f2);
+  float a2 = gHash(i2); float b2 = gHash(i2 + vec2(1.0, 0.0));
+  float c2 = gHash(i2 + vec2(0.0, 1.0)); float d2 = gHash(i2 + vec2(1.0, 1.0));
+  float n2 = a2 + (b2 - a2) * f2.x + (c2 - a2) * f2.y + (a2 - b2 - c2 + d2) * f2.x * f2.y;
+  return n * 0.68 + n2 * 0.32;
+}
 ${SKY_LAW}`
             )
             .replace(
@@ -3257,46 +3247,96 @@ ${SKY_LAW}`
   float foot = 1.0 - smoothstep(0.80, 2.10, length(fp));
   diffuseColor.rgb *= 1.0 - foot * 0.62 * (1.0 - streak * 0.75);
 
-  // THE SUBSIDENCE SLOTS, E0, replacing the podium. The ground was
-  // FORCED around the object, never built to present it. Each root has
-  // one slot where the plain broke and dropped against the stone, and
-  // the two are deliberately unlike: the west tight and short, the east
-  // wider and running further back, because the east flank is the one
-  // that gave way - it is where the ruin lies. Each slot is the RIM of
-  // a falloff and never the whole disc, so the plain stays intact up to
-  // a lip and drops there. A continuous collar is forbidden: a collar
-  // is a plinth drawn in shadow.
+  // ---- THE SEALED INSERTION ----
+  // 2026-08-23, Jacob's base brief, replacing the E0 subsidence slots.
+  // His diagnosis of the slots was exact: read from the landing camera
+  // they were not "the ground broke here", they were one random cutout
+  // on the right. The whole contact is rebuilt around one sentence:
+  //
+  //   this object has been forced into the world, and the world has
+  //   never recovered from the contact.
+  //
+  // Everything below keys off ONE measure: fd, distance to the spire's
+  // actual footprint - the two half-sections either side of the slit -
+  // approximated by their bounding ellipse per side. 1 is the line
+  // where stone meets ground; everything the contact does is a falloff
+  // from that line, so it all agrees about where the object IS.
+  float fdax = max(abs(vGroundW.x) - 5.0, 0.0);
+  float fd = length(vec2(fdax / 31.0, vGroundW.z / 17.0));
+
+  // THE SEAM. A hairline of black hugging the footprint: not a ring
+  // pedestal, a containment seam - the width of a shadow a blade would
+  // leave if it had been pressed into wax. This is what makes the
+  // contact read ENGINEERED rather than rested.
+  float seam = exp(-pow((fd - 1.045) / 0.030, 2.0));
+  diffuseColor.rgb *= 1.0 - seam * 0.9;
+
+  // UNDER THE STONE, kept from E0 but re-cut to the true footprint:
+  // the ground against the stone goes to almost nothing on its own
+  // term, and the lane cannot lift it - light grazing past a root
+  // cannot get underneath it.
+  float under = 1.0 - smoothstep(0.90, 1.06, fd);
+  diffuseColor.rgb *= 1.0 - under * 0.88;
+  // and the contact shadow proper: pressure, not vignette. Tight.
+  float press = exp(-max(fd - 1.0, 0.0) * 6.5);
+  diffuseColor.rgb *= 1.0 - press * 0.5 * (1.0 - streak * 0.6);
+
+  // THE INCISION. The split does not stop at the ground: it continues
+  // through it as a narrow dark cut along the slit's own axis, running
+  // out past the footprint and closing. This ties the floor to the
+  // spire's one defining feature, and it is where the below-grade
+  // light lives - cold on arrival like the pool, because it is the
+  // same light still landing.
   {
-    float rw = length(vec2((vGroundW.x + 14.0) / 12.5, (vGroundW.z + 1.0) / 15.0));
-    float re = length(vec2((vGroundW.x - 15.5) / 17.0, (vGroundW.z - 3.0) / 20.0));
-    // UNDER THE STONE. E0 inspection, and the one correction it bought:
-    // with the podium gone the plain runs right up to the roots, and
-    // the standing shadow above could not darken it there because the
-    // lane cancels it - foot is multiplied by (1 - streak * 0.75) and
-    // the streak is at its strongest at the mouth. The roots came out
-    // sitting on a floor that was LIGHTER than the plain around them,
-    // which is the pasted-on read the plinth had been hiding.
-    //
-    // So the ground immediately against each root goes to almost
-    // nothing on its own term, and the lane does not lift it: light
-    // grazing past a root cannot get underneath it. Per root, never one
-    // disc - a single ellipse would close across the axis, and the
-    // corridor between the blades is exactly where the slit's light is
-    // supposed to reach the ground.
-    float under = max(1.0 - smoothstep(0.55, 1.18, rw), 1.0 - smoothstep(0.50, 1.20, re));
-    diffuseColor.rgb *= 1.0 - under * 0.88;
-    float slotW = smoothstep(1.30, 0.96, rw) * smoothstep(0.52, 0.90, rw);
-    float slotE = smoothstep(1.40, 0.94, re) * smoothstep(0.44, 0.84, re);
-    diffuseColor.rgb *= 1.0 - clamp(max(slotW, slotE * 1.15), 0.0, 1.0) * 0.85;
+    float cut = exp(-vGroundW.x * vGroundW.x / (1.5 * 1.5));
+    float run = 1.0 - smoothstep(21.0, 33.0, abs(vGroundW.z));
+    float trench = cut * run;
+    diffuseColor.rgb *= 1.0 - trench * 0.82;
+    float glowZ = exp(-max(abs(vGroundW.z) - 17.0, 0.0) * 0.16) * step(0.0, vGroundW.z);
+    diffuseColor.rgb += vec3(0.50, 0.78, 1.14) * trench * glowZ * 0.5;
   }
-  // and the axis keeps a slot of its own at the mouth, the only one
-  // with anything in it. A little of the fissure's light continues
-  // below grade and dies within a few units - cold on arrival like the
-  // pool above it, because it is the same light still landing.
+
+  // THE BLIGHT AT THE CONTACT. From Jacob's reference: the porous web
+  // is densest exactly where stone meets ground and thins FAST - the
+  // spire is the source, and the ground has caught what it sheds. The
+  // same vesicular construction as the skin (level set over its own
+  // gradient), scaled to the floor, clinging to the seam. Sparse
+  // tendrils, never a puddle of noise.
   {
-    float mouth = exp(-axis * axis * 2.2) * smoothstep(30.0, 5.0, r) * step(-2.0, vGroundW.z);
-    diffuseColor.rgb *= 1.0 - mouth * 0.55;
-    diffuseColor.rgb += vec3(0.50, 0.78, 1.14) * mouth * 0.42;
+    vec2 bq = vGroundW.xz * 0.16;
+    bq += (vec2(gN2(bq * 0.5), gN2(bq * 0.5 + 19.7)) - 0.5) * 2.6;
+    float bf = gN2(bq) - 0.5;
+    float bg = length(vec2(dFdx(bf), dFdy(bf))) + 1e-6;
+    float bWeb = 1.0 - smoothstep(0.0, 1.9, abs(bf) / bg);
+    float bPit = smoothstep(0.03, -0.14, bf);
+    float cling = exp(-max(fd - 1.0, 0.0) * 4.2) * (1.0 - under);
+    diffuseColor.rgb *= 1.0 - bPit * cling * 0.5;
+    diffuseColor.rgb += vec3(0.052, 0.056, 0.064) * bWeb * cling;
+  }
+
+  // THE STRESS SEAMS. Four lines running outward from the seam: force
+  // transmitted into the plain, each one authored - a bearing, a reach,
+  // a slight wander - and none of them on the approach axis, which
+  // stays swept. Four is deliberate: a few deliberate lines read as
+  // consequence, many read as decoration, and a uniform fan is a
+  // sunburst, which is banned.
+  {
+    vec4 SEAM_A = vec4(0.62, 2.48, 190.0, 0.0);  // bearing pairs: angle, angle, reach, -
+    vec4 SEAM_B = vec4(3.62, 5.05, 300.0, 0.0);
+    for (int si = 0; si < 4; si++) {
+      float sang = si == 0 ? SEAM_A.x : si == 1 ? SEAM_A.y : si == 2 ? SEAM_B.x : SEAM_B.y;
+      float sreach = (si < 2 ? SEAM_A.z : SEAM_B.z) * (1.0 + 0.35 * float(si == 3));
+      vec2 sdir = vec2(cos(sang), sin(sang));
+      vec2 sp = vGroundW.xz;
+      float along = dot(sp, sdir);
+      float aside = dot(sp, vec2(-sdir.y, sdir.x));
+      // it wanders as it goes: a dead-straight crack is a ruled line
+      aside += sin(along * 0.045 + sang * 7.0) * 2.4;
+      float on = smoothstep(30.0, 44.0, along) * (1.0 - smoothstep(sreach * 0.55, sreach, along));
+      float line = exp(-aside * aside / (0.85 * 0.85));
+      // recessed, and thinning to nothing at the far end
+      diffuseColor.rgb *= 1.0 - line * on * 0.55;
+    }
   }
   // wet sheen in the middle distance. This was carrying the comment
   // about resolving into a horizon and it never could: past about a
