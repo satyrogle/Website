@@ -69,7 +69,11 @@ const FRAG_MAP = `#include <map_fragment>
   // THE SPLIT SPIRE is a wedge: no twist to unwrap. Courses run across
   // the outer face by depth, then wrap the flank
   float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
-  float formS = 1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0);
+  // THE FLARE, mirrored from monumentForm.ts. The skin has to agree
+  // with the geometry about where the stone IS, or the courses slide
+  // off the splay at the foot.
+  float flareS = 1.0 + 0.26 * exp(-max(heightT, 0.0) / 0.030);
+  float formS = (1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0)) * flareS;
   float cutX = sideS * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
   float fromFissure = abs(vMonoW.x - cutX);
   float outward = fromFissure / max(31.0 * formS, 0.001);
@@ -3306,6 +3310,47 @@ ${SKY_LAW}`
   // the same sintered grain the skin carries, at floor scale
   float g = gHash(floor(vGroundW.xz * 1.6));
   diffuseColor.rgb *= 0.86 + 0.28 * g;
+
+  // ---- THE PLATES ----
+  // 2026-08-23, from Jacob's base references: "the base looks sooo
+  // bland". It was, and the diagnosis is that the ground around the
+  // monument had no MADE quality at all - dunes and grain, nothing
+  // else - so the only way anyone could think of to make the foot
+  // interesting was to stand things on it. That is how the stairs and
+  // the ruins happened, and both were treating the wrong problem.
+  //
+  // The references answer it with a floor: enormous flat panels of the
+  // same black stone laid tight, hairline joints between them, and
+  // enough polish to hold whatever light falls on them. It is the one
+  // thing in this world that is unambiguously BUILT, which is what a
+  // containment floor ought to be.
+  //
+  // The lattice is deliberately NOT centred on the monument. The
+  // references radiate their seams from the base, and a uniform radial
+  // arrangement is banned here for good reason: it would turn the foot
+  // into a sunburst. These lie on an offset, slightly rotated grid, so
+  // the monument stands IN a paved field rather than at the centre of
+  // a pattern drawn around it.
+  {
+    float pca = 0.951;
+    float psa = 0.309;
+    vec2 pl = vec2(vGroundW.x * pca - vGroundW.z * psa, vGroundW.x * psa + vGroundW.z * pca);
+    pl += vec2(23.0, -14.0);
+    // panels widen with distance, so the near floor stays legible and
+    // the far floor never collapses into a texture
+    float psz = 46.0 + 30.0 * smoothstep(120.0, 900.0, r);
+    vec2 pcell = pl / psz;
+    vec2 pf = abs(fract(pcell) - 0.5);
+    float joint = 1.0 - smoothstep(0.478, 0.499, max(pf.x, pf.y));
+    // every panel is its own casting; they do not match
+    float pid = gHash(floor(pcell) * 0.37);
+    // and the floor is only laid where it would ever be seen
+    float lay = 1.0 - smoothstep(240.0, 1400.0, r);
+    diffuseColor.rgb *= 1.0 - (1.0 - joint) * 0.62 * lay;
+    diffuseColor.rgb *= mix(1.0, 0.90 + 0.20 * pid, lay);
+    // a hair of catchlight where the slit's lane crosses a joint
+    diffuseColor.rgb += lit * (1.0 - joint) * streak * 0.9 * lay;
+  }
 
   // THE CONTACT. The plain is not intact where the mass went into it.
   // Jacob: the hero reads as "a prop rather than holy" - a thing placed

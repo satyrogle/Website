@@ -44,13 +44,24 @@ HALF_PROFILE = [
     (0.0, -1.0),
 ]
 
+
+# THE FLARE, 2026-08-23. Mirrors monumentForm.ts constant for
+# constant: the blades splay into the plain instead of stopping on
+# it. Change it in BOTH files and in FRAG_MAP or the cells, the
+# camera and the stone part company.
+FLARE_K = 0.26
+FLARE_T = 0.030
+
+
+def flare_at(t):
+    return 1.0 + FLARE_K * math.exp(-max(t, 0.0) / FLARE_T)
 
 def section_at(t):
-    return 1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)
+    return (1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)) * flare_at(t)
 
 
 def depth_section_at(t):
-    return 1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)
+    return (1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)) * flare_at(t)
 
 
 def cut_plane_x(t, side):
@@ -86,15 +97,23 @@ def build_half(side, name, rings, edge_div, chisel):
     # Ending at exactly zero with a fanned cap left the terrain's dip
     # exposing the undersides, and exposing each one differently
     T_UNDER = -0.055
-    for i in range(rings):
-        f = i / (rings - 1)
-        t = T_UNDER + (t_top - T_UNDER) * f
-        k = 1.0 - (1.0 - TOP_K) * t
+    # THE FLARE NEEDS RESOLUTION. Rings are uniform over the whole
+    # height, about three units apart, and the fillet at the foot is
+    # about six units of curve. Linearly interpolated across that gap
+    # it stops being a foot and becomes a long cone - which is exactly
+    # what the first export looked like: a tent, not a blade. Extra
+    # rings through the flare zone only, so the top is untouched.
+    ring_t = [T_UNDER + (t_top - T_UNDER) * (i / (rings - 1)) for i in range(rings)]
+    ring_t += [T_UNDER + (0.16 - T_UNDER) * (j / 11.0) for j in range(1, 11)]
+    ring_t = sorted(set(ring_t))
+    for t in ring_t:
+        k = section_at(t)
         cx = cut_plane_x(max(t, 0.0), side)
-        kd = 1.0 - (1.0 - TOP_D) * t
+        kd = depth_section_at(t)
         for (pa, pb) in pts:
             verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * kd, t * H))
-    for i in range(rings - 1):
+    n_rings = len(ring_t)
+    for i in range(n_rings - 1):
         b0, b1 = i * n, (i + 1) * n
         for j in range(n - 1):
             faces.append((b0 + j, b0 + j + 1, b1 + j + 1, b1 + j))
@@ -111,7 +130,9 @@ def build_half(side, name, rings, edge_div, chisel):
     k = section_at(t_top)
     cx = cut_plane_x(t_top, side)
     verts.append((cx + s * 0.06 * BASE_W * k, 0.0, t_top * H + 9.5))
-    last = (rings - 1) * n
+    # n_rings, not rings: the flare added rings and the crown cap has to
+    # sit on the LAST one, or it fans from a ring in the middle of the mass
+    last = (n_rings - 1) * n
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))
     faces.append((last + n - 1, last, apex))

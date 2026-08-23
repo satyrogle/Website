@@ -43,14 +43,40 @@ const TOP_D = 0.1;
  */
 export const TIP_T: readonly [number, number] = [1.0, 0.9];
 
+/**
+ * THE FLARE, 2026-08-23, from Jacob's base references.
+ *
+ * The blades do not meet the plain as a cut - they SPLAY into it, the
+ * way a trunk meets ground: vertical for their whole height, then
+ * widening hard over the last stretch and running out into the floor.
+ * It is the single biggest thing the references have that we did not,
+ * and it is why the old base needed furniture around it to look like
+ * anything. A form that flares needs nothing beside it; a form that
+ * stops needs a plinth to stop ON. That is the whole diagnosis of the
+ * stairs and the ruins, both of which were treating a silhouette
+ * problem with props.
+ *
+ * Exponential, so it is a fillet and not a cone: almost nothing left of
+ * it by 30 units up, and the fastest widening in the last few units
+ * where the eye reads the contact. Below grade it holds the full flared
+ * section, which is what makes the foot look driven in rather than
+ * placed on.
+ */
+const FLARE_K = 0.26;
+const FLARE_T = 0.030;
+
+function flareAt(t: number): number {
+  return 1 + FLARE_K * Math.exp(-Math.max(t, 0) / FLARE_T);
+}
+
 /** width taper: how much section survives at height t */
 export function sectionAt(t: number): number {
-  return 1 - (1 - TOP_K) * Math.max(t, 0);
+  return (1 - (1 - TOP_K) * Math.max(t, 0)) * flareAt(t);
 }
 
 /** depth taper, independent of width */
 export function depthSectionAt(t: number): number {
-  return 1 - (1 - TOP_D) * Math.max(t, 0);
+  return (1 - (1 - TOP_D) * Math.max(t, 0)) * flareAt(t);
 }
 
 /**
