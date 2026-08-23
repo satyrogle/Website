@@ -1559,6 +1559,12 @@ export class JourneyRenderer {
   private idleT = 0;
   /** 0 alive, 1 embalmed - gate 6's overrule, eased both ways */
   private stillAmt = 0;
+  /** gate I1: the threshold freeze, driven by nearness to the mouth */
+  private braceAmt = 0;
+  /** review pin for the brace: -1 is live, 0 and 1 hold it open */
+  private stillPin = -1;
+  /** review pin for the crossing: -1 is live, 0..1 holds it mid-swallow */
+  private swallowPin = -1;
   /** the clock the autonomous motions run on; it stops when the world does */
   private ambientT = 0;
   private parY = 0;
@@ -1620,7 +1626,9 @@ export class JourneyRenderer {
           // live exactly in the lows a black point eats. Halved and
           // gentled: the depth stays, the opening survives.
           uLift: { value: 0.0012 },
-          uContrast: { value: 1.05 }
+          uContrast: { value: 1.05 },
+          // gate I2: how far into the seam the visitor has got
+          uSwallow: { value: 0 }
         },
         vertexShader: `
           varying vec2 vUv;
@@ -1632,6 +1640,7 @@ export class JourneyRenderer {
           uniform sampler2D tDiffuse;
           uniform float uLift;
           uniform float uContrast;
+          uniform float uSwallow;
           varying vec2 vUv;
           void main() {
             vec3 c = texture2D(tDiffuse, vUv).rgb;
@@ -1639,6 +1648,51 @@ export class JourneyRenderer {
             // pivot at mid-grey in linear, so shadows crush and
             // highlights open without the frame changing exposure
             c = pow(c / 0.18, vec3(uContrast)) * 0.18;
+
+            // ---- THE SWALLOW ----
+            // Gate I2, 2026-08-23. Passing INTO the seam. Jacob killed
+            // the white beat outright and was right to: a full-field
+            // white on a site this dark is an exposure blast that hurts,
+            // and it is also a lie - you do not become blind walking
+            // past a bright doorway into an unlit room, the light simply
+            // goes around you.
+            //
+            // So this never raises the frame's peak. It is a REDISTRIB-
+            // UTION: the light the seam already put in the middle of the
+            // frame is carried outward to the edges as the camera draws
+            // level with it, while darkness opens from the centre and
+            // takes the screen. You pass through the light into the
+            // dark, and the brightest pixel on the way through is never
+            // brighter than the seam was at the landing.
+            //
+            // The guards are structural, not tuning:
+            //   - the edge term is a SEPARABLE product of the two axes,
+            //     so its iso-lines are rounded rectangles that meet the
+            //     frame corners. It cannot close into a ring or a rim,
+            //     which is what a radial falloff would do here and what
+            //     turns a crossing into a portal;
+            //   - it is strictly a redistribution of what the seam
+            //     already lit, not an added source: the edge lift is
+            //     multiplied by the frame's own value, so black stays
+            //     black and nothing is invented at the border;
+            //   - the centre darkness always outruns the edge lift, so
+            //     the mean falls monotonically through the crossing.
+            if (uSwallow > 0.0) {
+              vec2 q = abs(vUv - 0.5) * 2.0;
+              float m = max(q.x, q.y);
+              // separable, never radial: no iso-line here is a circle,
+              // so this cannot close into a rim however hard it is run
+              float edge = smoothstep(0.72, 1.0, m);
+              // and the dark reaches much further in than the light
+              // does, which is what makes the crossing a crossing and
+              // not a flare. The first build had these the other way
+              // round and the harness caught it: the peak was legal and
+              // the MEAN climbed 0.061 to 0.089 across the pulse, so
+              // the frame was quietly getting brighter all the way in.
+              float open = 1.0 - smoothstep(0.42, 0.96, m);
+              c += c * edge * uSwallow * 0.9;
+              c *= 1.0 - open * uSwallow * 0.99;
+            }
             gl_FragColor = vec4(c, 1.0);
           }`
       })
@@ -3099,6 +3153,23 @@ ${SKY_LAW}`
     this.skyMat.uniforms.uBreak!.value = Math.max(0, Math.min(3, amount));
   }
 
+  /**
+   * Gate I1 review pin: hold the brace open or force it shut, so the
+   * held breath can be judged as an A/B without waiting out a scroll or
+   * a fifty second idle. -1 hands it back to the world.
+   */
+  setStill(amount: number): void {
+    this.stillPin = amount < 0 ? -1 : Math.max(0, Math.min(1, amount));
+  }
+
+  /**
+   * Gate I2 review pin: hold the crossing at any point of its pulse so
+   * the transition can be read as stills. -1 hands it back to scroll.
+   */
+  setSwallow(amount: number): void {
+    this.swallowPin = amount < 0 ? -1 : Math.max(0, Math.min(1, amount));
+  }
+
   /** Gate 7 review pin: black point and pivot contrast, in that order. */
   setGrade(lift: number, contrast: number): void {
     this.grade.material.uniforms.uLift!.value = Math.max(0, Math.min(0.02, lift));
@@ -3217,10 +3288,41 @@ ${SKY_LAW}`
     // world is embalmed, the system is not. The witnessed cull lands
     // at 74 seconds, falling through a world that has gone completely
     // still.
+    //
+    // THE BRACE, gate I1, 2026-08-23. The same freeze, reached the other
+    // way: by PROXIMITY instead of patience. As the visitor commits the
+    // last of the approach to the mouth, the world holds its breath -
+    // and it is the containment bracing, never a welcome.
+    //
+    // Jacob's objection is what shaped this, and it was right: the only
+    // autonomous motion he can consciously see is the camera sway.
+    // Everything else the stillness stops (deck rotation at 0.005 rad/s,
+    // the lid at 0.0018, motes, the ground's charge) is below the
+    // threshold of notice on its own, so stillness alone would be a
+    // measurement rather than an event. The brace therefore carries a
+    // second, perceptible cue: the watcher LOCKS. It stops wandering,
+    // stops idling, and comes dead centre onto the visitor - see the
+    // lock in THE WATCHER below.
+    //
+    // The third cue ChatGPT proposed - freezing the skin's own micro
+    // activity - is deliberately NOT taken. Gate 6's law is that the
+    // world is embalmed and the SYSTEM is not, and that distinction is
+    // the whole meaning of the freeze. At the threshold it says exactly
+    // the right thing: the world stops, and the thing inside does not.
     const idleNow = !this.pointerNdc && progress < 0.02;
     this.idleT = idleNow ? this.idleT + dt : 0;
-    const wantStill = reduced ? 0 : smooth01(this.idleT, 48, 63);
+    // Anchored to where the mouth actually is on the CURRENT path - the
+    // cleft is entered at 0.49 - not to the 0.18 of the crossing plan's
+    // scroll map, which only becomes true once the interior exists and
+    // I3 re-anchors the whole map. A gate that fires in the wrong place
+    // cannot be judged.
+    this.braceAmt = reduced ? 0 : smooth01(progress, 0.40, 0.478);
+    // the review pin holds the whole brace, the lock included, not just
+    // the freeze: the lock is the half of it a still frame can show
+    if (this.stillPin >= 0) this.braceAmt = this.stillPin;
+    const wantStill = reduced ? 0 : Math.max(smooth01(this.idleT, 48, 63), this.braceAmt);
     this.stillAmt += (wantStill - this.stillAmt) * (1 - Math.exp(-dt * 0.9));
+    if (this.stillPin >= 0) this.stillAmt = this.stillPin;
     this.ambientT += dt * (1 - this.stillAmt);
     this.path.update(this.camera, progress, dt, reduced);
     const inside = smooth01(progress, 0.49, 0.53) * (1 - smooth01(progress, 0.65, 0.69));
@@ -3247,11 +3349,21 @@ ${SKY_LAW}`
       // already attending, so small movements are IGNORED and a real
       // move brings it round fast. Being beneath its notice is worse
       // than being tracked.
-      const werr = Math.hypot(px - this.watchX, py - this.watchY);
-      const wrate = 0.22 + 8.0 * smooth01(werr, 0.09, 0.42);
+      //
+      // THE LOCK, gate I1. Under the brace the watcher stops tracking
+      // and comes to the centre - not to the cursor, to the VISITOR.
+      // A light that has been loosely following the hand and then
+      // fixes, dead still, on the middle of the screen is the one cue
+      // at this threshold that cannot be missed, and it costs nothing
+      // because both the target and the rate are already here.
+      const bl = this.braceAmt;
+      const tx = px * (1 - bl);
+      const ty = py * (1 - bl);
+      const werr = Math.hypot(tx - this.watchX, ty - this.watchY);
+      const wrate = (0.22 + 8.0 * smooth01(werr, 0.09, 0.42)) * (1 + bl * 2.2);
       const watchK = 1 - Math.exp(-dt * wrate);
-      this.watchX += (px - this.watchX) * watchK;
-      this.watchY += (py - this.watchY) * watchK;
+      this.watchX += (tx - this.watchX) * watchK;
+      this.watchY += (ty - this.watchY) * watchK;
       // and it never holds perfectly still. Something motionless is an
       // object; something that drifts while it waits is alive.
       // (Except in THE STILLNESS: when the world stops pretending, so
@@ -3269,7 +3381,11 @@ ${SKY_LAW}`
       // Once a pointer has existed, absence means the visitor LEFT, and
       // the watcher lets go as before - that release is the wave's
       // moment and it stays untouched.
-      const wantWatch = this.pointerNdc ? 1 : this.everPointed ? 0 : 0.6;
+      // and under the brace it attends whether or not anyone is pointing
+      const wantWatch = Math.max(
+        this.pointerNdc ? 1 : this.everPointed ? 0 : 0.6,
+        this.braceAmt
+      );
       this.watchAmt += (wantWatch - this.watchAmt) * (1 - Math.exp(-dt * 1.1));
       const fu = this.fissureMat.uniforms;
       (fu.uWatch!.value as THREE.Vector2).set(this.watchX, this.watchY + wdrift);
@@ -3438,6 +3554,18 @@ ${SKY_LAW}`
     this.groundU.uGDecay!.value = decay;
     // bloom must not smear the fissure across the walls in there
     this.bloom.strength = this.flatAudit ? 0 : 0.34 * (1 - inside * 0.72);
+
+    // THE SWALLOW, gate I2: a pulse centred on the moment the eye draws
+    // level with the slit. It rises through the last of the approach,
+    // peaks in the plane and releases into the dark beyond. Deliberately
+    // after the bloom pass in the composer, so the light carried out to
+    // the edges cannot be bloomed back into a rim - the one shape this
+    // transition is forbidden to make.
+    const swallow = reduced
+      ? 0
+      : smooth01(progress, 0.478, 0.516) * (1 - smooth01(progress, 0.516, 0.556));
+    this.grade.uniforms.uSwallow!.value =
+      this.swallowPin >= 0 ? this.swallowPin : swallow;
 
     // holiness dims as the monument strips. The crown halo it used to
     // drive is deleted (E0); the sky's pressure lift carries this now,

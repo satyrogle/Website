@@ -127,6 +127,10 @@ function boot(): void {
       setSurgeTail: (uv: number): void => renderer.setSurgeTail(uv),
       setRim: (amount: number): void => renderer.setRim(amount),
       setBreak: (amount: number): void => renderer.setBreak(amount),
+      // gate I1: 1 holds the brace open, 0 forces it shut, -1 is live
+      still: (amount: number): void => renderer.setStill(amount),
+      // gate I2: 0..1 holds the crossing open, -1 is live
+      swallow: (amount: number): void => renderer.setSwallow(amount),
       setGrade: (lift: number, contrast: number): void => renderer.setGrade(lift, contrast)
     };
     const renderOnly = (): void => {

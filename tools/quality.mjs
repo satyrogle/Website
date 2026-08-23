@@ -96,6 +96,96 @@ async function harnessPage(context) {
   await ctxB.close();
 }
 
+// --- 2c. the crossing: no whiteout, no ring (gate I2) ---
+// Both failures are objective and both would invalidate the gate, so
+// they are asserted rather than looked at. The cap is measured against
+// the landing frame itself: the crossing may never be brighter than the
+// seam already is at rest. The ring test walks a box inset from the
+// frame edge and fails if the bright band closes all the way round it -
+// a rim or a portal silhouette - as opposed to living on the sides.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  page.on('console', (m) => {
+    if (m.type() === 'error') consoleErrors.push(m.text());
+  });
+  await page.goto(BASE + '/?harness=1', { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => typeof window.__dl === 'object');
+  await page.waitForTimeout(3500);
+
+  const read = async () =>
+    page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              const W = 320;
+              const H = 200;
+              const c = document.createElement('canvas');
+              c.width = W;
+              c.height = H;
+              const x = c.getContext('2d', { willReadFrequently: true });
+              x.drawImage(document.getElementById('world'), 0, 0, W, H);
+              const d = x.getImageData(0, 0, W, H).data;
+              const lum = (i) =>
+                (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) / 255;
+              let mean = 0;
+              let peak = 0;
+              for (let i = 0; i < W * H; i++) {
+                const l = lum(i);
+                mean += l;
+                if (l > peak) peak = l;
+              }
+              // walk an inset box: if every side of it carries bright
+              // pixels, the bright band has closed into a rim
+              const inset = 14;
+              const sides = [0, 0, 0, 0];
+              for (let t = inset; t < W - inset; t++) {
+                if (lum(inset * W + t) > 0.5) sides[0] = 1;
+                if (lum((H - inset) * W + t) > 0.5) sides[1] = 1;
+              }
+              for (let t = inset; t < H - inset; t++) {
+                if (lum(t * W + inset) > 0.5) sides[2] = 1;
+                if (lum(t * W + (W - inset)) > 0.5) sides[3] = 1;
+              }
+              resolve({
+                mean: mean / (W * H),
+                peak,
+                closed: sides.reduce((a, b) => a + b, 0) === 4
+              });
+            })
+          );
+        })
+    );
+
+  const landing = await read();
+  const frames = [];
+  for (const s of [0.25, 0.5, 0.75, 1.0]) {
+    await page.evaluate((v) => window.__dl.swallow(v), s);
+    await page.waitForTimeout(260);
+    frames.push({ s, ...(await read()) });
+  }
+  await page.evaluate(() => window.__dl.swallow(-1));
+
+  const overBright = frames.filter((f) => f.peak > landing.peak + 0.02);
+  const rings = frames.filter((f) => f.closed);
+  const monotone = frames.every((f, i) => i === 0 || f.mean <= frames[i - 1].mean + 0.004);
+  check(
+    'crossing: never brighter than the landing seam, and the mean only falls',
+    overBright.length === 0 && monotone,
+    'landingPeak=' +
+      landing.peak.toFixed(3) +
+      ' ' +
+      frames.map((f) => f.s + ':p' + f.peak.toFixed(3) + '/m' + f.mean.toFixed(4)).join(' ')
+  );
+  check(
+    'crossing: the light never closes into a ring or a portal rim',
+    rings.length === 0,
+    rings.map((f) => 'closed at ' + f.s).join(', ')
+  );
+  await ctx.close();
+}
+
 // --- 3. accessibility smoke ---
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
