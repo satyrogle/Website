@@ -130,6 +130,8 @@ function boot(): void {
       // the ancient pass: crack strength and weather-run strength
       fracture: (a: number): void => renderer.setFracture(a),
       runs: (a: number): void => renderer.setRuns(a),
+      courses: (a: number): void => renderer.setCourses(a),
+      crust: (a: number): void => renderer.setCrust(a),
       // gate I1: 1 holds the brace open, 0 forces it shut, -1 is live
       still: (amount: number): void => renderer.setStill(amount),
       // gate I2: 0..1 holds the crossing open, -1 is live

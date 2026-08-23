@@ -37,6 +37,8 @@ uniform float uRim;
 // their strength is chosen off rendered frames instead of guessed
 uniform float uFracture;
 uniform float uRuns;
+uniform float uCourses;
+uniform float uCrust;
 // NO WAKE ON THE STONE. Three passes put a travelling front on the face
 // here - into the rot's emission, then into the albedo - and Jacob
 // rejected all three. Measuring the leaving against the build he liked
@@ -51,6 +53,9 @@ uniform vec4 uCulls[6];
 uniform int uCullN;
 float vMonoEng;
 float vMonoRough = 0.9;
+// how proud the crust stands, handed from the map chunk to the normal
+// chunk: a pale patch alone is a stain, growth has to catch the light
+float vCrust = 0.0;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float monoNoise(vec2 p) {
   vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
@@ -587,6 +592,68 @@ const FRAG_MAP = `#include <map_fragment>
     }
   }
 
+  // ---- THE COURSES ----
+  // Reference item 3. The tower in Jacob's picture has its face divided
+  // into enormous flat plates by hairline seams, and they have aged
+  // differently from one another. That is what says BUILT AND THEN
+  // ABANDONED rather than carved in one piece - a monolith has no
+  // history of assembly, and a thing with no assembly has no age.
+  //
+  // The trap here is already paid for: square cells on a tall dark mass
+  // read as WINDOWS ON A SKYSCRAPER. Three things keep this masonry
+  // instead. The joints are hairline grooves that only ever darken,
+  // never a lit cell with an outline. The courses are laid in running
+  // bond, each one offset by its own amount, so no vertical joint
+  // survives past a single course. And the plates are WIDE - far wider
+  // than they are tall - where a window is portrait and regular.
+  {
+    float courseH = 27.0;
+    float row = floor(vMonoW.y / courseH);
+    float bond = monoHash(vec3(row, sideS, 41.0));
+    float cw = 1.15;
+    float cc = ang / cw + bond;
+    float rowF = fract(vMonoW.y / courseH);
+    float colF = fract(cc);
+    float hJ = 1.0 - smoothstep(0.0, 0.030, min(rowF, 1.0 - rowF));
+    float vJ = 1.0 - smoothstep(0.0, 0.024, min(colF, 1.0 - colF));
+    float joint = max(hJ, vJ) * uCourses;
+    // every plate came out of the ground on its own day
+    float plate = monoHash(vec3(row, floor(cc), 7.0));
+    diffuseColor.rgb *= mix(1.0, 0.90 + 0.20 * plate, uCourses);
+    diffuseColor.rgb *= 1.0 - joint * 0.55;
+    // a seam holds dirt, so it is never a clean line
+    vMonoRough = clamp(vMonoRough + joint * 0.22, 0.08, 0.98);
+  }
+
+  // ---- THE CRUST ----
+  // Reference item 4, and the one piece of new vocabulary in this pass:
+  // everything else the stone does is SUBTRACTIVE - pits, chips, cracks,
+  // loss. In the rust reference material has GROWN out of the surface in
+  // one dominant raised region, and a thing that has accumulated is
+  // older than a thing that has merely eroded.
+  //
+  // No rust and no ochre: caramel crust is banned by name. This is pale
+  // mineral in the bone family, so it stays inside the palette and reads
+  // as deposit rather than as corrosion wearing a different colour.
+  {
+    vec2 kq = CP * 0.30;
+    kq += (vec2(monoFbm(kq * 0.7), monoFbm(kq * 0.7 + 12.3)) - 0.5) * 1.3;
+    float lump = monoFbm(kq);
+    // it sits where the dominant outbreak already is, and it has run
+    // DOWNWARD out of it: sampled again from further up the mass, so
+    // the growth hangs below its own source the way deposit does
+    float above = smoothstep(0.55, 0.87,
+      monoFbm(vec2(cAlong * 0.0068 + 2.3, (cAcross + 26.0) * 0.0092 - 5.1)));
+    float site = max(oDom, above * 0.72) * cTop;
+    vCrust = smoothstep(0.52, 0.78, lump) * smoothstep(0.18, 0.62, site) * uCrust;
+    diffuseColor.rgb = mix(
+      diffuseColor.rgb,
+      diffuseColor.rgb * 2.4 + vec3(0.026, 0.027, 0.030),
+      vCrust * 0.78
+    );
+    vMonoRough = clamp(vMonoRough + vCrust * 0.34, 0.08, 0.98);
+  }
+
   // roughness follows the damage: the pits are matte voids, the cWeb is
   // a hard remaining edge, and the runs are chalk lying on top
   vMonoRough = clamp(
@@ -674,6 +741,39 @@ const FRAG_MAP = `#include <map_fragment>
             + cRun * 0.005) * (1.0 - uCalm * 0.45)
             * (1.0 + wResp * 2.2)
             + mkRim * 0.016 * (1.0 - uCalm * 0.45);
+  }
+}`;
+
+/**
+ * THE CRUST STANDS PROUD. Runs after the normal map is resolved and
+ * bends the shading normal by the gradient of the crust's own height,
+ * taken in screen space.
+ *
+ * Without it the crust is a pale patch, and a pale patch is a STAIN -
+ * which is the one thing it must not be. The whole reason the crust
+ * exists is that everything else this stone does removes material, and
+ * accumulation reads as older than erosion. Something that has grown
+ * has to catch the raking key on its upper faces and shade on its
+ * undersides, or it has not grown at all.
+ *
+ * Screen-space gradients on an unparametrised surface, so it needs no
+ * second UV set and no baked height map, and it costs four derivatives
+ * on the pixels that have any crust on them at all.
+ */
+const FRAG_CRUST_BUMP = `#include <normal_fragment_maps>
+{
+  if (vCrust > 0.001) {
+    vec3 dpx = dFdx(vMonoW);
+    vec3 dpy = dFdy(vMonoW);
+    float dhx = dFdx(vCrust);
+    float dhy = dFdy(vCrust);
+    vec3 r1 = cross(dpy, normal);
+    vec3 r2 = cross(normal, dpx);
+    float det = dot(dpx, r1);
+    if (abs(det) > 1e-9) {
+      vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
+      normal = normalize(abs(det) * normal - grad * 58.0);
+    }
   }
 }`;
 
@@ -3162,6 +3262,8 @@ export class JourneyRenderer {
       uRim: { value: 1.0 },
       uFracture: { value: 1.0 },
       uRuns: { value: 1.0 },
+      uCourses: { value: 1.0 },
+      uCrust: { value: 1.0 },
       uHover: { value: new THREE.Vector3(0, -999, 0) },
       uHoverAmt: { value: 0 },
       uInner: { value: new THREE.Vector3(0, -999, 0) },
@@ -3226,6 +3328,7 @@ export class JourneyRenderer {
           '#include <roughnessmap_fragment>',
           '#include <roughnessmap_fragment>\nroughnessFactor = vMonoRough;'
         )
+        .replace('#include <normal_fragment_maps>', FRAG_CRUST_BUMP)
         .replace('#include <emissivemap_fragment>', FRAG_EMISSIVE);
     };
     this.monoMat = stone;
@@ -3602,6 +3705,14 @@ ${SKY_LAW}`
    * a fifty second idle. -1 hands it back to the world.
    */
   /** ancient pass review pins: the seam cracks, and the weather runs. */
+  setCourses(amount: number): void {
+    this.stoneU.uCourses!.value = Math.max(0, Math.min(4, amount));
+  }
+
+  setCrust(amount: number): void {
+    this.stoneU.uCrust!.value = Math.max(0, Math.min(4, amount));
+  }
+
   setFracture(amount: number): void {
     this.stoneU.uFracture!.value = Math.max(0, Math.min(4, amount));
   }
