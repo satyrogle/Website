@@ -3154,10 +3154,50 @@ export class JourneyRenderer {
         terrainMat.onBeforeCompile = (sh) => {
           Object.assign(sh.uniforms, this.groundU);
           sh.vertexShader = sh.vertexShader
-            .replace('#include <common>', '#include <common>\nvarying vec3 vGroundW;')
+            .replace(
+              '#include <common>',
+              `#include <common>
+varying vec3 vGroundW;
+float apHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
+float apNoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(apHash(i), apHash(i + vec2(1.0, 0.0)), f.x),
+             mix(apHash(i + vec2(0.0, 1.0)), apHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}`
+            )
             .replace(
               '#include <begin_vertex>',
-              '#include <begin_vertex>\nvGroundW = (modelMatrix * vec4(position, 1.0)).xyz;'
+              `#include <begin_vertex>
+{
+  // ---- THE APRON ----
+  // Jacob, 2026-08-23: "the base of the hero right spire bottom is
+  // uneven and why there is a bump in the landscape".
+  //
+  // One cause for both. The dunes on this plain run to +6, and until E0
+  // the plinth stood over all of it - the platform topped at 6.4
+  // precisely so no dune could ever poke through. Taking the podium out
+  // put the blades straight into that relief: a dune riding up against
+  // a tapering blade lifts its visible bottom edge, so the contact line
+  // wanders instead of cutting straight, and the dune itself reads as a
+  // bump sitting at the foot of the monument.
+  //
+  // The plain is graded level where the mass went in. Not decoration -
+  // it is the same fact the subsidence slots state: the ground did not
+  // stay as it was here. Full flat under the roots, blending back into
+  // the natural dunes further out, and the blend edge is broken by
+  // noise so the apron is never a machined disc.
+  vec3 apW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+  float apR = length(apW.xz);
+  float apEdge = 150.0 + 66.0 * apNoise(apW.xz * 0.010);
+  float apFlat = 1.0 - smoothstep(apEdge * 0.42, apEdge, apR);
+  transformed.y = mix(transformed.y, transformed.y - apW.y, apFlat);
+  // the graded ground faces up: a flattened vertex keeps the normal of
+  // the dune it used to belong to, and that normal lights a slope that
+  // is no longer there
+  objectNormal = normalize(mix(objectNormal, vec3(0.0, 1.0, 0.0), apFlat));
+  transformedNormal = normalMatrix * objectNormal;
+}
+vGroundW = (modelMatrix * vec4(transformed, 1.0)).xyz;`
             );
           sh.fragmentShader = sh.fragmentShader
             .replace(
