@@ -33,12 +33,6 @@ uniform float uWatchY;
 uniform float uWatchAmt;
 // gate 3: how hard the sky's grazing light finds the outer edges
 uniform float uRim;
-// how hard the seam cracks and the weather runs read: review pins, so
-// their strength is chosen off rendered frames instead of guessed
-uniform float uFracture;
-uniform float uRuns;
-uniform float uCourses;
-uniform float uCrust;
 // NO WAKE ON THE STONE. Three passes put a travelling front on the face
 // here - into the rot's emission, then into the albedo - and Jacob
 // rejected all three. Measuring the leaving against the build he liked
@@ -53,9 +47,6 @@ uniform vec4 uCulls[6];
 uniform int uCullN;
 float vMonoEng;
 float vMonoRough = 0.9;
-// how proud the crust stands, handed from the map chunk to the normal
-// chunk: a pale patch alone is a stain, growth has to catch the light
-float vCrust = 0.0;
 float monoHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float monoNoise(vec2 p) {
   vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
@@ -78,11 +69,7 @@ const FRAG_MAP = `#include <map_fragment>
   // THE SPLIT SPIRE is a wedge: no twist to unwrap. Courses run across
   // the outer face by depth, then wrap the flank
   float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
-  // THE FLARE, mirrored from monumentForm.ts. The skin has to agree
-  // with the geometry about where the stone IS, or the courses slide
-  // off the splay at the foot.
-  float flareS = 1.0 + 0.26 * exp(-max(heightT, 0.0) / 0.030);
-  float formS = (1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0)) * flareS;
+  float formS = 1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0);
   float cutX = sideS * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
   float fromFissure = abs(vMonoW.x - cutX);
   float outward = fromFissure / max(31.0 * formS, 0.001);
@@ -523,145 +510,9 @@ const FRAG_MAP = `#include <map_fragment>
   diffuseColor.rgb += diffuseColor.rgb * cCrack * (1.2 + 0.8 * graze);
   diffuseColor.rgb += vec3(0.040, 0.044, 0.051) * cCrack;
 
-  // ---- THE FRACTURE ----
-  // 2026-08-23, from Jacob's ancient references. The loudest thing all
-  // three of them share is a system of big branching cracks travelling
-  // OUT of the seam across the face - thin, dark, and reading at the
-  // distance the landing is actually shot from. We had a fine web up
-  // close and sparse macro fractures far away, and nothing in between
-  // that came FROM the fissure.
-  //
-  // It also earns its place in the story rather than just ageing the
-  // stone: under the lock reading, cracks spreading outward from the
-  // seam are the containment failing away from the thing it holds,
-  // which is the same event as a cull.
-  //
-  // Built as the zero set of a warped field divided by its own
-  // gradient - the construction Jacob approved on the plain - because a
-  // threshold admits half the volume and reads as smoke, and cells
-  // always resolve into a repeating unit. The one change is ANISOTROPY:
-  // the field varies fast in height and slowly with distance from the
-  // seam, so its contours run outward instead of closing into a net.
-  // A net here would be the web again, one size larger.
-  float fracture = 0.0;
-  {
-    vec2 fq = vec2(fromFissure * 0.055, vMonoW.y * 0.165);
-    fq += (vec2(monoFbm(fq * 0.5), monoFbm(fq * 0.5 + 31.7)) - 0.5) * 1.9;
-    float ff = monoFbm(fq) - 0.5;
-    float fg = length(vec2(dFdx(ff), dFdy(ff))) + 1e-6;
-    fracture = 1.0 - smoothstep(0.0, 1.7, abs(ff) / fg);
-    // born at the seam and spent before it crosses the face
-    fracture *= exp(-fromFissure * 0.030) * cTop * uFracture;
-    // and it does not run over the crown shards or below the plain
-    fracture *= smoothstep(2.0, 14.0, vMonoW.y);
-    // a crack is a groove, not a drawn line: the far lip catches the
-    // grazing light while the channel itself keeps its dark
-    float lip = 1.0 - smoothstep(0.0, 2.6, abs(ff + fg * 1.9) / fg);
-    diffuseColor.rgb *= 1.0 - fracture * 0.74;
-    diffuseColor.rgb += diffuseColor.rgb * lip * exp(-fromFissure * 0.030) * cTop * graze * 0.9;
-  }
-
-  // ---- THE RUNS ----
-  // The other thing every reference has and we had none of: weather has
-  // come down this face for a very long time. Pale mineral streaks
-  // running straight down in WORLD y, narrow, wandering slightly,
-  // starting under something and fading out below it.
-  //
-  // Most columns carry nothing. A run on every column is rain on a
-  // window; a run every few metres is centuries.
-  float runs = 0.0;
-  {
-    float colW = 0.42;
-    float col = floor(ang / colW);
-    float pick = monoHash(vec3(col, sideS, 5.0));
-    if (pick < 0.30 && uRuns > 0.001) {
-      // where it started, and how far it got before it gave out
-      float top = 34.0 + 148.0 * monoHash(vec3(col, sideS, 9.0));
-      float len = 26.0 + 104.0 * monoHash(vec3(col, sideS, 13.0));
-      float below = top - vMonoW.y;
-      float along = smoothstep(0.0, 5.0, below) * (1.0 - smoothstep(len * 0.55, len, below));
-      // it wanders as it comes down; a straight one is a pinstripe
-      float wob = (monoNoise(vec2(col * 3.1, vMonoW.y * 0.075)) - 0.5) * 0.34;
-      float off = fract(ang / colW) - 0.5 + wob;
-      float w = 0.05 + 0.11 * monoHash(vec3(col, sideS, 17.0));
-      runs = along * exp(-off * off / (w * w));
-      // deposit, not damage: it lies ON the stone, pale and matte, and
-      // it is thickest just under the source
-      runs *= uRuns;
-      diffuseColor.rgb += vec3(0.030, 0.032, 0.037) * runs * (0.45 + 0.55 * graze);
-    }
-  }
-
-  // ---- THE COURSES ----
-  // Reference item 3. The tower in Jacob's picture has its face divided
-  // into enormous flat plates by hairline seams, and they have aged
-  // differently from one another. That is what says BUILT AND THEN
-  // ABANDONED rather than carved in one piece - a monolith has no
-  // history of assembly, and a thing with no assembly has no age.
-  //
-  // The trap here is already paid for: square cells on a tall dark mass
-  // read as WINDOWS ON A SKYSCRAPER. Three things keep this masonry
-  // instead. The joints are hairline grooves that only ever darken,
-  // never a lit cell with an outline. The courses are laid in running
-  // bond, each one offset by its own amount, so no vertical joint
-  // survives past a single course. And the plates are WIDE - far wider
-  // than they are tall - where a window is portrait and regular.
-  {
-    float courseH = 27.0;
-    float row = floor(vMonoW.y / courseH);
-    float bond = monoHash(vec3(row, sideS, 41.0));
-    float cw = 1.15;
-    float cc = ang / cw + bond;
-    float rowF = fract(vMonoW.y / courseH);
-    float colF = fract(cc);
-    float hJ = 1.0 - smoothstep(0.0, 0.030, min(rowF, 1.0 - rowF));
-    float vJ = 1.0 - smoothstep(0.0, 0.024, min(colF, 1.0 - colF));
-    float joint = max(hJ, vJ) * uCourses;
-    // every plate came out of the ground on its own day
-    float plate = monoHash(vec3(row, floor(cc), 7.0));
-    diffuseColor.rgb *= mix(1.0, 0.90 + 0.20 * plate, uCourses);
-    diffuseColor.rgb *= 1.0 - joint * 0.55;
-    // a seam holds dirt, so it is never a clean line
-    vMonoRough = clamp(vMonoRough + joint * 0.22, 0.08, 0.98);
-  }
-
-  // ---- THE CRUST ----
-  // Reference item 4, and the one piece of new vocabulary in this pass:
-  // everything else the stone does is SUBTRACTIVE - pits, chips, cracks,
-  // loss. In the rust reference material has GROWN out of the surface in
-  // one dominant raised region, and a thing that has accumulated is
-  // older than a thing that has merely eroded.
-  //
-  // No rust and no ochre: caramel crust is banned by name. This is pale
-  // mineral in the bone family, so it stays inside the palette and reads
-  // as deposit rather than as corrosion wearing a different colour.
-  {
-    vec2 kq = CP * 0.30;
-    kq += (vec2(monoFbm(kq * 0.7), monoFbm(kq * 0.7 + 12.3)) - 0.5) * 1.3;
-    float lump = monoFbm(kq);
-    // it sits where the dominant outbreak already is, and it has run
-    // DOWNWARD out of it: sampled again from further up the mass, so
-    // the growth hangs below its own source the way deposit does
-    float above = smoothstep(0.55, 0.87,
-      monoFbm(vec2(cAlong * 0.0068 + 2.3, (cAcross + 26.0) * 0.0092 - 5.1)));
-    float site = max(oDom, above * 0.72) * cTop;
-    vCrust = smoothstep(0.52, 0.78, lump) * smoothstep(0.18, 0.62, site) * uCrust;
-    diffuseColor.rgb = mix(
-      diffuseColor.rgb,
-      diffuseColor.rgb * 2.4 + vec3(0.026, 0.027, 0.030),
-      vCrust * 0.78
-    );
-    vMonoRough = clamp(vMonoRough + vCrust * 0.34, 0.08, 0.98);
-  }
-
   // roughness follows the damage: the pits are matte voids, the cWeb is
-  // a hard remaining edge, and the runs are chalk lying on top
-  vMonoRough = clamp(
-    vMonoRough + cPit * 0.30 + runs * 0.26 + fracture * 0.18
-      - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22,
-    0.08,
-    0.96
-  );
+  // a hard remaining edge
+  vMonoRough = clamp(vMonoRough + cPit * 0.30 - (cWeb * band + cCrack * 0.6 + cRun * 0.25) * 0.22, 0.08, 0.96);
 
   // THE WEB EMITS, NOT THE PITS. Jacob: "i think we are emitting the
   // wrong shader of rot emit the other stuff not the ones already".
@@ -741,39 +592,6 @@ const FRAG_MAP = `#include <map_fragment>
             + cRun * 0.005) * (1.0 - uCalm * 0.45)
             * (1.0 + wResp * 2.2)
             + mkRim * 0.016 * (1.0 - uCalm * 0.45);
-  }
-}`;
-
-/**
- * THE CRUST STANDS PROUD. Runs after the normal map is resolved and
- * bends the shading normal by the gradient of the crust's own height,
- * taken in screen space.
- *
- * Without it the crust is a pale patch, and a pale patch is a STAIN -
- * which is the one thing it must not be. The whole reason the crust
- * exists is that everything else this stone does removes material, and
- * accumulation reads as older than erosion. Something that has grown
- * has to catch the raking key on its upper faces and shade on its
- * undersides, or it has not grown at all.
- *
- * Screen-space gradients on an unparametrised surface, so it needs no
- * second UV set and no baked height map, and it costs four derivatives
- * on the pixels that have any crust on them at all.
- */
-const FRAG_CRUST_BUMP = `#include <normal_fragment_maps>
-{
-  if (vCrust > 0.001) {
-    vec3 dpx = dFdx(vMonoW);
-    vec3 dpy = dFdy(vMonoW);
-    float dhx = dFdx(vCrust);
-    float dhy = dFdy(vCrust);
-    vec3 r1 = cross(dpy, normal);
-    vec3 r2 = cross(normal, dpx);
-    float det = dot(dpx, r1);
-    if (abs(det) > 1e-9) {
-      vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
-      normal = normalize(abs(det) * normal - grad * 58.0);
-    }
   }
 }`;
 
@@ -3260,10 +3078,6 @@ export class JourneyRenderer {
       uSeverity: { value: 0 },
       uCalm: { value: 0 },
       uRim: { value: 1.0 },
-      uFracture: { value: 1.0 },
-      uRuns: { value: 1.0 },
-      uCourses: { value: 1.0 },
-      uCrust: { value: 1.0 },
       uHover: { value: new THREE.Vector3(0, -999, 0) },
       uHoverAmt: { value: 0 },
       uInner: { value: new THREE.Vector3(0, -999, 0) },
@@ -3328,7 +3142,6 @@ export class JourneyRenderer {
           '#include <roughnessmap_fragment>',
           '#include <roughnessmap_fragment>\nroughnessFactor = vMonoRough;'
         )
-        .replace('#include <normal_fragment_maps>', FRAG_CRUST_BUMP)
         .replace('#include <emissivemap_fragment>', FRAG_EMISSIVE);
     };
     this.monoMat = stone;
@@ -3493,47 +3306,6 @@ ${SKY_LAW}`
   // the same sintered grain the skin carries, at floor scale
   float g = gHash(floor(vGroundW.xz * 1.6));
   diffuseColor.rgb *= 0.86 + 0.28 * g;
-
-  // ---- THE PLATES ----
-  // 2026-08-23, from Jacob's base references: "the base looks sooo
-  // bland". It was, and the diagnosis is that the ground around the
-  // monument had no MADE quality at all - dunes and grain, nothing
-  // else - so the only way anyone could think of to make the foot
-  // interesting was to stand things on it. That is how the stairs and
-  // the ruins happened, and both were treating the wrong problem.
-  //
-  // The references answer it with a floor: enormous flat panels of the
-  // same black stone laid tight, hairline joints between them, and
-  // enough polish to hold whatever light falls on them. It is the one
-  // thing in this world that is unambiguously BUILT, which is what a
-  // containment floor ought to be.
-  //
-  // The lattice is deliberately NOT centred on the monument. The
-  // references radiate their seams from the base, and a uniform radial
-  // arrangement is banned here for good reason: it would turn the foot
-  // into a sunburst. These lie on an offset, slightly rotated grid, so
-  // the monument stands IN a paved field rather than at the centre of
-  // a pattern drawn around it.
-  {
-    float pca = 0.951;
-    float psa = 0.309;
-    vec2 pl = vec2(vGroundW.x * pca - vGroundW.z * psa, vGroundW.x * psa + vGroundW.z * pca);
-    pl += vec2(23.0, -14.0);
-    // panels widen with distance, so the near floor stays legible and
-    // the far floor never collapses into a texture
-    float psz = 46.0 + 30.0 * smoothstep(120.0, 900.0, r);
-    vec2 pcell = pl / psz;
-    vec2 pf = abs(fract(pcell) - 0.5);
-    float joint = 1.0 - smoothstep(0.478, 0.499, max(pf.x, pf.y));
-    // every panel is its own casting; they do not match
-    float pid = gHash(floor(pcell) * 0.37);
-    // and the floor is only laid where it would ever be seen
-    float lay = 1.0 - smoothstep(240.0, 1400.0, r);
-    diffuseColor.rgb *= 1.0 - (1.0 - joint) * 0.62 * lay;
-    diffuseColor.rgb *= mix(1.0, 0.90 + 0.20 * pid, lay);
-    // a hair of catchlight where the slit's lane crosses a joint
-    diffuseColor.rgb += lit * (1.0 - joint) * streak * 0.9 * lay;
-  }
 
   // THE CONTACT. The plain is not intact where the mass went into it.
   // Jacob: the hero reads as "a prop rather than holy" - a thing placed
@@ -3704,23 +3476,6 @@ ${SKY_LAW}`
    * held breath can be judged as an A/B without waiting out a scroll or
    * a fifty second idle. -1 hands it back to the world.
    */
-  /** ancient pass review pins: the seam cracks, and the weather runs. */
-  setCourses(amount: number): void {
-    this.stoneU.uCourses!.value = Math.max(0, Math.min(4, amount));
-  }
-
-  setCrust(amount: number): void {
-    this.stoneU.uCrust!.value = Math.max(0, Math.min(4, amount));
-  }
-
-  setFracture(amount: number): void {
-    this.stoneU.uFracture!.value = Math.max(0, Math.min(4, amount));
-  }
-
-  setRuns(amount: number): void {
-    this.stoneU.uRuns!.value = Math.max(0, Math.min(4, amount));
-  }
-
   setStill(amount: number): void {
     this.stillPin = amount < 0 ? -1 : Math.max(0, Math.min(1, amount));
   }

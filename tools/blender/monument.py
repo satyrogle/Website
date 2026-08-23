@@ -44,24 +44,13 @@ HALF_PROFILE = [
     (0.0, -1.0),
 ]
 
-
-# THE FLARE, 2026-08-23. Mirrors monumentForm.ts constant for
-# constant: the blades splay into the plain instead of stopping on
-# it. Change it in BOTH files and in FRAG_MAP or the cells, the
-# camera and the stone part company.
-FLARE_K = 0.26
-FLARE_T = 0.030
-
-
-def flare_at(t):
-    return 1.0 + FLARE_K * math.exp(-max(t, 0.0) / FLARE_T)
 
 def section_at(t):
-    return (1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)) * flare_at(t)
+    return 1.0 - (1.0 - TOP_K) * (max(t, 0.0) ** 1.0)
 
 
 def depth_section_at(t):
-    return (1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)) * flare_at(t)
+    return 1.0 - (1.0 - TOP_D) * (max(t, 0.0) ** 1.0)
 
 
 def cut_plane_x(t, side):
@@ -69,94 +58,16 @@ def cut_plane_x(t, side):
     return s * (SLIT_BASE - (SLIT_BASE - SLIT_TOP) * min(1.0, max(0.0, t)))
 
 
-# THE LOSS. Mirrors monumentForm.ts function for function - the runtime
-# places every surface cell with surfacePoint, so if this file and that
-# one disagree about where the stone ends, cells hang in the air over
-# the chips. Change them together.
-#
-# Brittle, never worn: one flat facet per broken cell, at one depth,
-# with a hard edge. A smooth falloff would round the mass into a pebble
-# and trade new-looking for soft-looking.
-#
-# NOTE ON u: resample walks each profile segment by parameter, but the
-# TS profilePoint(u) walks the whole boundary by ARC LENGTH. The two
-# have to agree about what u means or the chips land in different places
-# in the mesh and in the cell field, so resample now carries the arc
-# length fraction with every point.
-CHIP = [
-    # tCell, uCell, chanceOfBreaking, maxDepth, salt
-    (0.090, 0.150, 0.13, 0.115, 3),
-    (0.034, 0.062, 0.17, 0.052, 11),
-    (0.015, 0.040, 0.20, 0.022, 23),
-]
-
-
-def loss_hash(x, y, salt):
-    s = math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453
-    return s - math.floor(s)
-
-
-def loss_noise(x, y, salt):
-    ix = math.floor(x)
-    iy = math.floor(y)
-    fx = x - ix
-    fy = y - iy
-    sx = fx * fx * (3.0 - 2.0 * fx)
-    sy = fy * fy * (3.0 - 2.0 * fy)
-    a = loss_hash(ix, iy, salt)
-    b = loss_hash(ix + 1, iy, salt)
-    c = loss_hash(ix, iy + 1, salt)
-    d = loss_hash(ix + 1, iy + 1, salt)
-    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy
-
-
-def loss_ramp(x, e0, e1):
-    f = max(0.0, min(1.0, (x - e0) / max(1e-6, e1 - e0)))
-    return f * f * (3.0 - 2.0 * f)
-
-
-def loss_at(t, u, pa, pb):
-    exposure = min(1.0, abs(pa) * 1.25)
-    if exposure <= 0.001:
-        return 0.0
-    tc = max(0.0, min(1.0, t))
-    band = 0.30 + 0.85 * loss_ramp(tc, 0.58, 1.0) + 0.60 * (1.0 - loss_ramp(tc, 0.03, 0.26))
-    bearing = 0.62 + 0.38 * pb
-    wt = t + (loss_noise(t * 7.3, u * 5.1, 91) - 0.5) * 0.06
-    wu = u + (loss_noise(t * 6.1, u * 4.7, 57) - 0.5) * 0.05
-    loss = 0.0
-    for (ht, hu, chance, depth, salt) in CHIP:
-        i = math.floor(wt / ht)
-        j = math.floor(wu / hu)
-        if loss_hash(i, j, salt) > chance:
-            continue
-        loss = max(loss, depth * (0.35 + 0.65 * loss_hash(i, j, salt + 1)))
-    return min(0.22, loss * exposure * band * bearing)
-
-
 def resample(edge_div):
     """Points along the outer boundary, corners preserved."""
-    seg = []
-    total = 0.0
-    for i in range(len(HALF_PROFILE) - 1):
-        p = HALF_PROFILE[i]
-        q = HALF_PROFILE[i + 1]
-        total += math.hypot(q[0] - p[0], q[1] - p[1])
     pts = []
-    run = 0.0
     for i in range(len(HALF_PROFILE) - 1):
         p = HALF_PROFILE[i]
         q = HALF_PROFILE[i + 1]
-        seglen = math.hypot(q[0] - p[0], q[1] - p[1])
         for k in range(edge_div):
             f = k / edge_div
-            pts.append((
-                p[0] + (q[0] - p[0]) * f,
-                p[1] + (q[1] - p[1]) * f,
-                (run + seglen * f) / total,
-            ))
-        run += seglen
-    pts.append((HALF_PROFILE[-1][0], HALF_PROFILE[-1][1], 1.0))
+            pts.append((p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f))
+    pts.append(HALF_PROFILE[-1])
     return pts
 
 
@@ -175,24 +86,15 @@ def build_half(side, name, rings, edge_div, chisel):
     # Ending at exactly zero with a fanned cap left the terrain's dip
     # exposing the undersides, and exposing each one differently
     T_UNDER = -0.055
-    # THE FLARE NEEDS RESOLUTION. Rings are uniform over the whole
-    # height, about three units apart, and the fillet at the foot is
-    # about six units of curve. Linearly interpolated across that gap
-    # it stops being a foot and becomes a long cone - which is exactly
-    # what the first export looked like: a tent, not a blade. Extra
-    # rings through the flare zone only, so the top is untouched.
-    ring_t = [T_UNDER + (t_top - T_UNDER) * (i / (rings - 1)) for i in range(rings)]
-    ring_t += [T_UNDER + (0.16 - T_UNDER) * (j / 11.0) for j in range(1, 11)]
-    ring_t = sorted(set(ring_t))
-    for t in ring_t:
-        k = section_at(t)
+    for i in range(rings):
+        f = i / (rings - 1)
+        t = T_UNDER + (t_top - T_UNDER) * f
+        k = 1.0 - (1.0 - TOP_K) * t
         cx = cut_plane_x(max(t, 0.0), side)
-        kd = depth_section_at(t)
-        for (pa, pb, uu) in pts:
-            kl = 1.0 - loss_at(t, uu, pa, pb)
-            verts.append((cx + s * -pa * BASE_W * k * kl, pb * BASE_D * kd * kl, t * H))
-    n_rings = len(ring_t)
-    for i in range(n_rings - 1):
+        kd = 1.0 - (1.0 - TOP_D) * t
+        for (pa, pb) in pts:
+            verts.append((cx + s * -pa * BASE_W * k, pb * BASE_D * kd, t * H))
+    for i in range(rings - 1):
         b0, b1 = i * n, (i + 1) * n
         for j in range(n - 1):
             faces.append((b0 + j, b0 + j + 1, b1 + j + 1, b1 + j))
@@ -209,9 +111,7 @@ def build_half(side, name, rings, edge_div, chisel):
     k = section_at(t_top)
     cx = cut_plane_x(t_top, side)
     verts.append((cx + s * 0.06 * BASE_W * k, 0.0, t_top * H + 9.5))
-    # n_rings, not rings: the flare added rings and the crown cap has to
-    # sit on the LAST one, or it fans from a ring in the middle of the mass
-    last = (n_rings - 1) * n
+    last = (rings - 1) * n
     for j in range(n - 1):
         faces.append((last + j, last + j + 1, apex))
     faces.append((last + n - 1, last, apex))
