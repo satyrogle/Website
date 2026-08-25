@@ -169,3 +169,50 @@ priority order:
    performance). All specified in `docs/THE_CROSSING_PLAN.md`.
 
 Do not start 3 while 1 and 2 are open unless he says so.
+
+---
+
+## 9. DIRECTION CORRECTION, 2026-08-23 — read this before section 2
+
+Jacob corrected the emotional register late in the session. It overrides
+the "menace" language in the older docs, including parts of section 2.
+
+**Sinister is not evil, mad, or threatening.** In his words: sinister is
+*knowing awareness* — the feeling that you are not good enough and need
+to pull more. It is a way of observing fear, not a trait a thing has.
+The fear is INADEQUACY, not harm, and the honest response to it is to
+build. That is why the site should leave a visitor slightly wanting to
+be better at their own work.
+
+Consequences:
+- The **watcher** is the thesis, not a detail. Something is aware of
+  you, it knows, and it never comments. That is the whole feeling.
+- The **ledger** is the measuring. RETAINED and STRUCK are verdicts.
+- The **culls** are things that were not good enough. A bar, not decay.
+- The headline **"EVERYTHING HERE IS EARNED"** is not a tagline. It is
+  the sentence the site exists to make someone feel.
+- Do NOT build threat: no monster, no chained thing, no jumpscare, and
+  no "containment failing" drama. Those were my inventions and he did
+  not want them.
+
+**"Light fades but twilight always lives."** The world sits in a held
+blue hour that never resolves - not night, not day. Nothing is black.
+Implemented this session: `uGlow` in SKY_LAW lifts base and glow
+together for sky AND ground, the fog is a real twilight blue, the clear
+colour is sky rather than near-black, the grade's black point is ZERO
+(crushing lows collapses twilight back into night), and the environment
+fill is up slightly. Dial: `__dl.twilight(x)`, 0 = the old night with a
+lamp, 1 = current, up to 3.
+
+**Reference register:** Prague in monsoon - wet, old, magnificent,
+INDIFFERENT. Not melancholy; he explicitly rejected melancholy. And
+Comfortably Numb as the structure: a flat affect on the surface with
+something enormous running underneath that does not need permission.
+
+**The open structural note.** The site is currently one long
+decrescendo - the landing is dark, the descent darker, the bottom the
+darkest frame. There is no moment that SOARS. The crossing into the
+interior should probably be the most beautiful moment on the site, not
+the darkest, and the interior should get bigger rather than tighter.
+That was agreed as an idea and NOT built. It contradicts the interior
+built in I3, which was built for menace.

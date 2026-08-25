@@ -1107,6 +1107,10 @@ const SKY_VERT = /* glsl */ `
 // cutting it, and the ground evaluates the same law at the horizon
 // rather than carrying a second copy of these numbers.
 const SKY_LAW = /* glsl */ `
+// how far the world is lifted out of night and into twilight. Declared
+// here because SKY_LAW is injected into BOTH the sky and the ground, and
+// they have to agree about what the sky is worth or the horizon splits.
+uniform float uGlow;
 float skyHash(vec2 c) { return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
 float skyNoise(vec2 p) {
   vec2 i = floor(p);
@@ -1168,8 +1172,25 @@ vec3 skyAt(vec3 d, vec3 eye, float sev, float lidAmt, float drawAmt, float strat
   // grey-blue card with a dark cutout. The picture's sky is near-black
   // with structure. Hue untouched; the decks, lid and drift all scale
   // with these two, which is the point of them being the only two.
-  vec3 base = mix(vec3(0.0017, 0.0024, 0.0048), vec3(0.0013, 0.0020, 0.0044), sev);
-  vec3 glow = mix(vec3(0.0097, 0.0147, 0.0294), vec3(0.0055, 0.0092, 0.0210), sev);
+  // ---- TWILIGHT, 2026-08-23 ----
+  // Jacob: "light fades but twilight always lives", and sinister is
+  // knowing awareness, not threat. What was here was NIGHT WITH A LAMP -
+  // a near-black field with one bright seam in it, which is a lit object
+  // in a void, and a lit object in a void is a cool 3D thing beside
+  // company copy however it is dressed.
+  //
+  // Twilight is different physics. Nothing is black. The whole field
+  // carries light, there is no source anyone can point at, and it never
+  // resolves - it does not fall to night and it does not lift to day, it
+  // HOLDS. The base term is what black used to be, so the darkest part
+  // of the sky is still sky; the glow rides on top of it.
+  //
+  // uGlow scales both together so the state stays one dial: 0 is the old
+  // night, 1 is twilight, and it goes past that for review.
+  vec3 base = mix(vec3(0.0017, 0.0024, 0.0048), vec3(0.0013, 0.0020, 0.0044), sev)
+            * (1.0 + uGlow * 5.2);
+  vec3 glow = mix(vec3(0.0097, 0.0147, 0.0294), vec3(0.0055, 0.0092, 0.0210), sev)
+            * (1.0 + uGlow * 1.9);
   vec3 col = base + glow * band * (0.35 + 0.65 * high);
 
   // THE DECKS. Three horizontal sheets of haze at real altitudes. A ray
@@ -1562,6 +1583,10 @@ export class JourneyRenderer {
   private frameMat!: THREE.MeshStandardMaterial;
   private readonly groundU: Record<string, THREE.IUniform> = {
     uGSeverity: { value: 0 },
+    // the ground runs SKY_LAW too, so it needs the twilight lift or the
+    // horizon splits: a lit sky meeting an unlit plain draws exactly the
+    // hard line buildShore exists to prevent
+    uGlow: { value: 1 },
     uGDecay: { value: 0 },
     // the ground samples the sky at the horizon, so it needs the same
     // clock or the join would drift apart from what it is joining
@@ -1637,7 +1662,7 @@ export class JourneyRenderer {
       alpha: false,
       powerPreference: 'high-performance'
     });
-    this.renderer.setClearColor(0x020304, 1);
+    this.renderer.setClearColor(0x0b111c, 1);
     this.scene.fog = new THREE.FogExp2(0x0c0906, 0.0022);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
@@ -1682,7 +1707,11 @@ export class JourneyRenderer {
           // frame back under the 25 percent floor - the sky and the break
           // live exactly in the lows a black point eats. Halved and
           // gentled: the depth stays, the opening survives.
-          uLift: { value: 0.0012 },
+          // TWILIGHT, 2026-08-23: the black point is ZERO now. It existed
+          // to clip the last of the haze off a night sky, and in a held
+          // blue hour there is nothing to clip - crushing the lows is
+          // exactly how twilight collapses back into night.
+          uLift: { value: 0.0 },
           uContrast: { value: 1.05 },
           // gate I2: how far into the seam the visitor has got
           uSwallow: { value: 0 }
@@ -1772,6 +1801,7 @@ export class JourneyRenderer {
       // not because either is still open.
       uniforms: {
         uSeverity: { value: 0 },
+        uGlow: { value: 1 },
         uLid: { value: 0.3 },
         uDraw: { value: 0.6 },
         uStrata: { value: 0.35 },
@@ -3082,7 +3112,10 @@ export class JourneyRenderer {
     // reference's material quality ---
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.02).texture;
-    this.scene.environmentIntensity = 0.28;
+    // TWILIGHT: the sky is the fill. Raised, but only a little - the
+    // recorded law still binds, ambient stronger than the key models no
+    // form at all, and a lighter flat is still flat.
+    this.scene.environmentIntensity = 0.36;
 
     // --- the monument itself: authored stone, not boxes ---
     const monoUniforms = (): Record<string, THREE.IUniform> => ({
@@ -3572,6 +3605,16 @@ ${SKY_LAW}`
     this.stoneU.uScript!.value = Math.max(0, Math.min(4, amount));
   }
 
+  /**
+   * TWILIGHT. 0 is the old night-with-a-lamp, 1 is the held blue hour,
+   * and it runs past that for review. One dial for one state.
+   */
+  setTwilight(amount: number): void {
+    const a = Math.max(0, Math.min(3, amount));
+    this.skyMat.uniforms.uGlow!.value = a;
+    this.groundU.uGlow!.value = a;
+  }
+
   setStill(amount: number): void {
     this.stillPin = amount < 0 ? -1 : Math.max(0, Math.min(1, amount));
   }
@@ -3875,7 +3918,11 @@ ${SKY_LAW}`
         (1 - smooth01(progress, 0.86, 0.97));
     // Gate 1: the fog tracks the darkened sky at the same forty percent,
     // or every hazed slab reads as a paler cutout against it.
-    const fogColor = lerpColor('#020305', '#010205', sev);
+    // TWILIGHT: fog is the colour of the air, and in a held blue hour
+    // the air is not black. This is what stops the far plain and the
+    // choir reading as cutouts against a lit sky - they now fog to
+    // something that belongs to the same world.
+    const fogColor = lerpColor('#0d141f', '#0a1019', sev);
     (this.scene.fog as THREE.FogExp2).color.copy(fogColor);
     (this.scene.fog as THREE.FogExp2).density = fogDensity;
 
