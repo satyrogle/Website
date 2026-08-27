@@ -944,6 +944,24 @@ if (gl_FrontFacing) {
     totalEmissiveRadiance += vec3(0.45, 0.5, 0.6) * (uInnerAmt / (1.0 + dot(iv, iv) * 0.02));
   }
 
+  // ---- THE ERODED GILDING ----
+  // 40k steal 3, Jacob 2026-08-27: gold in that language is never
+  // clean, it survives where light pools. The seam's ruined gold has
+  // stained the stone that FACES it - a static warm bounce on the
+  // cleft-facing walls, falling off within a few units, so the slit's
+  // edges carry a centuries-of-lamplight patina. Bounce, not pigment:
+  // it lives in emission at whisper level, fades with decay, and adds
+  // no line to any face the camera sees square-on.
+  {
+    float gSide = vMonoW.x >= 0.0 ? 1.0 : -1.0;
+    float gCut = gSide * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
+    float gDist = abs(vMonoW.x - gCut);
+    vec3 gN = normalize(vNormal);
+    float gFace = clamp(gN.x * -gSide, 0.0, 1.0);
+    float gNear = exp(-gDist * 0.45);
+    totalEmissiveRadiance += vec3(0.42, 0.27, 0.10) * gFace * gNear * 0.5 * (1.0 - uDecay);
+  }
+
   // ---- THE RIM ----
   // Gate 3 of the reference picture, 2026-08-22. With the sky dropped to
   // near-black (gate 1), the shadow side of the mass sank into it and the
@@ -2175,6 +2193,8 @@ vCrestN = normal;`
       model.position.y += heroHeight * 0.75;
       model.rotation.x = THREE.MathUtils.degToRad(tuning.pitch);
       group.add(model);
+
+      // The pockets stay open. Six fills died here; enough.
     },
     undefined,
     (err) => console.error('hero crest asset failed to load', err)
@@ -2643,7 +2663,12 @@ export class HeroRenderer {
           // and it hurts to look at. It also costs the watcher its
           // effect, because a saturated pixel cannot get brighter where
           // the attention lands.
-          float near = mix(0.68, 0.55, uNear);
+          // resting level down 0.68 -> 0.52, Jacob 2026-08-27: "light
+          // seam is too bright when idle". At this level the standing
+          // halo largely sits below the bloom threshold, so idle is a
+          // solid gold line and the glow belongs to the surge and the
+          // watcher's node - brightness becomes an EVENT again.
+          float near = mix(0.52, 0.42, uNear);
           // ---- THE WATCHER ----
           // Jacob asked for "an eye or something sinister looking from
           // the middle of the light crack" that follows the cursor.
