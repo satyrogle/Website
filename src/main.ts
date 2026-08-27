@@ -1,17 +1,14 @@
 import { detectCapabilities, prefersReducedMotion } from './core/capabilities';
 import { ExperienceState, seedFromLocation } from './core/ExperienceState';
 import { LatticeWorld } from './world/LatticeWorld';
-import { JourneyRenderer } from './render/JourneyRenderer';
-import { ScrollDirector } from './motion/ScrollDirector';
+import { HeroRenderer } from './render/HeroRenderer';
 import { InputController } from './input/InputController';
-import { EvidenceRecorder } from './record/EvidenceRecorder';
 import { ContentController } from './content/ContentController';
 
 /**
- * Boot. One deterministic state model, one world, one camera journey:
- * the exterior mass, the descent through the strata, the core where the
- * frame and its law are visible. Hero copy paints before any of this
- * runs; the world fades in once the first frame exists.
+ * Boot. One deterministic world held at the approved hero camera.
+ * Hero copy paints before WebGL starts; the world fades in once the
+ * first frame exists. There is deliberately no scroll journey here.
  *
  * ?seed=N     replaces the default seed
  * ?harness=1  disables auto-stepping and exposes window.__dl
@@ -32,13 +29,11 @@ function boot(): void {
   const flat = params.has('flat');
 
   const caps = detectCapabilities();
-  const recorder = new EvidenceRecorder();
 
   const canvas = document.querySelector<HTMLCanvasElement>('#world');
   if (!caps.webgl || !canvas) {
     document.body.classList.add('no-webgl');
     new ContentController(false, 0);
-    recorder.noWorld();
     return;
   }
 
@@ -46,50 +41,26 @@ function boot(): void {
   state.reducedMotion = prefersReducedMotion();
 
   let world: LatticeWorld;
-  let renderer: JourneyRenderer;
+  let renderer: HeroRenderer;
   try {
-    world = new LatticeWorld(state.seed, (e) => recorder.add(e));
-    renderer = new JourneyRenderer(canvas, world, caps.lowTier ? 1.25 : 1.75);
+    world = new LatticeWorld(state.seed, () => undefined);
+    renderer = new HeroRenderer(canvas, world, caps.lowTier ? 1.25 : 1.75);
   } catch (err) {
     console.error('World failed to start; the still page stands.', err);
     document.body.classList.add('no-webgl');
     new ContentController(false, 0);
-    recorder.noWorld();
     return;
   }
 
   renderer.flatAudit = flat;
   new ContentController(true, world.nodeCount);
-  new ScrollDirector(state);
-  new InputController(world, renderer, () => {
-    recorder.notice(
-      'T+' + String(world.tick).padStart(6, '0') + ' · STILL TAKING THE LAST MARK'
-    );
-  });
+  new InputController(world, renderer, () => undefined);
 
   const telemetry = document.querySelector<HTMLElement>('#telemetry');
 
   canvas.addEventListener('webglcontextlost', () => {
     document.body.classList.add('no-webgl');
     document.body.classList.remove('world-ready');
-    recorder.add({
-      kind: 'removed',
-      tick: world.tick,
-      text: 'WEBGL CONTEXT LOST',
-      status: 'OFFLINE'
-    });
-  });
-
-  recorder.add({
-    kind: 'seed',
-    tick: 0,
-    text:
-      'SEED ' +
-      state.seed +
-      ' · ' +
-      world.nodeCount.toLocaleString('en-GB') +
-      ' NODES · FIXED STEP 60 HZ',
-    status: 'ONLINE'
   });
 
   if (harness) {
@@ -105,7 +76,7 @@ function boot(): void {
         const p = renderer.pressPoint(ndcX, ndcY);
         return world.placeMark(p.x, p.y, p.z);
       },
-      records: (): number => document.querySelectorAll('#record-list li').length,
+      records: (): number => world.marks.length,
       // the witnessed cull's evidence: where the law has struck cells
       // from the face, so the harness can assert the strike is on the
       // camera-facing arc rather than trusting that it is
@@ -133,13 +104,11 @@ function boot(): void {
       twilight: (a: number): void => renderer.setTwilight(a),
       // gate I1: 1 holds the brace open, 0 forces it shut, -1 is live
       still: (amount: number): void => renderer.setStill(amount),
-      // gate I2: 0..1 holds the crossing open, -1 is live
-      swallow: (amount: number): void => renderer.setSwallow(amount),
       setGrade: (lift: number, contrast: number): void => renderer.setGrade(lift, contrast)
     };
     const renderOnly = (): void => {
       requestAnimationFrame(renderOnly);
-      renderer.update(state.progress, 1 / 60, false);
+      renderer.update(0, 1 / 60, false);
     };
     requestAnimationFrame(renderOnly);
     return;
@@ -170,7 +139,7 @@ function boot(): void {
       if (accumulator > FIXED_STEP) accumulator = FIXED_STEP;
     }
 
-    renderer.update(state.progress, dt, state.reducedMotion);
+    renderer.update(0, dt, state.reducedMotion);
 
     if (frame === 1) document.body.classList.add('world-ready');
     if (telemetry && frame % 20 === 0) {

@@ -1,5 +1,5 @@
 import type { LatticeWorld } from '../world/LatticeWorld';
-import type { JourneyRenderer } from '../render/JourneyRenderer';
+import type { HeroRenderer } from '../render/HeroRenderer';
 
 /**
  * A press travels input, authoritative state, visible consequence,
@@ -10,7 +10,7 @@ import type { JourneyRenderer } from '../render/JourneyRenderer';
 export class InputController {
   constructor(
     private readonly world: LatticeWorld,
-    private readonly renderer: JourneyRenderer,
+    private readonly renderer: HeroRenderer,
     private readonly onRefused: () => void
   ) {
     window.addEventListener('pointerdown', this.onPointerDown);

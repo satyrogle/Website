@@ -1,23 +1,6 @@
-/**
- * Coarse authoritative experience state. The scroll position, the
- * narrative phase, and the seed live here. Renderers observe it; nothing
- * renders its own version of the truth.
- */
-export type Phase =
-  | 'enter'
-  | 'travel'
-  | 'desk42'
-  | 'rule'
-  | 'brawler'
-  | 'technology'
-  | 'studio'
-  | 'return';
-
+/** Authoritative seed and accessibility state for the hero world. */
 export class ExperienceState {
   readonly seed: number;
-  /** 0..1 document scroll progress, set by ScrollDirector only. */
-  progress = 0;
-  phase: Phase = 'enter';
   reducedMotion = false;
 
   constructor(seed: number) {

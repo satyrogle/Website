@@ -1,51 +1,40 @@
 # THE CROSSING AND THE READER — execution plan
 
-Status: **LOCKED 2026-08-22.** Story locked, gate order locked, E0 struck by
-Jacob. Supersedes every earlier interior proposal in this session.
+Status: **DEFERRED BY OWNER — 2026-08-25. NOT PRESENT IN THE LIVE SITE.**
 
-This document exists so no future session re-derives any of it. Read it, do the
-next unfinished gate, stop.
+Jacob reset the website to the hero only. Nothing in this historical plan
+authorizes journey, crossing, interior, latent-form, or return implementation
+until he explicitly reopens it after the hero is approved.
+
+`docs/JOURNEY_AND_LATENT_FORM.md` is the story authority and supersedes the
+older containment interpretation previously recorded here.
+
+This document is retained only so the prior thinking is not lost. Do not act on
+its old gate statuses while the hero-first reset is active.
 
 ---
 
-## 1. The story (LOCKED — do not reopen)
+## 1. Journey and Latent Form (AUTHORITATIVE)
 
-**The monument is not a temple. It is a lock.**
+The complete chapter is `docs/JOURNEY_AND_LATENT_FORM.md`. Its governing law is:
 
-The holy exterior is the restraint. The light in the fissure is what leaks from
-the thing being held. Everything already built re-means itself:
+> Beneath a surface of magnificent indifference, something enormous is already
+> aware of the visitor.
 
-- The **ties and lattice** were never holding the tower up. They hold the thing
-  inside *down*.
-- The **ledger** is the containment log. RETAINED / STRUCK / CULLED is
-  maintenance of a seal, not telemetry.
-- The **culls** are strain damage. Something inside pulled; a piece of the wall
-  let go. What read as decay at the landing was containment failure.
-- The **watcher** was never decoration. Something noticed the visitor before
-  the visitor did anything.
+The opening is wet, old, holy, and indifferent. The crossing is the site's most
+beautiful and expansive beat. A shadow cast by the latent presence leads across
+the luminous interior. At the end, the presence is dark, faceless, backlit,
+still, and already aware. The return changes the visitor's understanding more
+than the world.
 
-**Agency lock.** The held thing may *notice* the visitor visually. The
-containment system owns the ledger. `OBSERVER NOTED — RETAINED` is written by
-the containment, once, unprompted, near the encounter. Never repeated.
+**Sinister means knowing awareness and inadequacy, not threat.** The watcher is
+the thesis; the ledger measures; retained, struck, and culled are standards and
+verdicts. No monster, chained thing, prison, containment failure, escape drama,
+jump scare, chase, or attack is part of this story.
 
-**Strain causality — one authoritative chain, never a decoupled effect:**
-
-```
-true-form strain -> containment load rises -> one exterior cell fails
-  -> ledger records CULLED -> return frame retains the evidence
-```
-
-**The true form is not a character.** No humanoid colossus, no boss silhouette,
-no face in the fissure, no limbs, no mechanical skeleton. It is a restrained
-spatial mass: taut members vanishing into dark, one large mass that never fully
-resolves, impossible negative space under load, one small strain motion, the
-rest obscured. Horrifying because the restraints imply force and the scale is
-unresolved — never because something is shown.
-
-**Dropped permanently:** the sky break as an escape scar (over-explains; the lid
-stays structural evidence of enclosure, the draw stays the hero acting on the
-atmosphere). The white-out crossing. The lattice-as-reader reading. Visible
-placeholder true forms. Contact-sheet reference selection.
+The chapter decides meaning but refuses to invent the exact latent-form shape.
+That remains gated by an approved V6 image. Visible placeholders and contact
+sheets remain permanently dropped.
 
 ---
 
@@ -53,9 +42,9 @@ placeholder true forms. Contact-sheet reference selection.
 
 ```
 0.00-0.18  THE APPROACH    exterior, annotations begin
-0.18-0.24  THE SWALLOW     entry through the seam
+0.18-0.24  THE CROSSING    the most beautiful expansion
 0.24-0.78  THE INSIDE      landscape + shadow road + four stations
-0.78-0.88  THE TRUE FORM   stillness total, the caster
+0.78-0.88  THE LATENT FORM stillness total, awareness understood
 0.88-1.00  THE RETURN      approved bones + the audit
 ```
 
@@ -67,17 +56,18 @@ from any depth. Nobody is forced through the journey.
 ## 3. Gate order
 
 ```
-E0   Exterior correction            <- NEXT
-I1   The Brace
-I2   The Swallow
-V3   Interior reference images (Jacob picks one)
-I3   Interior world, matched to the picked image
-V4   Shadow-road motion reference (Jacob approves behaviour)
-I4   Shadow road
+E0   Exterior correction            COMPLETE
+I1   The Brace                       COMPLETE
+V2   Detached references             REJECTED AS THE WRONG DELIVERABLE
+I2   Actual-page crossing candidate  BUILT LOCALLY; JACOB VERDICT PENDING
+V3   Interior direction              MONSOON APERTURE / INDIFFERENT EXPANSE
+I3   Interior world candidate        BUILT LOCALLY; JACOB VERDICT PENDING
+V4   Shadow-road behaviour           BUILT IN PAGE; JACOB VERDICT PENDING
+I4   Shadow road candidate           BUILT LOCALLY; JACOB VERDICT PENDING
 I5a  One complete station, vertical slice
 I5b  Remaining stations
-V6   True-form references (Jacob picks one)
-I6   True form
+V6   Detached latent references      DROPPED
+I6   Anamorphic latent candidate     BUILT LOCALLY; JACOB VERDICT PENDING
 I7   Return audit
 I8   Parity, performance, accessibility, guards
 ```
@@ -106,9 +96,10 @@ captures is the most expensive operation in this repo.
 
 ## 5. GATE E0 — EXTERIOR CORRECTION (work order)
 
-The landing was approved under the *temple* story. Under the *lock* story a
-processional approach means the opposite of what it must mean. These five
-strikes are Jacob's, confirmed 2026-08-22.
+The landing must establish magnificent indifference, not ceremony. A
+processional approach makes the world appear arranged for the visitor, which
+means the opposite of what it must mean. These five strikes are Jacob's,
+confirmed 2026-08-22.
 
 ### E0.1 Steps and plinth: DELETE
 
@@ -207,9 +198,10 @@ landing camera does not move in this plan. Do not move it.
 - **Ruin: keep**, re-authored as broken ground and collapsed mass rather than
   ruined stairs, since the stairs it was ruining no longer exist. Wreckage reads
   as consequence, not invitation.
-- **The contact (fracture network + charge) : keep.** Jacob's only unprompted
-  praise in the build, and under the lock story it is the containment-strain
-  evidence on the plain, wired to the culls. It is not decorative dressing.
+- **The contact (fracture network + charge): keep.** Jacob's only unprompted
+  praise in the build. It is physical evidence that the Spire changes the field
+  around it and visual evidence of the system's measured standard. It is not
+  containment damage and not decorative dressing.
 
 ### E0 acceptance — all ten must be true
 
@@ -221,7 +213,7 @@ landing camera does not move in this plan. Do not move it.
 6. Corruption exists in several places with an obvious hierarchy.
 7. The choir read as structurally different masses, not one tower rescaled.
 8. Landing camera and typography unchanged.
-9. No interior system, crossing, station or true-form work was touched.
+9. No interior system, crossing, station or latent-form work was touched.
 10. One desktop capture presented (plus one mobile), then **stop**.
 
 Proof: desktop + mobile still. Inspection: **rule B** — one look against 1-7,
@@ -240,27 +232,34 @@ scroll proximity as well as idle. `__dl.still(0|1)` toggle for live A/B.
 light gathering to a point (makes it a portal), touching input parallax.
 Proof: short A/B clip. Inspection: A.
 
-### I2 — THE SWALLOW
-Entering the slit: the seam's light slides to the frame edges and passes around
-the camera while darkness opens in the centre and takes the screen. Pass
-*through* the light into the dark.
-**Hard rules:** no full-screen white; no frame brighter than the landing seam;
-no closed glowing ring; no portal silhouette; no circular rim; no lens flare; no
-exposure blast. Both the luminance cap and the no-ring check go into
-`tools/quality.mjs` as a scripted scroll test.
+### I2 — THE CROSSING
+Entering the slit: the seam's light slides past and around the camera while the
+apparent boundary opens into an impossibly larger luminous interior. This is
+the site's first release and its most beautiful, expansive beat — a controlled
+lift, not a blackout and not an explosion.
+
+**Hard rules:** the selected V2 image is composition truth; no full-screen
+white; no closed glowing ring; no portal silhouette; no circular rim; no lens
+flare; no exposure blast; no crushed-black centre. The fissure may remain the
+sharpest local source while the frame's luminous area and perceived scale rise.
+The old quality assertion that the mean brightness may only fall is superseded
+and must be rewritten only when the approved V2 target is implemented. The
+no-ring guard remains.
 Proof: five-frame transition strip. Inspection: **B**.
 
 ### V3 — INTERIOR REFERENCE IMAGES
 Deliverable is **actual images**, produced in Jacob's image tool from prompts
 written here. **At most three candidates, one full-frame image per file** — no
 grid, no collage, no contact sheet, no embedded text, same aspect ratio. Three
-distinct interior spatial grammars under the same locked story. Jacob picks one;
+distinct interior spatial grammars under the same narrative law. Jacob picks one;
 that file becomes implementation truth.
 Nothing in I3 begins before a pick.
 
 ### I3 — THE INTERIOR WORLD
-Built to match the picked image. The second awe beat: the inside is a world
-impossibly larger than the outside.
+Built to join the picked V2 crossing and V3 interior as one continuous reveal.
+The crossing soars and the inside sustains that expansion: a world impossibly
+larger than the outside, held in luminous blue hour rather than descending into
+the site's darkest frame.
 **Requires:** one vast continuous spatial field; a few immense level changes,
 never repeated steps; large readable light and dark territories; no human-scale
 architecture anywhere; enough mid-value structure for a shadow to visibly cross;
@@ -274,13 +273,14 @@ and clusters, or the world densifies into noise over time.
 Proof: reveal still + wide landscape still. Inspection: A.
 
 ### I4 — THE SHADOW ROAD
-The tunnel with no tunnel: a band of darkness lying across the lit interior,
-travelled from inside, ending at what casts it. A tunnel is a route; a shadow
-proves something exists at its source.
+The tunnel with no tunnel: a band of darkness lying across the lit interior.
+It is cast by the latent presence and encountered before that source can be
+read. A tunnel merely provides a route; this shadow is evidence. It guides
+toward comprehension and never behaves like pursuit.
 **Requires:** enters from off-frame, never a centred lane from the start; broad
 off-axis umbra with a softer penumbra; lit terrain visible on both flanks; motes
 extinguishing inside the shadow volume; distant surfaces crossing in and out of
-it; sharpening as the caster nears.
+it; sharpening as the visitor nears its source.
 **World space, not screen space** — it must affect terrain, haze, entry lights
 and nearby structures. A vignette or overlay is a failure.
 **Forbidden:** tunnel meshes, tubes, rings, lens-only fakery, a black road
@@ -297,57 +297,59 @@ sentence; one real state/evidence detail (live authoritative counts, never
 copywriting); one quiet mono world annotation.
 
 **No persistent ledger column through the journey.** The full ledger opens only
-at technology/evidence, the true-form encounter, and the return audit.
+at technology/evidence, the latent-form encounter, and the return audit.
 
-**Annotation register decays with depth** — architecture (`THE COURSES`) to
-anatomy (`THE SPINE`) to restraint (`TIE 14 — LOAD`). That semantic decay is
-where the discrepancy lands: the labels stop describing a building and start
-describing a hold.
+**Annotation register deepens with the journey** — surface description (`THE
+COURSES`) to observation (`THE SPINE`) to measurement (`TIE 14 — STANDARD`).
+The discrepancy lands when labels stop merely naming a building and begin to
+expose attention, comparison, and verdict. They never describe imprisonment or
+containment.
 
 Top nav stays available; the right-half panel is a practical access layer, not
 the cinematic presentation. Deep links land on the panel.
 **I5a builds ONE station completely** (desktop + mobile) for Jacob's verdict
 before I5b builds the rest. Inspection: A.
 
-### V6 — TRUE-FORM REFERENCES
+### V6 — LATENT-FORM REFERENCES
 **At most three candidates, one full-frame image per file.** Same camera, same
-lighting, same scale, same restraint anchors, no environment change between
-candidates. No sheet, no grid, no cluster. Jacob picks one before any visible
-body is integrated.
+lighting and same scale; no environment change between candidates. No sheet,
+no grid, no cluster. Jacob picks one before any visible form is integrated.
+Every candidate must satisfy `docs/JOURNEY_AND_LATENT_FORM.md`: dark, faceless,
+backlit, still, aware without an eye, and never restrained or threatening.
 
-### I6 — THE TRUE FORM
+### I6 — THE LATENT FORM
 Mechanics may be prototyped **only against invisible bounding volumes, debug
 anchors and non-rendering transforms.** A visible placeholder is forbidden — it
 becomes the final composition because lighting, camera and mechanics all tune
 around it.
 
-Mechanics: total stillness; the one slow strain (millimetre flex of the ties,
-the only motion in the world); strain-cull wiring per the causality chain; the
-attention inversion (the watcher stops following the pointer and holds on the
-camera); `OBSERVER NOTED — RETAINED` written once by the containment.
+Mechanics: total stillness; the watcher's already-present regard ceases pointer
+parallax and remains quietly aligned with the camera, with no snap or target
+lock; one observer record, written once by the ledger and never repeated. The
+form was present and attentive before arrival; it does not awaken, escape,
+strain against restraints, or cause an attack.
 
 **Acceptance:** no copy in the frame; no eye construction (never a lit void
-framed by two curved forms); the darkest frame on the site; determinism holds.
+framed by two curved forms); blue-hour structure remains legible; awareness
+without threat; determinism holds.
 Inspection: A.
 
 ### I7 — THE RETURN AUDIT
-Approved return bones: fog clears, distance given back, the opening frame again
-— now read as a lock that is holding. **Do not** progressively fracture the
-floor as the proof.
+Approved return bones: fog clears, distance is given back, and the opening frame
+returns — now read as an indifferent surface beneath which awareness had always
+been present. **Do not** progressively fracture the floor as proof.
 
-**Three precise retained differences instead:**
-1. one missing/failed surface unit on the hero;
-2. one additional retained outbreak linked to that event;
-3. the session's exact ledger rows.
-
-Optional fourth: one choir alignment seam no longer complete.
+**Return law:** at most one visible world difference, chosen and approved before
+implementation. The session's exact ledger rows may also remain because they
+are record, not a second world mutation.
 Proof: matched landing/return pair. Inspection: A.
 
 ### I8 — PARITY AND GUARDS
 Reduced motion: same content, same order, static frames per beat, never an empty
-version. Harness extended with the crossing luminance cap, station anchors,
-panel access, `OBSERVER NOTED` firing exactly once, replay determinism, temporal
-calm. Budgets re-verified: LCP <= 2.5s, INP <= 200ms, CLS <= 0.1, DPR capped.
+version. Harness extended with a V2-derived crossing lift envelope and no-ring
+guard, station anchors, panel access, the observer record firing exactly once,
+replay determinism, temporal calm. Budgets re-verified: LCP <= 2.5s, INP <=
+200ms, CLS <= 0.1, DPR capped.
 
 ---
 
@@ -384,5 +386,7 @@ state are what is photographed. Jacob's viewport is 2270x1278.
 - Headless/SwiftShader is not GPU truth.
 - Every tuned value belongs to a camera pose. The landing camera does not move.
 
-**Untouchable during interior work:** the six sinister gates' mechanics, the
-landing camera, typography, and the DOM content contract.
+**Untouchable during interior work:** the six sinister gates' mechanics where
+they comply with `docs/JOURNEY_AND_LATENT_FORM.md`, the landing camera,
+typography, and the DOM content contract. Superseded containment causality and
+the old falling-luminance crossing assertion are not protected.

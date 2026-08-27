@@ -20,7 +20,7 @@
 </head>
 <body data-phase="enter">
 
-  <a class="skip-link" href="#system">Skip to content</a>
+  <a class="skip-link" href="#enter">Skip to hero</a>
 
   <!-- The world. One canvas, fixed behind everything. -->
   <canvas id="world" aria-hidden="true"></canvas>
@@ -28,14 +28,6 @@
 
   <header class="site-head">
     <p class="wordmark"><a href="#top" aria-label="Dark Lattice, back to top">Dark&nbsp;Lattice</a></p>
-    <nav class="site-nav" aria-label="Site">
-      <a href="#system">System</a>
-      <a href="#desk42">Desk42</a>
-      <a href="#brawler">Brawler</a>
-      <a href="#technology">Technology</a>
-      <a href="#studio">Studio</a>
-      <a href="#contact">Contact</a>
-    </nav>
     <p class="telemetry" id="telemetry" aria-hidden="true"></p>
   </header>
 
@@ -48,200 +40,8 @@
         <p class="lede">
           We build games where the simulation is the truth. Rules are explicit,
           consequences are computed, and nothing that happens is forgotten.
-          Two are in development: <a href="#desk42">Desk42</a> and <a href="#brawler">Brawler</a>.
+          Two are in development: Desk42 and Brawler.
         </p>
-      </div>
-    </section>
-
-    <!-- TRAVEL / THE SYSTEM -->
-    <section class="stop" id="system" aria-labelledby="system-title">
-      <div class="stop__inner panel" data-reveal>
-        <div class="stop-head">
-          <p class="label">01 · The system you are looking at</p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <h2 class="title" id="system-title">
-          <span data-node-count>14,000</span> cells. One monument. One law.
-        </h2>
-        <p class="body">
-          Nothing behind this page is a video. Every cell in the monument is
-          a record in one seeded structure. From the water it reads as
-          marble. Keep scrolling and it will not stay whole: the surface
-          fails in waves, and what has been holding the shape becomes
-          visible.
-        </p>
-        <p class="body" data-webgl-only>
-          Press anywhere and the monument will take a mark from you. A new
-          cell is seated into the face: retained, written to the record, and
-          subject to everything that follows.
-        </p>
-        <p class="body" data-no-webgl hidden>
-          Your browser could not provide WebGL2, so you are reading the still
-          version of this page: a true capture of the same seeded world.
-          Everything the site says remains true without the motion.
-        </p>
-        <button class="mark-button" type="button" data-place-mark data-webgl-only>
-          Place a mark
-        </button>
-      </div>
-    </section>
-
-    <!-- ENCOUNTER INFORMATION: DESK42 -->
-    <section class="stop stop--right" id="desk42" aria-labelledby="desk42-title">
-      <div class="stop__inner panel" data-reveal>
-        <div class="stop-head">
-          <p class="label">02 · Desk42</p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <p class="role">Single player · Unity · Windows PC · Steam first</p>
-        <h2 class="title title--project" id="desk42-title">Desk42</h2>
-        <p class="lede">You work a desk inside a bureaucracy, deciding people&rsquo;s claims.</p>
-        <p class="body">
-          Every decision is written into a persistent institutional record. The
-          record does not reset between days, it is never edited to be kind, and
-          what the institution remembers about a person becomes what the
-          institution does to them. You are not fighting the machine. You are
-          the part of it that signs.
-        </p>
-        <p class="status">
-          In development. The current build is a bounded causal slice, not a
-          near-complete product.
-        </p>
-      </div>
-    </section>
-
-    <!-- WORLD TRANSFORMS: THE RULE -->
-    <section class="stop stop--turn" id="rule" aria-labelledby="rule-title">
-      <div class="stop__inner" data-reveal>
-        <div class="stop-head">
-          <p class="label">03 · The rule you could not see</p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <h2 class="title" id="rule-title">
-          The monument looks immaculate because everything that failed is
-          already gone.
-        </h2>
-        <p class="body">
-          From the water it reads as grace: one white mass, held in perfect
-          stillness. There is no grace. There is one law, and it has been
-          running the whole time you have been here.
-        </p>
-        <p class="body">
-          A cell that fails its quota is struck from the face. Struck cells
-          fall, and the fallen pile at the foot. The system does not repair
-          and it does not grieve. The <a href="#technology">record</a> lists
-          every strike with the tick at which it happened, including anything
-          of yours that stops earning its place.
-        </p>
-      </div>
-    </section>
-
-    <!-- TRAVEL DEEPER: BRAWLER -->
-    <section class="stop stop--right" id="brawler" aria-labelledby="brawler-title">
-      <div class="stop__inner panel" data-reveal>
-        <div class="stop-head">
-          <p class="label">04 · Brawler <span class="wt">(working title)</span></p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <p class="role">Action roguelite · Unreal Engine</p>
-        <h2 class="title title--project" id="brawler-title">Brawler</h2>
-        <p class="lede">An action roguelite where the ground itself is alive.</p>
-        <p class="body">
-          One spatial simulation is authoritative for movement, hazards and
-          combat consequence. When the arena burns, floods or gives way, the
-          change is state. It propagates, it persists through the fight, and it
-          does not care whose turn it is. You do not play on the level. You
-          play inside it.
-        </p>
-      </div>
-    </section>
-
-    <!-- NEW INFORMATION: TECHNOLOGY + THE RECORD -->
-    <section class="stop" id="technology" aria-labelledby="technology-title">
-      <div class="stop__inner panel" data-reveal>
-        <div class="stop-head">
-          <p class="label">05 · How we build</p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <h2 class="title" id="technology-title">
-          Rules first. Tools that prove the rules behave. Games on top.
-        </h2>
-        <p class="body">
-          Where determinism matters, we make it real: seeded randomness, fixed
-          timesteps, and state that can be replayed from a seed and an input
-          trace in the environment we test on. Simulation state is
-          authoritative and renderers only observe it. If we cannot replay it,
-          we do not claim it.
-        </p>
-        <p class="body">
-          SatyBT, a founder-built behaviour tree framework, is public under
-          MIT. No benchmark or simulation-scale figure appears on this page,
-          because none has been measured.
-        </p>
-        <div class="ledger" aria-labelledby="record-title">
-          <div class="stop-head" style="margin-bottom: 0; border: 0;">
-            <p class="label" id="record-title">The record</p>
-          </div>
-          <p class="small" style="margin-top: 0.75rem;">
-            This page holds itself to the same standard. Below is the live
-            record of the world behind this site, including everything you did
-            to it.
-          </p>
-          <div class="ledger__head label" aria-hidden="true">
-            <span>Tick</span><span>Event</span><span>Status</span>
-          </div>
-          <ol class="ledger__list" id="record-list" reversed></ol>
-        </div>
-      </div>
-    </section>
-
-    <!-- STUDIO -->
-    <section class="stop stop--right" id="studio" aria-labelledby="studio-title">
-      <div class="stop__inner panel" data-reveal>
-        <div class="stop-head">
-          <p class="label">06 · The studio</p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <h2 class="title" id="studio-title">
-          A founder-led systems studio in the United Kingdom.
-        </h2>
-        <p class="body">
-          We sell paid PC games, downloaded, starting with Desk42 on Steam and
-          then Brawler. That is the whole business model. The reusable
-          technology keeps our own costs down and stays internal: nothing is
-          licensed, and no engine is for sale.
-        </p>
-        <p class="body boundary">
-          If a claim is not written on this page, we are not making it.
-          We would rather be checked than believed.
-        </p>
-      </div>
-    </section>
-
-    <!-- RETURN / UNDERSTAND THE WHOLE + CONTACT -->
-    <section class="stop stop--return" id="contact" aria-labelledby="return-title">
-      <div class="stop__inner panel" data-reveal>
-        <div class="stop-head">
-          <p class="label">07 · The true form</p>
-          <span class="rule" aria-hidden="true"></span>
-        </div>
-        <h2 class="title" id="return-title">
-          Beneath the light there was always the lattice.
-        </h2>
-        <p class="body">
-          Strip everything that failed and this is what remains: the dark
-          frame that was doing the holding all along. Not a wound, not a
-          monster. The part that never needed to be beautiful. We think the
-          most interesting games live exactly there: systems you admire
-          before you understand what they are doing.
-        </p>
-        <div class="contact">
-          <p class="label">Contact</p>
-          <p class="contact__line">
-            <a class="contact__mail" href="mailto:contact@darklattice.co.uk">contact@darklattice.co.uk</a>
-          </p>
-          <p class="small">One address, read by a founder. Press, players, collaborators.</p>
-        </div>
       </div>
     </section>
 
@@ -256,9 +56,6 @@
       </p>
     </div>
     <nav class="foot-links" aria-label="Footer">
-      <a href="#desk42">Desk42</a>
-      <a href="#brawler">Brawler</a>
-      <a href="#studio">Studio</a>
       <a href="/privacy.html">Privacy</a>
       <a href="/terms.html">Terms</a>
       <a href="mailto:contact@darklattice.co.uk">Contact</a>
@@ -274,8 +71,6 @@
   <div class="anno" id="anno-crown" aria-hidden="true"><span class="anno__line"></span>THE CROWN</div>
   <div class="anno" id="anno-cleft" aria-hidden="true"><span class="anno__line"></span>THE CLEFT &middot; OPEN</div>
   <div class="anno" id="anno-law" aria-hidden="true"><span class="anno__line"></span>LAW COURSES 025&ndash;095</div>
-
-  <!-- Live record chip -->
 
   <script type="module" src="/src/main.ts"></script>
 </body>

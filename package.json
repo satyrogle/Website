@@ -3,7 +3,7 @@
   "private": true,
   "version": "2.0.0",
   "type": "module",
-  "description": "Dark Lattice: one seeded world, observed at three scales",
+  "description": "Dark Lattice: the Split Spire hero",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
