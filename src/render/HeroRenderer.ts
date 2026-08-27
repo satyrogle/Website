@@ -826,18 +826,89 @@ const FRAG_MAP = `#include <map_fragment>
   // with the taper; the world-parallel attempt removed it and that
   // was a misread of his note. Thinner than the world-width version
   // ("super thick and weird"), and still stopping short of the tip.
+  // THE SEAMS MIMIC THE CROWN, Jacob 2026-08-27: instead of fading
+  // out where they used to stop, both faces' seams curve inward as
+  // they rise - the same convergence the prongs' own edges carry -
+  // and MERGE into the cleft at that height, so the pair and the slit
+  // read as one lancet shape. Below the bend they hold the straight
+  // 0.38 line as before.
   float seam = 0.0;
   float chamfer = 0.0;
+  float seamDepth = 0.0;
   {
-    float seamCap = 1.0 - smoothstep(0.56, 0.68, heightT);
-    float d = abs(clamp(outward, 0.0, 1.1) - 0.38);
-    seam = (1.0 - smoothstep(0.0, 0.012, d)) * seamCap;
-    chamfer = (1.0 - smoothstep(0.012, 0.034, d)) * step(0.012, d) * seamCap;
+    // THE BROAD LANCET, Jacob 2026-08-27: thin lines, wide arch. The
+    // seams hold their stance almost to the top of the run and then
+    // sweep into the merge on a quarter-ellipse - the sides of a true
+    // arch - instead of pinching to the centre early. A thick tapered
+    // cut was tried against the same sentence and rejected.
+    // PER-SIDE MERGE HEIGHT, measured not guessed: the prongs are
+    // asymmetric (different tips, offset cleft), so one world height
+    // lands at different screen heights per side - the left tip
+    // measured 16px above the right. Each side merges at its own
+    // height, offset by exactly that measurement.
+    // The offset serves the EYE, not the ruler: red-paint measurement
+    // put the two tips level to 2px, and Jacob still saw the left
+    // running high - because the left face is lit and its line holds
+    // contrast to the top, while the right's upper stretch dies into
+    // shadow. The left therefore merges visibly lower.
+    float mergeEnd = 0.73 - (sideS < 0.0 ? 0.004 : 0.0);
+    // LINEAR ramp, not smoothstep: the S-curve below already eases
+    // both ends, and easing the ramp too stacked the curvatures - the
+    // line bent across too few pixels in the upper half and the
+    // antialiasing could not track it, which is the "rough and
+    // pixelated again" of 2026-08-27.
+    float mergeT = clamp((heightT - 0.45) / (mergeEnd - 0.45), 0.0, 1.0);
+    // THE POINTED MERGE, Jacob 2026-08-27: "the merge feels curved
+    // while it should pointed like the pointy crown spires tops". The
+    // ellipse and cosine both arrive at the cleft moving at their
+    // fastest horizontal rate, so the two seams met shallow and the
+    // join read as a rounded arch. This S-curve has ZERO slope at both
+    // ends: the seams hold their stance, sweep through the middle,
+    // then STRAIGHTEN toward vertical as they land - two near-vertical
+    // lines meeting is a point, which is the crown's own geometry.
+    // Slope stays bounded everywhere, so the anti-noise fix holds.
+    // NOT fully vertical at the landing. A zero end slope makes the
+    // final stretch run PARALLEL to the cleft, hugging it - which is
+    // the "line drawn after the merge" Jacob saw on the lit left face
+    // (the right hides the same tail in shadow). Mixing 15 percent
+    // linear back in keeps the arrival steep enough to read pointed
+    // while meeting the cleft at an angle and TERMINATING.
+    float seamS = mergeT * mergeT * (3.0 - 2.0 * mergeT);
+    float seamPos = 0.38 * (1.0 - mix(seamS, mergeT, 0.15));
+    // the cap ends EXACTLY at the apex. Past the merge the position
+    // clamps to the cleft, so any life left in the cap draws a stub
+    // line hugging the slit above the point - "looks like a line
+    // above the merge". Tight antialiased cut at each side's own
+    // landing height.
+    float seamCap = 1.0 - smoothstep(mergeEnd - 0.005, mergeEnd, heightT);
+    float d = abs(clamp(outward, 0.0, 1.1) - seamPos);
+    // "it feel still rough", Jacob 2026-08-27: a shader line one or
+    // two pixels wide aliases into stair-steps unless its edges are
+    // softened by the pixel footprint. fwidth here is ANTIALIASING of
+    // the edge, not a position term - the line stays world-locked and
+    // cannot swim; only its border blends over the one pixel it
+    // crosses. This is what machined finish looks like at this scale.
+    float aaD = fwidth(d) * 1.8;
+    seam = (1.0 - smoothstep(0.0, 0.011 + aaD, d)) * seamCap;
+    chamfer = (1.0 - smoothstep(0.011, 0.03 + aaD, d)) * step(0.011, d) * seamCap;
+    // THE SCULPT, Jacob 2026-08-27: "the seam is too static and
+    // render feels off can you sculpt it even more". Static here
+    // means FLAT - a drawn line, not a carved one. This basin is a
+    // smooth squared profile across groove and chamfer whose depth
+    // feeds the normal injection, so the channel has walls the light
+    // actually models, and the painted lip below is cut back to let
+    // the lit geometry do that work.
+    float basin = (1.0 - smoothstep(0.0, 0.034 + aaD, d)) * seamCap;
+    seamDepth = basin * basin;
   }
   diffuseColor.rgb = mix(diffuseColor.rgb, P_OBSIDIAN, seam * 0.7);
-  diffuseColor.rgb = mix(diffuseColor.rgb, P_WORN, chamfer * (0.30 + 0.35 * graze));
-  vMonoRough = clamp(vMonoRough + seam * 0.18 - chamfer * 0.12, 0.05, 0.96);
-  vMonoH = vMonoH - seam * 0.5 + chamfer * 0.18;
+  // the cavity: the interior occludes toward the centre line - the
+  // sheet's "use cavity or AO for seam depth"
+  diffuseColor.rgb *= 1.0 - seamDepth * 0.42;
+  diffuseColor.rgb = mix(diffuseColor.rgb, P_WORN, chamfer * (0.16 + 0.24 * graze));
+  // the lip polishes harder than before: a machined edge is smooth
+  vMonoRough = clamp(vMonoRough + seam * 0.16 - chamfer * 0.2, 0.05, 0.96);
+  vMonoH = vMonoH - seamDepth * 1.7 + chamfer * 0.22;
 
   float wResp = exp(-pow((vMonoW.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
   vMonoEng = (cWeb * band * 0.028
@@ -2537,8 +2608,21 @@ export class HeroRenderer {
           // rule the width follows - the prongs decide the shape, not
           // the plane.
           float v = smoothstep(0.0, 0.04, vUvF.y) * smoothstep(1.0, 0.98, vUvF.y);
-          // spec: emission colour pure #FFFFFF, intensity 8 to 15
-          vec3 holy = vec3(1.0);
+          // RUINED GOLD, Jacob 2026-08-27: "make the light seam dark
+          // gold in color like ruined gold colour". Supersedes the
+          // sheet's pure-white spec on his word. The chroma carries
+          // the tarnish; the peak channel stays above the bloom
+          // threshold so the surge and its halo keep working - dimming
+          // all three channels instead would have quietly killed the
+          // propagation, which lives on crossing 0.78.
+          // lit up on Jacob's word, and the bloom pass gates on
+          // LUMINANCE, not per-channel - a first pass reasoned per
+          // channel and produced no halo. Gold is luma-poor (heavy in
+          // red, light counts blue-green), so the level runs hotter
+          // than white ever needed to reach the same glow: resting
+          // luma ~0.85 against the 0.78 threshold gives the seam a
+          // standing warm halo, and the surge still rides above it.
+          vec3 holy = vec3(1.8, 1.15, 0.42);
           vec3 cold = vec3(0.86, 0.93, 1.0);
           float fail = 1.0 - uDecay * 0.55;
           // inside the slit the plane is a few units from the eye, so
@@ -4325,7 +4409,14 @@ ${SKY_LAW}`
   }
 
   private readonly resize = (): void => {
-    const pr = Math.min(window.devicePixelRatio, this.maxDpr);
+    // SUPERSAMPLED, Jacob 2026-08-27: "its looks pixelated and rough
+    // and not sharp at all". His display reports devicePixelRatio 1,
+    // and min(dpr, cap) meant the 1.75 headroom was never used - the
+    // frame rendered exactly 1:1, where even multisampled edges read
+    // soft. A floor of 1.5 renders above native and downscales, which
+    // is what sharp looks like on a standard-density monitor. The
+    // low-tier cap still binds through maxDpr.
+    const pr = Math.min(Math.max(window.devicePixelRatio, 2), this.maxDpr);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.composer.setPixelRatio(pr);

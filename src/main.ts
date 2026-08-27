@@ -44,7 +44,10 @@ function boot(): void {
   let renderer: HeroRenderer;
   try {
     world = new LatticeWorld(state.seed, () => undefined);
-    renderer = new HeroRenderer(canvas, world, caps.lowTier ? 1.25 : 1.75);
+    // cap raised 1.75 -> 2 on Jacob's word, 2026-08-27, chasing edge
+    // smoothness on his DPR-1 monitor: the renderer supersamples to
+    // this cap and downscales. Low tier keeps its own ceiling.
+    renderer = new HeroRenderer(canvas, world, caps.lowTier ? 1.25 : 2);
   } catch (err) {
     console.error('World failed to start; the still page stands.', err);
     document.body.classList.add('no-webgl');
