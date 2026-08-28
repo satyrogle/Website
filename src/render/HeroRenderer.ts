@@ -43,7 +43,18 @@ export const HERO_CREST_TUNING = {
    * right wing sat visibly higher than the left - Jacob 2026-08-26,
    * "right feels it is a bit top" - so it drops slightly */
   wingLiftL: -0.016,
-  wingLiftR: -0.016
+  wingLiftR: -0.016,
+  /** Jacob's Meshy parenthesis insert, mirrored into the two upper
+   * semicircular pockets immediately beside the Spire. These values
+   * stay in the authored crest's local asset space. */
+  pocketScale: 0.22,
+  pocketOffsetXL: -0.3,
+  pocketOffsetXR: 0.32,
+  pocketLiftL: 0.43,
+  pocketLiftR: 0.43,
+  pocketDepth: 0.0,
+  pocketTurnL: 10,
+  pocketTurnR: -8
 } as const;
 
 // THE LOCKED PALETTE, and it is a set of ROLES, not a set of swatches.
@@ -794,6 +805,36 @@ const FRAG_MAP = `#include <map_fragment>
   // the spires". The sheet asked for it; his eye killed it. The
   // spires carry no drawn field at all.
   float pEtch = 0.0;
+
+  // B1 — LOWER LOAD RIBS, 2026-08-28. Three shallow structural ribs
+  // rise through the existing flare on each half of the Spire. They
+  // are relief in the locked graphite skin, not attached blades or a
+  // new skirt: the outer silhouette, footprint and gold seam do not
+  // move. Their broad feet carry the apparent load and taper out before
+  // the lower body, avoiding the repeated vertical striping of a full
+  // fluted column.
+  float ribRise = 1.0 - smoothstep(0.055, 0.205, heightT);
+  float ribWidth = mix(0.075, 0.026, smoothstep(0.0, 0.205, heightT));
+  float ribD0 = abs(outward - 0.18);
+  float ribD1 = abs(outward - 0.46);
+  float ribD2 = abs(outward - 0.74);
+  float rib0 = 1.0 - smoothstep(0.0, ribWidth, ribD0);
+  float rib1 = 1.0 - smoothstep(0.0, ribWidth, ribD1);
+  float rib2 = 1.0 - smoothstep(0.0, ribWidth, ribD2);
+  float loadRib = max(rib0, max(rib1, rib2)) * ribRise;
+  float ribLip0 = exp(-pow((ribD0 - ribWidth) / max(ribWidth * 0.24, 0.004), 2.0));
+  float ribLip1 = exp(-pow((ribD1 - ribWidth) / max(ribWidth * 0.24, 0.004), 2.0));
+  float ribLip2 = exp(-pow((ribD2 - ribWidth) / max(ribWidth * 0.24, 0.004), 2.0));
+  float ribGroove = max(ribLip0, max(ribLip1, ribLip2)) * ribRise;
+
+  // Keep the B1 read fixed in the skin. View-dependent graze tint and
+  // fragment-normal relief were tried here first; the locked ambient
+  // camera drift made their highlights crawl, so the base looked as if
+  // it were continually resolving. Stable graphite tone gives the ribs
+  // structure without introducing a second moving surface language.
+  diffuseColor.rgb *= 1.0 - ribGroove * 0.20;
+  diffuseColor.rgb = mix(diffuseColor.rgb, P_WORN,
+    clamp(loadRib * 0.045, 0.0, 0.045));
   // Worn Edge, the palette's role for exposed metal at a seam lip -
   // mixed to, not added as a grey. Weighted by graze because it is
   // exposure rather than pigment.
@@ -2194,7 +2235,45 @@ vCrestN = normal;`
       model.rotation.x = THREE.MathUtils.degToRad(tuning.pitch);
       group.add(model);
 
-      // The pockets stay open. Six fills died here; enough.
+      // Jacob's isolated left-parenthesis component closes the two
+      // upper semicircular pockets beside the Spire. It is loaded once
+      // and mirrored for the right side, so both inserts remain the
+      // same authored object rather than two independently invented
+      // fills. It inherits the final crest's normalization, pitch and
+      // graphite skin; the hero, seam and original crest are untouched.
+      new GLTFLoader().load(
+        '/models/crest-pocket-insert.glb',
+        (pocketGltf) => {
+          const left = pocketGltf.scene;
+          left.name = 'heroCrestPocketLeft';
+          const pocketMaterial = crestSkin();
+          left.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              const geometry = child.geometry as THREE.BufferGeometry;
+              geometry.computeVertexNormals();
+              geometry.computeBoundingBox();
+              geometry.computeBoundingSphere();
+              const previous = child.material;
+              child.material = pocketMaterial;
+              for (const old of Array.isArray(previous) ? previous : [previous]) old.dispose();
+            }
+          });
+          left.scale.setScalar(tuning.pocketScale);
+          left.position.set(tuning.pocketOffsetXL, tuning.pocketLiftL, tuning.pocketDepth);
+          left.rotation.z = -tiltL + THREE.MathUtils.degToRad(tuning.pocketTurnL);
+
+          const right = left.clone(true);
+          right.name = 'heroCrestPocketRight';
+          right.position.x = tuning.pocketOffsetXR;
+          right.position.y = tuning.pocketLiftR;
+          right.rotation.z = tiltR + THREE.MathUtils.degToRad(tuning.pocketTurnR);
+          right.scale.x *= -1;
+
+          model.add(left, right);
+        },
+        undefined,
+        (err) => console.error('hero crest pocket insert failed to load', err)
+      );
     },
     undefined,
     (err) => console.error('hero crest asset failed to load', err)
@@ -4129,7 +4208,6 @@ ${SKY_LAW}`
       // drifting on its own and leaning with the visitor's hand. The
       // hand's reach shrinks inside the cleft: the walls are close.
       // (Overruled during the long dwell - see THE STILLNESS above.)
-      const t = this.ambientT;
       const reach = 1;
       const px = this.pointerNdc ? this.pointerNdc.x : 0;
       const py = this.pointerNdc ? this.pointerNdc.y : 0;
@@ -4195,15 +4273,18 @@ ${SKY_LAW}`
       this.stoneU.uWatchY!.value = 90 + 62.6 * (this.watchY + wdrift);
       this.stoneU.uWatchAmt!.value = wAmt;
       this.parY += (py - this.parY) * (1 - Math.exp(-dt * 1.6));
-      const yaw =
-        (this.parX * 0.11 + Math.sin(t * 0.5) * 0.02 + Math.sin(t * 0.13) * 0.012) * reach;
-      const pitch = (this.parY * 0.055 + Math.sin(t * 0.34 + 2.0) * 0.014) * reach;
+      // OWNER CORRECTION, 2026-08-28: the autonomous camera sway made
+      // the worked-metal response slide over the new lower ribs, so the
+      // whole render looked as if it were continually resolving. Hold
+      // the authored camera pose when the visitor is idle. Pointer
+      // parallax remains intact and is still the only camera movement.
+      const yaw = this.parX * 0.11 * reach;
+      const pitch = this.parY * 0.055 * reach;
       const lookP = this.path.lookPoint;
       const off = this.camera.position.clone().sub(lookP);
       off.applyAxisAngle(UP, -yaw);
       const right = new THREE.Vector3().crossVectors(off, UP).normalize();
       off.applyAxisAngle(right, pitch);
-      off.multiplyScalar(1 + Math.sin(t * 0.21 + 4.0) * 0.02);
       this.camera.position.copy(lookP).add(off);
       // THE FLOOR. Jacob, 2026-08-22: "the camera sway is going inside
       // the ground". The pitch above rotates the camera's OFFSET around
@@ -4218,7 +4299,7 @@ ${SKY_LAW}`
       if (this.camera.position.y < 8.2) this.camera.position.y = 8.2;
       // the frame itself leans with the hand: the subject swings gently
       const sway = lookP.clone().addScaledVector(right.normalize(), -this.parX * 5.0);
-      sway.y += -this.parY * 3.0 + Math.sin(t * 0.4 + 1.0) * 0.6;
+      sway.y += -this.parY * 3.0;
       this.camera.lookAt(sway);
     }
     const sev = this.path.state.severity;
