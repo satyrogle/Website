@@ -35,8 +35,10 @@ import { HINGE, TICKS, type Detent } from './Delta';
  */
 export const BEATS = {
   entranceEnd: 0.34,
-  xEnd: 0.52,
-  tickZeroEnd: 0.57,
+  // X compressed 0.52 -> 0.46: at 18% of the page it was "a drag"
+  // (Jacob, 2026-08-30) - the monolith earns a look, not a crawl
+  xEnd: 0.46,
+  tickZeroEnd: 0.51,
   yEnd: 0.78
 } as const;
 

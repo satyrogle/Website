@@ -474,7 +474,8 @@ html.bare .site-foot { visibility: hidden; }
      and Jacob hit the contradiction live: "after the gates open
      completely you see the black screen". The visitor plunges INTO the
      seam's light; the void between the worlds is never seen. */
-  background: radial-gradient(120% 90% at 50% 50%, #f2d9a0 0%, #caa25e 55%, #86672f 100%);
+  /* old rustic gold, not a torch in the face - Jacob, 2026-08-30 */
+  background: radial-gradient(120% 90% at 50% 50%, #8a6a34 0%, #52401e 55%, #241b0c 100%);
   opacity: 0;
   pointer-events: none;
 }
@@ -485,8 +486,8 @@ html.bare .site-foot { visibility: hidden; }
    the beat boundaries: entrance to 0.34, X to 0.52, Tick Zero to 0.57,
    Y to 0.78, Z and the floor to 1.0, on a ~1050vh page. Plumbing, not
    art direction - retuned only with the BEATS. */
-.stop--xmark { min-height: 190vh; align-content: center; padding-top: 16vh; }
-.stop--ymark { min-height: 222vh; align-content: center; padding-top: 16vh; }
+.stop--xmark { min-height: 126vh; align-content: center; padding-top: 16vh; }
+.stop--ymark { min-height: 283vh; align-content: center; padding-top: 16vh; }
 .stop--zmark { min-height: 180vh; align-content: center; padding-top: 16vh; }
 .stop--xmark .station-big,
 .stop--ymark .station-big,

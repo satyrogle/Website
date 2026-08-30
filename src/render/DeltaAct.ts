@@ -88,6 +88,9 @@ export class DeltaAct {
   private readonly gapNeg: Float32Array;
   private readonly widestPos: number;
   private readonly widestNeg: number;
+  /** first tick each section's future visibly diverges, per family */
+  private readonly onsetPos: Float32Array;
+  private readonly onsetNeg: Float32Array;
   /** first tick each section crossed its threshold, Infinity if never */
   private readonly yieldTick: Float32Array;
   /** signed display amplitude of that section's yield snap */
@@ -122,6 +125,23 @@ export class DeltaAct {
     };
     this.widestPos = lastRow(this.gapPos);
     this.widestNeg = lastRow(this.gapNeg);
+
+    // THE TEAR ORDER. "A drag rather than something crazy" - Jacob,
+    // 2026-08-30. Smooth growth is a drift; the kernel's real story is
+    // thresholds CRACKING. Each section now tears out as an EVENT at
+    // its own onset tick - the first tick its future visibly diverges
+    // - fast, with a jolt through the whole stack. Order and moment
+    // come straight from the data; only the shape of the arrival is
+    // display. Reverse the scroll and the tears un-happen in order.
+    this.onsetPos = new Float32Array(SECTIONS).fill(Infinity);
+    this.onsetNeg = new Float32Array(SECTIONS).fill(Infinity);
+    for (let i = 0; i < SECTIONS; i++) {
+      for (let t = 0; t < TICKS; t++) {
+        if (this.onsetPos[i] === Infinity && this.gapPos[t * SECTIONS + i]! > this.widestPos * 0.01) this.onsetPos[i] = t;
+        if (this.onsetNeg[i] === Infinity && this.gapNeg[t * SECTIONS + i]! > this.widestNeg * 0.01) this.onsetNeg[i] = t;
+        if (this.onsetPos[i] !== Infinity && this.onsetNeg[i] !== Infinity) break;
+      }
+    }
 
     // THE YIELD WAVE. "No blocks are changing, they are just moving by
     // negligible value" - Jacob, 2026-08-30. The kernel's real events
@@ -191,9 +211,9 @@ export class DeltaAct {
     // followed since the hero: the worldline through the whole stack
     const seam = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, FORM_H * 1.04, 1.1),
-      // bright enough to be the world's light and to clear the bloom
-      // threshold as the entrance's seam does
-      new THREE.MeshBasicMaterial({ color: 0xf2d9a0, fog: false })
+      // old rustic gold - the light of the place, not a torch in the
+      // face (Jacob, 2026-08-30: "blinding")
+      new THREE.MeshBasicMaterial({ color: 0xcaa25e, fog: false })
     );
     seam.position.set(0, FORM_H / 2, 0);
     this.group.add(seam);
@@ -213,6 +233,97 @@ export class DeltaAct {
     });
     const movedMat = plateMat.clone();
     movedMat.color = new THREE.Color(0x1c222a);
+
+    /**
+     * THE STONE SKIN. Jacob, 2026-08-30, with his boards: "whats so
+     * great about showing jenga blocks". Fair - the slabs were bare
+     * placeholders. This is the skin: cracked weathered rock, gold
+     * surviving only in the deepest crack cores, worn edges, and
+     * aerial haze with distance. Same proven recipe as the entrance
+     * monument (warped field level set over its own gradient - never
+     * a threshold on noise), sampled in LOCAL coordinates plus a
+     * per-mesh seed, so the pattern RIDES each piece rigidly when it
+     * departs. Nothing swims.
+     */
+    const stoneSkin = (m: THREE.MeshStandardMaterial): void => {
+      m.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+attribute float aSkinSeed;
+varying vec3 vSkinP;
+varying vec3 vSkinN;
+varying float vSkinSeed;`
+          )
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+vSkinP = position;
+vSkinN = normal;
+vSkinSeed = aSkinSeed;`
+          );
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            '#include <common>',
+            [
+              '#include <common>',
+              'varying vec3 vSkinP;',
+              'varying vec3 vSkinN;',
+              'varying float vSkinSeed;',
+              'float skHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
+              'float skNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);',
+              '  return mix(mix(skHash(i),skHash(i+vec2(1.,0.)),f.x),mix(skHash(i+vec2(0.,1.)),skHash(i+vec2(1.,1.)),f.x),f.y);}',
+              'float skFbm(vec2 p){float s=0.,a=.5;for(int k=0;k<4;k++){s+=a*skNoise(p);p*=2.03;a*=.5;}return s/.9375;}',
+              'vec2 skQ(){vec3 an=abs(vSkinN);',
+              '  vec2 q = an.y>0.6 ? vSkinP.xz : (an.x>an.z ? vSkinP.zy : vSkinP.xy);',
+              '  return q + vSkinSeed;}'
+            ].join('\n')
+          )
+          .replace(
+            '#include <map_fragment>',
+            [
+              '#include <map_fragment>',
+              '{',
+              '  vec2 q = skQ();',
+              '  // cracks: warped field level set over its own gradient',
+              '  vec2 w = q*0.34 + (vec2(skFbm(q*0.11), skFbm(q*0.11+19.7))-0.5)*2.8;',
+              '  float f = skFbm(w)-0.5;',
+              '  float g = length(vec2(dFdx(f),dFdy(f)))+1e-5;',
+              '  float crack = 1.0 - smoothstep(0.0, 1.9, abs(f)/g);',
+              '  // broad weathering territories, no two beds alike',
+              '  float wear = skFbm(q*0.06);',
+              '  diffuseColor.rgb *= 0.78 + 0.5*wear;',
+              '  diffuseColor.rgb *= 1.0 - crack*0.6;',
+              '  // chipped edges catch the cold light',
+              '  float edge = smoothstep(0.4, 1.5, length(fwidth(vSkinN))*16.0);',
+              '  diffuseColor.rgb += vec3(0.045,0.05,0.058)*edge;',
+              '}'
+            ].join('\n')
+          )
+          .replace(
+            '#include <emissivemap_fragment>',
+            [
+              '#include <emissivemap_fragment>',
+              '{',
+              '  vec2 q = skQ();',
+              '  vec2 w = q*0.34 + (vec2(skFbm(q*0.11), skFbm(q*0.11+19.7))-0.5)*2.8;',
+              '  float f = skFbm(w)-0.5;',
+              '  float g = length(vec2(dFdx(f),dFdy(f)))+1e-5;',
+              '  float core = 1.0 - smoothstep(0.0, 0.65, abs(f)/g);',
+              '  // gold survives only in the deepest cracks, in runs, not everywhere',
+              '  float sel = smoothstep(0.6, 0.85, skFbm(q*0.028+7.0));',
+              '  totalEmissiveRadiance += vec3(0.62,0.44,0.17) * core * sel * 0.55;',
+              '  // aerial haze: the air has body, distance reads as depth',
+              '  float dist = length(vViewPosition);',
+              '  totalEmissiveRadiance += vec3(0.035,0.045,0.06) * smoothstep(70.0, 420.0, dist);',
+              '}'
+            ].join('\n')
+          );
+      };
+    };
+    stoneSkin(plateMat);
+    stoneSkin(movedMat);
     this.goldFaceMat = new THREE.MeshStandardMaterial({
       color: 0x1c1710,
       emissive: 0xb98a3c,
@@ -278,6 +389,15 @@ export class DeltaAct {
 
           const isBlade = i === BLADE && isMobile && f === 0;
           const geo = new THREE.BoxGeometry(fw, th, fd);
+          // per-mesh skin seed: the crack pattern is unique per piece
+          // and rides it rigidly when it departs
+          geo.setAttribute(
+            'aSkinSeed',
+            new THREE.BufferAttribute(
+              new Float32Array(geo.attributes.position!.count).fill(rng() * 220),
+              1
+            )
+          );
           let mat: THREE.Material | THREE.Material[] = plateMat;
           if (isBlade) {
             mat = bladeMat;
@@ -363,8 +483,22 @@ export class DeltaAct {
 
     const gaps = detent === 0 ? null : detent === 1 ? this.gapPos : this.gapNeg;
     const widest = detent === 1 ? this.widestPos : this.widestNeg;
+    const onsets = detent === 1 ? this.onsetPos : this.onsetNeg;
     const expand = DEPART_BASE + (1 - DEPART_BASE) * st.unfold;
     const bladeOut = st.phase === 'entrance' || st.phase === 'x' ? 0 : detent * BLADE_STEP;
+
+    // the jolt: every tear kicks the whole stack, and the kick decays
+    // over the following ticks. A sum of pure functions of tick.
+    let flinch = 0;
+    if (gaps) {
+      for (let i = 0; i < SECTIONS; i++) {
+        const ot = onsets[i]!;
+        if (tf >= ot && ot !== Infinity) {
+          const amp = Math.min(2.2, this.dispOf(gaps[(TICKS - 1) * SECTIONS + i]!, widest) / 55);
+          flinch += amp * ((i & 1) === 0 ? 1 : -1) * Math.exp(-(tf - ot) / 2.5);
+        }
+      }
+    }
 
     for (const fr of this.frags) {
       const i = fr.section;
@@ -373,13 +507,19 @@ export class DeltaAct {
 
       let dd = 0;
       if (fr.mobile && gaps) {
-        const g = gaps[t0 * SECTIONS + i]! * (1 - a) + gaps[t1 * SECTIONS + i]! * a;
-        dd = this.dispOf(g, widest) * expand * fr.trail;
+        // THE TEAR: it rips out over ~6 ticks at its own onset, to its
+        // full computed distance - an event, not a drift
+        const ot = onsets[i]!;
+        if (tf >= ot && ot !== Infinity) {
+          const snapT = Math.min(1, (tf - ot) / 6);
+          const shaped = snapT * snapT * (3 - 2 * snapT);
+          dd = this.dispOf(gaps[(TICKS - 1) * SECTIONS + i]!, widest) * expand * fr.trail * shaped;
+        }
       }
 
       this.v.copy(fr.base);
       // X: the baseline settling, the monolith shearing as it computes
-      this.v.x += off * SHEAR;
+      this.v.x += off * SHEAR + flinch;
       // ...and the yield wave: the discrete snap of this stratum's one
       // threshold crossing, settling back as the run continues
       const yt = this.yieldTick[i]!;
@@ -406,8 +546,11 @@ export class DeltaAct {
       const i = ch.section;
       let dd = 0;
       if (gaps) {
-        const g = gaps[t0 * SECTIONS + i]! * (1 - a) + gaps[t1 * SECTIONS + i]! * a;
-        dd = this.dispOf(g, widest) * expand;
+        const ot = onsets[i]!;
+        if (tf >= ot && ot !== Infinity) {
+          const snapT = Math.min(1, (tf - ot) / 6);
+          dd = this.dispOf(gaps[(TICKS - 1) * SECTIONS + i]!, widest) * expand * (snapT * snapT * (3 - 2 * snapT));
+        }
       }
       const vis = dd > 4;
       ch.mesh.visible = vis;

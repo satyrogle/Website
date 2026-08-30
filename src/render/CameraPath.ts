@@ -58,9 +58,9 @@ const KEYS: PoseKey[] = [
   // while the veil still owns the frame.
   { p: 0.33, pos: new THREE.Vector3(0, DELTA_Y + 148, 165), look: new THREE.Vector3(0, DELTA_Y + 104, 0), fov: 50 },
   // ...to the blade's height: close, compressed, material
-  { p: 0.52, pos: new THREE.Vector3(5, DELTA_Y + 84, 30), look: new THREE.Vector3(0, DELTA_Y + 76, 0), fov: 48 },
+  { p: 0.46, pos: new THREE.Vector3(5, DELTA_Y + 84, 30), look: new THREE.Vector3(0, DELTA_Y + 76, 0), fov: 48 },
   // TICK ZERO: near-hold. The world is still; the blade is offered.
-  { p: 0.57, pos: new THREE.Vector3(3.5, DELTA_Y + 80, 24), look: new THREE.Vector3(0, DELTA_Y + 75, -2), fov: 47 },
+  { p: 0.51, pos: new THREE.Vector3(3.5, DELTA_Y + 80, 24), look: new THREE.Vector3(0, DELTA_Y + 75, -2), fov: 47 },
   // Y: close enough that a socket opening is an EVENT, not a detail -
   // 92 units back read as nothing happening (Jacob's contact sheet)
   { p: 0.78, pos: new THREE.Vector3(-14, DELTA_Y + 96, 62), look: new THREE.Vector3(2, DELTA_Y + 84, -4), fov: 52 },
