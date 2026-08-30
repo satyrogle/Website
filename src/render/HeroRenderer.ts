@@ -2952,8 +2952,14 @@ export class HeroRenderer {
   readonly camera: THREE.PerspectiveCamera;
   readonly path = new CameraPath();
   private readonly delta: DeltaAct;
-  /** the visitor's one input, held like the seed. Set by main.ts. */
-  detent: Detent = 0;
+  /** the visitor's one input, held like the seed. Set by main.ts.
+   * STARTS THROWN: at 0 a visitor who never touches the blade rides a
+   * mathematically honest nothing to an inert Z - "no blast nothing"
+   * (Jacob, 2026-08-30, live). The world now detonates by default, and
+   * the discovery inverts: returning the blade to neutral is what
+   * UN-MAKES the explosion. Choosing nothing is the secret, not the
+   * trap. */
+  detent: Detent = 1;
   private readonly hardware: { group: THREE.Group; mats: THREE.MeshStandardMaterial[] };
   private stress!: { group: THREE.Group; skin: THREE.ShaderMaterial; mesh: THREE.Mesh };
   private readonly coreParts: {
