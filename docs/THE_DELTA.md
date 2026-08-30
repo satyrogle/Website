@@ -180,6 +180,43 @@ field with the gold causal seam running through the structure they caused.
 
 > **THE DIFFERENCE HAS BECOME A PLACE.**
 
+### 7.1 The spatial rule under test: hero-anchored displacement
+
+Surfaced by the first blockout, 2026-08-30: THE_DELTA said what the gaps MEAN
+but never said where the sections SIT. Laid on the time axis they made a
+shaft, 285 x 3907 x 295 — a chain has no width. The proposed fix of
+re-plumbing the kernel into a branching network so a spectral embedding could
+lay it out was REFUSED by Jacob, with the reason recorded because it is a law
+of the project, not a preference:
+
+> "We need a cool 3D world, so change the maths until it gives us one" —
+> that is exactly backwards for Dark Lattice.
+
+The rule under test instead — the hero is already a coordinate system:
+
+```
+Z POSITION = HERO POSITION + STRESS DIRECTION x DELTA MAGNITUDE
+```
+
+- **position**: every section is a real slab of the Split Spire, placed by
+  the same form maths that places the stone (`monumentForm.ts`).
+- **direction**: outward through the half's nearest free surface — the spall
+  direction. Stated honestly: the repo has no 3D stress tensor (the kernel is
+  one-dimensional), so this is the physical proxy for the principal
+  direction, not a solved field.
+- **magnitude**: the kernel's real baseline-vs-altered gap. Kernel unchanged.
+
+The pieces depart as single copies, leaving their sockets open: the gap
+between a piece's empty socket and where it now hangs IS the distance between
+the two futures. The journey becomes a continuous excavation of one object —
+the hero compressed, entered, examined, altered, and finally broken open
+along what actually changed inside it.
+
+Measured in the disposable blockout, same seed, same seven gaps: the field
+went from 285 x 3907 x 295 to **119 x 195 x 175** — a volume in the
+monument's own proportions. Branching topology / spectral embedding is
+reconsidered only if this rule fails the frame test.
+
 ## 8. The non-negotiable Z frame test
 
 This is a hard gate. **The Z keyframe is produced and judged before X or Y are
