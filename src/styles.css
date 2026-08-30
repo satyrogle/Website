@@ -390,3 +390,108 @@ html.bare .site-foot { visibility: hidden; }
   }
   .site-foot { grid-template-columns: 1fr; }
 }
+
+/* ---------- the journey stations, 2026-08-28 ---------- */
+
+/* Each station is a tall landing: the camera travels between them and
+   holds near them. The copy sits left, in the dark channel the hero
+   already established; the monument keeps the right of the frame until
+   the walls take everything. */
+
+.scroll-cue {
+  grid-column: 1 / 6;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone-55);
+  margin-top: 2.5rem;
+}
+
+.stop--station {
+  min-height: 190vh;
+  align-content: center;
+}
+
+.station-big {
+  grid-column: 1 / 8;
+  font-size: clamp(2.6rem, 6.4vw, 7.2rem);
+  margin-bottom: 2rem;
+}
+
+.station-cap {
+  grid-column: 1 / 6;
+  text-shadow: 0 1px 18px rgba(2, 3, 4, 0.6);
+  font-size: 1.05rem;
+  font-weight: 420;
+  line-height: 1.55;
+  color: var(--bone-75);
+  max-width: var(--measure);
+}
+
+.station-kicker {
+  grid-column: 1 / 6;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bone-38);
+  margin-bottom: 1rem;
+}
+
+.engine-line {
+  grid-column: 1 / 8;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--bone-55);
+  margin-top: 1.5rem;
+  min-height: 1.2em;
+}
+
+/* the last station holds inside the cleft: centre the reserve */
+.stop--latent {
+  min-height: 220vh;
+  align-content: center;
+  text-align: left;
+}
+
+@media (max-width: 860px) {
+  .station-big, .station-cap, .station-kicker, .engine-line { grid-column: 1; }
+  .stop--station { min-height: 165vh; }
+}
+
+/* ---------- Z: the crossing and the fall, 2026-08-28 ---------- */
+
+/* The veil: the blade's gold, as a DOM guarantee. It sits above the
+   world and the copy both; the transfer happens inside it. */
+#veil {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #030407;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* travel distance, no words */
+.stop--axis { min-height: 30vh; }
+.stop--xmark,
+.stop--ymark,
+.stop--zmark { min-height: 60vh; align-content: center; padding-top: 16vh; }
+.stop--xmark .station-big,
+.stop--ymark .station-big,
+.stop--zmark .station-big { font-size: clamp(2.2rem, 4.6vw, 5.4rem); }
+.stop--gap { min-height: 60vh; }
+.stop--crossing { min-height: 30vh; }
+/* the big room: the fall is where X, Y and Z will live */
+.stop--fall { min-height: 450vh; }
+.stop--floor { min-height: 180vh; align-content: center; }
+
+.floor-contact {
+  color: var(--bone);
+  text-decoration: none;
+  border-bottom: 1px solid var(--bone-38);
+  padding-bottom: 2px;
+}
+.floor-contact:hover { border-color: var(--bone); }

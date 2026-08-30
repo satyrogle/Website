@@ -10,10 +10,27 @@ import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorl
 import { TIP_T, prongCentre, surfacePoint } from '../world/monumentForm';
 import { ChoirGroup } from '../world/ChoirGroup';
 import { CameraPath } from './CameraPath';
+import { MemoryField } from './MemoryField';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** Independent controls for the compact crest mounted behind the Spire. */
+/**
+ * How far each half of the Spire travels, in world units, at a full
+ * opening. ONE NUMBER, because three systems have to agree about where
+ * the stone is: the geometry offset, the width of the gap's light, and
+ * the ridges carved on the interior walls. They were three separate
+ * 3.5 literals and could have drifted apart on any edit.
+ *
+ * Raised from 3.5 on Jacob's 2026-08-29 note that the opening "feels
+ * like camera switch rather than actual event". At 3.5 the halves moved
+ * seven units apart while the camera closed from 120 to 70, so the two
+ * changed the on-screen gap by almost exactly the same factor and the
+ * eye could not separate them. The stone has to be the larger event by
+ * a clear margin, not a tie.
+ */
+const PART_TRAVEL = 6;
+
 export const HERO_CREST_TUNING = {
   scale: 1.12,
   width: 1.23,
@@ -57,6 +74,558 @@ export const HERO_CREST_TUNING = {
   pocketTurnR: -8
 } as const;
 
+/** The opening's hardware, Jacob's Meshy assets, 2026-08-29: the lock
+ * collar around the seam and the jamb pair at the threshold. Mounted
+ * closed and dark for now; the refusal and the parting animate them
+ * in a later gate. All knobs in world units unless noted. */
+export const OPENING_HARDWARE_TUNING = {
+  /** NOTHING IS EVER MOUNTED ON THE FACE. The mechanism is interior.
+   * The twin-rod asset is the core's ARMOUR, clamped around a light
+   * column that runs the full height of the slit - Jacob's frames:
+   * the light blazes crown to base, the armour holds its middle. */
+  /** the armour runs the height of the gate at its TRUE proportions:
+   * uniform scale, no stretching. At 130 tall the pair spans ~68 wide,
+   * so its outer thirds bury themselves in the parted blades - the
+   * mechanism reads as continuous with the stone, not a trinket
+   * standing in a doorway. Jacob, 2026-08-29: bigger, whole, coherent. */
+  /** 130 made the armour a black wall that swallowed the reveal -
+   * probed and photographed 2026-08-29. It backs the column now:
+   * machinery BEHIND the light, the frame-1 layering. */
+  coreHeight: 96,
+  coreY: 6,
+  coreZ: -2.6,
+  /** armour sits this far behind the column's plane: far enough
+   * that the column is never occluded by the rails' own corridor -
+   * the light in FRONT of the machinery, frame-1 layering. Probed
+   * 2026-08-29: at 6 the rails still swallowed the column below
+   * their crown line. */
+  armourSetback: 14,
+  /** the light column itself: nearly the whole slit */
+  columnHeight: 168
+} as const;;
+
+/** X and Y made visible, per STRESS + PATH = FORM (Jacob's spec,
+ * 2026-08-29). X: the interior skin behind the incision carries the
+ * stress ridges the engine computed - four seeded paths, one
+ * dominant, carrying the gold. Y: the shadow road - the authored
+ * route crossing the natural fracture at the wrong angle, a spatial
+ * constraint made briefly visible as darkness, never a UI line. */
+function buildStressStage(seed: number): {
+  group: THREE.Group;
+  skin: THREE.ShaderMaterial;
+  mesh: THREE.Mesh;
+} {
+  const group = new THREE.Group();
+  const rng = mulberry32ish((seed ^ 0x7ac3) | 0);
+  // four stress paths as quadratics x(t) over the slot's height,
+  // t = y/184. Coefficients in slot-local units, |x| < 5.
+  // coefficients bounded to the slit the visitor can actually see
+  // through: a 14-wide pattern behind a one-unit incision was
+  // invisible by construction (recheck, 2026-08-29)
+  // stride 4: a, b, c, side. THE CUT DIVIDES THE FIELD, and which
+  // wall a ridge ends up carved into is decided by which side of that
+  // cut it sits on - not by the sign of its offset, which is only the
+  // sign of an arbitrary origin. This seed put three of the four left
+  // of zero (measured 2026-08-29), so a sign test would have sent
+  // three ridges travelling together and left one straggler instead of
+  // the halves separating. The stone splits through the MIDDLE of its
+  // own stress field, so the median is the cut and the sides come out
+  // two and two whatever the seed does.
+  const raw: Array<[number, number, number]> = [];
+  for (let i = 0; i < 4; i++) {
+    raw.push([(rng() - 0.5) * 2.4, (rng() - 0.5) * 2.0, (rng() - 0.5) * 3.5]);
+  }
+  const order = raw.map((r, i) => [r[0], i] as const).sort((p, q) => p[0] - q[0]);
+  const sideOf = new Array<number>(4);
+  order.forEach(([, i], rank) => {
+    sideOf[i] = rank < 2 ? -1 : 1;
+  });
+  const ridges: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    ridges.push(raw[i]![0], raw[i]![1], raw[i]![2], sideOf[i]!);
+  }
+  const skin = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      uX: { value: 0 },
+      uRidge: { value: ridges },
+      // half-separation of the stones, in the skin's own units. THE
+      // RIDGES RIDE THE HALVES - Jacob, 2026-08-29: "should not the 3
+      // white lines spread move opposite each other instead of going
+      // poof". They are carved into the interior wall of one half or
+      // the other, so parting the stones carries each ridge with its
+      // own wall. Fading them out was the rigid-body law broken in the
+      // one place the visitor is looking straight at.
+      uSpread: { value: 0 }
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uX;
+      uniform float uRidge[16];
+      uniform float uSpread;
+      varying vec2 vUv;
+      void main() {
+        float t = vUv.y;
+        float x = (vUv.x - 0.5) * 14.0;
+        // THE RIDGES DRAW; THE PLATE DOES NOT. This carried a 55
+        // percent opaque grey sheet across the whole gap so the ridges
+        // would have a surface to stand proud of - and measured against
+        // the void behind it that sheet was the L26-to-58 band sitting
+        // between the black and the white line. Jacob, 2026-08-29:
+        // "the black should be pitch black nothing on it".
+        //
+        // The interior already has a surface: the void backdrop behind
+        // this plane. A second dark sheet in front of it added no read
+        // and cost the black. Base alpha is zero now, so only the
+        // ridges themselves ever mark the gap.
+        vec3 col = vec3(0.045, 0.052, 0.06);
+        float alpha = 0.0;
+        for (int i = 0; i < 4; i++) {
+          float a = uRidge[i * 4];
+          float b = uRidge[i * 4 + 1];
+          float c = uRidge[i * 4 + 2];
+          // which wall this ridge is carved into, decided at seeding
+          // by the cut through the middle of the field. Constant along
+          // the ridge, so parting can never tear one in half.
+          float side = uRidge[i * 4 + 3];
+          float rx = a + b * t + c * t * (1.0 - t) * 2.0 + side * uSpread;
+          float d = abs(x - rx);
+          // emergence is staggered: each ridge arrives on its own
+          float own = clamp(uX * 4.0 - float(i) * 0.55, 0.0, 1.0);
+          // A TIGHT CORE IN A WIDER HALO. A single soft exponential is
+          // a smear, and read through the gap's own glow it vanished -
+          // red-paint capture, 2026-08-29, confirmed the ridges were
+          // spreading correctly the whole time and simply could not be
+          // seen. The core is what makes it a LINE; the halo is what
+          // makes it sit in the wall instead of floating on it.
+          float core = exp(-d * 7.0);
+          float halo = exp(-d * 2.8);
+          float line = (core + halo * 0.36) * own;
+          if (i == 0) {
+            // the dominant path carries the gold, and it wears the
+            // seam's own chromaticity like everything else warm here
+            col += vec3(1.0, 0.64, 0.233) * line * 0.95;
+          } else {
+            // The others hold a cold silver edge-light - and they are
+            // the ONLY thing in the gap allowed to be cold, which is
+            // why they have to stay quiet. At 1.05 they measured
+            // rgb(196,195,191), 88 percent whitish: two blazing bars
+            // that set the colour of the whole gate and overrode the
+            // seam's gold entirely (blue-paint capture, 2026-08-29).
+            // Dropped to a level where they read as fine cold lines
+            // INSIDE a gold doorway rather than as the doorway's
+            // colour. Cool but no longer blue-white, so they separate
+            // from the gold by temperature instead of by force.
+            col += vec3(0.90, 0.93, 0.97) * line * 0.42;
+          }
+          alpha = max(alpha, clamp(line, 0.0, 1.0));
+        }
+        gl_FragColor = vec4(col, alpha * uX);
+      }`
+  });
+  const skinMesh = new THREE.Mesh(new THREE.PlaneGeometry(14, 184), skin);
+  skinMesh.position.set(0, 90, -3.1);
+  skinMesh.frustumCulled = false;
+  group.add(skinMesh);
+
+  // Y: the shadow road. A dark blade of space from the visitor's
+  // side of the world into the opening, oblique against the
+  // near-vertical stress paths: both systems readable at once.
+  return { group, skin, mesh: skinMesh };
+}
+
+function buildOpeningHardware(coreParts: {
+  holder: THREE.Group | null;
+  column: THREE.ShaderMaterial | null;
+  columnMesh: THREE.Mesh | null;
+  pool: THREE.MeshBasicMaterial | null;
+}): { group: THREE.Group; mats: THREE.MeshStandardMaterial[] } {
+  const tuning = OPENING_HARDWARE_TUNING;
+  const group = new THREE.Group();
+  group.name = 'openingHardware';
+  const mats: THREE.MeshStandardMaterial[] = [];
+
+  // Meshy's part-segmentation export ships NO textures - the parts
+  // arrive in flat ID colours (the beige slabs of the first mount).
+  // The hardware wears the monument's own material instead, one dark
+  // stone per part so the channel parts stay individually addressable
+  // when the refusal's light drain is built.
+  const dress = (root: THREE.Object3D): void => {
+    root.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        const m = new THREE.MeshStandardMaterial({
+          // machined dark metal: near-black body, and the gold lives
+          // ONLY on the rims - a fresnel mask below turns the flat
+          // emissive into edge light, which is what Jacob's frame 1
+          // armour actually does. Flat gold paint photographed as
+          // "idk if they suck", 2026-08-29. They sucked.
+          color: 0x14181d,
+          metalness: 0.82,
+          roughness: 0.42,
+          envMapIntensity: 1.1,
+          emissive: 0xb98a3c,
+          emissiveIntensity: 0.0,
+          side: THREE.FrontSide,
+          transparent: true,
+          opacity: 0
+        });
+        m.onBeforeCompile = (sh) => {
+          sh.fragmentShader = sh.fragmentShader.replace(
+            '#include <emissivemap_fragment>',
+            `#include <emissivemap_fragment>
+{
+  float rimF = pow(1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))), 2.2);
+  totalEmissiveRadiance *= rimF * 3.2;
+}`
+          );
+        };
+        o.material = m;
+        mats.push(m);
+      }
+    });
+  };
+
+  // scale a loaded scene to a target world size along one axis,
+  // recentre on x/z and floor it at y=0. Box3 sees through the
+  // quantization; raw accessor units never touch this.
+  const normalise = (model: THREE.Object3D, target: number, axis: 'x' | 'y'): number => {
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const scale = target / (axis === 'x' ? size.x : size.y);
+    const c = box.getCenter(new THREE.Vector3());
+    model.position.set(-c.x * scale, -box.min.y * scale, -c.z * scale);
+    model.scale.setScalar(scale);
+    return size.y * scale;
+  };
+
+  new GLTFLoader().load(
+    '/models/jamb.glb',
+    (gltf) => {
+      const model = gltf.scene;
+      dress(model);
+      normalise(model, tuning.coreHeight, 'y');
+      model.position.z -= tuning.armourSetback;
+      // THE ARMOUR IS PARKED, 2026-08-29. Untextured it renders as a
+      // black slab that occludes the entire reveal - it cost an hour
+      // of debugging to find because it was invisible BECAUSE it was
+      // everywhere. It returns when Jacob's textured export lands,
+      // smaller and behind the light. Until then the column carries
+      // the reveal alone, and it carries it well.
+      model.visible = false;
+      const holder = new THREE.Group();
+      holder.name = 'core';
+      holder.add(model);
+      // the light column between the rails: the drained seam,
+      // gathered. MeshBasic at near-white so ACES and bloom carry it.
+      const columnMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uWake: { value: 0 },
+          uRoad: { value: 0 },
+          // how hard the seal is grinding RIGHT NOW: 0 while the stone
+          // is held, 1 through a slip. Drives the dust the seam has
+          // been holding for however long it has been shut.
+          uGrind: { value: 0 },
+          // how far the stone has parted, 0 to 1. The LIT FRACTION of
+          // the gap rides this: the light has to widen inside the
+          // opening, not just be stretched with it.
+          uOpen: { value: 0 }
+        },
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          varying vec3 vN;
+          void main() {
+            vUv = uv;
+            vN = normalMatrix * normal;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform float uTime;
+          uniform float uWake;
+          uniform float uRoad;
+          uniform float uGrind;
+          uniform float uOpen;
+          varying vec2 vUv;
+          varying vec3 vN;
+          float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float n2(vec2 p) {
+            vec2 i = floor(p); vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), f.x),
+                       mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), f.x), f.y);
+          }
+          void main() {
+            // THE SEAM SPLITS WITH THE STONE. This plane always spans
+            // lip to lip, so uv.x 0 and 1 ARE the blades' moving
+            // edges: each carries its half of the light by
+            // construction. Between them, the dark interior - and the
+            // arcs that jump it, Zeus between two electrodes.
+            float t = uTime;
+            float ex = min(vUv.x, 1.0 - vUv.x);
+            // GATES OPEN = LIGHT WIDENS. Jacob's law, and the dark
+            // interior broke it: a wider gap became a wider band of
+            // NOTHING between two thin lips, so opening the gate made
+            // the frame darker and the whole beat read as the light
+            // dying (measured 2026-08-29 - mean luminance peaked at
+            // .15 and fell to its starting value by .27).
+            //
+            // The light lives INSIDE, and it WIDENS. Jacob, 2026-08-29:
+            // "if you trying to say light is coming as the gate opens
+            // then it should look like it slowly widening. here it
+            // looks just like idk what".
+            //
+            // The fault was that the glow was a gradient in UV, so it
+            // filled the gap at every width - scaling the plane just
+            // drew a bigger copy of the same picture, and the leftover
+            // was a faint gold wash lying over the black. Nothing ever
+            // widened; it only got bigger.
+            //
+            // Now the LIT BAND is a fraction of the gap that grows with
+            // the parting. Early it is a thin seam of light in a dark
+            // slot, and the walls either side stay black because the
+            // light has not reached them yet. At full opening it fills
+            // the doorway. dc is distance from the centre line, so the
+            // band opens outward from the middle the way light escaping
+            // a widening crack actually does.
+            float dc = abs(vUv.x - 0.5);
+            float litHalf = mix(0.10, 0.40, uOpen);
+            float depth = 1.0 - smoothstep(litHalf * 0.42, litHalf, dc);
+            // THE LIGHT KEEPS A MARGIN. Jacob, 2026-08-29: "the gold
+            // should stop at the white line on either side so black
+            // looks like black". Measured across the gap, the pure
+            // black was ONE pixel wide with gold sitting outside the
+            // white line - because this plane spans the whole opening
+            // and its glow and lip ran right to its own edge, leaving
+            // the stone nothing to be dark against.
+            //
+            // Everything the gap emits is now cut to zero before the
+            // plane ends, so there is a genuine unlit band between the
+            // light and the stone. A margin cannot be tuned into
+            // existence with levels; the emission has to actually stop.
+            float edgeCut = 1.0 - smoothstep(0.38, 0.47, dc);
+            // and the slot recedes: the light is deepest low, thinning
+            // toward the crown, so the interior has somewhere to go
+            // instead of reading as a flat lit slab (the "blinding
+            // white" of the same review).
+            depth *= 0.70 + 0.30 * smoothstep(0.9, 0.15, vUv.y);
+            // EDGE FIRE: THE GOLD SEAM, SPLIT IN TWO. Jacob,
+            // 2026-08-29: it "seems to be disappearing instead of
+            // splitting". These two lips ARE the original seam after
+            // the stone divides it - one gold line becoming two that
+            // ride the blades apart - so they have to be the strongest
+            // gold in the frame, not a trim weaker than the glow
+            // between them. At 0.40 against a 0.58 interior the centre
+            // outshone them and there was nothing left to read as
+            // splitting.
+            //
+            // Still well under the 0.85 that clipped to white in the
+            // blinding review: this is contrast between the two golds,
+            // not a return to a hot filament.
+            // and the LEVEL is what keeps it gold. ACES desaturates
+            // bright colour toward white, so a correct hue at high
+            // intensity still renders pale - measured rgb(191,185,173)
+            // with the chromaticity already fixed. The seam's tension
+            // look survives precisely because watch scales it DOWN to
+            // 0.20; the darkness is what protects the hue. The gate can
+            // afford the same drop now that its widening is structural
+            // rather than carried by brightness.
+            float lip = exp(-ex * 20.0) * 0.38;
+            // THE ARCS: five wandering horizontal strikes, coming and
+            // going on their own clocks, always lip to lip
+            // ZEUS, WITH FLAIR. A single smooth sine meander is a
+            // ribbon, not a discharge - lightning has KINKS, it has
+            // strikes of wildly different size, and it FORKS. Three
+            // octaves of noise stacked at rising frequency give the
+            // path corners it cannot get from one wave, and a rare
+            // "big" selector lets some strikes be real events instead
+            // of every bolt being the same bolt.
+            float arcs = 0.0;
+            for (int i = 0; i < 6; i++) {
+              float fi = float(i);
+              float yc = 0.08 + 0.16 * fi + 0.06 * sin(t * (0.7 + 0.3 * fi) + fi * 2.1);
+              float jag = (n2(vec2(vUv.x * 10.0 + fi * 13.0, t * (1.6 + 0.6 * fi))) - 0.5) * 0.052
+                        + (n2(vec2(vUv.x * 27.0 + fi * 31.0, t * (2.5 + 0.7 * fi))) - 0.5) * 0.022
+                        + (n2(vec2(vUv.x * 61.0 + fi * 57.0, t * (3.7 + 0.9 * fi))) - 0.5) * 0.009;
+              float d = abs(vUv.y - yc - jag);
+              float strike = smoothstep(0.26, 0.74, n2(vec2(t * 2.6 + fi * 5.0, fi * 17.0)));
+              // most strikes are small; a few are the ones you remember
+              float big = smoothstep(0.72, 0.97, n2(vec2(t * 1.1 + fi * 9.0, 3.0)));
+              float amp = 0.30 + 0.85 * big;
+              arcs += (exp(-d * 150.0) * amp + exp(-d * 46.0) * amp * 0.38) * strike;
+              // THE FORK: a short branch splitting off the main bolt,
+              // only on the big ones and only out toward one flank, so
+              // it reads as a discharge finding a second path rather
+              // than as a second bolt drawn beside the first.
+              float fSide = fract(fi * 7.3) > 0.5 ? 1.0 : -1.0;
+              float fReach = smoothstep(0.06, 0.34, (vUv.x - 0.5) * fSide);
+              float fy = yc + jag * 1.9 + (0.014 + 0.026 * fract(fi * 3.7));
+              arcs += exp(-abs(vUv.y - fy) * 210.0) * strike * big * fReach * 0.55;
+            }
+            // ---- THE GATE WEARS THE SEAM'S OWN GOLD ----
+            // Jacob, 2026-08-29: under tension the seam "turns very
+            // dark gold which is not bright and doesn't hurt eyes ...
+            // can you do the same to the gate colour".
+            //
+            // The seam's trick is not that it is dark. It is that it
+            // holds ONE HUE at every level: holy is (1.8, 1.15, 0.42)
+            // and the watcher only ever scales it, 0.20 where it is not
+            // attending to 1.35 where it is. It never travels toward
+            // white, so it cannot glare however hot it gets.
+            //
+            // The gate was doing the opposite - a near-white hot colour
+            // for the arcs and a PALE ceiling to roll off into - so every
+            // bright part drifted to white and burned. Both colours are
+            // now the seam's chromaticity, holy normalised to its own
+            // red: only the multiplier changes.
+            vec3 gold = vec3(1.0, 0.64, 0.233);
+            vec3 hot = gold;
+            // the interior glow is GOLD and moderate - it is depth, not
+            // a lamp. It KEEPS its level while the peaks come down:
+            // the body of the light is the brightness Jacob wants, the
+            // spread between it and the lips was the blinding part.
+            vec3 col = gold * depth * 0.32 + gold * lip + hot * arcs;
+
+            // ---- THE DUST THE SEAL HAS BEEN HOLDING ----
+            // Jacob, 2026-08-29: the chamber is ancient, ruined and
+            // rugged, and "it cant just split just like that". A seal
+            // that has been shut for an age is full of grit, and the
+            // grit comes down the moment the stone breaks free. This is
+            // the visible consequence of the slip, which is why it is
+            // gained by uGrind and not by time.
+            //
+            // SHORT DASHES, NOT STRIPES AND NOT SPECKLE. Elongated
+            // about two to one down the fall, so a grain reads as a
+            // falling grain with its own motion blur. Red-paint capture
+            // caught the first attempt at 8:1, which drew full-height
+            // lines the length of the gap - striping, not dust.
+            // Isotropic noise is the other failure and resolves to the
+            // static this repo has already killed twice.
+            float dust = 0.0;
+            for (int i = 0; i < 4; i++) {
+              float fi = float(i);
+              // four layers falling at their own rates: the near grit
+              // outruns the far, which is what gives the fall depth
+              float g = n2(vec2(vUv.x * (95.0 + fi * 52.0) + fi * 31.0,
+                                vUv.y * (38.0 + fi * 17.0) - t * (1.05 + 0.55 * fi)));
+              dust += smoothstep(0.80, 0.99, g) * (0.55 - fi * 0.10);
+            }
+            // THE EMBERS. A few coarse pieces falling slower than the
+            // grit and burning brighter - what gives the fall a scale
+            // to read against. All grains the same size is a texture;
+            // a few big ones among many small is a cascade. They drift
+            // sideways as they go, so they tumble rather than rail.
+            float ember = 0.0;
+            for (int i = 0; i < 3; i++) {
+              float fi = float(i);
+              float drift = sin(t * (0.5 + 0.3 * fi) + fi * 2.7) * 0.06;
+              float e = n2(vec2(vUv.x * (17.0 + fi * 9.0) + drift * 20.0 + fi * 47.0,
+                                vUv.y * (7.0 + fi * 3.0) - t * (0.42 + 0.16 * fi)));
+              ember += smoothstep(0.90, 0.995, e) * (0.9 - fi * 0.22);
+            }
+            dust += ember * 1.6;
+            // grit is only seen where the light has reached: in the
+            // dark part of the slot it is falling unlit, which is
+            // exactly nothing to draw
+            dust *= depth;
+            // grit is STONE: it takes the gap's own gold as reflected
+            // light rather than glowing in a colour of its own, which
+            // is the same one-hue law the seam keeps.
+            col += gold * dust * (0.12 + 1.85 * uGrind);
+            // THE SHADOW ROAD: the authored route crossing the
+            // natural light at the wrong angle - darkness cut into
+            // the seam, readable against the stress paths
+            // 0.97 was a blackout, not a road: at full strength it took
+            // the seam out entirely and read as the light DYING right
+            // before the opening (Jacob, 2026-08-29). A road crosses the
+            // light; it does not end it.
+            float rd = abs((vUv.y - 0.42) * 3.0 + (vUv.x - 0.5) * 0.9);
+            col *= 1.0 - exp(-rd * 3.0) * 0.55 * uRoad;
+            // a SOFT KNEE, not a hard clamp. min() flattens everything
+            // above the ceiling to one flat value, which is what turns
+            // a highlight into a white slab with no shape in it. This
+            // rolls the top off instead, so the peaks stay separable
+            // and the range narrows - contrast, not brightness.
+            //
+            // AND THE CEILING IS GOLD. It was (0.86, 0.76, 0.60), a
+            // pale colour - so the knee pulled every bright fragment
+            // toward off-white on its way to saturating, which is where
+            // the glare actually came from. A gold ceiling means the
+            // hottest thing in the gap is still deep gold.
+            vec3 ceil = gold * 0.50;
+            col = ceil * (col / (col + ceil));
+            // the interior glow is SEEN THROUGH, not a curtain: the far
+            // wall and the stress ridges carved into it have to read
+            // inside the light, or the ridges spread apart where no one
+            // can see them happen. Lips and arcs keep full opacity -
+            // they are the near edges and the strike, not depth.
+            //
+            // And OUTSIDE the lit band this reaches zero, so the dark
+            // interior is genuinely dark rather than carrying a film of
+            // gold over it. That film was the "faint gold on the black
+            // part": alpha that never fell to nothing.
+            float a = clamp(depth * 0.52 + lip + arcs + dust * uGrind * 0.9, 0.0, 1.0);
+            // the margin applies to the LIGHT ITSELF, not just its
+            // colour: alpha goes to zero too, so nothing of this plane
+            // survives near the stone to be bloomed outward.
+            col *= edgeCut;
+            a *= edgeCut;
+            gl_FragColor = vec4(col, uWake * a);
+          }`
+      });
+      const column = new THREE.Mesh(
+        new THREE.PlaneGeometry(4.4, tuning.columnHeight),
+        columnMat
+      );
+      column.position.y = tuning.columnHeight * 0.5 + 2;
+      holder.add(column);
+      coreParts.column = columnMat;
+      coreParts.columnMesh = column;
+      // the light pools at the foot of the gap: a soft billboard on
+      // the stair, alive only with the core
+      const poolCanvas = document.createElement('canvas');
+      poolCanvas.width = 128;
+      poolCanvas.height = 64;
+      const pctx = poolCanvas.getContext('2d')!;
+      const pg = pctx.createRadialGradient(64, 32, 0, 64, 32, 62);
+      pg.addColorStop(0, 'rgba(255,235,190,0.9)');
+      pg.addColorStop(1, 'rgba(255,220,150,0)');
+      pctx.fillStyle = pg;
+      pctx.fillRect(0, 0, 128, 64);
+      const pool = new THREE.Mesh(
+        new THREE.PlaneGeometry(44, 15),
+        new THREE.MeshBasicMaterial({
+          map: new THREE.CanvasTexture(poolCanvas),
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          fog: false
+        })
+      );
+      pool.rotation.x = -Math.PI / 2.3;
+      pool.position.set(0, 8.5, 12);
+      coreParts.pool = pool.material as THREE.MeshBasicMaterial;
+      group.add(pool);
+      holder.position.set(0, tuning.coreY, tuning.coreZ);
+      holder.visible = false;
+      coreParts.holder = holder;
+      group.add(holder);
+    },
+    undefined,
+    (err) => console.error('core asset failed to load', err)
+  );
+
+  return { group, mats };
+}
+
 // THE LOCKED PALETTE, and it is a set of ROLES, not a set of swatches.
 // Every hex from the crest spec sheet's section 2 converted to LINEAR,
 // because diffuseColor lives in linear space inside these shaders: the
@@ -85,6 +654,8 @@ const vec3 P_RIM      = vec3(0.21960, 0.29620, 0.39160); // #8194A8 cold rim, ed
 const FRAG_COMMON = `#include <common>
 ${PALETTE_GLSL}
 varying vec3 vMonoW;
+varying vec3 vMonoL;
+uniform float uPart;
 uniform float uDecay;
 uniform float uSeverity;
 uniform float uTime;
@@ -164,24 +735,24 @@ float monoSegDist(vec2 p, vec2 a, vec2 b) {
 
 const FRAG_MAP = `#include <map_fragment>
 {
-  float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
+  float heightT = clamp(vMonoL.y / 195.0, 0.0, 1.0);
 
   // THE SPLIT SPIRE is a wedge: no twist to unwrap. Courses run across
   // the outer face by depth, then wrap the flank
-  float sideS = vMonoW.x >= 0.0 ? 1.0 : -1.0;
+  float sideS = vMonoL.x >= 0.0 ? 1.0 : -1.0;
   // THE FLARE, mirrored from monumentForm.ts: the skin must agree with
   // the geometry about where the stone is, or the courses slide off
   // the splay at the foot.
   float flareS = 1.0 + 0.42 * exp(-max(heightT, 0.0) / 0.055);
   float formS = (1.0 - 0.9 * pow(max(heightT, 1e-4), 1.0)) * flareS;
   float cutX = sideS * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
-  float fromFissure = abs(vMonoW.x - cutX);
+  float fromFissure = abs(vMonoL.x - cutX);
   float outward = fromFissure / max(31.0 * formS, 0.001);
-  float across = clamp(vMonoW.z / max(17.0 * formS, 0.001), -1.0, 1.0);
-  float ang = across * 1.5 + sign(vMonoW.z) * smoothstep(0.5, 1.0, outward) * 1.2;
+  float across = clamp(vMonoL.z / max(17.0 * formS, 0.001), -1.0, 1.0);
+  float ang = across * 1.5 + sign(vMonoL.z) * smoothstep(0.5, 1.0, outward) * 1.2;
 
   // decay eats plates, and a plate is bounded by the macro cracks
-  float plateId = floor(vMonoW.y / 2.4) * 17.0 + floor((ang + 3.0) * 6.5);
+  float plateId = floor(vMonoL.y / 2.4) * 17.0 + floor((ang + 3.0) * 6.5);
   float h = monoHash(vec3(plateId, sideS, 3.0));
   float cluster = 0.5 + 0.5 * sin(plateId * 0.61 + sideS + h * 9.0);
   float th = clamp(0.2 + 0.78 * (1.0 - heightT) + 0.28 * (cluster - 0.5) + (h - 0.5) * 0.12, 0.06, 0.985);
@@ -235,8 +806,8 @@ const FRAG_MAP = `#include <map_fragment>
     float laneGate = sys == 2 ? 0.02 : 0.10 - footIns * 0.065;
     if (lanePhase < laneGate) continue;
     float lx = fract(ang * laneW);
-    float row = floor(vMonoW.y / rowH + lanePhase * 5.0);
-    float ly = fract(vMonoW.y / rowH + lanePhase * 5.0);
+    float row = floor(vMonoL.y / rowH + lanePhase * 5.0);
+    float ly = fract(vMonoL.y / rowH + lanePhase * 5.0);
     float gh = monoHash(vec3(lane, row, sideS + float(sys) * 7.0));
     float rowGate = sys == 2 ? 0.10 : 0.20 - footIns * 0.11;
     if (gh < rowGate) continue;
@@ -272,7 +843,7 @@ const FRAG_MAP = `#include <map_fragment>
 
   // macro plate cracks: sparse and thin, a few per face. A periodic
   // fract() here striped the whole skin like corduroy
-  vec2 pc = vec2(ang * 1.15, vMonoW.y * 0.026);
+  vec2 pc = vec2(ang * 1.15, vMonoL.y * 0.026);
   vec2 pcell = floor(pc);
   float ph = monoHash(vec3(pcell, sideS));
   float crack = 0.0;
@@ -300,15 +871,15 @@ const FRAG_MAP = `#include <map_fragment>
   // and rain-darkened territories. The wetness lives in roughness, not
   // emission or a painted highlight, so it appears only when the locked
   // light and environment genuinely catch it.
-  float micro = monoHash(floor(vec3(ang * 130.0, vMonoW.y * 26.0, sideS)));
-  float speck = monoHash(floor(vec3(ang * 420.0, vMonoW.y * 84.0, sideS * 3.0)));
+  float micro = monoHash(floor(vec3(ang * 130.0, vMonoL.y * 26.0, sideS)));
+  float speck = monoHash(floor(vec3(ang * 420.0, vMonoL.y * 84.0, sideS * 3.0)));
   // sintered pitting off: two percent of fragments punched dark is
   // exactly the "noisy high-frequency grain" the spec sheet bans, and
   // it reads as static on a face this dark
   float pit = 0.0;
-  float macroVar = monoHash(floor(vec3(ang * 3.0, vMonoW.y * 0.5, sideS + 9.0)));
-  float mineralBed = monoFbm(vec2(ang * 0.82 + sideS * 4.7, vMonoW.y * 0.018));
-  float rainSheet = monoFbm(vec2(ang * 2.15 + sideS * 9.3, vMonoW.y * 0.006 + 17.0));
+  float macroVar = monoHash(floor(vec3(ang * 3.0, vMonoL.y * 0.5, sideS + 9.0)));
+  float mineralBed = monoFbm(vec2(ang * 0.82 + sideS * 4.7, vMonoL.y * 0.018));
+  float rainSheet = monoFbm(vec2(ang * 2.15 + sideS * 9.3, vMonoL.y * 0.006 + 17.0));
   float wetTerritory = smoothstep(0.54, 0.77, mineralBed * 0.72 + rainSheet * 0.28);
   // Dry stone holds a diffuse mineral tooth. Broad wet territories pull
   // that response down to a restrained sheen, never a mirror or clearcoat.
@@ -341,7 +912,7 @@ const FRAG_MAP = `#include <map_fragment>
   diffuseColor.rgb *= 1.0 - pit * 0.45;
   diffuseColor.rgb += vec3(0.055, 0.058, 0.065) * edge;
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.76, 1.05), uSeverity * 0.3);
-  diffuseColor.rgb = mix(diffuseColor.rgb * 0.35, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoW.y));
+  diffuseColor.rgb = mix(diffuseColor.rgb * 0.35, diffuseColor.rgb, smoothstep(0.0, 4.0, vMonoL.y));
   if (dying > 0.0) {
     float gt = 0.72 + 0.22 * sin(uTime * (1.0 + h * 1.4) + h * 40.0);
     diffuseColor.rgb *= mix(1.0, mix(gt, 0.8, uCalm), dying);
@@ -420,8 +991,8 @@ const FRAG_MAP = `#include <map_fragment>
   // side of it.
   float cS = sideS * clamp(outward, 0.0, 1.0);
 
-  vec2 CP = vec2(cS * 34.0, vMonoW.y);
-  vec2 BP = vec2(cS * 95.0, vMonoW.y);
+  vec2 CP = vec2(cS * 34.0, vMonoL.y);
+  vec2 BP = vec2(cS * 95.0, vMonoL.y);
 
   // the band: one SHALLOW diagonal crossing the whole monument. 0.497
   // over 0.868 rose 0.57 per unit across, which on a coordinate now
@@ -464,7 +1035,7 @@ const FRAG_MAP = `#include <map_fragment>
   // STATIC - it stops reading as corrosion and starts reading as noise
   // in the image. The corrosion fades out over the upper third so the
   // crown is stone again.
-  float cTop = smoothstep(170.0, 96.0, vMonoW.y);
+  float cTop = smoothstep(170.0, 96.0, vMonoL.y);
 
   cAcross += 26.0 * (monoFbm(vec2(cAlong * 0.010, 5.0)) - 0.5);
   // WIDER. 30 to 50 read as a belt across a tall mass; 46 to 76 gives
@@ -473,7 +1044,7 @@ const FRAG_MAP = `#include <map_fragment>
   float band = 1.0 - smoothstep(cHalf * 0.22, cHalf, abs(cAcross));
   // clustered, so it takes hold in patches rather than filling the band
   band *= smoothstep(0.30, 0.66, monoFbm(vec2(cAlong * 0.035, cAcross * 0.048)) * 0.55 + band * 0.62);
-  band *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut * cTop;
+  band *= smoothstep(-12.0, 3.0, vMonoL.z) * cCut * cTop;
 
   // ---- THE HIERARCHY ----
   // E0, 2026-08-22, Jacob's strike. Everything above defines the
@@ -530,7 +1101,7 @@ const FRAG_MAP = `#include <map_fragment>
     // Tuned to the mock: the lace wraps the whole flare and is BRIGHT -
     // it catches the light, it does not hide in it - dense to about a
     // quarter height and thinning to traces, never a hard stop.
-    float footM = exp(-max(vMonoW.y - 8.0, 0.0) / 26.0) * smoothstep(-2.0, 2.0, vMonoW.y);
+    float footM = exp(-max(vMonoL.y - 8.0, 0.0) / 26.0) * smoothstep(-2.0, 2.0, vMonoL.y);
     float fPit = smoothstep(0.02, -0.16, cf) * footM * ROT;
     float fWeb = cWebRaw * footM * ROT;
     diffuseColor.rgb *= 1.0 - fPit * 0.6;
@@ -572,7 +1143,7 @@ const FRAG_MAP = `#include <map_fragment>
   // the halo multiplier comes down as the band widens, or the cracks
   // scale with it and swallow the intact stone again
   float halo = 1.0 - smoothstep(cHalf * 0.7, cHalf * 1.55, abs(cAcross));
-  halo *= smoothstep(-12.0, 3.0, vMonoW.z) * cCut * cTop * ROT;
+  halo *= smoothstep(-12.0, 3.0, vMonoL.z) * cCut * cTop * ROT;
   float cCrack = smoothstep(0.76, 0.99, cWebRaw)
                * smoothstep(0.48, 0.82, monoFbm(CP * 0.14 + 31.0))
                * halo * (1.0 - band * 0.85);
@@ -668,9 +1239,9 @@ const FRAG_MAP = `#include <map_fragment>
   float cLane = monoHash(vec3(floor(cS * 52.0), 21.0, sideS));
   float cRunLen = (5.0 + 26.0 * fract(cLane * 5.3)) * cSideLen;
   float cRun = step(0.48, cLane)
-             * step(0.52, monoNoise(vec2(cS * 96.0, vMonoW.y * 0.85)))
+             * step(0.52, monoNoise(vec2(cS * 96.0, vMonoL.y * 0.85)))
              * smoothstep(cRunLen, cRunLen * 0.12, belowCut)
-             * smoothstep(-12.0, 3.0, vMonoW.z) * cSideAmt * ROT;
+             * smoothstep(-12.0, 3.0, vMonoL.z) * cSideAmt * ROT;
   // dimmer again, Jacob 2026-08-21: the runs support the cut edge, they
   // are not a feature of their own. Gate 4: and they are micro detail,
   // so they fade at range with the web.
@@ -723,13 +1294,13 @@ const FRAG_MAP = `#include <map_fragment>
   float mkRim = 0.0;
   for (int mi = 0; mi < 12; mi++) {
     if (mi >= uMarkN) break;
-    float md = distance(vMonoW, uMarks[mi].xyz);
+    float md = distance(vMonoL, uMarks[mi].xyz);
     float age = uTime - uMarks[mi].w;
     if (age < 0.0 || md > 6.0) continue;
     float grow = clamp(age * 0.55, 0.0, 1.0);
     float mr = (1.3 + 0.9 * monoHash(vec3(uMarks[mi].xyz))) * grow;
     // ragged edge, from the same hash family as everything else here
-    float wob2 = 0.75 + 0.5 * monoNoise(vec2(vMonoW.y * 1.7 + uMarks[mi].w, md * 2.2));
+    float wob2 = 0.75 + 0.5 * monoNoise(vec2(vMonoL.y * 1.7 + uMarks[mi].w, md * 2.2));
     float body = smoothstep(mr * wob2, mr * wob2 * 0.35, md);
     // eaten in the rot's own pattern: cf is the corrosion field already
     // computed above, so the bite and the band share one structure
@@ -744,14 +1315,14 @@ const FRAG_MAP = `#include <map_fragment>
   // opens over the second the cell is still in the air.
   for (int ci = 0; ci < 6; ci++) {
     if (ci >= uCullN) break;
-    float cd = distance(vMonoW, uCulls[ci].xyz);
+    float cd = distance(vMonoL, uCulls[ci].xyz);
     float cage = uTime - uCulls[ci].w;
     if (cage < 0.0 || cd > 5.0) continue;
     float cgrow = clamp(cage * 0.8, 0.0, 1.0);
     // a whole cell is gone here, not a symbolic touch, so the pit runs
     // a little wider than a press mark's: 1.6 to 2.2 units
     float cr = (1.6 + 0.6 * monoHash(uCulls[ci].xyz)) * cgrow;
-    float cwob = 0.8 + 0.4 * monoNoise(vec2(vMonoW.y * 1.7 + uCulls[ci].w, cd * 2.2));
+    float cwob = 0.8 + 0.4 * monoNoise(vec2(vMonoL.y * 1.7 + uCulls[ci].w, cd * 2.2));
     mkPit = max(mkPit, smoothstep(cr * cwob, cr * cwob * 0.3, cd));
   }
   // THE BITES ARE OFF, Jacob 2026-08-27: "the stupid bug when you
@@ -951,18 +1522,39 @@ const FRAG_MAP = `#include <map_fragment>
   vMonoRough = clamp(vMonoRough + seam * 0.16 - chamfer * 0.2, 0.05, 0.96);
   vMonoH = vMonoH - seamDepth * 1.7 + chamfer * 0.22;
 
-  float wResp = exp(-pow((vMonoW.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
+  float wResp = exp(-pow((vMonoL.y - uWatchY) * 0.017, 2.0)) * uWatchAmt;
   vMonoEng = (cWeb * band * 0.028
             + cCrack * 0.020
             + cRun * 0.005) * (1.0 - uCalm * 0.45)
             * (1.0 + wResp * 2.2)
             + mkRim * 0.016 * (1.0 - uCalm * 0.45);
+
+  // ---- THE SEALED FACE IS PITCH BLACK ----
+  // Jacob, 2026-08-29: "i dont want anything after the white and gold
+  // lines the black should be pitch black nothing on it". Masking the
+  // emissive terms was not enough on its own - this is a lit material,
+  // so the exposed wall still answers the scene lights and the
+  // environment, and no amount of removing GLOWS makes a surface that
+  // is being lit go black.
+  //
+  // So the albedo itself goes to nothing on the faces the parting
+  // exposes. A face that has been sealed against another slab of rock
+  // since the thing was built has no finish on it to catch anything.
+  // Keyed on how far the face turns into the cleft and gated by the
+  // parting, so at uPart = 0 it is exactly 1 and the hero is untouched.
+  {
+    float kSide = vMonoL.x >= 0.0 ? 1.0 : -1.0;
+    float kInward = clamp(normalize(vNormal).x * -kSide, 0.0, 1.0);
+    float sealed = kInward * (1.0 - exp(-uPart * 0.55));
+    diffuseColor.rgb *= 1.0 - sealed * 0.97;
+    vMonoEng *= 1.0 - sealed;
+  }
   }
 }`;
 
 const FRAG_EMISSIVE = `#include <emissivemap_fragment>
 if (gl_FrontFacing) {
-  float heightT = clamp(vMonoW.y / 195.0, 0.0, 1.0);
+  float heightT = clamp(vMonoL.y / 195.0, 0.0, 1.0);
   vec3 sig = mix(vec3(1.0, 0.98, 0.94), vec3(0.72, 0.86, 1.0), uSeverity);
   // only fragments ever light, and they are small and hard edged
   totalEmissiveRadiance += sig * vMonoEng * 2.4;
@@ -981,7 +1573,7 @@ if (gl_FrontFacing) {
   // still works and still writes to the ledger; it simply no longer
   // announces itself in advance.
   if (uInnerAmt > 0.001) {
-    vec3 iv = uInner - vMonoW;
+    vec3 iv = uInner - vMonoL;
     totalEmissiveRadiance += vec3(0.45, 0.5, 0.6) * (uInnerAmt / (1.0 + dot(iv, iv) * 0.02));
   }
 
@@ -994,13 +1586,69 @@ if (gl_FrontFacing) {
   // it lives in emission at whisper level, fades with decay, and adds
   // no line to any face the camera sees square-on.
   {
-    float gSide = vMonoW.x >= 0.0 ? 1.0 : -1.0;
+    float gSide = vMonoL.x >= 0.0 ? 1.0 : -1.0;
+    // THE SEAM MOVES WITH THE SPIRE - Jacob, 2026-08-29, said three
+    // times before it was heard. The gilded band was anchored at a
+    // fixed WORLD x, so the blades slid out from under their own
+    // gold. The anchor rides the parting now: each blade carries its
+    // seam-edge with it, wherever it stands.
     float gCut = gSide * (5.0 - 3.9 * clamp(heightT, 0.0, 1.0));
-    float gDist = abs(vMonoW.x - gCut);
+    float gDist = abs(vMonoL.x - gCut);
     vec3 gN = normalize(vNormal);
     float gFace = clamp(gN.x * -gSide, 0.0, 1.0);
     float gNear = exp(-gDist * 0.45);
-    totalEmissiveRadiance += vec3(0.42, 0.27, 0.10) * gFace * gNear * 0.5 * (1.0 - uDecay);
+    // CONTRAST, NOT BRIGHTNESS - Jacob, 2026-08-29. Measured the same
+    // day: at the full opening the brightest columns of the frame were
+    // NOT the seam (133) but the gilded stone either side of it (184
+    // and 208). Both terms below are gained by uPart, which runs to
+    // 3.5, so the parting was doubling the face bounce and turning the
+    // blades into a wall of gold. The gains come down; the 0.5 base is
+    // untouched, so the standing hero frame is bit-for-bit unchanged.
+    // THE EXPOSED WALL IS NOT GILDED, AND IT IS NOT FLAT. Jacob,
+    // 2026-08-29, with a frame: two flat beige strips flanking the gap,
+    // "faint gold on the black part ... it looks odd". Red-paint capture
+    // put the fault exactly there and showed it UNIFORM across each
+    // face - because gNear is measured from gDist, which lives in the
+    // stone's own unparted frame, and the cut face sits at gDist = 0
+    // across its whole area. A stain meant for the lip of a slit became
+    // a painted slab the moment the slit became a doorway.
+    //
+    // Two corrections, both physical rather than a level cut:
+    //
+    // gTravel - the wall carries itself AWAY from the light as the
+    // stone parts, so it falls into shadow rather than brightening.
+    // Exactly 1 at uPart = 0, so the standing hero frame is untouched.
+    //
+    // AND IT GOES TO NOTHING. Jacob, 2026-08-29, with a zoom: "the gold
+    // should stop at the white line on either side so black looks like
+    // black". At 0.17 the falloff still left 36 percent of the gilding
+    // on the exposed wall - the faint gold lying on the black band.
+    // Red-paint capture ruled out the gap light as the source: the
+    // column plane stops well inside those bands, so the only thing
+    // lighting them was this term. 0.62 takes it to under three percent
+    // by the time the gate is open, which is also the honest reading -
+    // the gilding is a patina from centuries of light pooling at the
+    // lip of a slit, and this face was sealed behind it the whole time.
+    //
+    // gDepth - the face RECEDES into the chamber. Lit at the front
+    // where the light escapes, dark going back, so it reads as a wall
+    // with depth instead of a card. At the hero only the front sliver
+    // is visible and gDepth is already 1 there, so again nothing moves.
+    float gTravel = exp(-uPart * 0.62);
+    float gDepth = smoothstep(-16.0, 8.0, vMonoL.z);
+    totalEmissiveRadiance += vec3(0.42, 0.27, 0.10) * gFace * gNear * gDepth * 0.5 * gTravel * (1.0 - uDecay);
+    // the door panels' FRONT faces catch the gap's fire as they
+    // travel: without this the parting is invisible dead-on
+    // (inspection fault 1, 2026-08-29)
+    //
+    // THIS IS THE OUTER BLOOM AND IT STAYS. Damping it by
+    // exp(-uPart * 0.30) killed the warm bounce on the outer faces and
+    // Jacob caught it immediately - "the outer bloom is gone". It was
+    // never the fault: the gold lying beside the black band comes from
+    // the gap light's own plane running to its edge, not from the
+    // stone. Restored to full.
+    float gFront = clamp(gN.z, 0.0, 1.0);
+    totalEmissiveRadiance += vec3(0.5, 0.34, 0.13) * gFront * exp(-gDist * 0.3) * uPart * 0.047 * (1.0 - uDecay);
   }
 
   // ---- THE RIM ----
@@ -1027,7 +1675,22 @@ if (gl_FrontFacing) {
     float graze = pow(max(1.0 - abs(dot(normal, rimV)), 0.0), 5.0);
     // the sky is up: normals with any upward lean catch more of it
     float up = 0.35 + 0.65 * clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
-    totalEmissiveRadiance += P_RIM * graze * up * (0.30 + 0.70 * heightT) * uRim * (1.0 - uDecay);
+    // A SURFACE INSIDE THE CLEFT HAS NO SKY. Jacob, 2026-08-29: "what
+    // are those grey outer lines" - the pale cold edges standing either
+    // side of the black band. They are this rim, which is a fresnel
+    // response to SKY light and exists to hold the monument's outer
+    // silhouette off a near-black sky. Parting the stone exposed a set
+    // of inner edges that never had sky to catch: they face another
+    // slab of rock a few units away. The rim was lighting them anyway,
+    // which is what drew a grey line down each side of the opening.
+    //
+    // Masked by how far the face turns INTO the cleft, and gated by the
+    // parting so it can only bite on geometry the opening exposed. At
+    // uPart = 0 this is exactly 1 and the standing hero is untouched.
+    float rSide = vMonoL.x >= 0.0 ? 1.0 : -1.0;
+    float rInward = clamp(normalize(vNormal).x * -rSide, 0.0, 1.0);
+    float rimMask = 1.0 - rInward * (1.0 - exp(-uPart * 0.55));
+    totalEmissiveRadiance += P_RIM * graze * up * (0.30 + 0.70 * heightT) * uRim * rimMask;
   }
 }`;
 
@@ -2286,6 +2949,18 @@ export class HeroRenderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly camera: THREE.PerspectiveCamera;
   readonly path = new CameraPath();
+  private readonly memory: MemoryField;
+  private readonly hardware: { group: THREE.Group; mats: THREE.MeshStandardMaterial[] };
+  private stress!: { group: THREE.Group; skin: THREE.ShaderMaterial; mesh: THREE.Mesh };
+  private readonly coreParts: {
+    holder: THREE.Group | null;
+    column: THREE.ShaderMaterial | null;
+    columnMesh: THREE.Mesh | null;
+    pool: THREE.MeshBasicMaterial | null;
+  } = { holder: null, column: null, columnMesh: null, pool: null };
+  private fisPlane: THREE.Mesh | null = null;
+  private coreVoid: THREE.Mesh | null = null;
+  private openBraceAmt = 0;
 
   private readonly scene = new THREE.Scene();
   private readonly composer: EffectComposer;
@@ -2613,6 +3288,10 @@ export class HeroRenderer {
     this.keyLight = new THREE.DirectionalLight(0xe8eef5, 1.0);
     this.keyLight.position.set(0.35, 0.8, 0.55);
     this.scene.add(this.keyLight);
+    // Z: the memory field, hanging far below the world. Invisible
+    // until the camera is past the blade; same seed, same memory.
+    this.memory = new MemoryField(world.seed);
+    this.scene.add(this.memory.group);
     this.ambient = new THREE.AmbientLight(0x1a2129, 1.1);
     this.scene.add(this.ambient);
 
@@ -2650,6 +3329,7 @@ export class HeroRenderer {
         uniform float uWakeT;
         uniform float uWakeY;
         uniform float uSurge;
+        uniform float uHand;
         uniform float uSurgeTime;
         uniform float uSurgeTail;
         out vec4 outColor;
@@ -2915,12 +3595,21 @@ export class HeroRenderer {
           // halo is what carries the front's position out to where it can
           // be seen. Recorded so it is not tried a second time.
           vec3 seam = mix(holy, cold, uSeverity) * v * u;
-          outColor = vec4(seam * (near * fail * watch * turn + surge * fail), 1.0);
+          outColor = vec4(seam * (near * fail * watch * turn + surge * fail) * uHand, 1.0);
         }`,
       uniforms: {
         uSeverity: { value: 0 },
         uDecay: { value: 0 },
         uNear: { value: 0 },
+        // THE HANDOVER. The resting seam used to be switched off by a
+        // boolean the instant partT passed 0.06, while the gap light
+        // was still at a third - measured 2026-08-29, the seam's mean
+        // brightness HALVED at p=0.09 and its peak fell from 220 to
+        // 151. That is Jacob's "the gold seam seems to be disappearing
+        // instead of splitting", and it landed exactly where the white
+        // lines arrive, which is why it read as the lines killing it.
+        // One light, actually handed off this time.
+        uHand: { value: 1 },
         // THE WATCHER. x and y in -1..1, smoothed toward the pointer.
         uWatch: { value: new THREE.Vector2(0, 0) },
         uWatchAmt: { value: 0 },
@@ -3038,6 +3727,63 @@ export class HeroRenderer {
       fis.position.set(0, 90, -2.2);
       fis.frustumCulled = false;
       this.scene.add(fis);
+      this.fisPlane = fis;
+
+      // THE OPENING's void: what the parted blades expose around the
+      // core. Near-black interior so no sky ever leaks through the gap.
+      // the interior's darkness, shaped like the interior: a TAPERED
+      // strip tracking the spire's own profile, wide at the foot,
+      // narrow at the crown. Every rectangular version of this - two
+      // boxes now - spawned corners past the narrowing silhouette the
+      // moment the gates cracked. Jacob's eye caught it both times,
+      // 2026-08-29. A shape that matches the monument cannot peek.
+      const voidGeo = new THREE.BufferGeometry();
+      voidGeo.setAttribute(
+        'position',
+        new THREE.BufferAttribute(
+          new Float32Array([
+            -8, 1, -6, 8, 1, -6, 8, 150, -6,
+            -8, 1, -6, 8, 150, -6, 2.2, 186, -6,
+            -8, 1, -6, 2.2, 186, -6, -2.2, 186, -6
+          ]),
+          3
+        )
+      );
+      // AND IT WIDENS WITH THE STONE. Jacob, 2026-08-29: "when gates
+      // open i can see the background". The strip was authored for the
+      // unparted slit, but the halves translate by PART_TRAVEL at EVERY
+      // height - and near the crown, where the blades are only a couple
+      // of units thick, a twelve-unit separation opens a gap far wider
+      // than a 2.2 strip could ever cover. The sky came through the top
+      // of the opening.
+      //
+      // Scaling the mesh was the wrong instinct and would have
+      // reintroduced the fault this geometry exists to fix: a uniform
+      // x-scale big enough for the crown throws the foot's corners
+      // (already 8 wide) out past the monument's own silhouette at
+      // mid-height. Instead the void takes the IDENTICAL rigid-body
+      // offset the stone takes. The triangles simply grow wider - there
+      // is no vertex on the centre line to tear open - so the interior
+      // tracks the parting exactly, at every height, by construction.
+      const voidMat = new THREE.MeshBasicMaterial({
+        color: 0x020304,
+        side: THREE.DoubleSide,
+        fog: false
+      });
+      voidMat.onBeforeCompile = (sh) => {
+        sh.uniforms.uPart = this.stoneU.uPart!;
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nuniform float uPart;')
+          .replace(
+            '#include <begin_vertex>',
+            '#include <begin_vertex>\ntransformed.x += sign(position.x) * uPart;'
+          );
+      };
+      const core = new THREE.Mesh(voidGeo, voidMat);
+      core.frustumCulled = false;
+      core.visible = false;
+      this.scene.add(core);
+      this.coreVoid = core;
     }
 
     // --- THE CORE HAZE ---
@@ -3506,6 +4252,7 @@ export class HeroRenderer {
     // --- the monument itself: authored stone, not boxes ---
     const monoUniforms = (): Record<string, THREE.IUniform> => ({
       uTime: { value: 0 },
+      uPart: { value: 0 },
       uDecay: { value: 0 },
       uSeverity: { value: 0 },
       uCalm: { value: 0 },
@@ -3584,10 +4331,23 @@ export class HeroRenderer {
     stone.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.stoneU);
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vMonoW;')
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMonoW;\nvarying vec3 vMonoL;\nuniform float uPart;')
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\nvMonoW = (modelMatrix * vec4(position, 1.0)).xyz;'
+          // TWO STONES, PULLED APART - Jacob, 2026-08-29: "i carved a
+          // line on a stone ... when two friends pull the stones the
+          // carved line doesn't stay stationary, it moves with the
+          // stone." Each half is a RIGID BODY. It slides whole, and
+          // every crease, glyph and grain carved on it rides with it,
+          // because the skin samples vMonoL - the stone's own frame.
+          // No door panels, no boundary bands, no smearing. The only
+          // crack is the seam the monument always had.
+          [
+            '#include <begin_vertex>',
+            'transformed.x += sign(position.x) * uPart;',
+            'vMonoW = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+            'vMonoL = (modelMatrix * vec4(position, 1.0)).xyz;'
+          ].join('\n')
         );
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', FRAG_COMMON)
@@ -3625,6 +4385,10 @@ export class HeroRenderer {
     };
     this.monoMat = stone;
     this.scene.add(buildHeroCrest());
+    this.hardware = buildOpeningHardware(this.coreParts);
+    this.scene.add(this.hardware.group);
+    this.stress = buildStressStage(world.seed);
+    this.scene.add(this.stress.group);
     this.ready = new GLTFLoader()
       .loadAsync('/models/monument.glb')
       .then((gltf) => {
@@ -4153,6 +4917,21 @@ ${SKY_LAW}`
     this.pointerNdc = null;
   }
 
+  /** Harness probe: first surface on a -z ray from (x, y, 200). The
+   * proven placement technique here is measurement, not guessing. */
+  probeSurface(x: number, y: number): { z: number; name: string } | null {
+    const rc = new THREE.Raycaster(new THREE.Vector3(x, y, 200), new THREE.Vector3(0, 0, -1));
+    const hits = rc.intersectObjects(this.scene.children, true);
+    for (const h of hits) {
+      if (h.object.visible && h.object.type !== 'Points') {
+        let root: THREE.Object3D | null = h.object;
+        while (root && !root.name && root.parent) root = root.parent;
+        return { z: h.point.z, name: root?.name || h.object.type };
+      }
+    }
+    return null;
+  }
+
   update(_progress: number, dt: number, reduced: boolean): void {
     this.time += dt;
     // THE STILLNESS. Sinister gate 6, 2026-08-22, from the paper list,
@@ -4191,24 +4970,199 @@ ${SKY_LAW}`
     // world is embalmed and the SYSTEM is not, and that distinction is
     // the whole meaning of the freeze. At the threshold it says exactly
     // the right thing: the world stops, and the thing inside does not.
+    // ---- THE OPENING ----
+    // Five beats on one scalar. Arrival .24-.32: the watcher fixes on
+    // the visitor (the brace below). Refusal .34-.43: decay withdraws
+    // every light the monument owns - the gold is being GATHERED, not
+    // killed. The black beat. Parting .46-.60: the split spire finally
+    // splits, and the light returns as THE CORE standing revealed in
+    // the widening gap (Jacob's frames, 2026-08-29). Committal .60-.66:
+    // through the shadow beside the core. The fall follows.
+    const opP = this.path.progressValue;
+    // EVERY STATE IS A PURE FUNCTION OF SCROLL POSITION - both ways.
+    // And THE SEAM NEVER GOES DARK: the drain/refusal beat read as
+    // "the gold seam is disappearing before the gates open, why is
+    // that" (Jacob, 2026-08-29) - a bug report, not drama. The light
+    // holds through the arrival and turns to LIGHTNING as the stone
+    // parts. refusal is pinned dead, kept only so its wiring reads.
+    const refusal = 0;
+    // STRESS + PATH = FORM. incisionT: the seam gains depth before
+    // width - the halves separate barely a hand's width. openT: the
+    // RESOLUTION, where the negotiated form actually opens.
+    // ONE CONTINUOUS PARTING - Jacob, 2026-08-29: "it illuminates then
+    // goes dark then the opening happens its not coherent". It was
+    // three disconnected events because partT held FLAT at 0.22 from
+    // .10 to .19 - half the beat where the stone did not move and the
+    // light did not change - so the ridges flared and died and the road
+    // blacked out the seam in a dead window, and the opening then
+    // started from scratch. Two stones being pulled apart do not pause.
+    // The gap widens monotonically from the incision to the resolution;
+    // X and Y are things seen IN that widening light, never instead of
+    // it.
+    const incisionT = smooth01(opP, 0.07, 0.1);
+    // ---- THE SEAL IS SEIZED ----
+    // Jacob's physical model, 2026-08-29, and the one that was missing:
+    // the chamber is ancient, ruined and rugged, and "it cant just
+    // split just like that ... it should feel opening as an event".
+    // A smooth ramp is a machine part on rails. Stone that has been
+    // shut for an age RESISTS, loads up, and breaks free - then seizes
+    // again on the next bind, three times before it is open.
+    //
+    // Stick-slip as a pure function of scroll: within each stage the
+    // stone is HELD for the first half and then gives across the
+    // second. Nothing is latched, nothing integrates, nothing eases in
+    // time - drag backwards and it binds and releases at exactly the
+    // same three places. That is the law kept while the motion stops
+    // being a glide.
+    // LINEAR underneath, so the three binds are evenly spaced. An
+    // eased ramp here stretched the first stage over 4 percent of the
+    // page and crushed the last into one - the stone appeared stuck at
+    // the start and then snapped open at the end. All the shaping
+    // belongs to the stick-slip; the carrier stays a straight map from
+    // scroll, which is the law anyway.
+    const openRaw = Math.min(1, Math.max(0, (opP - 0.1) / 0.17));
+    const STAGES = 3;
+    const s = Math.min(openRaw, 1 - 1e-6) * STAGES;
+    const stage = Math.floor(s);
+    const withinStage = s - stage;
+    // held, then the give. The bind takes the first 42 percent of each
+    // stage and the release is fast but not instant - stone, not a
+    // shutter, and short enough that the hold never reads as stuck.
+    const give = smooth01(withinStage, 0.42, 0.95);
+    const partT = incisionT * 0.15 + ((stage + give) / STAGES) * 0.85;
+    // the grind is the SLIP ITSELF: nothing while the stone is bound,
+    // hard through the release. The dust in the gap rides this, so the
+    // seam sheds exactly when it tears free and settles while it holds.
+    const grind = give * (1 - give) * 4;
+    this.openBraceAmt = smooth01(opP, 0.06, 0.09) * (1 - smooth01(opP, 0.11, 0.16));
+    this.stoneU.uPart!.value = partT * PART_TRAVEL;
+    // THE DRAIN is geometric: the blade of light sinks into the floor,
+    // top first, a bolt being drawn. The black wall stays - after the
+    // light leaves, the slit is a dead mouth, which is the point.
+    if (this.fisPlane) {
+      // the resting seam stands until the widening sheet takes over
+      // at matching width: one light, handed off, never absent.
+      // A BOOLEAN IS NOT A HANDOFF. It cut the resting seam dead at
+      // partT 0.06 while the gap light was still at a third, and the
+      // measured brightness halved. The two now OVERLAP across the
+      // whole early parting, so at every point in the crossover the
+      // total is carried by one source or the other or both.
+      this.fisPlane.scale.y = 1;
+      this.fisPlane.position.y = 90;
+      const hand = 1 - smooth01(partT, 0.04, 0.30);
+      this.fissureMat.uniforms.uHand!.value = hand;
+      this.fisPlane.visible = hand > 0.002;
+    }
+    // SEAMS DO NOT DISAPPEAR WHEN GATES OPEN - Jacob, 2026-08-29.
+    // The light lives INSIDE: the refusal drains the crack, the stone
+    // cracks in the dark, and light floods the gap the instant there
+    // is a gap. The thin seam and the revealed column are one light,
+    // continuous, only ever seen through a wider door.
+    // wake is IMMEDIATE - no dark crack - and it now tracks the GAP
+    // rather than the resolution beat. Keying the second term to openT
+    // pinned the light at a third from .10 to .19 whatever the stone
+    // did, which is the flat stretch that broke the read. Light is a
+    // function of how far apart the stones are, and nothing else.
+    const coreWake = smooth01(partT, 0.0, 0.06) * (0.25 + 0.75 * partT);
+    if (this.coreParts.holder) this.coreParts.holder.visible = coreWake > 0.005;
+    if (this.coreParts.column) {
+      this.coreParts.column.uniforms.uWake!.value = coreWake;
+      this.coreParts.column.uniforms.uTime!.value = this.time;
+      this.coreParts.column.uniforms.uGrind!.value = grind;
+      this.coreParts.column.uniforms.uOpen!.value = partT;
+    }
+    if (this.coreParts.columnMesh) {
+      // THE SEAM GOES WITH THE SPIRE - Jacob, 2026-08-29. The light
+      // belongs to the GAP: its edges ride the blades' inner edges as
+      // they part, the thin seam widening into a sheet of light that
+      // fills the opening. A fixed-width line in a widening gap reads
+      // as nothing happening, because it is.
+      const gap = 5 + 2 * partT * PART_TRAVEL;
+      this.coreParts.columnMesh.scale.x = Math.max(0.5, gap / 4.4);
+    }
+    if (this.coreParts.pool) this.coreParts.pool.opacity = coreWake * 0.7;
+    // the beats grade themselves: the black beat crushes, the reveal
+    // burns. The flat audit keeps its zero.
+    if (!this.flatAudit) {
+      this.bloom.strength = 0.34;
+    }
+    this.renderer.toneMappingExposure = 1.1;
+    // and the parted walls catch its warmth again
+    this.stoneU.uDecay!.value = refusal * (1 - coreWake * 0.7);
+    if (this.coreVoid) this.coreVoid.visible = partT > 0.01;
+    // X: the ridges emerge through the incision and then RIDE THE
+    // STONE. They hold at full once arrived - the only way they leave
+    // is by travelling apart with the halves they are carved into and
+    // passing out of the gap, which is what the rigid-body law
+    // requires and what a fade can never look like. The dim at the end
+    // belongs to the dive, not to the opening.
+    this.stress.skin.uniforms.uX!.value =
+      smooth01(opP, 0.09, 0.14) * (1 - smooth01(opP, 0.29, 0.33));
+    // the halves' separation, in the skin's own units: the same
+    // parting scalar the stone and the gap already run on, so the
+    // ridges cannot drift out of agreement with the geometry.
+    // THE INTERIOR WALL SPANS THE GAP AND NOTHING MORE. The skin is
+    // authored 14 wide; widening the geometry to fit a 6-unit travel
+    // would let a rectangle peek past the monument's silhouette, which
+    // is a standing prohibition. So the plane SCALES to the gap
+    // instead, and the ridge offset is converted into that scaled
+    // frame - the ridges still translate by exactly PART_TRAVEL in
+    // world units, so they stay rigid with the stone they are cut into.
+    {
+      const gapW = 5 + 2 * partT * PART_TRAVEL;
+      this.stress.mesh.scale.x = gapW / 14;
+      this.stress.skin.uniforms.uSpread!.value = (partT * PART_TRAVEL * 14) / gapW;
+    }
+    // Y: the shadow road is a darkness IN the light - a band crossing
+    // the seam at the wrong angle, contained by construction. The 3D
+    // wedge version read as a floating shard (recheck, 2026-08-29).
+    if (this.coreParts.column) {
+      this.coreParts.column.uniforms.uRoad!.value =
+        smooth01(opP, 0.15, 0.19) * (1 - smooth01(opP, 0.21, 0.26));
+    }
     const idleNow = !this.pointerNdc;
     this.idleT = idleNow ? this.idleT + dt : 0;
     this.braceAmt = 0;
     if (this.stillPin >= 0) this.braceAmt = this.stillPin;
     const wantStill = reduced
       ? 0
-      : Math.max(smooth01(this.idleT, 48, 63), this.braceAmt);
+      : Math.max(smooth01(this.idleT, 48, 63), this.braceAmt, this.openBraceAmt);
     this.stillAmt += (wantStill - this.stillAmt) * (1 - Math.exp(-dt * 0.9));
     if (this.stillPin >= 0) this.stillAmt = this.stillPin;
     this.ambientT += dt * (1 - this.stillAmt);
     this.path.update(this.camera);
-    const inside = 0;
+    this.memory.update(dt, this.path.progressValue, this.camera);
+    // the lock resolves on approach and is absent from the stand
+    {
+      const hwGlow = 1.15 * smooth01(partT, 0.45, 0.85);
+      for (const m of this.hardware.mats) m.emissiveIntensity = hwGlow;
+      const hw = smooth01(this.path.progressValue, 0.03, 0.08);
+      this.hardware.group.visible = hw > 0.005;
+      if (this.hardware.group.visible) {
+        for (const m of this.hardware.mats) m.opacity = hw;
+      }
+    }
+    const inside = this.path.state.inside;
     if (!reduced) {
       // the world is never embalmed: the camera orbits its subject,
       // drifting on its own and leaning with the visitor's hand. The
       // hand's reach shrinks inside the cleft: the walls are close.
       // (Overruled during the long dwell - see THE STILLNESS above.)
-      const reach = 1;
+      // 0.92: at the held station the look arm is 80 units, so even a
+      // small yaw sways the eye in metres. The slit's half width at
+      // camera height is about 1.9 units; full reach would put the
+      // near plane through the wall.
+      // THE DESCENT IS A STRAIGHT RAIL - Jacob, 2026-08-29: "camera is
+      // going sideways rather than straight". Every keyframe sits at
+      // x = 0, so the rail never was the fault: the pointer parallax
+      // ORBITS the eye around the look point, and where the cursor
+      // happened to rest while scrolling swung the whole frame. It is
+      // also pointer-driven and time-smoothed, which breaks the law
+      // that the journey is a pure function of scroll. So the lean
+      // belongs to the STAND alone and is gone the moment the descent
+      // starts - the camera only ever closes distance.
+      const stand = Math.max(0, 1 - this.path.progressValue / 0.04);
+      const reach = (1 - inside * 0.92) * stand;
       const px = this.pointerNdc ? this.pointerNdc.x : 0;
       const py = this.pointerNdc ? this.pointerNdc.y : 0;
       this.parX += (px - this.parX) * (1 - Math.exp(-dt * 1.6));
@@ -4265,7 +5219,8 @@ ${SKY_LAW}`
       this.watchAmt += (wantWatch - this.watchAmt) * (1 - Math.exp(-dt * 1.1));
       const fu = this.fissureMat.uniforms;
       (fu.uWatch!.value as THREE.Vector2).set(this.watchX, this.watchY + wdrift);
-      const wAmt = this.watchAmt * (reduced ? 0.35 : 1);
+      // inside the cleft the blade is overhead: nothing left to watch from
+      const wAmt = this.watchAmt * (reduced ? 0.35 : 1) * (1 - inside);
       fu.uWatchAmt!.value = wAmt;
       // the same height in world units, so the rot can answer it: the
       // plane is 184 tall centred at 90, and the node sits at
@@ -4296,14 +5251,22 @@ ${SKY_LAW}`
       // goes below 8.2: the sway keeps its full range everywhere except
       // through the one boundary that is supposed to be solid. Inside
       // the cleft every key sits at 20 or higher, so this never binds.
-      if (this.camera.position.y < 8.2) this.camera.position.y = 8.2;
-      // the frame itself leans with the hand: the subject swings gently
-      const sway = lookP.clone().addScaledVector(right.normalize(), -this.parX * 5.0);
-      sway.y += -this.parY * 3.0;
+      // (exterior only: during the fall the eye lives far below zero)
+      if (this.camera.position.y < 8.2 && this.camera.position.y > -100) this.camera.position.y = 8.2;
+      // the frame itself leans with the hand: the subject swings gently.
+      // Gated by stand for the same reason as the orbit above - once the
+      // descent begins the look target is on the axis and stays there.
+      const sway = lookP.clone().addScaledVector(right.normalize(), -this.parX * 5.0 * stand);
+      sway.y += -this.parY * 3.0 * stand;
       this.camera.lookAt(sway);
     }
     const sev = this.path.state.severity;
+    // the refusal reaches ONLY light. Driving global decay was
+    // photographed 2026-08-29: the clad discarded into checkerboard
+    // confetti and the silhouette died with the rim. The stone's own
+    // uDecay kills the gilding bounce; clad and records never decay.
     const decay = 0;
+    const coreDecay = refusal;
 
     // The approved hero light rig is fixed.
     {
@@ -4404,7 +5367,13 @@ ${SKY_LAW}`
       this.skyMat.uniforms.uLid!.value = 0.3 + 0.625 * sev;
     }
     this.fissureMat.uniforms.uSeverity!.value = sev;
-    this.fissureMat.uniforms.uDecay!.value = decay;
+    this.fissureMat.uniforms.uDecay!.value = coreDecay;
+    // the revealed core burns, and it is not still: the surge system
+    // carries the turbulence while the blades stand apart
+    if (partT > 0.01) {
+      const fsurge = this.fissureMat.uniforms.uSurge!;
+      fsurge.value = Math.max(fsurge.value as number, partT * 2.0);
+    }
     this.fissureMat.uniforms.uNear!.value = inside;
     // ambient motions ride the stillness clock - gate 6
     this.fieldMat.uniforms.uTime!.value = reduced ? 0 : this.ambientT;
@@ -4415,7 +5384,7 @@ ${SKY_LAW}`
     (this.fieldMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     (this.strataMat.uniforms.uFog!.value as THREE.Color).copy(fogColor);
     this.hazeMat.uniforms.uSeverity!.value = sev;
-    this.hazeMat.uniforms.uDecay!.value = decay;
+    this.hazeMat.uniforms.uDecay!.value = coreDecay;
     this.skyMat.uniforms.uTime!.value = reduced ? 0 : this.ambientT;
     this.groundU.uGTime!.value = reduced ? 0 : this.ambientT;
     this.groundU.uGSeverity!.value = sev;
