@@ -192,8 +192,9 @@ check('kernel calls no Math.random', !/Math\s*\.\s*random\s*\(/.test(kernelSrc))
       back.phase !== f.phase ||
       back.tick !== f.tick ||
       back.unfold !== f.unfold ||
+      back.unfoldRequested !== f.unfoldRequested ||
       back.bladeLive !== f.bladeLive ||
-      back.showAltered !== f.showAltered
+      back.hasDelta !== f.hasDelta
     ) {
       mismatch++;
     }
@@ -287,20 +288,70 @@ check(
   );
 }
 
-// THE NEUTRAL PROBLEM, asserted rather than left implicit. The kernel
-// proves neutral is bit-identical to the baseline, so a visitor who leaves
-// the blade alone reaches a Z with nothing in it. Whether that is a bug or
-// the best beat in the site is undecided - but the state model must report
-// it truthfully, not paper over it.
+// ---- NEUTRAL IS THE ZERO-DELTA STATE ----
+// Resolved 2026-08-30. Neutral is not a third Z outcome: it is the proof
+// that Z only exists when something actually changed. The visitor is never
+// blocked, so the threshold stays reachable, but the world cannot open.
 {
-  const zNeutral = J.journeyAt(0.95, 0);
-  const zAltered = J.journeyAt(0.95, 1);
+  // no matter how far scroll asks Z to open, neutral opens nothing
+  let leaked = 0;
+  let reachable = 0;
+  for (let i = 0; i <= 2000; i++) {
+    const p = i / 2000;
+    const st = J.journeyAt(p, 0);
+    if (st.unfold !== 0) leaked++;
+    if (st.phase === 'z' && st.unfoldRequested > 0.5) reachable++;
+  }
   check(
-    'neutral reports no second future, and a detent does',
-    zNeutral.showAltered === false && zAltered.showAltered === true,
-    'Z is empty when nothing was changed - see THE NEUTRAL PROBLEM'
+    'neutral never unfolds Z, at any scroll position',
+    leaked === 0,
+    `${leaked} of 2001 samples opened a field that does not exist`
+  );
+  check(
+    'but the Z threshold is still reachable at neutral',
+    reachable > 0,
+    'the visitor is never blocked, and never told to go back'
   );
 }
+
+// the delta itself must be zero at neutral - the state model and the
+// kernel have to agree, or one of them is lying
+check(
+  'the kernel agrees: neutral is zero delta',
+  D.checksum(fam.altered.get(0)) === D.checksum(fam.baseline),
+  'already asserted above; restated here as the ground the Z rule stands on'
+);
+
+// moving off neutral opens Z from the SAME scroll position, with no jump
+{
+  const p = 0.9;
+  const n = J.journeyAt(p, 0);
+  const a = J.journeyAt(p, 1);
+  check(
+    'moving off neutral opens Z from the same scroll position',
+    n.unfold === 0 && a.unfold === n.unfoldRequested && a.unfold > 0,
+    `requested ${n.unfoldRequested.toFixed(3)} -> neutral 0, detent ${a.unfold.toFixed(3)}`
+  );
+}
+
+// and returning to neutral recompresses it exactly, because unfold is
+// derived rather than accumulated
+{
+  const p = 0.9;
+  const before = J.journeyAt(p, 0).unfold;
+  J.journeyAt(p, 1);
+  const after = J.journeyAt(p, 0).unfold;
+  check(
+    'returning to neutral recompresses the field to exactly zero',
+    before === 0 && after === 0,
+    'no accumulation, no residue'
+  );
+}
+
+check(
+  'neutral reports no second future, and a detent does',
+  J.journeyAt(0.95, 0).hasDelta === false && J.journeyAt(0.95, 1).hasDelta === true
+);
 
 // the blade steps between three notches and stops at the ends
 check(

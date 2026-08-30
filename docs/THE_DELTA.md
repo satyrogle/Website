@@ -115,6 +115,38 @@ and restrained.
 
 > **THE INTERVENTION IS CHOSEN. THE CONSEQUENCES ARE NOT.**
 
+### 6.1 Neutral is the zero-delta state
+
+Resolved 2026-08-30, after the kernel proved the neutral family bit-identical
+to the baseline and the question became what a visitor who never touches the
+blade should find in Z.
+
+**Not a third Z outcome.** An empty Z page would be mathematically honest and
+would read as the site failing to load. Neutral is instead the proof of the
+rule the whole direction rests on:
+
+> You changed nothing. Therefore there is no difference to inhabit.
+
+The visitor is **never blocked and never instructed**. Scroll carries them
+into the Z threshold exactly as it otherwise would, and the threshold
+composition is reachable — but the world does not open, because baseline and
+altered are the same geometry and the gap between them is zero. No warning
+text, no gate, no "choose something". The mechanism says it.
+
+Snap the blade to −1 or +1 and Z unfolds **from the same scroll position**,
+with no jump: the delta was always the thing being drawn, and it stopped
+being zero. Return it to neutral and the field recompresses to exactly
+nothing, because the unfold is derived, never accumulated.
+
+The sinister register comes free. Most sites are desperate to react to a
+visitor — hover, ripple, particles, *look, you matter*. At neutral this one
+does not care that anyone arrived. Reality diverges only if you alter
+something.
+
+Asserted in `tools/delta-verify.mjs`: neutral never unfolds Z at any scroll
+position, the threshold stays reachable anyway, moving off neutral opens from
+the same position, and returning recompresses to exactly zero.
+
 ## 7. Z — STAND INSIDE THE DIFFERENCE
 
 **Z does not extend in front of the camera. It unfolds around it.** This is a

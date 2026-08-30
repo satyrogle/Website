@@ -54,42 +54,56 @@ export interface JourneyState {
   tick: number;
   /** the blade accepts input only at Tick Zero */
   bladeLive: boolean;
-  /** how far Z's delta field has opened, 0 to 1 */
+  /**
+   * How far scroll has carried the visitor into Z. This rises whatever the
+   * blade is set to, so the threshold composition is always reachable and
+   * the visitor is never blocked or told to go back.
+   */
+  unfoldRequested: number;
+  /**
+   * How far the delta field has ACTUALLY opened. Identical to
+   * unfoldRequested when a difference exists, and exactly zero when it
+   * does not - because there is nothing to open. This is the value the
+   * world is built from.
+   */
   unfold: number;
   /**
-   * Whether a second future exists to show at all. Before the hinge there
-   * is only one, and that is not a rendering choice - the sequences are
-   * identical there by construction.
-   *
-   * It is ALSO false for the whole run when the blade is left at neutral,
+   * Whether a second future exists at all. Before the hinge there is only
+   * one, and that is not a rendering choice - the sequences are identical
+   * there by construction. It is also false for the whole run at neutral,
    * because the kernel proves neutral is bit-identical to the baseline.
-   * See THE NEUTRAL PROBLEM below.
    */
-  showAltered: boolean;
+  hasDelta: boolean;
 }
 
 /**
- * THE NEUTRAL PROBLEM, surfaced 2026-08-30 and not yet decided.
+ * NEUTRAL IS THE ZERO-DELTA STATE. Resolved by Jacob, 2026-08-30.
  *
- * THE_DELTA section 6 gives the blade three detents: negative, neutral,
- * positive. But delta-verify asserts that the neutral family is EXACTLY the
- * baseline - no difference anywhere, at any tick. That assertion is correct
- * and should stay: it is what "no difference means no separation" means.
+ * The kernel proves the neutral family is bit-identical to the baseline, so
+ * a visitor who never touches the blade has no second future and nothing to
+ * inhabit. The question was whether that should be a third Z outcome.
  *
- * The consequence is that a visitor who leaves the blade at neutral reaches
- * Z and finds nothing there. No gaps, no field, no place. Z is the space
- * between two futures, and they picked the same future twice.
+ * It is not. An empty Z page would be mathematically honest and would read
+ * as the site failing to load. Neutral is instead the PROOF of the rule the
+ * whole direction rests on:
  *
- * That is either a bug or the best beat in the site, and it is Jacob's call:
+ *   You changed nothing. Therefore there is no difference to inhabit.
  *
- *   - neutral is the resting position and the visitor must move OFF it to
- *     proceed, so Z always has a world in it; or
- *   - neutral is allowed, and choosing to change nothing means arriving at
- *     an empty Z. Merciless, entirely honest to the mechanism, and it would
- *     be the one page that punishes caution.
+ * So the visitor is never blocked and never instructed. Scroll carries them
+ * into the Z threshold exactly as it would otherwise - unfoldRequested
+ * rises normally - but the world does not open, because baseline and
+ * altered are the same geometry and the gap between them is zero. No
+ * warning text, no gate, no "choose something". The mechanism says it.
  *
- * Until it is decided, the state model reports the truth - showAltered is
- * false - rather than quietly pretending a difference exists.
+ * Snap the blade to -1 or +1 and Z unfolds from the same scroll position,
+ * with no jump: the delta was always the thing being drawn, and it stopped
+ * being zero. Return it to neutral and the field recompresses exactly to
+ * nothing, because unfold is derived, never accumulated.
+ *
+ * The sinister register comes free. Most sites are desperate to react to a
+ * visitor - hover, ripple, particles, look-you-matter. At neutral this one
+ * does not care that anyone arrived. Reality diverges only if you alter
+ * something.
  */
 
 function clamp01(x: number): number {
@@ -132,8 +146,9 @@ export function journeyAt(p: number, detent: Detent, reduced = false): JourneySt
       local: span(s, 0, BEATS.entranceEnd),
       tick: 0,
       bladeLive: false,
+      unfoldRequested: 0,
       unfold: 0,
-      showAltered: false
+      hasDelta: false
     };
   }
 
@@ -145,8 +160,9 @@ export function journeyAt(p: number, detent: Detent, reduced = false): JourneySt
       local,
       tick: reduced ? quantise(raw, 0, HINGE) : raw,
       bladeLive: false,
+      unfoldRequested: 0,
       unfold: 0,
-      showAltered: false
+      hasDelta: false
     };
   }
 
@@ -158,8 +174,9 @@ export function journeyAt(p: number, detent: Detent, reduced = false): JourneySt
       local: span(s, BEATS.xEnd, BEATS.tickZeroEnd),
       tick: HINGE,
       bladeLive: true,
+      unfoldRequested: 0,
       unfold: 0,
-      showAltered: false
+      hasDelta: false
     };
   }
 
@@ -171,21 +188,29 @@ export function journeyAt(p: number, detent: Detent, reduced = false): JourneySt
       local,
       tick: reduced ? quantise(raw, HINGE, last) : raw,
       bladeLive: false,
+      unfoldRequested: 0,
       unfold: 0,
       // a second future exists from the hinge on - unless the blade was
       // left at neutral, in which case there is genuinely only one.
-      showAltered: detent !== 0
+      hasDelta: detent !== 0
     };
   }
 
   const local = span(s, BEATS.yEnd, 1);
+  const requested = reduced ? quantise(local, 0, 1) : local;
+  const hasDelta = detent !== 0;
   return {
     phase: 'z',
     local,
     tick: last,
     bladeLive: false,
-    unfold: reduced ? quantise(local, 0, 1) : local,
-    showAltered: detent !== 0
+    // the threshold is always reachable: the visitor is never blocked
+    unfoldRequested: requested,
+    // but the world only opens if there is a difference to open. Derived,
+    // never accumulated, so returning the blade to neutral recompresses
+    // the field to exactly nothing.
+    unfold: hasDelta ? requested : 0,
+    hasDelta
   };
 }
 
