@@ -9,7 +9,12 @@
 import { BASE, captures, launch } from './env.mjs';
 
 const OUT = captures('journey');
-const STOPS = [0.12, 0.22, 0.3];
+// the whole journey: entrance, arrival, X scrub, Tick Zero, Y early and
+// late, Z opening and settled. Real scrolling, DOM and all. The blade
+// snaps to +1 at Tick Zero via the real keyboard path, so Y and Z carry
+// a genuine intervention.
+const STOPS = [0.36, 0.4, 0.46, 0.55, 0.62, 0.72, 0.82, 0.92];
+const DETENT_AT = 0.55;
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -23,6 +28,11 @@ for (const p of STOPS) {
     window.scrollTo({ top: max * t, behavior: 'instant' });
   }, p);
   await page.waitForTimeout(1400);
+  if (p === DETENT_AT) {
+    // the visitor's one input, through the real keyboard path
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(400);
+  }
   const name = OUT + '/' + String(Math.round(p * 100)).padStart(3, '0') + '.jpg';
   await page.screenshot({ path: name, type: 'jpeg', quality: 90 });
   console.log('captured', name);

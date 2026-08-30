@@ -37,7 +37,7 @@ import { FORM_H, prongCentre, surfacePoint, cutPlaneX } from '../world/monumentF
 export const DELTA_Y = -3260;
 
 /** display law, carried over from the judged blockout */
-const GAP_MAX = 150;
+const GAP_MAX = 170;
 const GAP_GAMMA = 0.36;
 /** how far X's baseline settling shears a stratum, world units per unit
  * offset. 30 was the JENGA: offsets of 0.1-0.3 became 3-9 unit random
@@ -46,8 +46,10 @@ const GAP_GAMMA = 0.36;
  * watch, not a misalignment to wear: at 9 the strata visibly work as X
  * scrubs and land aligned enough to stay one carved mass. */
 const SHEAR = 9;
-/** Y shows the sockets cracking; Z expands the same gaps to inhabitable */
-const DEPART_BASE = 0.22;
+/** Y shows the sockets cracking; Z expands the same gaps to inhabitable.
+ * 0.22 read as "nothing significant happening after 55" (Jacob,
+ * 2026-08-30 contact sheet) - the sockets have to visibly OPEN in Y. */
+const DEPART_BASE = 0.45;
 /** the blade's own displacement per detent notch */
 const BLADE_STEP = 2.4;
 
@@ -86,6 +88,10 @@ export class DeltaAct {
   private readonly gapNeg: Float32Array;
   private readonly widestPos: number;
   private readonly widestNeg: number;
+  /** first tick each section crossed its threshold, Infinity if never */
+  private readonly yieldTick: Float32Array;
+  /** signed display amplitude of that section's yield snap */
+  private readonly waveAmp: Float32Array;
   private readonly bladeLamp: THREE.PointLight;
   private readonly goldFaceMat: THREE.MeshStandardMaterial;
   private readonly q = new THREE.Quaternion();
@@ -116,6 +122,31 @@ export class DeltaAct {
     };
     this.widestPos = lastRow(this.gapPos);
     this.widestNeg = lastRow(this.gapNeg);
+
+    // THE YIELD WAVE. "No blocks are changing, they are just moving by
+    // negligible value" - Jacob, 2026-08-30. The kernel's real events
+    // are DISCRETE: a section crosses its threshold once, at one tick.
+    // X now shows exactly that: when a stratum yields it snaps sideways
+    // and settles back over the following ticks, so scrubbing runs a
+    // wave of visible give down the stack - computation you can watch,
+    // in the deterministic order the thresholds actually fire. Pure
+    // function of tick, both directions.
+    this.yieldTick = new Float32Array(SECTIONS).fill(Infinity);
+    for (let i = 0; i < SECTIONS; i++) {
+      for (let t = 0; t < TICKS; t++) {
+        if (this.fam.baseline.frames[t]![i]!.yielded) {
+          this.yieldTick[i] = t;
+          break;
+        }
+      }
+    }
+    this.waveAmp = new Float32Array(SECTIONS);
+    {
+      const wr = mulberry32((seed ^ 0x77a3e) | 0);
+      for (let i = 0; i < SECTIONS; i++) {
+        this.waveAmp[i] = (5 + wr() * 5) * (wr() < 0.5 ? -1 : 1);
+      }
+    }
 
     // ---- the interior void: X is inside the line, and inside the line
     // there is no sky. A shell owns the background completely.
@@ -151,11 +182,16 @@ export class DeltaAct {
 
     // ---- materials: the monument's own register, judged in the
     // blockout. Bloom and ACES live upstream, so intensities stay shy.
+    // fog:false everywhere in the act: the entrance drives scene.fog
+    // from its SKY each frame, and at arrival distance that washed the
+    // whole monolith blue - "still something blue at gate open"
+    // (Jacob, 2026-08-30). The act does its own depth cueing.
     const plateMat = new THREE.MeshStandardMaterial({
       color: 0x151a20,
       roughness: 0.84,
       metalness: 0.16,
-      flatShading: true
+      flatShading: true,
+      fog: false
     });
     const movedMat = plateMat.clone();
     movedMat.color = new THREE.Color(0x1c222a);
@@ -167,7 +203,8 @@ export class DeltaAct {
       // near-dielectric: at 0.35 the warm lamp mirrored off every
       // gilded face and re-created the painted-panel fault by light
       metalness: 0.12,
-      flatShading: true
+      flatShading: true,
+      fog: false
     });
     const chipMat = plateMat.clone();
     chipMat.color = new THREE.Color(0x11151b);
@@ -177,7 +214,8 @@ export class DeltaAct {
       emissiveIntensity: 0.22,
       roughness: 0.45,
       metalness: 0.4,
-      flatShading: true
+      flatShading: true,
+      fog: false
     });
 
     // ---- the strata body, the blockout's construction verbatim:
@@ -324,6 +362,12 @@ export class DeltaAct {
       this.v.copy(fr.base);
       // X: the baseline settling, the monolith shearing as it computes
       this.v.x += off * SHEAR;
+      // ...and the yield wave: the discrete snap of this stratum's one
+      // threshold crossing, settling back as the run continues
+      const yt = this.yieldTick[i]!;
+      if (tf >= yt) {
+        this.v.x += this.waveAmp[i]! * Math.exp(-(tf - yt) / 9);
+      }
       // Y and Z: the departure, the difference made physical
       if (dd > 0) {
         this.v.addScaledVector(fr.dir, dd);
