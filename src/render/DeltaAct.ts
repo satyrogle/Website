@@ -115,6 +115,8 @@ export class DeltaAct {
   private readonly v = new THREE.Vector3();
   private readonly m4 = new THREE.Matrix4();
   private readonly vScale = new THREE.Vector3();
+  private readonly cTmp = new THREE.Color();
+  private readonly cDark = new THREE.Color(0.72, 0.72, 0.72);
 
   constructor(seed: number) {
     this.group.position.y = DELTA_Y;
@@ -509,6 +511,8 @@ vSkinSeed = aSkinSeed;`
     });
     this.shardMesh = new THREE.InstancedMesh(geo, mat, total);
     this.shardMesh.frustumCulled = false;
+    // allocate per-instance colour for the birth flash
+    for (let n = 0; n < total; n++) this.shardMesh.setColorAt(n, this.cDark);
     this.group.add(this.shardMesh);
 
     for (const i of sections) {
@@ -518,26 +522,35 @@ vSkinSeed = aSkinSeed;`
       const sp = surfacePoint(t, side, 0.5);
       const spall = new THREE.Vector3(sp.x - c.x, 0, sp.z - c.z).normalize();
       const originX = cutPlaneX(t, side) + (side === 0 ? -1 : 1) * Math.abs(sp.x - cutPlaneX(t, side)) * 0.5;
+      const halfW = Math.abs(sp.x - cutPlaneX(t, side));
       for (let k = 0; k < PER; k++) {
-        // a cone of directions around the spall axis, some straight,
-        // some wild - a burst, not a beam
-        const spread = 0.25 + rng() * 0.75;
-        const d = spall
-          .clone()
-          .add(new THREE.Vector3((rng() - 0.5) * spread * 1.6, (rng() - 0.5) * spread, (rng() - 0.5) * spread * 1.6))
-          .normalize();
+        // A BLAST IS RADIAL. The first pass fired every shard down one
+        // spall cone and the cloud hugged the wall - "feels like
+        // bulges" (Jacob, 2026-08-30). Directions now cover the whole
+        // sphere with an outward bias, so a section erupts in every
+        // direction at once the way a detonation does.
+        const rd = new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1);
+        while (rd.lengthSq() > 1 || rd.lengthSq() < 0.05) {
+          rd.set(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1);
+        }
+        const d = rd.normalize().addScaledVector(spall, 0.55).normalize();
         // most shards are grit, a few are boulders
         const u = rng();
         const size = u < 0.7 ? 0.5 + rng() * 1.3 : u < 0.95 ? 1.8 + rng() * 2.2 : 4.5 + rng() * 4;
         this.shards.push({
           section: i,
-          origin: new THREE.Vector3(originX, t * FORM_H + (rng() - 0.5) * (FORM_H / SECTIONS) * 1.4, (rng() - 0.5) * 16),
+          // born anywhere in the slab's real volume, not at a point
+          origin: new THREE.Vector3(
+            originX + (rng() - 0.5) * halfW * 0.9,
+            t * FORM_H + (rng() - 0.5) * (FORM_H / SECTIONS) * 1.6,
+            (rng() - 0.5) * 24
+          ),
           dir: d,
-          frac: 0.06 + Math.pow(rng(), 1.6) * 0.94,
+          frac: 0.15 + Math.pow(rng(), 1.3) * 0.85,
           size,
           axis: new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(),
           spin: (rng() - 0.5) * 6,
-          sagK: 0.05 + rng() * 0.12
+          sagK: 0.08 + rng() * 0.24
         });
       }
     }
@@ -664,18 +677,35 @@ vSkinSeed = aSkinSeed;`
         }
         if (snap <= 0.001) {
           m4.makeScale(0.0001, 0.0001, 0.0001);
-          this.shardMesh.setMatrixAt(idx++, m4);
+          this.shardMesh.setMatrixAt(idx, m4);
+          this.shardMesh.setColorAt(idx, this.cDark);
+          idx++;
           continue;
         }
-        const reach = this.dispOf(gaps![(TICKS - 1) * SECTIONS + sh.section]!, widest) * expand * sh.frac * snap;
+        // A BLAST CLEARS ITS SOURCE. The kernel still ranks who flies
+        // furthest, but nothing merely swells: even the smallest
+        // detonation throws its shards well clear of the slab they
+        // were. The floor is display law, the ranking is data.
+        const reach =
+          (34 + this.dispOf(gaps![(TICKS - 1) * SECTIONS + sh.section]!, widest) * expand) * sh.frac * snap;
         s3.copy(sh.origin).addScaledVector(sh.dir, reach);
-        s3.y -= reach * sh.sagK * snap;
+        // ballistic: the further it flew, the harder it hangs
+        s3.y -= reach * sh.sagK * snap * (0.35 + 0.65 * snap);
         s3.x += flinch;
         q4.setFromAxisAngle(sh.axis, sh.spin * snap);
-        m4.compose(s3, q4, this.vScale.setScalar(sh.size));
-        this.shardMesh.setMatrixAt(idx++, m4);
+        // birth overshoot: the piece arrives oversized and settles -
+        // the crack of the moment, made of scale instead of a clock
+        const oversh = 1 + 0.55 * Math.exp(-((tf - ot) / 1.6));
+        m4.compose(s3, q4, this.vScale.setScalar(sh.size * oversh));
+        this.shardMesh.setMatrixAt(idx, m4);
+        // and a gold flash at birth, cooling to stone over ~4 ticks
+        const heat = Math.exp(-((tf - ot) / 4));
+        this.cTmp.setRGB(0.72 + 1.6 * heat, 0.72 + 1.05 * heat, 0.72 + 0.35 * heat);
+        this.shardMesh.setColorAt(idx, this.cTmp);
+        idx++;
       }
       this.shardMesh.instanceMatrix.needsUpdate = true;
+      if (this.shardMesh.instanceColor) this.shardMesh.instanceColor.needsUpdate = true;
     }
 
     // the blade is offered: the one warm lamp rises at Tick Zero and
