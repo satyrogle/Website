@@ -157,14 +157,30 @@ export class DeltaAct {
     shell.position.y = FORM_H * 0.5;
     this.group.add(shell);
 
-    // ---- light: enough to read form, one cold key, one whisper of
-    // warmth at the blade. Returnal steal 1 is depth-cueing, done with
-    // distance falloff on the key rather than a fog fight with the
-    // entrance's global fog.
-    this.group.add(new THREE.HemisphereLight(0x2a333e, 0x04060a, 1.0));
-    const key = new THREE.DirectionalLight(0xcfdae6, 1.15);
+    // ---- THE LIGHT SCORE. Cutting the borrowed fog revealed the act
+    // had no light of its own: black-on-black, "instead of blue its
+    // black now" (Jacob, 2026-08-30). The law already written for this:
+    // dark regions rich with scattered light, real highlights, light
+    // CONCENTRATED not sprayed. So the SEAM is the light source of
+    // this world - the cleft glows from within and the walls catch it
+    // warm, while a cold key rakes the outer strata and a faint rim
+    // holds the silhouette off the void.
+    this.group.add(new THREE.HemisphereLight(0x323b46, 0x080b0f, 1.35));
+    const key = new THREE.DirectionalLight(0xcfdae6, 2.5);
     key.position.set(-180, 340, 240);
     this.group.add(key);
+    const rim = new THREE.DirectionalLight(0x8fa0b4, 0.95);
+    rim.position.set(220, 120, -260);
+    this.group.add(rim);
+    // the seam lights its own canyon - the CLEFT WALLS, not the front
+    // face. At 1.5/280 these washed the whole facade into a flat gold
+    // billboard (photographed 2026-08-30): sprayed, not concentrated.
+    // Tight falloff keeps the warmth in the slit where the line lives.
+    for (const y of [FORM_H * 0.25, FORM_H * 0.55, FORM_H * 0.85]) {
+      const glow = new THREE.PointLight(0xd9b070, 0.85, 120, 2.0);
+      glow.position.set(0, y, 0);
+      this.group.add(glow);
+    }
     // a WHISPER of a lamp: at 1.1 it turned every gilded inner face
     // within reach into a billboard (photographed 2026-08-30)
     this.bladeLamp = new THREE.PointLight(0xd9b070, 0.0, 55, 2.0);
@@ -175,7 +191,9 @@ export class DeltaAct {
     // followed since the hero: the worldline through the whole stack
     const seam = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, FORM_H * 1.04, 1.1),
-      new THREE.MeshBasicMaterial({ color: 0xc9a45c, fog: false })
+      // bright enough to be the world's light and to clear the bloom
+      // threshold as the entrance's seam does
+      new THREE.MeshBasicMaterial({ color: 0xf2d9a0, fog: false })
     );
     seam.position.set(0, FORM_H / 2, 0);
     this.group.add(seam);
