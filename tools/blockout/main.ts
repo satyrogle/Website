@@ -45,12 +45,23 @@ const VISIBLE = widest * 0.01;
 const visibleIdx = finalGaps.map((g, i) => [g, i] as const).filter(([g]) => g > VISIBLE);
 
 /**
- * The widest computed gap opens this far, in hero units. The one global
- * scale in the experiment: the monument is 195 tall and ~62 wide, so 150
- * lets the biggest consequence carry a piece well clear of the body
- * without leaving the neighbourhood entirely.
+ * THE DISPLAY MAPPING. Linear scaling made the field read as one great
+ * departure and six murmurs, and Jacob judged it too sparse
+ * (2026-08-30): the gaps span 72x, so at 150 units for the widest, the
+ * rest moved single-digit distances and vanished at monument scale.
+ *
+ * The murmurs are made visible by a monotone power curve on the
+ * DISPLAYED distance - the same move as tone-mapping a 72x luminance
+ * range so the shadows read, and the same law as "near-black in MOOD,
+ * not in pixels". Order is preserved, the biggest consequence is still
+ * unmistakably the biggest, zero still goes nowhere, and the kernel's
+ * numbers are untouched. This is a legend on the map, stated as one.
  */
-const GAP_SCALE = 150 / widest;
+const GAP_MAX = 150;
+const GAP_GAMMA = 0.45;
+function dispOf(gap: number): number {
+  return gap <= 0 ? 0 : Math.pow(gap / widest, GAP_GAMMA) * GAP_MAX;
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05070a);
@@ -139,17 +150,22 @@ for (let i = 0; i < SECTIONS; i++) {
     const d = Math.max(2, depth);
     const cx = inner + Math.sign(outer - inner || (side === 0 ? -1 : 1)) * (w / 2);
 
+    // under the display mapping the sub-threshold divergences surface
+    // too - 24 sections genuinely diverged, and those ARE the murmurs.
+    // A departure counts as one when its DISPLAYED distance clears its
+    // own slab, so the count matches what the eye is given.
+    const isMoved = side === mobile && dispOf(gap) > 3;
     const geo = new THREE.BoxGeometry(w, slabH * 0.98, d);
-    const m = new THREE.Mesh(geo, side === mobile && gap > VISIBLE ? movedMat : plateMat);
+    const m = new THREE.Mesh(geo, isMoved ? movedMat : plateMat);
     m.position.set(cx, t * FORM_H, 0);
     if (side === mobile && gap > 0) {
-      // the departure: hero position + spall direction x real delta
-      m.position.addScaledVector(dirs[side]!, gap * GAP_SCALE);
+      // the departure: hero position + spall direction x displayed delta
+      m.position.addScaledVector(dirs[side]!, dispOf(gap));
     }
     field.add(m);
+    if (isMoved) placed++;
   }
   bands.push({ gap, mobile, dir: dirs[mobile]! });
-  if (gap > VISIBLE) placed++;
 }
 scene.add(field);
 
@@ -176,7 +192,7 @@ const widestY = ((widestIdx + 0.5) / SECTIONS) * FORM_H;
 // the middle of the widest departure: between the open socket and the
 // piece now hanging in space
 const socket = new THREE.Vector3(cutPlaneX((widestIdx + 0.5) / SECTIONS, widestBand.mobile), widestY, 0);
-const widestMid = socket.clone().addScaledVector(widestBand.dir, (widestBand.gap * GAP_SCALE) / 2);
+const widestMid = socket.clone().addScaledVector(widestBand.dir, dispOf(widestBand.gap) / 2);
 
 const views: Array<{ name: string; pos: THREE.Vector3; look: THREE.Vector3 }> = [
   {
@@ -195,7 +211,7 @@ const views: Array<{ name: string; pos: THREE.Vector3; look: THREE.Vector3 }> = 
     // the wound it left is the subject. A first placement looked OUTWARD
     // along the departure into fog and framed nothing (2026-08-30).
     name: 'beside the departed piece, looking back through its socket',
-    pos: socket.clone().addScaledVector(widestBand.dir, widestBand.gap * GAP_SCALE * 1.18).add(new THREE.Vector3(0, 9, 14)),
+    pos: socket.clone().addScaledVector(widestBand.dir, dispOf(widestBand.gap) * 1.18).add(new THREE.Vector3(0, 9, 14)),
     look: new THREE.Vector3(0, widestY - 6, 0)
   },
   {
@@ -230,7 +246,7 @@ function setView(i: number): void {
   hud.textContent =
     `Z BLOCKOUT · hero-anchored · disposable\n` +
     `view ${current + 1}/${views.length}  ${v.name}\n` +
-    `${placed} visible gaps of ${SECTIONS} sections\n` +
+    `${placed} departures of ${SECTIONS} sections · display gamma ${GAP_GAMMA}\n` +
     `[arrow keys or click to change view]`;
   renderer.render(scene, camera);
 }
