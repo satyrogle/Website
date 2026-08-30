@@ -190,14 +190,22 @@ const views: Array<{ name: string; pos: THREE.Vector3; look: THREE.Vector3 }> = 
     look: new THREE.Vector3(0, widestY + 8, 0)
   },
   {
-    name: 'in the widest opening, looking along the departed piece',
-    pos: widestMid.clone().add(new THREE.Vector3(0, 3, 0)),
-    look: socket.clone().addScaledVector(widestBand.dir, widestBand.gap * GAP_SCALE * 1.4)
+    // from just past the departed piece, looking back through its open
+    // socket at the body and the seam: the piece's edge is foreground,
+    // the wound it left is the subject. A first placement looked OUTWARD
+    // along the departure into fog and framed nothing (2026-08-30).
+    name: 'beside the departed piece, looking back through its socket',
+    pos: socket.clone().addScaledVector(widestBand.dir, widestBand.gap * GAP_SCALE * 1.18).add(new THREE.Vector3(0, 9, 14)),
+    look: new THREE.Vector3(0, widestY - 6, 0)
   },
   {
-    name: 'low in the flare, looking up through the field',
-    pos: new THREE.Vector3(cutPlaneX(0.08, 1) + 4, FORM_H * 0.08, 6),
-    look: new THREE.Vector3(-24, FORM_H * 0.85, -30)
+    // IN THE SLIT at the flare - the doorway itself. The first
+    // placement sat at x ~ 8.7, which is inside the right half's stone
+    // at that height: backface-culled, a pure black frame (2026-08-30).
+    // The open air down here is the slit, x within +/-4.7.
+    name: 'in the doorway at the foot, looking up the slit',
+    pos: new THREE.Vector3(1.4, FORM_H * 0.07, 3),
+    look: new THREE.Vector3(-3, FORM_H * 0.9, -8)
   },
   {
     name: 'high in the slit, looking down into the opened volume',
