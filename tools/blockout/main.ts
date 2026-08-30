@@ -58,7 +58,8 @@ const visibleIdx = finalGaps.map((g, i) => [g, i] as const).filter(([g]) => g > 
  * numbers are untouched. This is a legend on the map, stated as one.
  */
 const GAP_MAX = 150;
-const GAP_GAMMA = 0.45;
+// 0.45 read better but still sparse; Jacob turned the dial up
+const GAP_GAMMA = 0.36;
 function dispOf(gap: number): number {
   return gap <= 0 ? 0 : Math.pow(gap / widest, GAP_GAMMA) * GAP_MAX;
 }
@@ -126,6 +127,18 @@ const bands: Band[] = [];
 const field = new THREE.Group();
 let placed = 0;
 
+/**
+ * NOT BUILDING BLOCKS - Jacob, 2026-08-30, with a reference sheet. The
+ * uniform courses of identical boxes read as bricks. What the reference
+ * shows is STRATA and SPALL: beds of unequal thickness, each broken
+ * into a few unequal fragments, and departed pieces that tilt as they
+ * go and shed trailing shards along their travel. All of it stays
+ * seeded and rule-driven - the fracture pattern comes from the same
+ * stream as the kernel's material, and a departure's shards sit at
+ * fixed fractions of ITS one computed distance, along ITS one spall
+ * direction. Flair in the rendering of a fact, never a second fact.
+ */
+const AX = new THREE.Vector3();
 for (let i = 0; i < SECTIONS; i++) {
   const t = (i + 0.5) / SECTIONS;
   const mobile = (rng() < 0.5 ? 0 : 1) as 0 | 1;
@@ -139,30 +152,57 @@ for (let i = 0; i < SECTIONS; i++) {
     // outward through the skin at the seeded arc point: the spall
     // direction proxy (no 3D stress tensor exists; a loaded piece
     // exits through its nearest free surface)
-    dirs.push(new THREE.Vector3(sp.x - c.x, 0, sp.z - c.z).normalize());
+    const dir = new THREE.Vector3(sp.x - c.x, 0, sp.z - c.z).normalize();
+    dirs.push(dir);
 
     // the half's real extent at this height, from the form maths
     const inner = cutPlaneX(t, side);
-    const outer = sp.x; // x of the surface at u ~ outer reach direction
+    const outer = sp.x;
     const reach = Math.abs(surfacePoint(t, side, 0.5).x - inner);
     const depth = Math.abs(surfacePoint(t, side, 0).z) * 2;
     const w = Math.max(2, reach);
     const d = Math.max(2, depth);
-    const cx = inner + Math.sign(outer - inner || (side === 0 ? -1 : 1)) * (w / 2);
+    const sgn = Math.sign(outer - inner || (side === 0 ? -1 : 1));
+    const cx = inner + sgn * (w / 2);
+
+    // strata, not courses: bed thickness varies, beds interpenetrate
+    const th = slabH * (0.7 + rng() * 1.6);
 
     // under the display mapping the sub-threshold divergences surface
     // too - 24 sections genuinely diverged, and those ARE the murmurs.
-    // A departure counts as one when its DISPLAYED distance clears its
-    // own slab, so the count matches what the eye is given.
-    const isMoved = side === mobile && dispOf(gap) > 3;
-    const geo = new THREE.BoxGeometry(w, slabH * 0.98, d);
-    const m = new THREE.Mesh(geo, isMoved ? movedMat : plateMat);
-    m.position.set(cx, t * FORM_H, 0);
-    if (side === mobile && gap > 0) {
-      // the departure: hero position + spall direction x displayed delta
-      m.position.addScaledVector(dirs[side]!, dispOf(gap));
+    const disp = dispOf(gap);
+    const isMoved = side === mobile && disp > 3;
+
+    // the bed breaks into a few unequal fragments across its depth
+    const nFrag = 1 + Math.floor(rng() * 3);
+    let zEdge = -d / 2;
+    for (let f = 0; f < nFrag; f++) {
+      const fd = (d / nFrag) * (0.6 + rng() * 0.8);
+      const fw = w * (0.82 + rng() * 0.18);
+      const fz = Math.min(zEdge + fd / 2, d / 2 - fd / 2);
+      zEdge += fd;
+      const geo = new THREE.BoxGeometry(fw, th, fd);
+      const m = new THREE.Mesh(geo, isMoved ? movedMat : plateMat);
+      m.position.set(cx + sgn * (rng() - 0.5) * 2.4, t * FORM_H, fz);
+
+      if (side === mobile && gap > 0) {
+        // THE SPALL. The lead fragment carries the full displayed
+        // distance; the ones behind trail it at fixed fractions of the
+        // same travel, tilting harder the further they have come. One
+        // computed distance, one direction, several pieces of one event.
+        const trail = f === 0 ? 1 : f === 1 ? 0.55 + rng() * 0.15 : 0.26 + rng() * 0.12;
+        const dd = disp * trail;
+        m.position.addScaledVector(dir, dd);
+        // it sags as it goes: a hint of weight, scaled to the travel
+        m.position.y -= dd * (0.06 + rng() * 0.1);
+        // and it turns: around the horizontal axis across its travel,
+        // more the further out it hangs, trailing shards tumbling more
+        AX.set(-dir.z, 0, dir.x).normalize();
+        m.rotateOnWorldAxis(AX, (0.1 + rng() * 0.3) * (dd / GAP_MAX) * (f === 0 ? 1 : 1.8) * (rng() < 0.5 ? -1 : 1));
+        m.rotateY((rng() - 0.5) * 0.35 * (dd / GAP_MAX));
+      }
+      field.add(m);
     }
-    field.add(m);
     if (isMoved) placed++;
   }
   bands.push({ gap, mobile, dir: dirs[mobile]! });
@@ -201,9 +241,12 @@ const views: Array<{ name: string; pos: THREE.Vector3; look: THREE.Vector3 }> = 
     look: new THREE.Vector3(-4, FORM_H * 0.95, -14)
   },
   {
+    // stood OFF the departure line: with sag and tilt the lead
+    // fragment now occupies the exact midpoint, and a camera there
+    // framed nothing but its underside (2026-08-30)
     name: 'standing in the widest opening, looking back at the body',
-    pos: widestMid.clone(),
-    look: new THREE.Vector3(0, widestY + 8, 0)
+    pos: widestMid.clone().add(new THREE.Vector3(-widestBand.dir.z * 48, 22, widestBand.dir.x * 48)),
+    look: new THREE.Vector3(0, widestY + 4, 0)
   },
   {
     // from just past the departed piece, looking back through its open
