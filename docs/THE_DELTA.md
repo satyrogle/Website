@@ -3,6 +3,11 @@
 **Status: DIRECTION LOCKED, 2026-08-30. NO `src/` VISUAL WORK UNTIL THE Z
 KEYFRAME PASSES THE FRAME TEST IN SECTION 8.**
 
+**Z GATE: STILL CLOSED.** One candidate was generated and judged on
+2026-08-30. It failed, and is retained as the material reference only —
+see section 8A. Nothing about Z's composition, camera, scale or symmetry
+is approved.
+
 Jacob locked this on 2026-08-30, after three revisions that each killed a
 specific failure in the one before it. The record of what was rejected is
 kept in section 9, because every rejection here was earned and re-proposing
@@ -171,6 +176,65 @@ That last criterion was added on review. With no floor, no horizon and no
 vanishing point, suspended plates read as **debris** — an asteroid field of
 slabs. The difference vectors are what make it structure rather than wreckage,
 and that ordering has to be legible in a still image, not only in motion.
+
+### 8.1 What the real Z keyframe must contain
+
+Written after the first candidate failed (section 8A), because "not a tunnel"
+turned out to be insufficient — an image can avoid every tunnel symptom and
+still be an object you stand outside of.
+
+- camera **physically embedded among** the plates
+- large foreground forms **cropped beyond multiple frame edges**
+- **no complete exterior silhouette**
+- **no bilateral symmetry, no central crest axis**
+- irregular gaps derived from the kernel's real output: seven visible
+  differences across a 70× width range (`tools/delta-verify.mjs`)
+- the gold seam seen **only in fragments through depth**, preferably off-centre
+- negative space **continuing beyond the image**, never containing a finished
+  object
+- strong foreground occlusion and layered parallax, so it reads as somewhere
+  the visitor is standing
+
+### 8A The material reference — approved 2026-08-30
+
+One frame was generated as a Z candidate and **failed the gate**. Jacob's own
+verdict, recorded verbatim because the diagnosis is the useful part:
+
+> "I mistook a strong, coherent object composition for an inhabited spatial
+> composition. The centred seam, bilateral balance, complete silhouette and
+> transparent presentation make it read as a crest being displayed — not a
+> difference field surrounding the visitor."
+
+It is retained, and approved, as the **plate-family and material reference
+only**.
+
+**It locks:**
+
+- graphite plate stock and fracture language
+- fine champagne-gold edge response
+- the narrow causal-seam treatment
+- surface detail and scale hierarchy
+- the rule-based, not random-debris, quality
+
+**It does not lock:**
+
+- Z's composition
+- camera placement
+- plate positions
+- symmetry
+- spatial scale
+- the final negative-space pattern
+
+**A second failure mode was identified from it, and it now binds:** bilateral
+symmetry is fatal to Z, and not merely on taste. Z's gaps are computed
+differences — irregular positions, widths ranging 70×. **A difference field
+cannot be symmetric.** A mirrored Z would be proof the geometry was authored
+rather than derived, which collapses the entire claim the three pages exist to
+make.
+
+> **The image file still needs to be committed to the repository.** Drop it at
+> `docs/refs/plate-family.png` so this reference is not a description of a
+> picture nobody can find. It was pasted into a session and is not in git.
 
 ## 9. What was rejected on the way here, and why
 
