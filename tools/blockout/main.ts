@@ -91,6 +91,27 @@ const plateMat = new THREE.MeshStandardMaterial({
 const movedMat = plateMat.clone();
 movedMat.color = new THREE.Color(0x232a33);
 
+// CONTROL STUDY, steal 7: a departed piece carries gold on the face
+// that used to press against the seam - that face genuinely was the
+// gilded cleft wall, so the gold leaves with the piece. Derived from
+// where the piece stood, not painted where it looks nice.
+// a WHISPER, matching the hero's eroded gilding, not a painted panel:
+// at 0.5 emissive the faces read as gold billboards (photographed
+// 2026-08-30) and the seam stopped being the only light that matters
+const goldFaceMat = new THREE.MeshStandardMaterial({
+  color: 0x201a10,
+  emissive: 0xb98a3c,
+  emissiveIntensity: 0.13,
+  roughness: 0.5,
+  metalness: 0.35,
+  flatShading: true
+});
+
+// CONTROL STUDY, steal 3: the third debris tier. Fine chips are what
+// make the slabs feel huge. Dark, small, rigid.
+const chipMat = plateMat.clone();
+chipMat.color = new THREE.Color(0x161b21);
+
 /**
  * ANCHORS. Section i is the slab of the monument at height band i - the
  * same reading X gives it (cross-sections of the hero). Within its band
@@ -182,28 +203,70 @@ for (let i = 0; i < SECTIONS; i++) {
       const fz = Math.min(zEdge + fd / 2, d / 2 - fd / 2);
       zEdge += fd;
       const geo = new THREE.BoxGeometry(fw, th, fd);
-      const m = new THREE.Mesh(geo, isMoved ? movedMat : plateMat);
+      // a departed piece wears the gold it tore off the seam on its
+      // inner face: BoxGeometry material order is [+x, -x, +y, -y,
+      // +z, -z], and the seam-facing side is -x for the right half,
+      // +x for the left
+      let mat: THREE.Material | THREE.Material[] = isMoved ? movedMat : plateMat;
+      if (isMoved) {
+        const faces: THREE.Material[] = [movedMat, movedMat, movedMat, movedMat, movedMat, movedMat];
+        faces[side === 1 ? 1 : 0] = goldFaceMat;
+        mat = faces;
+      }
+      const m = new THREE.Mesh(geo, mat);
       m.position.set(cx + sgn * (rng() - 0.5) * 2.4, t * FORM_H, fz);
 
       if (side === mobile && gap > 0) {
         // THE SPALL. The lead fragment carries the full displayed
         // distance; the ones behind trail it at fixed fractions of the
-        // same travel, tilting harder the further they have come. One
-        // computed distance, one direction, several pieces of one event.
+        // same travel. One computed distance, one direction, several
+        // pieces of one event.
         const trail = f === 0 ? 1 : f === 1 ? 0.55 + rng() * 0.15 : 0.26 + rng() * 0.12;
         const dd = disp * trail;
         m.position.addScaledVector(dir, dd);
         // it sags as it goes: a hint of weight, scaled to the travel
         m.position.y -= dd * (0.06 + rng() * 0.1);
-        // and it turns: around the horizontal axis across its travel,
-        // more the further out it hangs, trailing shards tumbling more
+        // CONTROL STUDY, steal 4: rotational restraint. Their void
+        // reads as authority because almost everything hangs HELD -
+        // level, arrested - and only the odd piece leans. The pass
+        // before this tilted every fragment and drifted toward
+        // rubble. Now most stay dead level; roughly a third lean, and
+        // gently.
         AX.set(-dir.z, 0, dir.x).normalize();
-        m.rotateOnWorldAxis(AX, (0.1 + rng() * 0.3) * (dd / GAP_MAX) * (f === 0 ? 1 : 1.8) * (rng() < 0.5 ? -1 : 1));
-        m.rotateY((rng() - 0.5) * 0.35 * (dd / GAP_MAX));
+        const leans = rng() < (f === 0 ? 0.3 : 0.5);
+        if (leans) {
+          m.rotateOnWorldAxis(AX, (0.05 + rng() * 0.14) * (dd / GAP_MAX) * (rng() < 0.5 ? -1 : 1));
+        }
       }
       field.add(m);
     }
-    if (isMoved) placed++;
+
+    if (isMoved) {
+      placed++;
+      // CONTROL STUDY, steal 3: the fine tier. A handful of small
+      // rigid chips strewn along the SAME travel, at seeded fractions
+      // of the SAME displayed distance, scattering wider the further
+      // they have come - the way fine debris shadows a breakout. Still
+      // one event: nothing here has its own physics or its own story.
+      const nChips = 8 + Math.floor(rng() * 9);
+      AX.set(-dir.z, 0, dir.x).normalize();
+      for (let k = 0; k < nChips; k++) {
+        const frac = 0.12 + rng() * 0.84;
+        const dd = disp * frac;
+        const cSize = 0.5 + rng() * 1.7;
+        const chip = new THREE.Mesh(
+          new THREE.BoxGeometry(cSize, cSize * (0.5 + rng() * 0.7), cSize * (0.6 + rng() * 0.8)),
+          chipMat
+        );
+        chip.position.set(cx, t * FORM_H + (rng() - 0.5) * slabH, (rng() - 0.5) * d * 0.8);
+        chip.position.addScaledVector(dir, dd);
+        chip.position.addScaledVector(AX, (rng() - 0.5) * (3 + frac * 9));
+        chip.position.y -= dd * (0.06 + rng() * 0.1);
+        // chips are small enough to have settled at any attitude
+        chip.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        field.add(chip);
+      }
+    }
   }
   bands.push({ gap, mobile, dir: dirs[mobile]! });
 }
