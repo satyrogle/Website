@@ -56,14 +56,15 @@ const KEYS: PoseKey[] = [
   // of units of open sky - in plain view. Jacob saw the smear at the
   // opening and photographed it, 2026-08-30. The teleport must finish
   // while the veil still owns the frame.
-  { p: 0.33, pos: new THREE.Vector3(0, DELTA_Y + 148, 165), look: new THREE.Vector3(0, DELTA_Y + 104, 0), fov: 50 },
+  // LOW, LOOKING UP: eye-level cameras made an elevation drawing.
+  // The boards tower - so the rail runs beneath the mass and climbs.
+  { p: 0.33, pos: new THREE.Vector3(0, DELTA_Y + 30, 195), look: new THREE.Vector3(0, DELTA_Y + 150, 0), fov: 55 },
   // ...to the blade's height: close, compressed, material
-  { p: 0.46, pos: new THREE.Vector3(5, DELTA_Y + 84, 30), look: new THREE.Vector3(0, DELTA_Y + 76, 0), fov: 48 },
+  { p: 0.46, pos: new THREE.Vector3(7, DELTA_Y + 52, 48), look: new THREE.Vector3(0, DELTA_Y + 96, -4), fov: 51 },
   // TICK ZERO: near-hold. The world is still; the blade is offered.
-  { p: 0.51, pos: new THREE.Vector3(3.5, DELTA_Y + 80, 24), look: new THREE.Vector3(0, DELTA_Y + 75, -2), fov: 47 },
-  // Y: close enough that a socket opening is an EVENT, not a detail -
-  // 92 units back read as nothing happening (Jacob's contact sheet)
-  { p: 0.78, pos: new THREE.Vector3(-14, DELTA_Y + 96, 62), look: new THREE.Vector3(2, DELTA_Y + 84, -4), fov: 52 },
+  { p: 0.51, pos: new THREE.Vector3(4.5, DELTA_Y + 64, 27), look: new THREE.Vector3(0, DELTA_Y + 78, -2), fov: 48 },
+  // Y: low and back, watching the detonations climb the tower
+  { p: 0.78, pos: new THREE.Vector3(-19, DELTA_Y + 58, 88), look: new THREE.Vector3(4, DELTA_Y + 108, -8), fov: 53 },
   // Z: back onto the cleft axis - the visitor's own line since the
   // hero - while the field unfolds AROUND that axis. Embedded, not
   // travelling toward anything: the no-tunnel law as a camera rule.
@@ -73,8 +74,8 @@ const KEYS: PoseKey[] = [
   // stride away it reads as what it is - the line through the field.
   // ...and further out into the cloud: at a stride the boulders of the
   // blast park on the lens (photographed 2026-08-30, an all-black Z)
-  { p: 0.9, pos: new THREE.Vector3(30, DELTA_Y + 106, 46), look: new THREE.Vector3(-24, DELTA_Y + 120, -36), fov: 56 },
-  { p: 1.0, pos: new THREE.Vector3(24, DELTA_Y + 98, 38), look: new THREE.Vector3(-10, DELTA_Y + 52, -50), fov: 58 }
+  { p: 0.9, pos: new THREE.Vector3(32, DELTA_Y + 88, 52), look: new THREE.Vector3(-26, DELTA_Y + 136, -34), fov: 56 },
+  { p: 1.0, pos: new THREE.Vector3(26, DELTA_Y + 78, 44), look: new THREE.Vector3(-8, DELTA_Y + 158, -48), fov: 58 }
 ];
 
 export interface CameraState {

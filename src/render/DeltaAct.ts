@@ -53,6 +53,53 @@ const DEPART_BASE = 0.45;
 /** the blade's own displacement per detent notch */
 const BLADE_STEP = 2.4;
 
+/**
+ * A BROKEN HEXAHEDRON. Boxes are why every pass read as toy blocks -
+ * "jenga", "bulges", "soo bad" (Jacob, 2026-08-30, in order). A real
+ * fragment of rock has no parallel faces. Jitter the eight corners of
+ * a cube and triangulate: every piece gets a crooked, believable
+ * silhouette, and flat shading turns the irregular faces into facets.
+ */
+function shardGeo(rng: () => number, jag = 0.5): THREE.BufferGeometry {
+  const j = (): number => (rng() - 0.5) * jag;
+  const c: number[][] = [
+    [-0.5 + j(), -0.5 + j(), -0.5 + j()],
+    [0.5 + j(), -0.5 + j(), -0.5 + j()],
+    [0.5 + j(), 0.5 + j(), -0.5 + j()],
+    [-0.5 + j(), 0.5 + j(), -0.5 + j()],
+    [-0.5 + j(), -0.5 + j(), 0.5 + j()],
+    [0.5 + j(), -0.5 + j(), 0.5 + j()],
+    [0.5 + j(), 0.5 + j(), 0.5 + j()],
+    [-0.5 + j(), 0.5 + j(), 0.5 + j()]
+  ];
+  const F = [
+    [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
+    [0, 1, 5], [0, 5, 4], [3, 7, 6], [3, 6, 2],
+    [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5]
+  ];
+  const pos: number[] = [];
+  for (const f of F) for (const vi of f) pos.push(c[vi]![0]!, c[vi]![1]!, c[vi]![2]!);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** soft radial sprite for haze and shafts */
+function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 128;
+  cv.height = 128;
+  const x = cv.getContext('2d')!;
+  const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, `rgba(${r},${g},${b},0.85)`);
+  gr.addColorStop(0.55, `rgba(${r},${g},${b},0.28)`);
+  gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  x.fillStyle = gr;
+  x.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(cv);
+}
+
 interface Frag {
   mesh: THREE.Mesh;
   base: THREE.Vector3;
@@ -110,6 +157,7 @@ export class DeltaAct {
     axis: THREE.Vector3;
     spin: number;
     sagK: number;
+    s3: THREE.Vector3;
   }> = [];
   private readonly q = new THREE.Quaternion();
   private readonly v = new THREE.Vector3();
@@ -224,6 +272,52 @@ export class DeltaAct {
     this.bladeLamp = new THREE.PointLight(0xd9b070, 0.0, 55, 2.0);
     this.bladeLamp.position.set(0, ((BLADE + 0.5) / SECTIONS) * FORM_H, 10);
     this.group.add(this.bladeLamp);
+
+    // ---- THE AIR. The boards' missing term: shafts of dusty light
+    // falling past the mass, and depth-haze so the dark has body.
+    // Additive sprites, dead still - the atmosphere is embalmed like
+    // everything else; only the visitor moves.
+    {
+      const warm = glowTexture(214, 172, 108);
+      const cold = glowTexture(120, 140, 165);
+      const mkSprite = (
+        tex: THREE.CanvasTexture,
+        w: number,
+        h: number,
+        x: number,
+        y: number,
+        z: number,
+        o: number,
+        rz = 0
+      ): void => {
+        const m = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({
+            map: tex,
+            transparent: true,
+            opacity: o,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            fog: false
+          })
+        );
+        m.position.set(x, y, z);
+        m.rotation.z = rz;
+        this.group.add(m);
+      };
+      // god shafts: tall, narrow, slightly canted, falling from above
+      // the crown past the cleft
+      mkSprite(warm, 26, 340, -6, FORM_H * 0.9, -14, 0.10, 0.06);
+      mkSprite(warm, 16, 300, 10, FORM_H * 0.85, -20, 0.08, -0.045);
+      mkSprite(cold, 44, 380, -46, FORM_H * 0.8, -34, 0.05, 0.1);
+      mkSprite(cold, 36, 360, 52, FORM_H * 0.75, -30, 0.045, -0.08);
+      // depth haze: huge soft pools behind and around the mass
+      mkSprite(cold, 620, 480, 0, FORM_H * 0.55, -120, 0.05);
+      mkSprite(warm, 260, 220, 0, FORM_H * 0.28, -40, 0.07);
+      mkSprite(cold, 520, 420, -160, FORM_H * 0.5, -90, 0.04);
+      mkSprite(cold, 520, 420, 170, FORM_H * 0.45, -90, 0.04);
+    }
 
     // ---- the seam, continuous with the one line the visitor has
     // followed since the hero: the worldline through the whole stack
@@ -407,7 +501,10 @@ vSkinSeed = aSkinSeed;`
           zEdge += fd;
 
           const isBlade = i === BLADE && isMobile && f === 0;
-          const geo = new THREE.BoxGeometry(fw, th, fd);
+          // a crooked hexahedron, not a box: scaled to the band's real
+          // extents, mildly jagged so the courses read as broken stone
+          const geo = shardGeo(rng, 0.34);
+          geo.scale(fw, th, fd);
           // per-mesh skin seed: the crack pattern is unique per piece
           // and rides it rigidly when it departs
           geo.setAttribute(
@@ -501,7 +598,7 @@ vSkinSeed = aSkinSeed;`
       if (this.onsetPos[i] !== Infinity || this.onsetNeg[i] !== Infinity) sections.push(i);
     }
     const total = sections.length * PER;
-    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const geo = shardGeo(rng, 0.62);
     const mat = new THREE.MeshStandardMaterial({
       color: 0x1a2027,
       roughness: 0.8,
@@ -550,7 +647,12 @@ vSkinSeed = aSkinSeed;`
           size,
           axis: new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(),
           spin: (rng() - 0.5) * 6,
-          sagK: 0.08 + rng() * 0.24
+          sagK: 0.08 + rng() * 0.24,
+          s3: new THREE.Vector3(
+            size * (0.7 + rng() * 0.9),
+            size * (0.35 + rng() * 0.8),
+            size * (0.6 + rng() * 0.9)
+          )
         });
       }
     }
@@ -696,7 +798,7 @@ vSkinSeed = aSkinSeed;`
         // birth overshoot: the piece arrives oversized and settles -
         // the crack of the moment, made of scale instead of a clock
         const oversh = 1 + 0.55 * Math.exp(-((tf - ot) / 1.6));
-        m4.compose(s3, q4, this.vScale.setScalar(sh.size * oversh));
+        m4.compose(s3, q4, this.vScale.copy(sh.s3).multiplyScalar(oversh));
         this.shardMesh.setMatrixAt(idx, m4);
         // and a gold flash at birth, cooling to stone over ~4 ticks
         const heat = Math.exp(-((tf - ot) / 4));
