@@ -32,11 +32,15 @@ const root = join(here, '..');
 // the files are copied to a temp dir with './rng' pointed at './rng.ts'.
 // Nothing else is rewritten: what runs here is the shipped source.
 const dir = mkdtempSync(join(tmpdir(), 'dl-delta-'));
-for (const f of ['rng', 'Delta']) {
+for (const f of ['rng', 'Delta', 'Journey']) {
   const src = readFileSync(join(root, 'src', 'core', `${f}.ts`), 'utf8');
-  writeFileSync(join(dir, `${f}.ts`), src.replace("from './rng'", "from './rng.ts'"));
+  writeFileSync(
+    join(dir, `${f}.ts`),
+    src.replace("from './rng'", "from './rng.ts'").replace("from './Delta'", "from './Delta.ts'")
+  );
 }
 const D = await import(pathToFileURL(join(dir, 'Delta.ts')).href);
+const J = await import(pathToFileURL(join(dir, 'Journey.ts')).href);
 
 let failures = 0;
 const check = (name, ok, detail) => {
@@ -171,6 +175,141 @@ const kernelSrc = readFileSync(join(root, 'src', 'core', 'Delta.ts'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/\/\/.*$/gm, '');
 check('kernel calls no Math.random', !/Math\s*\.\s*random\s*\(/.test(kernelSrc));
+
+// ---- THE JOURNEY IS A PURE FUNCTION OF SCROLL ----
+
+// walk the whole page at fine resolution, forwards then backwards, and
+// require every value to retrace exactly. This is the law the entrance
+// was rebuilt around and the one most easily lost.
+{
+  const fwd = [];
+  for (let i = 0; i <= 4000; i++) fwd.push(J.journeyAt(i / 4000, 1));
+  let mismatch = 0;
+  for (let i = 4000; i >= 0; i--) {
+    const back = J.journeyAt(i / 4000, 1);
+    const f = fwd[i];
+    if (
+      back.phase !== f.phase ||
+      back.tick !== f.tick ||
+      back.unfold !== f.unfold ||
+      back.bladeLive !== f.bladeLive ||
+      back.showAltered !== f.showAltered
+    ) {
+      mismatch++;
+    }
+  }
+  check('journey retraces exactly in reverse', mismatch === 0, `${mismatch} of 4001 differ`);
+}
+
+// the tick may never run backwards while scroll runs forwards, or the
+// visitor is watching the future un-compute itself
+{
+  let worst = 0;
+  let prev = -Infinity;
+  for (let i = 0; i <= 4000; i++) {
+    const t = J.journeyAt(i / 4000, 1).tick;
+    worst = Math.min(worst, t - prev);
+    prev = t;
+  }
+  check('tick never runs backwards as scroll advances', worst >= 0, `worst step ${worst}`);
+}
+
+// no jump at a beat boundary: the pages are one continuous scene, so the
+// tick has to be continuous across every seam between them
+{
+  let worst = 0;
+  let where = '';
+  for (const [name, at] of Object.entries(J.BEATS)) {
+    const before = J.journeyAt(at - 1e-6, 1).tick;
+    const after = J.journeyAt(at + 1e-6, 1).tick;
+    const gap = Math.abs(after - before);
+    if (gap > worst) {
+      worst = gap;
+      where = name;
+    }
+  }
+  check(
+    'tick is continuous across every beat boundary',
+    worst < 0.01,
+    worst > 0 ? `largest jump ${worst.toFixed(4)} at ${where}` : 'no discontinuity'
+  );
+}
+
+// X hands over to the hinge exactly, and Y starts from it
+check(
+  'X ends on the hinge and Y begins there',
+  Math.abs(J.journeyAt(J.BEATS.xEnd - 1e-6, 1).tick - D.HINGE) < 0.01 &&
+    J.journeyAt(J.BEATS.tickZeroEnd + 1e-6, 1).tick >= D.HINGE,
+  `hinge is tick ${D.HINGE}`
+);
+
+// the blade is offered at Tick Zero and nowhere else
+{
+  let live = 0;
+  let liveOutside = 0;
+  for (let i = 0; i <= 4000; i++) {
+    const p = i / 4000;
+    const st = J.journeyAt(p, 0);
+    if (st.bladeLive) {
+      live++;
+      if (st.phase !== 'tickzero') liveOutside++;
+    }
+  }
+  check('the blade is live only at Tick Zero', live > 0 && liveOutside === 0, `${live} live samples`);
+}
+
+// AN INTERVENTION CANNOT CHANGE THE PAST. The detent must make no
+// difference anywhere before the hinge.
+{
+  let differs = 0;
+  for (let i = 0; i <= 4000; i++) {
+    const p = i / 4000;
+    const a = J.journeyAt(p, -1);
+    const b = J.journeyAt(p, 1);
+    if (a.tick <= D.HINGE && (a.tick !== b.tick || a.phase !== b.phase)) differs++;
+  }
+  check('the detent changes nothing before the hinge', differs === 0, `${differs} samples differ`);
+}
+
+// reduced motion must still tell the story: fewer states, not no states
+{
+  const ticks = new Set();
+  const phases = new Set();
+  for (let i = 0; i <= 2000; i++) {
+    const st = J.journeyAt(i / 2000, 1, true);
+    ticks.add(st.tick.toFixed(6));
+    phases.add(st.phase);
+  }
+  check(
+    'reduced motion holds every beat with fewer states',
+    phases.size === 5 && ticks.size > 3 && ticks.size < 40,
+    `${phases.size} phases, ${ticks.size} distinct ticks`
+  );
+}
+
+// THE NEUTRAL PROBLEM, asserted rather than left implicit. The kernel
+// proves neutral is bit-identical to the baseline, so a visitor who leaves
+// the blade alone reaches a Z with nothing in it. Whether that is a bug or
+// the best beat in the site is undecided - but the state model must report
+// it truthfully, not paper over it.
+{
+  const zNeutral = J.journeyAt(0.95, 0);
+  const zAltered = J.journeyAt(0.95, 1);
+  check(
+    'neutral reports no second future, and a detent does',
+    zNeutral.showAltered === false && zAltered.showAltered === true,
+    'Z is empty when nothing was changed - see THE NEUTRAL PROBLEM'
+  );
+}
+
+// the blade steps between three notches and stops at the ends
+check(
+  'the blade steps and clamps, never wraps',
+  J.stepDetent(-1, -1) === -1 &&
+    J.stepDetent(1, 1) === 1 &&
+    J.stepDetent(0, -1) === -1 &&
+    J.stepDetent(0, 1) === 1
+);
 
 console.log(
   `\n${failures === 0 ? 'ALL CLAIMS HOLD' : `${failures} FAILED`}` +
