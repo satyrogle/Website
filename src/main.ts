@@ -5,6 +5,8 @@ import { HeroRenderer } from './render/HeroRenderer';
 import { InputController } from './input/InputController';
 import { ContentController } from './content/ContentController';
 import { ScrollDirector } from './motion/ScrollDirector';
+import { journeyAt, stepDetent } from './core/Journey';
+import type { Detent } from './core/Delta';
 
 /**
  * Boot. One deterministic world, entered by scroll. The approved hero
@@ -62,6 +64,26 @@ function boot(): void {
   new ContentController(true, world.nodeCount);
   new InputController(world, renderer, () => undefined);
   const director = new ScrollDirector(renderer.path, state.reducedMotion);
+
+  // THE BLADE (THE_DELTA sections 5-6). The visitor's one input: three
+  // physical detents, live only at Tick Zero. Arrows step it; a press
+  // on the left or right of the screen steps it the same way, which is
+  // the swipe on touch. It never wraps, and outside Tick Zero it is
+  // simply not listening - no disabled states, no instruction panel.
+  const bladeLive = (): boolean =>
+    journeyAt(renderer.path.progressValue, renderer.detent, state.reducedMotion).bladeLive;
+  const setDetent = (d: Detent): void => {
+    renderer.detent = d;
+  };
+  window.addEventListener('keydown', (e) => {
+    if (!bladeLive()) return;
+    if (e.key === 'ArrowLeft') setDetent(stepDetent(renderer.detent, -1));
+    if (e.key === 'ArrowRight') setDetent(stepDetent(renderer.detent, 1));
+  });
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!bladeLive()) return;
+    setDetent(stepDetent(renderer.detent, e.clientX < innerWidth / 2 ? -1 : 1));
+  });
 
   const telemetry = document.querySelector<HTMLElement>('#telemetry');
   const engineLine = document.querySelector<HTMLElement>('#engine-line');
@@ -131,6 +153,10 @@ function boot(): void {
       // the journey under the harness: pose the descent directly, so
       // capture tools can photograph any station without scrolling
       setProgress: (p: number): void => renderer.path.setProgress(p),
+      // the delta act under the harness: pose the one input directly
+      setDetent: (d: number): void => {
+        renderer.detent = (d < 0 ? -1 : d > 0 ? 1 : 0) as Detent;
+      },
       // measure the monument, never guess it: first surface hit
       // walking a ray from (x, y, 200) toward -z, or null
       probe: (x: number, y: number): { z: number; name: string } | null => renderer.probeSurface(x, y)

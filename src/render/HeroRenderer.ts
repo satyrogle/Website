@@ -10,7 +10,9 @@ import { LatticeWorld, CELL, HALF, TOWER_TOP, SEA_Y } from '../world/LatticeWorl
 import { TIP_T, prongCentre, surfacePoint } from '../world/monumentForm';
 import { ChoirGroup } from '../world/ChoirGroup';
 import { CameraPath } from './CameraPath';
-import { MemoryField } from './MemoryField';
+import { DeltaAct } from './DeltaAct';
+import { journeyAt } from '../core/Journey';
+import type { Detent } from '../core/Delta';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -2949,7 +2951,9 @@ export class HeroRenderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly camera: THREE.PerspectiveCamera;
   readonly path = new CameraPath();
-  private readonly memory: MemoryField;
+  private readonly delta: DeltaAct;
+  /** the visitor's one input, held like the seed. Set by main.ts. */
+  detent: Detent = 0;
   private readonly hardware: { group: THREE.Group; mats: THREE.MeshStandardMaterial[] };
   private stress!: { group: THREE.Group; skin: THREE.ShaderMaterial; mesh: THREE.Mesh };
   private readonly coreParts: {
@@ -3288,10 +3292,11 @@ export class HeroRenderer {
     this.keyLight = new THREE.DirectionalLight(0xe8eef5, 1.0);
     this.keyLight.position.set(0.35, 0.8, 0.55);
     this.scene.add(this.keyLight);
-    // Z: the memory field, hanging far below the world. Invisible
-    // until the camera is past the blade; same seed, same memory.
-    this.memory = new MemoryField(world.seed);
-    this.scene.add(this.memory.group);
+    // THE DELTA ACT replaces the ember fall (THE_DELTA section 10:
+    // the fall is CUT, the memory is absorbed into Z). Same seed as
+    // everything else; it renders (scroll, detent) and owns nothing.
+    this.delta = new DeltaAct(world.seed);
+    this.scene.add(this.delta.group);
     this.ambient = new THREE.AmbientLight(0x1a2129, 1.1);
     this.scene.add(this.ambient);
 
@@ -5131,7 +5136,10 @@ ${SKY_LAW}`
     if (this.stillPin >= 0) this.stillAmt = this.stillPin;
     this.ambientT += dt * (1 - this.stillAmt);
     this.path.update(this.camera);
-    this.memory.update(dt, this.path.progressValue, this.camera);
+    this.delta.update(
+      journeyAt(this.path.progressValue, this.detent, reduced),
+      this.detent
+    );
     // the lock resolves on approach and is absent from the stand
     {
       const hwGlow = 1.15 * smooth01(partT, 0.45, 0.85);

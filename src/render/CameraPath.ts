@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DELTA_Y } from './DeltaAct';
 
 /**
  * The journey, 2026-08-28: the approved hero pose is no longer a held
@@ -45,9 +46,27 @@ const KEYS: PoseKey[] = [
   // and THEN it commits, through a door it watched open
   { p: 0.29, pos: new THREE.Vector3(0, 46, 52), look: new THREE.Vector3(0, 54, -30), fov: 50 },
   { p: 0.31, pos: new THREE.Vector3(0, 48, 12), look: new THREE.Vector3(0, 50, -90), fov: 52 },
-  { p: 0.33, pos: new THREE.Vector3(40, -2860, 24), look: new THREE.Vector3(0, -3160, -150), fov: 56 },
-  { p: 0.93, pos: new THREE.Vector3(46, -4800, 22), look: new THREE.Vector3(0, -5240, -150), fov: 58 },
-  { p: 1.0, pos: new THREE.Vector3(20, -4938, 10), look: new THREE.Vector3(0, -5040, -120), fov: 52 }
+  // THE DELTA ACT (docs/THE_DELTA.md). The teleport under the veil now
+  // lands inside the seam's own thickness: the strata monolith of the
+  // delta world, far below the entrance in its own void. Beats mirror
+  // Journey.BEATS exactly - the camera and the state read one clock.
+  // X: arrive before the colossal stack and push in while it computes
+  { p: 0.34, pos: new THREE.Vector3(0, DELTA_Y + 148, 165), look: new THREE.Vector3(0, DELTA_Y + 104, 0), fov: 50 },
+  // ...to the blade's height: close, compressed, material
+  { p: 0.52, pos: new THREE.Vector3(5, DELTA_Y + 84, 30), look: new THREE.Vector3(0, DELTA_Y + 76, 0), fov: 48 },
+  // TICK ZERO: near-hold. The world is still; the blade is offered.
+  { p: 0.57, pos: new THREE.Vector3(3.5, DELTA_Y + 80, 24), look: new THREE.Vector3(0, DELTA_Y + 75, -2), fov: 47 },
+  // Y: withdrawn enough to watch the consequences travel the stack
+  { p: 0.78, pos: new THREE.Vector3(-20, DELTA_Y + 108, 92), look: new THREE.Vector3(4, DELTA_Y + 86, -6), fov: 52 },
+  // Z: back onto the cleft axis - the visitor's own line since the
+  // hero - while the field unfolds AROUND that axis. Embedded, not
+  // travelling toward anything: the no-tunnel law as a camera rule.
+  // ...one step OFF the axis: standing exactly on the worldline put a
+  // 1-unit gold box millimetres from the lens and it rendered as a
+  // wall a third of the frame wide (photographed 2026-08-30). From a
+  // stride away it reads as what it is - the line through the field.
+  { p: 0.9, pos: new THREE.Vector3(7, DELTA_Y + 92, 13), look: new THREE.Vector3(-14, DELTA_Y + 146, -40), fov: 56 },
+  { p: 1.0, pos: new THREE.Vector3(6, DELTA_Y + 97, 10), look: new THREE.Vector3(20, DELTA_Y + 56, -46), fov: 58 }
 ];
 
 export interface CameraState {

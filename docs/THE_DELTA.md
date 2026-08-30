@@ -3,10 +3,17 @@
 **Status: DIRECTION LOCKED, 2026-08-30. NO `src/` VISUAL WORK UNTIL THE Z
 KEYFRAME PASSES THE FRAME TEST IN SECTION 8.**
 
-**Z GATE: STILL CLOSED.** One candidate was generated and judged on
-2026-08-30. It failed, and is retained as the material reference only —
-see section 8A. Nothing about Z's composition, camera, scale or symmetry
-is approved.
+**Z GATE: LIFTED BY JACOB, 2026-08-30 — "full powers, godmode, no
+blockers, build this."** The gate was his and he opened it after the
+hero-anchored blockout answered the spatial question. The build proceeds
+with the blockout as the interim art target and the Control and Returnal
+studies as reference law. Section 8's frame test is NOT retired: it
+becomes the acceptance test for the BUILT Z, judged by Jacob on rendered
+frames from his own GPU. His eye stays final.
+
+One candidate frame was generated and judged before the lift. It failed,
+and is retained as the material reference only — see section 8A. Nothing
+about Z's composition was approved from imagery; the built Z derives it.
 
 Jacob locked this on 2026-08-30, after three revisions that each killed a
 specific failure in the one before it. The record of what was rejected is
