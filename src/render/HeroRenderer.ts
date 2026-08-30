@@ -2952,6 +2952,11 @@ export class HeroRenderer {
   readonly camera: THREE.PerspectiveCamera;
   readonly path = new CameraPath();
   private readonly delta: DeltaAct;
+  /** the active future's checksum, for the honest stats line */
+  deltaChecksum(): number {
+    return this.delta.checksumFor(this.detent);
+  }
+
   /** the visitor's one input, held like the seed. Set by main.ts.
    * STARTS THROWN: at 0 a visitor who never touches the blade rides a
    * mathematically honest nothing to an inert Z - "no blast nothing"

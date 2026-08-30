@@ -217,13 +217,23 @@ function boot(): void {
         'SEED ' + state.seed + ' · T+' + String(world.tick).padStart(6, '0');
     }
     // the engine station's live line: not decoration, the actual state.
-    // Same numbers the harness asserts against.
+    // AUDIT ITEM 3, 2026-08-30: this used to show the ENTRANCE world's
+    // counter while the visitor watched the delta kernel - the one line
+    // claiming honesty displayed an unrelated number. Inside the act it
+    // now shows the act's own truth: which future the blade selected,
+    // the tick on screen, and that future's real checksum.
     if (engineLine && frame % 20 === 0) {
+      const jd = journeyAt(director.progress, renderer.detent, state.reducedMotion);
       engineLine.textContent =
-        'seed ' + state.seed +
-        ' · step ' + String(world.tick).padStart(6, '0') +
-        ' · checksum ' + world.checksum().toFixed(0) +
-        ' · records ' + world.marks.length;
+        jd.phase === 'entrance'
+          ? 'seed ' + state.seed +
+            ' · step ' + String(world.tick).padStart(6, '0') +
+            ' · checksum ' + world.checksum().toFixed(0) +
+            ' · records ' + world.marks.length
+          : 'seed ' + state.seed +
+            ' · future ' + (renderer.detent > 0 ? '+1' : renderer.detent < 0 ? '-1' : '0') +
+            ' · tick ' + String(Math.floor(jd.tick)).padStart(3, '0') + '/240' +
+            ' · checksum ' + renderer.deltaChecksum();
     }
   };
 

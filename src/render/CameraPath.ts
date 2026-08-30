@@ -61,8 +61,9 @@ const KEYS: PoseKey[] = [
   { p: 0.33, pos: new THREE.Vector3(0, DELTA_Y + 30, 195), look: new THREE.Vector3(0, DELTA_Y + 150, 0), fov: 55 },
   // ...to the blade's height: close, compressed, material
   { p: 0.46, pos: new THREE.Vector3(7, DELTA_Y + 52, 48), look: new THREE.Vector3(0, DELTA_Y + 96, -4), fov: 51 },
-  // TICK ZERO: near-hold. The world is still; the blade is offered.
-  { p: 0.51, pos: new THREE.Vector3(4.5, DELTA_Y + 64, 27), look: new THREE.Vector3(0, DELTA_Y + 78, -2), fov: 48 },
+  // TICK ZERO: dead close on the blade station at the hinge height -
+  // the audit's item 2 was that the one control was invisible
+  { p: 0.51, pos: new THREE.Vector3(0, DELTA_Y + 71, 22), look: new THREE.Vector3(2, DELTA_Y + 75, 5), fov: 44 },
   // Y: low and back, watching the detonations climb the tower
   { p: 0.78, pos: new THREE.Vector3(-19, DELTA_Y + 58, 88), look: new THREE.Vector3(4, DELTA_Y + 108, -8), fov: 53 },
   // Z: back onto the cleft axis - the visitor's own line since the

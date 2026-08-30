@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   computeFamilies,
+  checksum,
   SECTIONS,
   TICKS,
   BLADE,
@@ -50,8 +51,8 @@ const SHEAR = 9;
  * 0.22 read as "nothing significant happening after 55" (Jacob,
  * 2026-08-30 contact sheet) - the sockets have to visibly OPEN in Y. */
 const DEPART_BASE = 0.45;
-/** the blade's own displacement per detent notch */
-const BLADE_STEP = 2.4;
+/** the blade block's slide between its three sockets, world units */
+const BLADE_SLIDE = 6.5;
 
 /**
  * A BROKEN HEXAHEDRON. Boxes are why every pass read as toy blocks -
@@ -146,6 +147,13 @@ export class DeltaAct {
   private readonly mobileSide = new Uint8Array(SECTIONS);
   private readonly bladeLamp: THREE.PointLight;
   private readonly goldFaceMat: THREE.MeshStandardMaterial;
+  private readonly hemi: THREE.HemisphereLight;
+  private readonly key: THREE.DirectionalLight;
+  private readonly rim: THREE.DirectionalLight;
+  /** THE BLADE STATION: the one control, physical, unmissable */
+  private readonly bladeMesh: THREE.Mesh;
+  /** per-family checksums, so the page can display the truth */
+  private readonly sums: { base: number; pos: number; neg: number };
   /** THE SHATTER: every departing section detonates into shards */
   private shardMesh!: THREE.InstancedMesh;
   private readonly shards: Array<{
@@ -251,13 +259,20 @@ export class DeltaAct {
     // this world - the cleft glows from within and the walls catch it
     // warm, while a cold key rakes the outer strata and a faint rim
     // holds the silhouette off the void.
-    this.group.add(new THREE.HemisphereLight(0x323b46, 0x080b0f, 1.35));
-    const key = new THREE.DirectionalLight(0xcfdae6, 2.5);
-    key.position.set(-180, 340, 240);
-    this.group.add(key);
-    const rim = new THREE.DirectionalLight(0x8fa0b4, 0.95);
-    rim.position.set(220, 120, -260);
-    this.group.add(rim);
+    this.hemi = new THREE.HemisphereLight(0x323b46, 0x080b0f, 1.35);
+    this.group.add(this.hemi);
+    this.key = new THREE.DirectionalLight(0xcfdae6, 2.5);
+    this.key.position.set(-180, 340, 240);
+    this.group.add(this.key);
+    this.rim = new THREE.DirectionalLight(0x8fa0b4, 0.95);
+    this.rim.position.set(220, 120, -260);
+    this.group.add(this.rim);
+
+    this.sums = {
+      base: checksum(this.fam.baseline),
+      pos: checksum(this.fam.altered.get(1)!),
+      neg: checksum(this.fam.altered.get(-1)!)
+    };
     // the seam lights its own canyon - the CLEFT WALLS, not the front
     // face. At 1.5/280 these washed the whole facade into a flat gold
     // billboard (photographed 2026-08-30): sprayed, not concentrated.
@@ -500,7 +515,9 @@ vSkinSeed = aSkinSeed;`
           const fz = Math.min(zEdge + fd / 2, d / 2 - fd / 2);
           zEdge += fd;
 
-          const isBlade = i === BLADE && isMobile && f === 0;
+          // the buried gold pebble that pretended to be the blade is
+          // dead - the real blade is a staged station, built below
+          const isBlade = false;
           // a crooked hexahedron, not a box: scaled to the band's real
           // extents, mildly jagged so the courses read as broken stone
           const geo = shardGeo(rng, 0.34);
@@ -574,7 +591,69 @@ vSkinSeed = aSkinSeed;`
       }
     }
 
+    // ---- THE BLADE STATION. The one control the visitor has, and it
+    // was invisible: a gold pebble in a thousand rocks (audit item 2,
+    // 2026-08-30). Now it is a carved mechanism at the hinge height:
+    // three deep sockets cut side by side into a dressed panel of the
+    // wall, and one gold-lit blade block standing in whichever socket
+    // the detent chooses. No UI, no labels - a machine you read the
+    // way you read a lever.
+    {
+      const side = this.mobileSide[BLADE]! as 0 | 1;
+      const sgn = side === 0 ? -1 : 1;
+      const bx = cutPlaneX((BLADE + 0.5) / SECTIONS, side) + sgn * 1.2;
+      const by = ((BLADE + 0.5) / SECTIONS) * FORM_H;
+      // the dressed panel: a calmer slab the mechanism is cut into,
+      // so the station reads against the broken courses around it
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 12, 22),
+        new THREE.MeshStandardMaterial({
+          color: 0x11151b,
+          roughness: 0.6,
+          metalness: 0.25,
+          flatShading: true,
+          fog: false
+        })
+      );
+      panel.position.set(bx + sgn * 0.6, by, 5);
+      this.group.add(panel);
+      // three sockets, reading -1 0 +1 left to right along the wall
+      const socketMat = new THREE.MeshStandardMaterial({
+        color: 0x05070a,
+        roughness: 0.95,
+        metalness: 0,
+        fog: false
+      });
+      for (const off of [-BLADE_SLIDE, 0, BLADE_SLIDE]) {
+        const so = new THREE.Mesh(new THREE.BoxGeometry(1.4, 5.2, 3.4), socketMat);
+        so.position.set(bx - sgn * 0.4, by, 5 + off);
+        this.group.add(so);
+      }
+      // the blade itself: gold-edged, standing proud of its socket
+      this.bladeMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(2.6, 4.6, 2.6),
+        new THREE.MeshStandardMaterial({
+          color: 0x2a1f10,
+          emissive: 0xd9b070,
+          emissiveIntensity: 0.5,
+          roughness: 0.4,
+          metalness: 0.45,
+          flatShading: true,
+          fog: false
+        })
+      );
+      this.bladeMesh.position.set(bx - sgn * 1.4, by, 5);
+      this.group.add(this.bladeMesh);
+      // and the lamp hangs over the station, not the old guess
+      this.bladeLamp.position.set(bx - sgn * 4, by + 7, 8);
+    }
+
     this.buildShatter(seed);
+  }
+
+  /** the truth for the page's stats line */
+  checksumFor(d: Detent): number {
+    return d === 0 ? this.sums.base : d === 1 ? this.sums.pos : this.sums.neg;
   }
 
   private buildShatter(seedBase: number): void {
@@ -684,7 +763,6 @@ vSkinSeed = aSkinSeed;`
     const widest = detent === 1 ? this.widestPos : this.widestNeg;
     const onsets = detent === 1 ? this.onsetPos : this.onsetNeg;
     const expand = DEPART_BASE + (1 - DEPART_BASE) * st.unfold;
-    const bladeOut = st.phase === 'entrance' || st.phase === 'x' ? 0 : detent * BLADE_STEP;
 
     // the jolt: every tear kicks the whole stack, and the kick decays
     // over the following ticks. A sum of pure functions of tick.
@@ -730,7 +808,6 @@ vSkinSeed = aSkinSeed;`
         this.v.addScaledVector(fr.dir, dd);
         this.v.y -= dd * fr.sagK;
       }
-      if (fr.isBlade) this.v.addScaledVector(fr.dir, bladeOut);
       fr.mesh.position.copy(this.v);
 
       if (fr.leanAngle !== 0 && dd > 0) {
@@ -810,9 +887,17 @@ vSkinSeed = aSkinSeed;`
       if (this.shardMesh.instanceColor) this.shardMesh.instanceColor.needsUpdate = true;
     }
 
-    // the blade is offered: the one warm lamp rises at Tick Zero and
-    // settles once the choice is made. A step of scroll, not of time.
-    this.bladeLamp.intensity = st.bladeLive ? 0.42 : st.phase === 'y' || st.phase === 'z' ? 0.16 : 0.06;
+    // TICK ZERO IS STAGED: the world dims, the station is the only
+    // bright thing, and the blade stands in the socket the detent
+    // chooses. All stepped by phase - scroll, never a clock.
+    const dim = st.bladeLive ? 0.4 : 1;
+    this.hemi.intensity = 1.35 * dim;
+    this.key.intensity = 2.5 * dim;
+    this.rim.intensity = 0.95 * dim;
+    this.bladeLamp.intensity = st.bladeLive ? 1.6 : st.phase === 'y' || st.phase === 'z' ? 0.25 : 0.08;
+    this.bladeMesh.position.z = 5 + detent * BLADE_SLIDE;
+    const bm = this.bladeMesh.material as THREE.MeshStandardMaterial;
+    bm.emissiveIntensity = st.bladeLive ? 1.1 : 0.35;
     // and the torn gold answers the opening: the faces brighten only as
     // far as the world has actually unfolded
     this.goldFaceMat.emissiveIntensity = 0.13 + 0.1 * st.unfold;
