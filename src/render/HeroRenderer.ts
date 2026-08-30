@@ -5138,7 +5138,8 @@ ${SKY_LAW}`
     this.path.update(this.camera);
     this.delta.update(
       journeyAt(this.path.progressValue, this.detent, reduced),
-      this.detent
+      this.detent,
+      this.camera.position.y
     );
     // the lock resolves on approach and is absent from the stand
     {

@@ -50,8 +50,13 @@ const KEYS: PoseKey[] = [
   // lands inside the seam's own thickness: the strata monolith of the
   // delta world, far below the entrance in its own void. Beats mirror
   // Journey.BEATS exactly - the camera and the state read one clock.
-  // X: arrive before the colossal stack and push in while it computes
-  { p: 0.34, pos: new THREE.Vector3(0, DELTA_Y + 148, 165), look: new THREE.Vector3(0, DELTA_Y + 104, 0), fov: 50 },
+  // X: arrive before the colossal stack and push in while it computes.
+  // ARRIVAL AT 0.33, NOT 0.34: the crossing veil dies at 0.342, and an
+  // arrival key at 0.34 left the last stretch of the dive - thousands
+  // of units of open sky - in plain view. Jacob saw the smear at the
+  // opening and photographed it, 2026-08-30. The teleport must finish
+  // while the veil still owns the frame.
+  { p: 0.33, pos: new THREE.Vector3(0, DELTA_Y + 148, 165), look: new THREE.Vector3(0, DELTA_Y + 104, 0), fov: 50 },
   // ...to the blade's height: close, compressed, material
   { p: 0.52, pos: new THREE.Vector3(5, DELTA_Y + 84, 30), look: new THREE.Vector3(0, DELTA_Y + 76, 0), fov: 48 },
   // TICK ZERO: near-hold. The world is still; the blade is offered.

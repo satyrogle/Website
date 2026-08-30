@@ -39,8 +39,13 @@ export const DELTA_Y = -3260;
 /** display law, carried over from the judged blockout */
 const GAP_MAX = 150;
 const GAP_GAMMA = 0.36;
-/** how far X's baseline settling shears a stratum, world units per unit offset */
-const SHEAR = 30;
+/** how far X's baseline settling shears a stratum, world units per unit
+ * offset. 30 was the JENGA: offsets of 0.1-0.3 became 3-9 unit random
+ * staggers and the monolith read as a tower of loose bricks mid-pull
+ * (Jacob, 2026-08-30, with a screenshot). The settling is a MOVEMENT to
+ * watch, not a misalignment to wear: at 9 the strata visibly work as X
+ * scrubs and land aligned enough to stay one carved mass. */
+const SHEAR = 9;
 /** Y shows the sockets cracking; Z expands the same gaps to inhabitable */
 const DEPART_BASE = 0.22;
 /** the blade's own displacement per detent notch */
@@ -201,14 +206,17 @@ export class DeltaAct {
         const d = Math.max(2, depth);
         const sgn = side === 0 ? -1 : 1;
         const cx = inner + sgn * (w / 2);
-        const th = slabH * (0.7 + rng() * 1.6);
+        // beds interpenetrate: consecutive strata overlap so the body
+        // reads as one carved mass, not stacked courses
+        const th = slabH * (1.05 + rng() * 1.3);
 
         const isMobile = side === mobile;
         const nFrag = 1 + Math.floor(rng() * 3);
         let zEdge = -d / 2;
         for (let f = 0; f < nFrag; f++) {
-          const fd = (d / nFrag) * (0.6 + rng() * 0.8);
-          const fw = w * (0.82 + rng() * 0.18);
+          const fd = (d / nFrag) * (0.7 + rng() * 0.7);
+          // near-full width: fragment INSETS at this scale were teeth
+          const fw = w * (0.94 + rng() * 0.06);
           const fz = Math.min(zEdge + fd / 2, d / 2 - fd / 2);
           zEdge += fd;
 
@@ -223,7 +231,8 @@ export class DeltaAct {
             mat = faces;
           }
           const mesh = new THREE.Mesh(geo, mat);
-          const base = new THREE.Vector3(cx + sgn * (rng() - 0.5) * 2.4, t * FORM_H, fz);
+          // jitter cut 2.4 -> 0.7: part of the jenga read
+          const base = new THREE.Vector3(cx + sgn * (rng() - 0.5) * 0.7, t * FORM_H, fz);
           mesh.position.copy(base);
           this.group.add(mesh);
 
@@ -283,8 +292,11 @@ export class DeltaAct {
    * scrub backwards and every stratum retraces exactly, because every
    * value below is read from the stored frames.
    */
-  update(st: JourneyState, detent: Detent): void {
-    const on = st.phase !== 'entrance';
+  update(st: JourneyState, detent: Detent, camY: number): void {
+    // visible as soon as the camera has crossed under the veil, even
+    // while the JOURNEY still says entrance: the dive lands at 0.33
+    // and the act must already be standing there in the dark
+    const on = st.phase !== 'entrance' || camY < -1000;
     this.group.visible = on;
     if (!on) return;
 
