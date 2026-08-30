@@ -95,10 +95,26 @@ export class DeltaAct {
   private readonly yieldTick: Float32Array;
   /** signed display amplitude of that section's yield snap */
   private readonly waveAmp: Float32Array;
+  /** which half departs per section, fixed at seeding */
+  private readonly mobileSide = new Uint8Array(SECTIONS);
   private readonly bladeLamp: THREE.PointLight;
   private readonly goldFaceMat: THREE.MeshStandardMaterial;
+  /** THE SHATTER: every departing section detonates into shards */
+  private shardMesh!: THREE.InstancedMesh;
+  private readonly shards: Array<{
+    section: number;
+    origin: THREE.Vector3;
+    dir: THREE.Vector3;
+    frac: number;
+    size: number;
+    axis: THREE.Vector3;
+    spin: number;
+    sagK: number;
+  }> = [];
   private readonly q = new THREE.Quaternion();
   private readonly v = new THREE.Vector3();
+  private readonly m4 = new THREE.Matrix4();
+  private readonly vScale = new THREE.Vector3();
 
   constructor(seed: number) {
     this.group.position.y = DELTA_Y;
@@ -359,6 +375,7 @@ vSkinSeed = aSkinSeed;`
     for (let i = 0; i < SECTIONS; i++) {
       const t = (i + 0.5) / SECTIONS;
       const mobile = (rng() < 0.5 ? 0 : 1) as 0 | 1;
+      this.mobileSide[i] = mobile;
       const u = rng();
 
       for (const side of [0, 1] as const) {
@@ -457,6 +474,73 @@ vSkinSeed = aSkinSeed;`
         }
       }
     }
+
+    this.buildShatter(seed);
+  }
+
+  private buildShatter(seedBase: number): void {
+    // THE SHATTER CASCADE. Jacob, 2026-08-30: "you can break the
+    // barrier ... create something. this is just sad and bland." The
+    // honest diagnosis: sliding slabs could be keyframed by hand, so
+    // they prove nothing about the engine. An arrested detonation of
+    // four thousand shards that scrubs BACKWARD perfectly cannot be
+    // hand-animated - reversibility at that scale IS the showcase.
+    // Cornelia Parker's exploded shed, not a jenga tower: the monument
+    // hangs mid-blast around its own gold line, dead still, and scroll
+    // is the only clock.
+    //
+    // Determinism is untouched: each shard's cone, fraction, tumble and
+    // size are seeded; its moment is its section's real onset tick; its
+    // reach is the section's real computed gap through the display law.
+    const rng = mulberry32((seedBase ^ 0x5a11) | 0);
+    const PER = 210;
+    const sections: number[] = [];
+    for (let i = 0; i < SECTIONS; i++) {
+      if (this.onsetPos[i] !== Infinity || this.onsetNeg[i] !== Infinity) sections.push(i);
+    }
+    const total = sections.length * PER;
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x1a2027,
+      roughness: 0.8,
+      metalness: 0.18,
+      flatShading: true,
+      fog: false
+    });
+    this.shardMesh = new THREE.InstancedMesh(geo, mat, total);
+    this.shardMesh.frustumCulled = false;
+    this.group.add(this.shardMesh);
+
+    for (const i of sections) {
+      const t = (i + 0.5) / SECTIONS;
+      const side = this.mobileSide[i]! as 0 | 1;
+      const c = prongCentre(t, side);
+      const sp = surfacePoint(t, side, 0.5);
+      const spall = new THREE.Vector3(sp.x - c.x, 0, sp.z - c.z).normalize();
+      const originX = cutPlaneX(t, side) + (side === 0 ? -1 : 1) * Math.abs(sp.x - cutPlaneX(t, side)) * 0.5;
+      for (let k = 0; k < PER; k++) {
+        // a cone of directions around the spall axis, some straight,
+        // some wild - a burst, not a beam
+        const spread = 0.25 + rng() * 0.75;
+        const d = spall
+          .clone()
+          .add(new THREE.Vector3((rng() - 0.5) * spread * 1.6, (rng() - 0.5) * spread, (rng() - 0.5) * spread * 1.6))
+          .normalize();
+        // most shards are grit, a few are boulders
+        const u = rng();
+        const size = u < 0.7 ? 0.5 + rng() * 1.3 : u < 0.95 ? 1.8 + rng() * 2.2 : 4.5 + rng() * 4;
+        this.shards.push({
+          section: i,
+          origin: new THREE.Vector3(originX, t * FORM_H + (rng() - 0.5) * (FORM_H / SECTIONS) * 1.4, (rng() - 0.5) * 16),
+          dir: d,
+          frac: 0.06 + Math.pow(rng(), 1.6) * 0.94,
+          size,
+          axis: new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(),
+          spin: (rng() - 0.5) * 6,
+          sagK: 0.05 + rng() * 0.12
+        });
+      }
+    }
   }
 
   private dispOf(gap: number, widest: number): number {
@@ -505,17 +589,17 @@ vSkinSeed = aSkinSeed;`
       const off =
         this.baseOff[t0 * SECTIONS + i]! * (1 - a) + this.baseOff[t1 * SECTIONS + i]! * a;
 
+      // THE DETONATION SWAP: a mobile slab does not slide anywhere.
+      // It stands intact until its section's onset tick, then it IS
+      // GONE - replaced in the same instant by its shard cloud. The
+      // most violent thing a piece can do is stop being a piece.
       let dd = 0;
+      let gone = false;
       if (fr.mobile && gaps) {
-        // THE TEAR: it rips out over ~6 ticks at its own onset, to its
-        // full computed distance - an event, not a drift
         const ot = onsets[i]!;
-        if (tf >= ot && ot !== Infinity) {
-          const snapT = Math.min(1, (tf - ot) / 6);
-          const shaped = snapT * snapT * (3 - 2 * snapT);
-          dd = this.dispOf(gaps[(TICKS - 1) * SECTIONS + i]!, widest) * expand * fr.trail * shaped;
-        }
+        gone = tf >= ot && ot !== Infinity;
       }
+      fr.mesh.visible = !gone;
 
       this.v.copy(fr.base);
       // X: the baseline settling, the monolith shearing as it computes
@@ -560,6 +644,38 @@ vSkinSeed = aSkinSeed;`
       ch.mesh.position.copy(this.v);
       const s = Math.min(1, dd / 30);
       ch.mesh.scale.setScalar(s);
+    }
+
+    // THE ARRESTED DETONATION. Every shard of every torn section,
+    // frozen at the reach its scroll moment gives it. Backwards scroll
+    // runs the blast in reverse exactly - the one thing hand animation
+    // can never fake at four thousand pieces.
+    {
+      const m4 = this.m4;
+      const q4 = this.q;
+      const s3 = this.v;
+      let idx = 0;
+      for (const sh of this.shards) {
+        const ot = gaps ? onsets[sh.section]! : Infinity;
+        let snap = 0;
+        if (gaps && tf >= ot && ot !== Infinity) {
+          const raw = Math.min(1, (tf - ot) / 7);
+          snap = raw * raw * (3 - 2 * raw);
+        }
+        if (snap <= 0.001) {
+          m4.makeScale(0.0001, 0.0001, 0.0001);
+          this.shardMesh.setMatrixAt(idx++, m4);
+          continue;
+        }
+        const reach = this.dispOf(gaps![(TICKS - 1) * SECTIONS + sh.section]!, widest) * expand * sh.frac * snap;
+        s3.copy(sh.origin).addScaledVector(sh.dir, reach);
+        s3.y -= reach * sh.sagK * snap;
+        s3.x += flinch;
+        q4.setFromAxisAngle(sh.axis, sh.spin * snap);
+        m4.compose(s3, q4, this.vScale.setScalar(sh.size));
+        this.shardMesh.setMatrixAt(idx++, m4);
+      }
+      this.shardMesh.instanceMatrix.needsUpdate = true;
     }
 
     // the blade is offered: the one warm lamp rises at Tick Zero and

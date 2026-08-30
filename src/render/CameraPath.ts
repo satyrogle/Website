@@ -71,8 +71,10 @@ const KEYS: PoseKey[] = [
   // 1-unit gold box millimetres from the lens and it rendered as a
   // wall a third of the frame wide (photographed 2026-08-30). From a
   // stride away it reads as what it is - the line through the field.
-  { p: 0.9, pos: new THREE.Vector3(7, DELTA_Y + 92, 13), look: new THREE.Vector3(-14, DELTA_Y + 146, -40), fov: 56 },
-  { p: 1.0, pos: new THREE.Vector3(6, DELTA_Y + 97, 10), look: new THREE.Vector3(20, DELTA_Y + 56, -46), fov: 58 }
+  // ...and further out into the cloud: at a stride the boulders of the
+  // blast park on the lens (photographed 2026-08-30, an all-black Z)
+  { p: 0.9, pos: new THREE.Vector3(30, DELTA_Y + 106, 46), look: new THREE.Vector3(-24, DELTA_Y + 120, -36), fov: 56 },
+  { p: 1.0, pos: new THREE.Vector3(24, DELTA_Y + 98, 38), look: new THREE.Vector3(-10, DELTA_Y + 52, -50), fov: 58 }
 ];
 
 export interface CameraState {
