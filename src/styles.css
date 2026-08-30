@@ -469,7 +469,12 @@ html.bare .site-foot { visibility: hidden; }
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: #030407;
+  /* THE CROSSING IS GOLD, NOT BLACK. The law was written next to the
+     element ("gold on both sides, always") while the css said #030407,
+     and Jacob hit the contradiction live: "after the gates open
+     completely you see the black screen". The visitor plunges INTO the
+     seam's light; the void between the worlds is never seen. */
+  background: radial-gradient(120% 90% at 50% 50%, #f2d9a0 0%, #caa25e 55%, #86672f 100%);
   opacity: 0;
   pointer-events: none;
 }

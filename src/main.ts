@@ -204,8 +204,10 @@ function boot(): void {
     }
     if (veil) {
       const p = director.progress;
+      // FULL cover through the jump: at 0.85 peak, 15% of the void
+      // between the worlds leaked through as a black screen
       const o =
-        0.85 * smooth01v(p, 0.298, 0.314) * (1 - smooth01v(p, 0.322, 0.342));
+        smooth01v(p, 0.295, 0.312) * (1 - smooth01v(p, 0.334, 0.352));
       veil.style.opacity = String(o);
     }
 
