@@ -5,7 +5,7 @@ decoration: if a decision in `docs/` cites an image, the image lives in this
 folder so the decision can be re-checked later by looking rather than by
 remembering.
 
-## plate-family.png — REQUIRED, NOT YET COMMITTED
+## plate-family.png — committed `8cc1ab5`
 
 Approved 2026-08-30 as the **plate-family and material reference** for THE
 DELTA. Full record in `docs/THE_DELTA.md` section 8A.
@@ -22,9 +22,8 @@ hierarchy, the rule-based rather than random-debris quality.
 **Locks nothing about:** composition, camera placement, plate positions,
 symmetry, spatial scale, or the final negative-space pattern.
 
-The file was pasted into a working session and never reached git, so the
-reference in section 8A currently points at a picture that cannot be opened.
-It needs saving here at `docs/refs/plate-family.png`.
+The decision in section 8A can therefore be re-checked by opening the picture
+it was made against, which is the whole point of this folder.
 
 ## The Z gate is still closed
 

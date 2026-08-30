@@ -232,9 +232,9 @@ cannot be symmetric.** A mirrored Z would be proof the geometry was authored
 rather than derived, which collapses the entire claim the three pages exist to
 make.
 
-> **The image file still needs to be committed to the repository.** Drop it at
-> `docs/refs/plate-family.png` so this reference is not a description of a
-> picture nobody can find. It was pasted into a session and is not in git.
+The frame itself is committed at **`docs/refs/plate-family.png`** (`8cc1ab5`),
+so this verdict can be re-checked by looking at the picture it was made
+against rather than by remembering it.
 
 ## 9. What was rejected on the way here, and why
 
