@@ -1,16 +1,13 @@
 /**
- * THE GRAIN — the plain.
+ * THE GRAIN — the plain, with live tuning.
  *
- * Third attempt, and the one that follows the diagnosis instead of guessing.
+ * Every mass is one seeded run of the same generator: a folded body with the
+ * laminae carved out of it by an erosion field, plus a plate layer standing off
+ * the surface. That plate layer is the whole reason it reads as stone, and
+ * stripping it for budget is what made the first two attempts fail.
  *
- * What failed twice: masses built from box primitives. They read as loose
- * blocks at every size and count. And heightfield masses with the plate layer
- * STRIPPED OUT for budget, which read as smooth lumps, because the plate layer
- * is the entire reason this material looks like stone. Removing it and then
- * concluding the method did not work was the mistake.
- *
- * So: every mass is a full F3 heightfield with a coarser plate layer, one
- * seeded run of the same generator each. 15 to 20k triangles apiece.
+ * The panel exists because composition is Jacob's call and I was guessing at it
+ * from screenshots. Drag it, hit copy, and the numbers get baked in as defaults.
  *
  * ?view=face shows the near mass close up.
  */
@@ -37,15 +34,68 @@ import {
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { buildPanel, type Group as PanelGroup } from './panel';
 
 const SEEDS = [20260831, 4417, 90210, 777123, 313, 55501, 8888, 24601];
-const COUNT = 22;
 const PLACE_SEED = 20260831;
 const GROUND_Y = -1.55;
-const RAKE_AZIMUTH = -82;
-const RAKE_ELEVATION = 10;
 
 const faceView = new URLSearchParams(location.search).get('view') === 'face';
+
+// Integers throughout, so the sliders are honest and the copied values paste
+// back cleanly. Anything that needs a fraction carries its scale in its name.
+const P: Record<string, number> = {
+  camY: 15, camZ: 168, camTargetY: 11, camTargetZ: -220, fov: 34,
+  fogDensity: 26, airLight: 26, exposure: 70, groundLight: 26,
+  lightAz: -82, lightEl: 10, lightInt: 95, ambient: 14,
+  count: 22, nearZ: 62, depth: 470, spreadNear: 40, spreadFar: 300,
+  widthMin: 42, widthSpan: 46, heightMin: 115, heightSpan: 95,
+};
+
+const GROUPS: PanelGroup[] = [
+  {
+    title: 'camera',
+    fields: [
+      { key: 'camY', label: 'height', min: 2, max: 90, step: 1 },
+      { key: 'camZ', label: 'stand off', min: 40, max: 400, step: 2 },
+      { key: 'camTargetY', label: 'aim height', min: -20, max: 60, step: 1 },
+      { key: 'camTargetZ', label: 'aim depth', min: -600, max: 0, step: 5 },
+      { key: 'fov', label: 'lens (fov)', min: 12, max: 70, step: 1 },
+    ],
+  },
+  {
+    title: 'air',
+    fields: [
+      { key: 'fogDensity', label: 'fog x1e-4', min: 2, max: 90, step: 1 },
+      { key: 'airLight', label: 'air value', min: 4, max: 80, step: 1 },
+      { key: 'groundLight', label: 'ground value', min: 2, max: 90, step: 1 },
+      { key: 'exposure', label: 'exposure x1e-2', min: 15, max: 180, step: 1 },
+    ],
+  },
+  {
+    title: 'light',
+    fields: [
+      { key: 'lightAz', label: 'rake azimuth', min: -90, max: -20, step: 1 },
+      { key: 'lightEl', label: 'rake elevation', min: 2, max: 60, step: 1 },
+      { key: 'lightInt', label: 'rake strength x1e-1', min: 5, max: 300, step: 5 },
+      { key: 'ambient', label: 'ambient x1e-2', min: 0, max: 90, step: 1 },
+    ],
+  },
+  {
+    title: 'masses',
+    fields: [
+      { key: 'count', label: 'count', min: 4, max: 60, step: 1, heavy: true },
+      { key: 'nearZ', label: 'nearest', min: -40, max: 140, step: 2, heavy: true },
+      { key: 'depth', label: 'depth of field', min: 120, max: 900, step: 10, heavy: true },
+      { key: 'spreadNear', label: 'spread near', min: 10, max: 200, step: 5, heavy: true },
+      { key: 'spreadFar', label: 'spread far', min: 40, max: 600, step: 10, heavy: true },
+      { key: 'widthMin', label: 'width min x1e-2', min: 15, max: 150, step: 1, heavy: true },
+      { key: 'widthSpan', label: 'width span x1e-2', min: 0, max: 150, step: 1, heavy: true },
+      { key: 'heightMin', label: 'height min x1e-2', min: 30, max: 300, step: 5, heavy: true },
+      { key: 'heightSpan', label: 'height span x1e-2', min: 0, max: 250, step: 5, heavy: true },
+    ],
+  },
+];
 
 const canvas = document.querySelector<HTMLCanvasElement>('#grain')!;
 const status = document.querySelector<HTMLElement>('#status')!;
@@ -53,49 +103,30 @@ const status = document.querySelector<HTMLElement>('#status')!;
 const renderer = new WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = AgXToneMapping;
-renderer.toneMappingExposure = faceView ? 0.52 : 0.7;
 renderer.outputColorSpace = SRGBColorSpace;
-// Without cast shadows nothing is planted: every mass looked like it was
-// hovering a few metres above a grey floor. A raking light also throws long
-// shadows, which is most of what the approved plain's ground reads as.
+// Without cast shadows nothing is planted and every mass hovers above the floor.
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = PCFSoftShadowMap;
 
-// The air is LIGHTER than the stone. That contrast is the whole read: dark
-// masses standing as silhouettes inside mid-dark air. Matching air to rock
-// gives an empty black frame with nothing in it.
-const AIR = new Color('#1a1f25');
-
 const scene = new Scene();
-scene.background = AIR;
-scene.fog = new FogExp2(AIR.getHex(), faceView ? 0.010 : 0.0026);
+const AIR = new Color();
+const camera = new PerspectiveCamera(34, 1, 0.4, 1600);
 
-const camera = new PerspectiveCamera(faceView ? 42 : 34, 1, 0.4, 1600);
-
-scene.add(new HemisphereLight(0xaebdd6, 0x05070a, 0.14));
-scene.add(new AmbientLight(0x0d1116, 0.1));
+const hemi = new HemisphereLight(0xaebdd6, 0x05070a, 0.14);
+const amb = new AmbientLight(0x0d1116, 0.1);
+scene.add(hemi, amb);
 
 const rake = new DirectionalLight(0xfcfbf7, 9.5);
-{
-  const az = (RAKE_AZIMUTH * Math.PI) / 180;
-  const el = (RAKE_ELEVATION * Math.PI) / 180;
-  rake.position.set(
-    Math.cos(el) * Math.sin(az) * 500,
-    Math.sin(el) * 500,
-    Math.cos(el) * Math.cos(az) * 500,
-  );
-}
 rake.castShadow = true;
 rake.shadow.mapSize.set(2048, 2048);
 rake.shadow.camera.near = 1;
-rake.shadow.camera.far = 1400;
-rake.shadow.camera.left = -320;
-rake.shadow.camera.right = 320;
-rake.shadow.camera.top = 320;
-rake.shadow.camera.bottom = -320;
+rake.shadow.camera.far = 1600;
+rake.shadow.camera.left = -360;
+rake.shadow.camera.right = 360;
+rake.shadow.camera.top = 360;
+rake.shadow.camera.bottom = -360;
 rake.shadow.bias = -0.0012;
-scene.add(rake);
-scene.add(rake.target);
+scene.add(rake, rake.target);
 
 const slate = new MeshStandardMaterial({
   color: new Color(0.03, 0.032, 0.036),
@@ -103,20 +134,12 @@ const slate = new MeshStandardMaterial({
   metalness: 0,
   flatShading: true,
 });
+const groundMat = new MeshStandardMaterial({ color: new Color(), roughness: 0.95 });
 
-// clearly lighter than black, or the masses float in grey with no horizon
-const ground = new Mesh(
-  new PlaneGeometry(4000, 4000),
-  new MeshStandardMaterial({
-    // lighter than black so there is a floor, darker than the air so the
-    // horizon reads the right way round
-    color: new Color(0.026, 0.028, 0.031),
-    roughness: 0.95,
-  }),
-);
+const ground = new Mesh(new PlaneGeometry(4000, 4000), groundMat);
 ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
 ground.position.y = GROUND_Y;
+ground.receiveShadow = true;
 scene.add(ground);
 
 function buildTrack(): Mesh {
@@ -127,8 +150,7 @@ function buildTrack(): Mesh {
     const t = i / (N - 1);
     const z = 60 - t * 520;
     const x = Math.sin(t * 3.4) * 26 + Math.sin(t * 1.1 + 1.6) * 48 - 6;
-    const w = 0.5;
-    pts.push(x - w, GROUND_Y + 0.03, z, x + w, GROUND_Y + 0.03, z);
+    pts.push(x - 0.5, GROUND_Y + 0.03, z, x + 0.5, GROUND_Y + 0.03, z);
     if (i < N - 1) {
       const a = i * 2;
       idx.push(a, a + 1, a + 3, a, a + 3, a + 2);
@@ -141,7 +163,7 @@ function buildTrack(): Mesh {
   return new Mesh(
     g,
     new MeshStandardMaterial({
-      color: new Color(0.10, 0.104, 0.11),
+      color: new Color(0.1, 0.104, 0.11),
       roughness: 0.8,
       side: DoubleSide,
     }),
@@ -164,68 +186,120 @@ loader.setDRACOLoader(draco);
 const load = (u: string): Promise<Object3D> =>
   new Promise((res, rej) => loader.load(u, (g) => res(g.scene), undefined, rej));
 
+let sources: Object3D[] = [];
+let field: Group | null = null;
+let tris = 0;
+
+function paint(o: Object3D) {
+  o.traverse((c) => {
+    const m = c as Mesh;
+    if (!m.isMesh) return;
+    m.material = slate;
+    m.castShadow = true;
+    m.receiveShadow = true;
+    const p = m.geometry.getAttribute('position');
+    tris += (m.geometry.index ? m.geometry.index.count : p.count) / 3;
+  });
+}
+
+function rebuildField() {
+  if (field) {
+    scene.remove(field);
+    field = null;
+  }
+  tris = 0;
+  const g = new Group();
+  const rnd = lcg(PLACE_SEED);
+  const n = Math.round(P.count!);
+  for (let i = 0; i < n; i++) {
+    const inst = sources[i % sources.length]!.clone(true);
+    // Depth bands, never a ring. A ring puts every mass at one apparent size in
+    // a single stripe: no near, no far, and so no scale at all.
+    const t = (i + rnd() * 0.8) / n;
+    const z = P.nearZ! - Math.pow(t, 0.8) * P.depth!;
+    const spread = P.spreadNear! + t * P.spreadFar!;
+    let x = (rnd() - 0.5) * 2 * spread;
+    if (t < 0.3 && Math.abs(x) < 30) x += x < 0 ? -34 : 34;
+    inst.position.set(x, 0, z);
+    inst.rotation.y = rnd() * Math.PI * 2;
+    // Taller than wide, or they read as plateaus from any camera above them.
+    const w = (P.widthMin! + rnd() * P.widthSpan!) / 100;
+    const h = (P.heightMin! + rnd() * P.heightSpan!) / 100;
+    inst.scale.set(w, h, w * (0.8 + rnd() * 0.5));
+    g.add(inst);
+  }
+  scene.add(g);
+  field = g;
+  paint(g);
+  status.textContent = `${n} masses · ${Math.round(tris / 1000)}k triangles`;
+}
+
+function apply() {
+  AIR.setRGB(P.airLight! / 400, (P.airLight! + 2) / 400, (P.airLight! + 6) / 400);
+  scene.background = AIR;
+  // The air is lighter than the stone. That contrast is the whole read: dark
+  // masses as silhouettes inside mid-dark air.
+  scene.fog = new FogExp2(AIR.getHex(), P.fogDensity! * 1e-4);
+  groundMat.color.setRGB(
+    P.groundLight! / 900,
+    (P.groundLight! + 1) / 900,
+    (P.groundLight! + 3) / 900,
+  );
+  renderer.toneMappingExposure = P.exposure! / 100;
+
+  const az = (P.lightAz! * Math.PI) / 180;
+  const el = (P.lightEl! * Math.PI) / 180;
+  rake.position.set(
+    Math.cos(el) * Math.sin(az) * 500,
+    Math.sin(el) * 500,
+    Math.cos(el) * Math.cos(az) * 500,
+  );
+  rake.intensity = P.lightInt! / 10;
+  hemi.intensity = P.ambient! / 100;
+  amb.intensity = P.ambient! / 140;
+
+  camera.fov = P.fov!;
+  camera.position.set(6, P.camY!, P.camZ!);
+  camera.lookAt(-10, P.camTargetY!, P.camTargetZ!);
+  camera.updateProjectionMatrix();
+}
+
 const t0 = performance.now();
 
-(async () => {
-  const masses = await Promise.all(
-    SEEDS.map((s) => load(`./models/grain-far-${s}.glb`)),
-  );
-  const near = faceView ? await load('./models/grain-near-20260831.glb') : null;
-
-  let tris = 0;
-  const paint = (o: Object3D) =>
-    o.traverse((c) => {
-      const m = c as Mesh;
-      if (!m.isMesh) return;
-      m.material = slate;
-      m.castShadow = true;
-      m.receiveShadow = true;
-      const p = m.geometry.getAttribute('position');
-      tris += (m.geometry.index ? m.geometry.index.count : p.count) / 3;
-    });
-
-  if (faceView && near) {
-    near.position.set(0, 0, 0);
+async function boot() {
+  if (faceView) {
+    const near = await load('./models/grain-near-20260831.glb');
     scene.add(near);
     paint(near);
+    Object.assign(P, {
+      camY: 5, camZ: 22, camTargetY: 5, camTargetZ: 0,
+      fov: 42, exposure: 52, fogDensity: 100,
+    });
+    apply();
     camera.position.set(11.4, 4.9, 21.5);
     camera.lookAt(11.4, 4.9, 0);
-  } else {
-    // DEPTH BANDS, not a ring. A ring puts every mass at one apparent size in
-    // one horizontal stripe: no near, no far, and therefore no scale.
-    const field = new Group();
-    const rnd = lcg(PLACE_SEED);
-    for (let i = 0; i < COUNT; i++) {
-      const src = masses[i % masses.length]!;
-      const inst = src.clone(true);
-      const t = (i + rnd() * 0.8) / COUNT;
-      // nothing closer than about ninety metres: from a forty metre camera a
-      // nearer mass is seen from above and reads as a plateau, not a monument
-      const z = 62 - Math.pow(t, 0.8) * 470;
-      const spread = 40 + t * 300;
-      let x = (rnd() - 0.5) * 2 * spread;
-      // keep the near ones out of the middle so the view down the plain is open
-      if (t < 0.3 && Math.abs(x) < 30) x += x < 0 ? -34 : 34;
-      inst.position.set(x, 0, z);
-      inst.rotation.y = rnd() * Math.PI * 2;
-      // A mass 38m wide and 16m tall is a plateau, and from any camera above
-      // its top that is exactly what it reads as. They have to stand: narrower
-      // than the source mesh and considerably taller.
-      const s = 0.42 + rnd() * 0.46;
-      inst.scale.set(s, 1.15 + rnd() * 0.95, s * (0.8 + rnd() * 0.5));
-      field.add(inst);
-    }
-    scene.add(field);
-    paint(field);
-
-    // low enough to look ACROSS the masses rather than down onto them
-    camera.position.set(6, 15, 168);
-    camera.lookAt(-10, 11, -220);
+    status.textContent = `1 mass · ${Math.round(tris / 1000)}k triangles`;
+    resize();
+    return;
   }
 
-  status.textContent = `${faceView ? 1 : COUNT} masses · ${Math.round(tris / 1000)}k triangles · ${Math.round(performance.now() - t0)}ms`;
+  sources = await Promise.all(SEEDS.map((s) => load(`./models/grain-far-${s}.glb`)));
+  buildPanel(
+    GROUPS,
+    P,
+    (_key, heavy) => {
+      if (heavy) rebuildField();
+      apply();
+    },
+    'grain-tuning-v1',
+  );
+  rebuildField();
+  apply();
+  status.textContent += ` · ${Math.round(performance.now() - t0)}ms`;
   resize();
-})().catch((e) => {
+}
+
+boot().catch((e) => {
   status.textContent = `failed: ${String(e)}`;
 });
 
