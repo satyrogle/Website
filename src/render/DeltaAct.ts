@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   computeFamilies,
   checksum,
@@ -10,29 +11,31 @@ import {
 } from '../core/Delta';
 import type { JourneyState } from '../core/Journey';
 import { mulberry32 } from '../core/rng';
-import { FORM_H, prongCentre, surfacePoint, cutPlaneX } from '../world/monumentForm';
+import { FORM_H, cutPlaneX } from '../world/monumentForm';
 
 /**
- * THE DELTA ACT: X, Y and Z as one world. docs/THE_DELTA.md, built under
- * Jacob's godmode order of 2026-08-30 with the hero-anchored blockout as
- * the interim art target and the Control/Returnal studies as reference
- * law (docs/refs/). Section 8's frame test is the acceptance test for
- * what this renders; Jacob judges it on his own GPU.
+ * THE DELTA ACT: X, Y and Z as one world. docs/THE_DELTA.md, godmode
+ * build of 2026-08-30/31.
  *
- * The world lives far below the entrance (DELTA_Y) in its own void
- * shell, entered through the crossing veil the entrance already owns.
- * Inside is the Split Spire again - the same form maths - stacked as
- * 48 strata: the monolith X scrubs, the body Y breaks open, the field Z
- * unfolds. One object, excavated for the whole journey.
+ * THE FORGE ERA. Every earlier pass built the monolith out of
+ * runtime boxes and Jacob killed them all - jenga, bulges, "soo bad".
+ * The stone is now FORGED: tools/blender/delta_fracture.py rebuilds
+ * the Split Spire from the same numbers as monumentForm.ts, fractures
+ * it into ~285 genuine rock chunks with a hand-rolled seeded Voronoi
+ * (real conchoidal faces, hairline crack seams, beveled edges), and
+ * exports public/models/delta-monolith.glb. At rest the chunks
+ * assemble into ONE carved monolith - the crack network is real
+ * geometry. The detonation throws real rubble.
  *
  * EVERYTHING DISPLAYED IS A KERNEL VALUE:
  *   - X's settling      = baseline offset per section per tick
- *   - Y's departures    = |altered - baseline| per section per tick
+ *   - the yield wave    = each section's real threshold crossing
+ *   - Y's detonations   = each section's real onset tick and gap
  *   - Z's unfolding     = the same gaps, display-expanded by unfold
- *   - the blade's nudge = the detent itself
- * The stated display constants (gamma, scales, lean) are the legend on
- * the map - how the fact is drawn, never a second fact. Nothing here
- * owns state: it renders (scroll, detent) and forgets.
+ *   - the blade         = the detent itself, standing in its socket
+ * Chunks are mapped to kernel sections by their forged height. The
+ * display constants are the legend on the map, stated, never a second
+ * fact. Nothing here owns state: it renders (scroll, detent).
  */
 
 export const DELTA_Y = -3260;
@@ -40,51 +43,14 @@ export const DELTA_Y = -3260;
 /** display law, carried over from the judged blockout */
 const GAP_MAX = 170;
 const GAP_GAMMA = 0.36;
-/** how far X's baseline settling shears a stratum, world units per unit
- * offset. 30 was the JENGA: offsets of 0.1-0.3 became 3-9 unit random
- * staggers and the monolith read as a tower of loose bricks mid-pull
- * (Jacob, 2026-08-30, with a screenshot). The settling is a MOVEMENT to
- * watch, not a misalignment to wear: at 9 the strata visibly work as X
- * scrubs and land aligned enough to stay one carved mass. */
+/** X's settling shear per unit of kernel offset */
 const SHEAR = 9;
-/** Y shows the sockets cracking; Z expands the same gaps to inhabitable.
- * 0.22 read as "nothing significant happening after 55" (Jacob,
- * 2026-08-30 contact sheet) - the sockets have to visibly OPEN in Y. */
+/** Y opens sockets at 0.45 of full; Z expands to inhabitable */
 const DEPART_BASE = 0.45;
 /** the blade block's slide between its three sockets, world units */
 const BLADE_SLIDE = 6.5;
-
-/**
- * A BROKEN HEXAHEDRON. Boxes are why every pass read as toy blocks -
- * "jenga", "bulges", "soo bad" (Jacob, 2026-08-30, in order). A real
- * fragment of rock has no parallel faces. Jitter the eight corners of
- * a cube and triangulate: every piece gets a crooked, believable
- * silhouette, and flat shading turns the irregular faces into facets.
- */
-function shardGeo(rng: () => number, jag = 0.5): THREE.BufferGeometry {
-  const j = (): number => (rng() - 0.5) * jag;
-  const c: number[][] = [
-    [-0.5 + j(), -0.5 + j(), -0.5 + j()],
-    [0.5 + j(), -0.5 + j(), -0.5 + j()],
-    [0.5 + j(), 0.5 + j(), -0.5 + j()],
-    [-0.5 + j(), 0.5 + j(), -0.5 + j()],
-    [-0.5 + j(), -0.5 + j(), 0.5 + j()],
-    [0.5 + j(), -0.5 + j(), 0.5 + j()],
-    [0.5 + j(), 0.5 + j(), 0.5 + j()],
-    [-0.5 + j(), 0.5 + j(), 0.5 + j()]
-  ];
-  const F = [
-    [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
-    [0, 1, 5], [0, 5, 4], [3, 7, 6], [3, 6, 2],
-    [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5]
-  ];
-  const pos: number[] = [];
-  for (const f of F) for (const vi of f) pos.push(c[vi]![0]!, c[vi]![1]!, c[vi]![2]!);
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-  g.computeVertexNormals();
-  return g;
-}
+/** every blast clears its source; the kernel ranks who flies furthest */
+const REACH_FLOOR = 34;
 
 /** soft radial sprite for haze and shafts */
 function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
@@ -101,34 +67,22 @@ function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
   return new THREE.CanvasTexture(cv);
 }
 
-interface Frag {
+interface Chunk {
   mesh: THREE.Mesh;
   base: THREE.Vector3;
+  quat0: THREE.Quaternion;
   section: number;
   side: 0 | 1;
   mobile: boolean;
   dir: THREE.Vector3;
-  trail: number;
-  leanAxis: THREE.Vector3;
-  leanAngle: number;
-  sagK: number;
-  isBlade: boolean;
-}
-
-interface Chip {
-  mesh: THREE.Mesh;
-  base: THREE.Vector3;
-  section: number;
-  dir: THREE.Vector3;
   frac: number;
-  scatter: THREE.Vector3;
+  axis: THREE.Vector3;
+  spin: number;
   sagK: number;
 }
 
 export class DeltaAct {
   readonly group = new THREE.Group();
-  private readonly frags: Frag[] = [];
-  private readonly chips: Chip[] = [];
   private readonly fam: Families;
   /** flattened [tick * SECTIONS + i] */
   private readonly baseOff: Float32Array;
@@ -145,8 +99,10 @@ export class DeltaAct {
   private readonly waveAmp: Float32Array;
   /** which half departs per section, fixed at seeding */
   private readonly mobileSide = new Uint8Array(SECTIONS);
+  /** the forged rubble, once the GLB lands */
+  private readonly chunks: Chunk[] = [];
+  private ready = false;
   private readonly bladeLamp: THREE.PointLight;
-  private readonly goldFaceMat: THREE.MeshStandardMaterial;
   private readonly hemi: THREE.HemisphereLight;
   private readonly key: THREE.DirectionalLight;
   private readonly rim: THREE.DirectionalLight;
@@ -154,25 +110,9 @@ export class DeltaAct {
   private readonly bladeMesh: THREE.Mesh;
   /** per-family checksums, so the page can display the truth */
   private readonly sums: { base: number; pos: number; neg: number };
-  /** THE SHATTER: every departing section detonates into shards */
-  private shardMesh!: THREE.InstancedMesh;
-  private readonly shards: Array<{
-    section: number;
-    origin: THREE.Vector3;
-    dir: THREE.Vector3;
-    frac: number;
-    size: number;
-    axis: THREE.Vector3;
-    spin: number;
-    sagK: number;
-    s3: THREE.Vector3;
-  }> = [];
   private readonly q = new THREE.Quaternion();
+  private readonly q2 = new THREE.Quaternion();
   private readonly v = new THREE.Vector3();
-  private readonly m4 = new THREE.Matrix4();
-  private readonly vScale = new THREE.Vector3();
-  private readonly cTmp = new THREE.Color();
-  private readonly cDark = new THREE.Color(0.72, 0.72, 0.72);
 
   constructor(seed: number) {
     this.group.position.y = DELTA_Y;
@@ -200,13 +140,13 @@ export class DeltaAct {
     this.widestPos = lastRow(this.gapPos);
     this.widestNeg = lastRow(this.gapNeg);
 
-    // THE TEAR ORDER. "A drag rather than something crazy" - Jacob,
-    // 2026-08-30. Smooth growth is a drift; the kernel's real story is
-    // thresholds CRACKING. Each section now tears out as an EVENT at
-    // its own onset tick - the first tick its future visibly diverges
-    // - fast, with a jolt through the whole stack. Order and moment
-    // come straight from the data; only the shape of the arrival is
-    // display. Reverse the scroll and the tears un-happen in order.
+    this.sums = {
+      base: checksum(this.fam.baseline),
+      pos: checksum(this.fam.altered.get(1)!),
+      neg: checksum(this.fam.altered.get(-1)!)
+    };
+
+    // per-section onset: the first tick that future visibly diverges
     this.onsetPos = new Float32Array(SECTIONS).fill(Infinity);
     this.onsetNeg = new Float32Array(SECTIONS).fill(Infinity);
     for (let i = 0; i < SECTIONS; i++) {
@@ -217,14 +157,7 @@ export class DeltaAct {
       }
     }
 
-    // THE YIELD WAVE. "No blocks are changing, they are just moving by
-    // negligible value" - Jacob, 2026-08-30. The kernel's real events
-    // are DISCRETE: a section crosses its threshold once, at one tick.
-    // X now shows exactly that: when a stratum yields it snaps sideways
-    // and settles back over the following ticks, so scrubbing runs a
-    // wave of visible give down the stack - computation you can watch,
-    // in the deterministic order the thresholds actually fire. Pure
-    // function of tick, both directions.
+    // the yield wave: X shows each section's one real threshold crossing
     this.yieldTick = new Float32Array(SECTIONS).fill(Infinity);
     for (let i = 0; i < SECTIONS; i++) {
       for (let t = 0; t < TICKS; t++) {
@@ -234,16 +167,18 @@ export class DeltaAct {
         }
       }
     }
-    this.waveAmp = new Float32Array(SECTIONS);
     {
       const wr = mulberry32((seed ^ 0x77a3e) | 0);
+      this.waveAmp = new Float32Array(SECTIONS);
       for (let i = 0; i < SECTIONS; i++) {
         this.waveAmp[i] = (5 + wr() * 5) * (wr() < 0.5 ? -1 : 1);
       }
+      for (let i = 0; i < SECTIONS; i++) {
+        this.mobileSide[i] = wr() < 0.5 ? 0 : 1;
+      }
     }
 
-    // ---- the interior void: X is inside the line, and inside the line
-    // there is no sky. A shell owns the background completely.
+    // ---- the interior void: inside the line there is no sky
     const shell = new THREE.Mesh(
       new THREE.SphereGeometry(1500, 24, 16),
       new THREE.MeshBasicMaterial({ color: 0x04060a, side: THREE.BackSide, fog: false })
@@ -251,14 +186,8 @@ export class DeltaAct {
     shell.position.y = FORM_H * 0.5;
     this.group.add(shell);
 
-    // ---- THE LIGHT SCORE. Cutting the borrowed fog revealed the act
-    // had no light of its own: black-on-black, "instead of blue its
-    // black now" (Jacob, 2026-08-30). The law already written for this:
-    // dark regions rich with scattered light, real highlights, light
-    // CONCENTRATED not sprayed. So the SEAM is the light source of
-    // this world - the cleft glows from within and the walls catch it
-    // warm, while a cold key rakes the outer strata and a faint rim
-    // holds the silhouette off the void.
+    // ---- the light score: seam lights its canyon, cold key rakes the
+    // strata, rim holds the silhouette, all dimmable for Tick Zero
     this.hemi = new THREE.HemisphereLight(0x323b46, 0x080b0f, 1.35);
     this.group.add(this.hemi);
     this.key = new THREE.DirectionalLight(0xcfdae6, 2.5);
@@ -267,35 +196,19 @@ export class DeltaAct {
     this.rim = new THREE.DirectionalLight(0x8fa0b4, 0.95);
     this.rim.position.set(220, 120, -260);
     this.group.add(this.rim);
-
-    this.sums = {
-      base: checksum(this.fam.baseline),
-      pos: checksum(this.fam.altered.get(1)!),
-      neg: checksum(this.fam.altered.get(-1)!)
-    };
-    // the seam lights its own canyon - the CLEFT WALLS, not the front
-    // face. At 1.5/280 these washed the whole facade into a flat gold
-    // billboard (photographed 2026-08-30): sprayed, not concentrated.
-    // Tight falloff keeps the warmth in the slit where the line lives.
     for (const y of [FORM_H * 0.25, FORM_H * 0.55, FORM_H * 0.85]) {
       const glow = new THREE.PointLight(0xd9b070, 0.85, 120, 2.0);
       glow.position.set(0, y, 0);
       this.group.add(glow);
     }
-    // a WHISPER of a lamp: at 1.1 it turned every gilded inner face
-    // within reach into a billboard (photographed 2026-08-30)
     this.bladeLamp = new THREE.PointLight(0xd9b070, 0.0, 55, 2.0);
-    this.bladeLamp.position.set(0, ((BLADE + 0.5) / SECTIONS) * FORM_H, 10);
     this.group.add(this.bladeLamp);
 
-    // ---- THE AIR. The boards' missing term: shafts of dusty light
-    // falling past the mass, and depth-haze so the dark has body.
-    // Additive sprites, dead still - the atmosphere is embalmed like
-    // everything else; only the visitor moves.
+    // ---- THE AIR: god shafts and depth haze, dead still
     {
       const warm = glowTexture(214, 172, 108);
       const cold = glowTexture(120, 140, 165);
-      const mkSprite = (
+      const mk = (
         tex: THREE.CanvasTexture,
         w: number,
         h: number,
@@ -321,290 +234,32 @@ export class DeltaAct {
         m.rotation.z = rz;
         this.group.add(m);
       };
-      // god shafts: tall, narrow, slightly canted, falling from above
-      // the crown past the cleft
-      mkSprite(warm, 26, 340, -6, FORM_H * 0.9, -14, 0.10, 0.06);
-      mkSprite(warm, 16, 300, 10, FORM_H * 0.85, -20, 0.08, -0.045);
-      mkSprite(cold, 44, 380, -46, FORM_H * 0.8, -34, 0.05, 0.1);
-      mkSprite(cold, 36, 360, 52, FORM_H * 0.75, -30, 0.045, -0.08);
-      // depth haze: huge soft pools behind and around the mass
-      mkSprite(cold, 620, 480, 0, FORM_H * 0.55, -120, 0.05);
-      mkSprite(warm, 260, 220, 0, FORM_H * 0.28, -40, 0.07);
-      mkSprite(cold, 520, 420, -160, FORM_H * 0.5, -90, 0.04);
-      mkSprite(cold, 520, 420, 170, FORM_H * 0.45, -90, 0.04);
+      mk(warm, 26, 340, -6, FORM_H * 0.9, -14, 0.1, 0.06);
+      mk(warm, 16, 300, 10, FORM_H * 0.85, -20, 0.08, -0.045);
+      mk(cold, 44, 380, -46, FORM_H * 0.8, -34, 0.05, 0.1);
+      mk(cold, 36, 360, 52, FORM_H * 0.75, -30, 0.045, -0.08);
+      mk(cold, 620, 480, 0, FORM_H * 0.55, -120, 0.05);
+      mk(warm, 260, 220, 0, FORM_H * 0.28, -40, 0.07);
+      mk(cold, 520, 420, -160, FORM_H * 0.5, -90, 0.04);
+      mk(cold, 520, 420, 170, FORM_H * 0.45, -90, 0.04);
     }
 
-    // ---- the seam, continuous with the one line the visitor has
-    // followed since the hero: the worldline through the whole stack
+    // ---- the seam: the one line, in its real place
     const seam = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, FORM_H * 1.04, 1.1),
-      // old rustic gold - the light of the place, not a torch in the
-      // face (Jacob, 2026-08-30: "blinding")
       new THREE.MeshBasicMaterial({ color: 0xcaa25e, fog: false })
     );
     seam.position.set(0, FORM_H / 2, 0);
     this.group.add(seam);
 
-    // ---- materials: the monument's own register, judged in the
-    // blockout. Bloom and ACES live upstream, so intensities stay shy.
-    // fog:false everywhere in the act: the entrance drives scene.fog
-    // from its SKY each frame, and at arrival distance that washed the
-    // whole monolith blue - "still something blue at gate open"
-    // (Jacob, 2026-08-30). The act does its own depth cueing.
-    const plateMat = new THREE.MeshStandardMaterial({
-      color: 0x151a20,
-      roughness: 0.84,
-      metalness: 0.16,
-      flatShading: true,
-      fog: false
-    });
-    const movedMat = plateMat.clone();
-    movedMat.color = new THREE.Color(0x1c222a);
-
-    /**
-     * THE STONE SKIN. Jacob, 2026-08-30, with his boards: "whats so
-     * great about showing jenga blocks". Fair - the slabs were bare
-     * placeholders. This is the skin: cracked weathered rock, gold
-     * surviving only in the deepest crack cores, worn edges, and
-     * aerial haze with distance. Same proven recipe as the entrance
-     * monument (warped field level set over its own gradient - never
-     * a threshold on noise), sampled in LOCAL coordinates plus a
-     * per-mesh seed, so the pattern RIDES each piece rigidly when it
-     * departs. Nothing swims.
-     */
-    const stoneSkin = (m: THREE.MeshStandardMaterial): void => {
-      m.onBeforeCompile = (sh) => {
-        sh.vertexShader = sh.vertexShader
-          .replace(
-            '#include <common>',
-            `#include <common>
-attribute float aSkinSeed;
-varying vec3 vSkinP;
-varying vec3 vSkinN;
-varying float vSkinSeed;`
-          )
-          .replace(
-            '#include <begin_vertex>',
-            `#include <begin_vertex>
-vSkinP = position;
-vSkinN = normal;
-vSkinSeed = aSkinSeed;`
-          );
-        sh.fragmentShader = sh.fragmentShader
-          .replace(
-            '#include <common>',
-            [
-              '#include <common>',
-              'varying vec3 vSkinP;',
-              'varying vec3 vSkinN;',
-              'varying float vSkinSeed;',
-              'float skHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
-              'float skNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);',
-              '  return mix(mix(skHash(i),skHash(i+vec2(1.,0.)),f.x),mix(skHash(i+vec2(0.,1.)),skHash(i+vec2(1.,1.)),f.x),f.y);}',
-              'float skFbm(vec2 p){float s=0.,a=.5;for(int k=0;k<4;k++){s+=a*skNoise(p);p*=2.03;a*=.5;}return s/.9375;}',
-              'vec2 skQ(){vec3 an=abs(vSkinN);',
-              '  vec2 q = an.y>0.6 ? vSkinP.xz : (an.x>an.z ? vSkinP.zy : vSkinP.xy);',
-              '  return q + vSkinSeed;}'
-            ].join('\n')
-          )
-          .replace(
-            '#include <map_fragment>',
-            [
-              '#include <map_fragment>',
-              '{',
-              '  vec2 q = skQ();',
-              '  // cracks: warped field level set over its own gradient',
-              '  vec2 w = q*0.34 + (vec2(skFbm(q*0.11), skFbm(q*0.11+19.7))-0.5)*2.8;',
-              '  float f = skFbm(w)-0.5;',
-              '  float g = length(vec2(dFdx(f),dFdy(f)))+1e-5;',
-              '  float crack = 1.0 - smoothstep(0.0, 1.9, abs(f)/g);',
-              '  // broad weathering territories, no two beds alike',
-              '  float wear = skFbm(q*0.06);',
-              '  diffuseColor.rgb *= 0.78 + 0.5*wear;',
-              '  diffuseColor.rgb *= 1.0 - crack*0.6;',
-              '  // chipped edges catch the cold light',
-              '  float edge = smoothstep(0.4, 1.5, length(fwidth(vSkinN))*16.0);',
-              '  diffuseColor.rgb += vec3(0.045,0.05,0.058)*edge;',
-              '}'
-            ].join('\n')
-          )
-          .replace(
-            '#include <emissivemap_fragment>',
-            [
-              '#include <emissivemap_fragment>',
-              '{',
-              '  vec2 q = skQ();',
-              '  vec2 w = q*0.34 + (vec2(skFbm(q*0.11), skFbm(q*0.11+19.7))-0.5)*2.8;',
-              '  float f = skFbm(w)-0.5;',
-              '  float g = length(vec2(dFdx(f),dFdy(f)))+1e-5;',
-              '  float core = 1.0 - smoothstep(0.0, 0.65, abs(f)/g);',
-              '  // gold survives only in the deepest cracks, in runs, not everywhere',
-              '  float sel = smoothstep(0.6, 0.85, skFbm(q*0.028+7.0));',
-              '  totalEmissiveRadiance += vec3(0.62,0.44,0.17) * core * sel * 0.55;',
-              '  // aerial haze: the air has body, distance reads as depth',
-              '  float dist = length(vViewPosition);',
-              '  totalEmissiveRadiance += vec3(0.035,0.045,0.06) * smoothstep(70.0, 420.0, dist);',
-              '}'
-            ].join('\n')
-          );
-      };
-    };
-    stoneSkin(plateMat);
-    stoneSkin(movedMat);
-    this.goldFaceMat = new THREE.MeshStandardMaterial({
-      color: 0x1c1710,
-      emissive: 0xb98a3c,
-      emissiveIntensity: 0.13,
-      roughness: 0.62,
-      // near-dielectric: at 0.35 the warm lamp mirrored off every
-      // gilded face and re-created the painted-panel fault by light
-      metalness: 0.12,
-      flatShading: true,
-      fog: false
-    });
-    const chipMat = plateMat.clone();
-    chipMat.color = new THREE.Color(0x11151b);
-    const bladeMat = new THREE.MeshStandardMaterial({
-      color: 0x23180c,
-      emissive: 0xd9b070,
-      emissiveIntensity: 0.22,
-      roughness: 0.45,
-      metalness: 0.4,
-      flatShading: true,
-      fog: false
-    });
-
-    // ---- the strata body, the blockout's construction verbatim:
-    // both halves at full form extent per band, seeded thickness and
-    // fragmentation, single-copy departures, gold on the seam-facing
-    // face, restraint on the lean, chips as the fine tier.
-    const rng = mulberry32((seed ^ 0x2b10c) | 0);
-    const slabH = FORM_H / SECTIONS;
-    const finalPos = (i: number): number => this.gapPos[(TICKS - 1) * SECTIONS + i]!;
-    const finalNeg = (i: number): number => this.gapNeg[(TICKS - 1) * SECTIONS + i]!;
-
-    for (let i = 0; i < SECTIONS; i++) {
-      const t = (i + 0.5) / SECTIONS;
-      const mobile = (rng() < 0.5 ? 0 : 1) as 0 | 1;
-      this.mobileSide[i] = mobile;
-      const u = rng();
-
-      for (const side of [0, 1] as const) {
-        const c = prongCentre(t, side);
-        const sp = surfacePoint(t, side, u);
-        const dir = new THREE.Vector3(sp.x - c.x, 0, sp.z - c.z).normalize();
-
-        const inner = cutPlaneX(t, side);
-        const reach = Math.abs(surfacePoint(t, side, 0.5).x - inner);
-        const depth = Math.abs(surfacePoint(t, side, 0).z) * 2;
-        const w = Math.max(2, reach);
-        const d = Math.max(2, depth);
-        const sgn = side === 0 ? -1 : 1;
-        const cx = inner + sgn * (w / 2);
-        // beds interpenetrate: consecutive strata overlap so the body
-        // reads as one carved mass, not stacked courses
-        const th = slabH * (1.05 + rng() * 1.3);
-
-        const isMobile = side === mobile;
-        const nFrag = 1 + Math.floor(rng() * 3);
-        let zEdge = -d / 2;
-        for (let f = 0; f < nFrag; f++) {
-          const fd = (d / nFrag) * (0.7 + rng() * 0.7);
-          // near-full width: fragment INSETS at this scale were teeth
-          const fw = w * (0.94 + rng() * 0.06);
-          const fz = Math.min(zEdge + fd / 2, d / 2 - fd / 2);
-          zEdge += fd;
-
-          // the buried gold pebble that pretended to be the blade is
-          // dead - the real blade is a staged station, built below
-          const isBlade = false;
-          // a crooked hexahedron, not a box: scaled to the band's real
-          // extents, mildly jagged so the courses read as broken stone
-          const geo = shardGeo(rng, 0.34);
-          geo.scale(fw, th, fd);
-          // per-mesh skin seed: the crack pattern is unique per piece
-          // and rides it rigidly when it departs
-          geo.setAttribute(
-            'aSkinSeed',
-            new THREE.BufferAttribute(
-              new Float32Array(geo.attributes.position!.count).fill(rng() * 220),
-              1
-            )
-          );
-          let mat: THREE.Material | THREE.Material[] = plateMat;
-          if (isBlade) {
-            mat = bladeMat;
-          } else if (isMobile) {
-            const faces: THREE.Material[] = [movedMat, movedMat, movedMat, movedMat, movedMat, movedMat];
-            faces[side === 1 ? 1 : 0] = this.goldFaceMat;
-            mat = faces;
-          }
-          const mesh = new THREE.Mesh(geo, mat);
-          // jitter cut 2.4 -> 0.7: part of the jenga read
-          const base = new THREE.Vector3(cx + sgn * (rng() - 0.5) * 0.7, t * FORM_H, fz);
-          mesh.position.copy(base);
-          this.group.add(mesh);
-
-          const trail = f === 0 ? 1 : f === 1 ? 0.55 + rng() * 0.15 : 0.26 + rng() * 0.12;
-          const leans = rng() < (f === 0 ? 0.3 : 0.5);
-          this.frags.push({
-            mesh,
-            base,
-            section: i,
-            side,
-            mobile: isMobile,
-            dir,
-            trail,
-            leanAxis: new THREE.Vector3(-dir.z, 0, dir.x).normalize(),
-            leanAngle: leans ? (0.05 + rng() * 0.14) * (rng() < 0.5 ? -1 : 1) : 0,
-            sagK: 0.06 + rng() * 0.1,
-            isBlade
-          });
-        }
-
-        // the fine tier travels with any band that can depart in
-        // EITHER future; it scales in with the live displacement
-        if (isMobile && (finalPos(i) > 0 || finalNeg(i) > 0)) {
-          const ax = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
-          const nChips = 8 + Math.floor(rng() * 9);
-          for (let k = 0; k < nChips; k++) {
-            const cSize = 0.5 + rng() * 1.7;
-            const chip = new THREE.Mesh(
-              new THREE.BoxGeometry(cSize, cSize * (0.5 + rng() * 0.7), cSize * (0.6 + rng() * 0.8)),
-              chipMat
-            );
-            chip.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
-            chip.visible = false;
-            this.group.add(chip);
-            const frac = 0.12 + rng() * 0.84;
-            this.chips.push({
-              mesh: chip,
-              base: new THREE.Vector3(cx, t * FORM_H + (rng() - 0.5) * slabH, (rng() - 0.5) * d * 0.8),
-              section: i,
-              dir,
-              frac,
-              scatter: ax.clone().multiplyScalar((rng() - 0.5) * (3 + frac * 9)),
-              sagK: 0.06 + rng() * 0.1
-            });
-          }
-        }
-      }
-    }
-
-    // ---- THE BLADE STATION. The one control the visitor has, and it
-    // was invisible: a gold pebble in a thousand rocks (audit item 2,
-    // 2026-08-30). Now it is a carved mechanism at the hinge height:
-    // three deep sockets cut side by side into a dressed panel of the
-    // wall, and one gold-lit blade block standing in whichever socket
-    // the detent chooses. No UI, no labels - a machine you read the
-    // way you read a lever.
+    // ---- THE BLADE STATION: a carved mechanism at the hinge height.
+    // Three deep sockets in a dressed panel, one gold-lit blade block
+    // standing in whichever socket the detent chooses. No UI.
     {
       const side = this.mobileSide[BLADE]! as 0 | 1;
       const sgn = side === 0 ? -1 : 1;
       const bx = cutPlaneX((BLADE + 0.5) / SECTIONS, side) + sgn * 1.2;
       const by = ((BLADE + 0.5) / SECTIONS) * FORM_H;
-      // the dressed panel: a calmer slab the mechanism is cut into,
-      // so the station reads against the broken courses around it
       const panel = new THREE.Mesh(
         new THREE.BoxGeometry(2.2, 12, 22),
         new THREE.MeshStandardMaterial({
@@ -617,7 +272,6 @@ vSkinSeed = aSkinSeed;`
       );
       panel.position.set(bx + sgn * 0.6, by, 5);
       this.group.add(panel);
-      // three sockets, reading -1 0 +1 left to right along the wall
       const socketMat = new THREE.MeshStandardMaterial({
         color: 0x05070a,
         roughness: 0.95,
@@ -629,7 +283,6 @@ vSkinSeed = aSkinSeed;`
         so.position.set(bx - sgn * 0.4, by, 5 + off);
         this.group.add(so);
       }
-      // the blade itself: gold-edged, standing proud of its socket
       this.bladeMesh = new THREE.Mesh(
         new THREE.BoxGeometry(2.6, 4.6, 2.6),
         new THREE.MeshStandardMaterial({
@@ -644,11 +297,148 @@ vSkinSeed = aSkinSeed;`
       );
       this.bladeMesh.position.set(bx - sgn * 1.4, by, 5);
       this.group.add(this.bladeMesh);
-      // and the lamp hangs over the station, not the old guess
       this.bladeLamp.position.set(bx - sgn * 4, by + 7, 8);
     }
 
-    this.buildShatter(seed);
+    // ---- THE FORGED STONE. One shared material wearing the cracked
+    // skin; the crack pattern samples LOCAL coordinates plus a per-mesh
+    // seed, so it rides each chunk rigidly through its flight.
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0x171c23,
+      roughness: 0.85,
+      metalness: 0.14,
+      flatShading: true,
+      fog: false
+    });
+    stoneMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+attribute float aSkinSeed;
+varying vec3 vSkinP;
+varying vec3 vSkinN;
+varying float vSkinSeed;`
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+vSkinP = position;
+vSkinN = normal;
+vSkinSeed = aSkinSeed;`
+        );
+      sh.fragmentShader = sh.fragmentShader
+        .replace(
+          '#include <common>',
+          [
+            '#include <common>',
+            'varying vec3 vSkinP;',
+            'varying vec3 vSkinN;',
+            'varying float vSkinSeed;',
+            'float skHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
+            'float skNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);',
+            '  return mix(mix(skHash(i),skHash(i+vec2(1.,0.)),f.x),mix(skHash(i+vec2(0.,1.)),skHash(i+vec2(1.,1.)),f.x),f.y);}',
+            'float skFbm(vec2 p){float s=0.,a=.5;for(int k=0;k<4;k++){s+=a*skNoise(p);p*=2.03;a*=.5;}return s/.9375;}',
+            'vec2 skQ(){vec3 an=abs(vSkinN);',
+            '  vec2 q = an.y>0.6 ? vSkinP.xz : (an.x>an.z ? vSkinP.zy : vSkinP.xy);',
+            '  return q + vSkinSeed;}'
+          ].join('\n')
+        )
+        .replace(
+          '#include <map_fragment>',
+          [
+            '#include <map_fragment>',
+            '{',
+            '  vec2 q = skQ();',
+            '  vec2 w = q*0.34 + (vec2(skFbm(q*0.11), skFbm(q*0.11+19.7))-0.5)*2.8;',
+            '  float f = skFbm(w)-0.5;',
+            '  float g = length(vec2(dFdx(f),dFdy(f)))+1e-5;',
+            '  float crack = 1.0 - smoothstep(0.0, 1.9, abs(f)/g);',
+            '  float wear = skFbm(q*0.06);',
+            '  diffuseColor.rgb *= 0.78 + 0.5*wear;',
+            '  diffuseColor.rgb *= 1.0 - crack*0.6;',
+            '  float edge = smoothstep(0.4, 1.5, length(fwidth(vSkinN))*16.0);',
+            '  diffuseColor.rgb += vec3(0.045,0.05,0.058)*edge;',
+            '}'
+          ].join('\n')
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          [
+            '#include <emissivemap_fragment>',
+            '{',
+            '  vec2 q = skQ();',
+            '  vec2 w = q*0.34 + (vec2(skFbm(q*0.11), skFbm(q*0.11+19.7))-0.5)*2.8;',
+            '  float f = skFbm(w)-0.5;',
+            '  float g = length(vec2(dFdx(f),dFdy(f)))+1e-5;',
+            '  float core = 1.0 - smoothstep(0.0, 0.65, abs(f)/g);',
+            '  float sel = smoothstep(0.6, 0.85, skFbm(q*0.028+7.0));',
+            '  totalEmissiveRadiance += vec3(0.62,0.44,0.17) * core * sel * 0.55;',
+            '  float dist = length(vViewPosition);',
+            '  totalEmissiveRadiance += vec3(0.035,0.045,0.06) * smoothstep(70.0, 420.0, dist);',
+            '}'
+          ].join('\n')
+        );
+    };
+
+    // ---- load the forge's output and marry chunks to kernel sections
+    const rng = mulberry32((seed ^ 0x2b10c) | 0);
+    new GLTFLoader().load(
+      '/models/delta-monolith.glb',
+      (gltf) => {
+        const kids: THREE.Object3D[] = [];
+        gltf.scene.traverse((o) => {
+          if (o instanceof THREE.Mesh) kids.push(o);
+        });
+        for (const o of kids) {
+          const mesh = o as THREE.Mesh;
+          const p = new THREE.Vector3();
+          mesh.getWorldPosition(p);
+          const side: 0 | 1 = mesh.name.startsWith('L') ? 0 : 1;
+          const t = Math.min(0.999, Math.max(0, p.y / FORM_H));
+          const section = Math.min(SECTIONS - 1, Math.floor(t * SECTIONS));
+          // spall: radially out of its own half, blended with a seeded
+          // scatter so a section erupts in every direction at once
+          const cx = cutPlaneX(t, side);
+          const out = new THREE.Vector3(p.x - cx, 0, p.z);
+          if (out.lengthSq() < 1e-4) out.set(side === 0 ? -1 : 1, 0, 0);
+          out.normalize();
+          const dir = new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1)
+            .normalize()
+            .multiplyScalar(0.9)
+            .addScaledVector(out, 1.0)
+            .normalize();
+
+          const geo = mesh.geometry as THREE.BufferGeometry;
+          geo.setAttribute(
+            'aSkinSeed',
+            new THREE.BufferAttribute(
+              new Float32Array(geo.attributes.position!.count).fill(rng() * 220),
+              1
+            )
+          );
+          mesh.material = stoneMat;
+
+          this.chunks.push({
+            mesh,
+            base: mesh.position.clone(),
+            quat0: mesh.quaternion.clone(),
+            section,
+            side,
+            mobile: this.mobileSide[section] === side,
+            dir,
+            frac: 0.15 + Math.pow(rng(), 1.3) * 0.85,
+            axis: new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(),
+            spin: (rng() - 0.5) * 6,
+            sagK: 0.08 + rng() * 0.24
+          });
+          this.group.add(mesh);
+        }
+        this.ready = true;
+      },
+      undefined,
+      (err) => console.error('the forge output failed to load', err)
+    );
   }
 
   /** the truth for the page's stats line */
@@ -656,103 +446,30 @@ vSkinSeed = aSkinSeed;`
     return d === 0 ? this.sums.base : d === 1 ? this.sums.pos : this.sums.neg;
   }
 
-  private buildShatter(seedBase: number): void {
-    // THE SHATTER CASCADE. Jacob, 2026-08-30: "you can break the
-    // barrier ... create something. this is just sad and bland." The
-    // honest diagnosis: sliding slabs could be keyframed by hand, so
-    // they prove nothing about the engine. An arrested detonation of
-    // four thousand shards that scrubs BACKWARD perfectly cannot be
-    // hand-animated - reversibility at that scale IS the showcase.
-    // Cornelia Parker's exploded shed, not a jenga tower: the monument
-    // hangs mid-blast around its own gold line, dead still, and scroll
-    // is the only clock.
-    //
-    // Determinism is untouched: each shard's cone, fraction, tumble and
-    // size are seeded; its moment is its section's real onset tick; its
-    // reach is the section's real computed gap through the display law.
-    const rng = mulberry32((seedBase ^ 0x5a11) | 0);
-    const PER = 210;
-    const sections: number[] = [];
-    for (let i = 0; i < SECTIONS; i++) {
-      if (this.onsetPos[i] !== Infinity || this.onsetNeg[i] !== Infinity) sections.push(i);
-    }
-    const total = sections.length * PER;
-    const geo = shardGeo(rng, 0.62);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x1a2027,
-      roughness: 0.8,
-      metalness: 0.18,
-      flatShading: true,
-      fog: false
-    });
-    this.shardMesh = new THREE.InstancedMesh(geo, mat, total);
-    this.shardMesh.frustumCulled = false;
-    // allocate per-instance colour for the birth flash
-    for (let n = 0; n < total; n++) this.shardMesh.setColorAt(n, this.cDark);
-    this.group.add(this.shardMesh);
-
-    for (const i of sections) {
-      const t = (i + 0.5) / SECTIONS;
-      const side = this.mobileSide[i]! as 0 | 1;
-      const c = prongCentre(t, side);
-      const sp = surfacePoint(t, side, 0.5);
-      const spall = new THREE.Vector3(sp.x - c.x, 0, sp.z - c.z).normalize();
-      const originX = cutPlaneX(t, side) + (side === 0 ? -1 : 1) * Math.abs(sp.x - cutPlaneX(t, side)) * 0.5;
-      const halfW = Math.abs(sp.x - cutPlaneX(t, side));
-      for (let k = 0; k < PER; k++) {
-        // A BLAST IS RADIAL. The first pass fired every shard down one
-        // spall cone and the cloud hugged the wall - "feels like
-        // bulges" (Jacob, 2026-08-30). Directions now cover the whole
-        // sphere with an outward bias, so a section erupts in every
-        // direction at once the way a detonation does.
-        const rd = new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1);
-        while (rd.lengthSq() > 1 || rd.lengthSq() < 0.05) {
-          rd.set(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1);
-        }
-        const d = rd.normalize().addScaledVector(spall, 0.55).normalize();
-        // most shards are grit, a few are boulders
-        const u = rng();
-        const size = u < 0.7 ? 0.5 + rng() * 1.3 : u < 0.95 ? 1.8 + rng() * 2.2 : 4.5 + rng() * 4;
-        this.shards.push({
-          section: i,
-          // born anywhere in the slab's real volume, not at a point
-          origin: new THREE.Vector3(
-            originX + (rng() - 0.5) * halfW * 0.9,
-            t * FORM_H + (rng() - 0.5) * (FORM_H / SECTIONS) * 1.6,
-            (rng() - 0.5) * 24
-          ),
-          dir: d,
-          frac: 0.15 + Math.pow(rng(), 1.3) * 0.85,
-          size,
-          axis: new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(),
-          spin: (rng() - 0.5) * 6,
-          sagK: 0.08 + rng() * 0.24,
-          s3: new THREE.Vector3(
-            size * (0.7 + rng() * 0.9),
-            size * (0.35 + rng() * 0.8),
-            size * (0.6 + rng() * 0.9)
-          )
-        });
-      }
-    }
-  }
-
   private dispOf(gap: number, widest: number): number {
     return gap <= 0 || widest <= 0 ? 0 : Math.pow(gap / widest, GAP_GAMMA) * GAP_MAX;
   }
 
   /**
-   * Pure function of (journey state, detent). No latches, no clocks:
-   * scrub backwards and every stratum retraces exactly, because every
-   * value below is read from the stored frames.
+   * Pure function of (journey state, detent). Scrub backwards and the
+   * detonations un-happen in the same order, chunk for chunk.
    */
   update(st: JourneyState, detent: Detent, camY: number): void {
-    // visible as soon as the camera has crossed under the veil, even
-    // while the JOURNEY still says entrance: the dive lands at 0.33
-    // and the act must already be standing there in the dark
     const on = st.phase !== 'entrance' || camY < -1000;
     this.group.visible = on;
     if (!on) return;
+
+    // Tick Zero staging: the world dims, the station is the only
+    // bright thing, the blade stands in the chosen socket
+    const dim = st.bladeLive ? 0.4 : 1;
+    this.hemi.intensity = 1.35 * dim;
+    this.key.intensity = 2.5 * dim;
+    this.rim.intensity = 0.95 * dim;
+    this.bladeLamp.intensity = st.bladeLive ? 1.6 : st.phase === 'y' || st.phase === 'z' ? 0.25 : 0.08;
+    this.bladeMesh.position.z = 5 + detent * BLADE_SLIDE;
+    (this.bladeMesh.material as THREE.MeshStandardMaterial).emissiveIntensity = st.bladeLive ? 1.1 : 0.35;
+
+    if (!this.ready) return;
 
     const tf = Math.min(TICKS - 1 - 1e-4, Math.max(0, st.tick));
     const t0 = Math.floor(tf);
@@ -764,8 +481,7 @@ vSkinSeed = aSkinSeed;`
     const onsets = detent === 1 ? this.onsetPos : this.onsetNeg;
     const expand = DEPART_BASE + (1 - DEPART_BASE) * st.unfold;
 
-    // the jolt: every tear kicks the whole stack, and the kick decays
-    // over the following ticks. A sum of pure functions of tick.
+    // the jolt: every detonation kicks the whole stack, decaying
     let flinch = 0;
     if (gaps) {
       for (let i = 0; i < SECTIONS; i++) {
@@ -777,130 +493,46 @@ vSkinSeed = aSkinSeed;`
       }
     }
 
-    for (const fr of this.frags) {
-      const i = fr.section;
+    for (const ch of this.chunks) {
+      const i = ch.section;
       const off =
         this.baseOff[t0 * SECTIONS + i]! * (1 - a) + this.baseOff[t1 * SECTIONS + i]! * a;
 
-      // THE DETONATION SWAP: a mobile slab does not slide anywhere.
-      // It stands intact until its section's onset tick, then it IS
-      // GONE - replaced in the same instant by its shard cloud. The
-      // most violent thing a piece can do is stop being a piece.
-      let dd = 0;
-      let gone = false;
-      if (fr.mobile && gaps) {
-        const ot = onsets[i]!;
-        gone = tf >= ot && ot !== Infinity;
-      }
-      fr.mesh.visible = !gone;
-
-      this.v.copy(fr.base);
-      // X: the baseline settling, the monolith shearing as it computes
-      this.v.x += off * SHEAR + flinch;
-      // ...and the yield wave: the discrete snap of this stratum's one
-      // threshold crossing, settling back as the run continues
+      // X: settle + the yield wave, the kernel's own discrete events
+      let x = off * SHEAR + flinch;
       const yt = this.yieldTick[i]!;
-      if (tf >= yt) {
-        this.v.x += this.waveAmp[i]! * Math.exp(-(tf - yt) / 9);
-      }
-      // Y and Z: the departure, the difference made physical
-      if (dd > 0) {
-        this.v.addScaledVector(fr.dir, dd);
-        this.v.y -= dd * fr.sagK;
-      }
-      fr.mesh.position.copy(this.v);
+      if (tf >= yt) x += this.waveAmp[i]! * Math.exp(-(tf - yt) / 9);
 
-      if (fr.leanAngle !== 0 && dd > 0) {
-        this.q.setFromAxisAngle(fr.leanAxis, fr.leanAngle * Math.min(1, dd / GAP_MAX));
-        fr.mesh.quaternion.copy(this.q);
-      } else {
-        fr.mesh.quaternion.identity();
-      }
-    }
-
-    for (const ch of this.chips) {
-      const i = ch.section;
-      let dd = 0;
-      if (gaps) {
+      let snap = 0;
+      if (ch.mobile && gaps) {
         const ot = onsets[i]!;
         if (tf >= ot && ot !== Infinity) {
-          const snapT = Math.min(1, (tf - ot) / 6);
-          dd = this.dispOf(gaps[(TICKS - 1) * SECTIONS + i]!, widest) * expand * (snapT * snapT * (3 - 2 * snapT));
-        }
-      }
-      const vis = dd > 4;
-      ch.mesh.visible = vis;
-      if (!vis) continue;
-      this.v.copy(ch.base).addScaledVector(ch.dir, dd * ch.frac).add(ch.scatter);
-      this.v.y -= dd * ch.frac * ch.sagK;
-      ch.mesh.position.copy(this.v);
-      const s = Math.min(1, dd / 30);
-      ch.mesh.scale.setScalar(s);
-    }
-
-    // THE ARRESTED DETONATION. Every shard of every torn section,
-    // frozen at the reach its scroll moment gives it. Backwards scroll
-    // runs the blast in reverse exactly - the one thing hand animation
-    // can never fake at four thousand pieces.
-    {
-      const m4 = this.m4;
-      const q4 = this.q;
-      const s3 = this.v;
-      let idx = 0;
-      for (const sh of this.shards) {
-        const ot = gaps ? onsets[sh.section]! : Infinity;
-        let snap = 0;
-        if (gaps && tf >= ot && ot !== Infinity) {
           const raw = Math.min(1, (tf - ot) / 7);
           snap = raw * raw * (3 - 2 * raw);
         }
-        if (snap <= 0.001) {
-          m4.makeScale(0.0001, 0.0001, 0.0001);
-          this.shardMesh.setMatrixAt(idx, m4);
-          this.shardMesh.setColorAt(idx, this.cDark);
-          idx++;
-          continue;
-        }
-        // A BLAST CLEARS ITS SOURCE. The kernel still ranks who flies
-        // furthest, but nothing merely swells: even the smallest
-        // detonation throws its shards well clear of the slab they
-        // were. The floor is display law, the ranking is data.
-        const reach =
-          (34 + this.dispOf(gaps![(TICKS - 1) * SECTIONS + sh.section]!, widest) * expand) * sh.frac * snap;
-        s3.copy(sh.origin).addScaledVector(sh.dir, reach);
-        // ballistic: the further it flew, the harder it hangs
-        s3.y -= reach * sh.sagK * snap * (0.35 + 0.65 * snap);
-        s3.x += flinch;
-        q4.setFromAxisAngle(sh.axis, sh.spin * snap);
-        // birth overshoot: the piece arrives oversized and settles -
-        // the crack of the moment, made of scale instead of a clock
-        const oversh = 1 + 0.55 * Math.exp(-((tf - ot) / 1.6));
-        m4.compose(s3, q4, this.vScale.copy(sh.s3).multiplyScalar(oversh));
-        this.shardMesh.setMatrixAt(idx, m4);
-        // and a gold flash at birth, cooling to stone over ~4 ticks
-        const heat = Math.exp(-((tf - ot) / 4));
-        this.cTmp.setRGB(0.72 + 1.6 * heat, 0.72 + 1.05 * heat, 0.72 + 0.35 * heat);
-        this.shardMesh.setColorAt(idx, this.cTmp);
-        idx++;
       }
-      this.shardMesh.instanceMatrix.needsUpdate = true;
-      if (this.shardMesh.instanceColor) this.shardMesh.instanceColor.needsUpdate = true;
-    }
 
-    // TICK ZERO IS STAGED: the world dims, the station is the only
-    // bright thing, and the blade stands in the socket the detent
-    // chooses. All stepped by phase - scroll, never a clock.
-    const dim = st.bladeLive ? 0.4 : 1;
-    this.hemi.intensity = 1.35 * dim;
-    this.key.intensity = 2.5 * dim;
-    this.rim.intensity = 0.95 * dim;
-    this.bladeLamp.intensity = st.bladeLive ? 1.6 : st.phase === 'y' || st.phase === 'z' ? 0.25 : 0.08;
-    this.bladeMesh.position.z = 5 + detent * BLADE_SLIDE;
-    const bm = this.bladeMesh.material as THREE.MeshStandardMaterial;
-    bm.emissiveIntensity = st.bladeLive ? 1.1 : 0.35;
-    // and the torn gold answers the opening: the faces brighten only as
-    // far as the world has actually unfolded
-    this.goldFaceMat.emissiveIntensity = 0.13 + 0.1 * st.unfold;
+      this.v.copy(ch.base);
+      this.v.x += x;
+      if (snap > 0) {
+        const reach =
+          (REACH_FLOOR + this.dispOf(gaps![(TICKS - 1) * SECTIONS + i]!, widest) * expand) *
+          ch.frac *
+          snap;
+        this.v.addScaledVector(ch.dir, reach);
+        this.v.y -= reach * ch.sagK * snap * (0.35 + 0.65 * snap);
+        // the crack of the moment: it arrives oversized and settles
+        const oversh = 1 + 0.4 * Math.exp(-((tf - (onsets[i] as number)) / 1.6));
+        ch.mesh.scale.setScalar(oversh);
+        this.q.setFromAxisAngle(ch.axis, ch.spin * snap);
+        this.q2.copy(ch.quat0).premultiply(this.q);
+        ch.mesh.quaternion.copy(this.q2);
+      } else {
+        ch.mesh.scale.setScalar(1);
+        ch.mesh.quaternion.copy(ch.quat0);
+      }
+      ch.mesh.position.copy(this.v);
+    }
   }
 
   dispose(): void {
