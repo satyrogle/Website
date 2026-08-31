@@ -66,7 +66,8 @@ FILL_ENERGY = float(os.environ.get("DL_FILL", 118.0))
 SUN_ANGLE = float(os.environ.get("DL_ANGLE", 5.0))   # degrees. Bigger softens glints.
 EXPOSURE = float(os.environ.get("DL_EXPO", -1.55))
 
-NX, NZ = 700, 700          # base form only now: the plates carry the detail
+WEB = bool(os.environ.get("DL_WEB"))   # build to a browser budget and export
+NX, NZ = (260, 260) if WEB else (700, 700)   # plates carry the detail
 
 # ---- the wall --------------------------------------------------------------
 W = 26.0
@@ -304,8 +305,8 @@ def box(corners, uvco):
 # stand out of it. Base form from the erosion field, plates scattered on top,
 # every one lying along the bedding and tipped out into the light.
 
-PLATE_STEP_B = 0.06        # spacing up the bed stack
-PLATE_STEP_X = 0.12        # spacing along each bed
+PLATE_STEP_B = 0.15 if WEB else 0.06     # spacing up the bed stack
+PLATE_STEP_X = 0.30 if WEB else 0.12     # spacing along each bed
 PLATE_FILL = 0.58          # not every slot: gaps are where the rock is sound
 
 
@@ -555,8 +556,12 @@ def build_scene():
     n_plates = build_plates()
     plate_end = len(faces)
     build_rubble()
-    build_ground()
-    build_backdrop()
+    if not WEB:
+        # ground and backdrop exist to seal the Blender render. The browser
+        # has its own fog and ground, and shipping these wasted a third of
+        # the mesh on slabs the visitor never sees.
+        build_ground()
+        build_backdrop()
 
     me = bpy.data.meshes.new("grain_face")
     me.from_pydata(verts, [], faces)
@@ -659,6 +664,40 @@ def render(ob, n_plates):
     print("WROTE", sc.render.filepath)
 
 
+def export_glb(ob):
+    """Web budget mesh out to public/models. The Blender render is a look
+    target; this is the thing that actually ships."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "..", "public", "models")
+    out = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "dark-lattice-journey", "public", "models"))
+    if not os.path.isdir(out):
+        out = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "public", "models"))
+    os.makedirs(out, exist_ok=True)
+    path = os.path.join(out, f"grain-f3-{SEED}.glb")
+    for o in bpy.data.objects:
+        o.select_set(o is ob)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.export_scene.gltf(
+        filepath=path, export_format="GLB", use_selection=True,
+        export_apply=True, export_normals=True, export_texcoords=True,
+        export_materials="NONE", export_yup=True,
+        # Flat shading forces a vertex per face corner, so the raw buffer is
+        # enormous. Draco is the difference between shipping this and not.
+        export_draco_mesh_compression_enable=True,
+        export_draco_mesh_compression_level=6,
+        export_draco_position_quantization=13,
+        export_draco_normal_quantization=9,
+        export_draco_texcoord_quantization=11)
+    mb = os.path.getsize(path) / 1e6
+    print(f"EXPORTED {path}  {mb:.2f} MB  faces={len(faces)}")
+
+
 if __name__ == "__main__":
     o, np_ = build_scene()
-    render(o, np_)
+    if WEB:
+        export_glb(o)
+    else:
+        render(o, np_)

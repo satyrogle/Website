@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>THE GRAIN — F3 surface probe</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #020304;
+        color: #e9eef2;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #grain {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+      }
+      #status {
+        position: fixed;
+        left: 16px;
+        bottom: 14px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: #6d7783;
+        pointer-events: none;
+      }
+      #label {
+        position: fixed;
+        left: 16px;
+        top: 14px;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: #46505c;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="grain"></canvas>
+    <p id="label">THE GRAIN / F3 / SURFACE PROBE</p>
+    <p id="status">loading</p>
+    <script type="module" src="/src/grain/main.ts"></script>
+  </body>
+</html>
