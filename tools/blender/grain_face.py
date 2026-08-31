@@ -382,8 +382,12 @@ def box(corners, uvco):
 # stand out of it. Base form from the erosion field, plates scattered on top,
 # every one lying along the bedding and tipped out into the light.
 
-PLATE_STEP_B = 0.15 if WEB else 0.06     # spacing up the bed stack
-PLATE_STEP_X = 0.30 if WEB else 0.12     # spacing along each bed
+# The distance tier had NO plate layer, for budget. The plate layer is the
+# entire reason this reads as stone: without it the mass is a smooth
+# heightfield lump, which is why a plain of them read as shrubs. Coarser
+# here, never absent.
+PLATE_STEP_B = 0.34 if FAR else (0.15 if WEB else 0.06)
+PLATE_STEP_X = 0.62 if FAR else (0.30 if WEB else 0.12)
 PLATE_FILL = 0.58          # not every slot: gaps are where the rock is sound
 
 
@@ -630,7 +634,7 @@ def build_scene():
 
     build_face()
     face_polys_n = len(faces)
-    n_plates = 0 if FAR else build_plates()
+    n_plates = build_plates()
     plate_end = len(faces)
     if not FAR:
         build_rubble()
