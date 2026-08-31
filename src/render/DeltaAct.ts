@@ -116,6 +116,19 @@ export class DeltaAct {
   /** the ground the visitor arrives on; it dissolves as Z unfolds */
   private readonly floorMat: THREE.MeshStandardMaterial;
   private readonly pathMat: THREE.MeshBasicMaterial;
+  /** THE GRIT: the fine tier the forge's chunks are too big to give */
+  private gritMesh!: THREE.InstancedMesh;
+  private readonly grit: Array<{
+    section: number;
+    origin: THREE.Vector3;
+    dir: THREE.Vector3;
+    frac: number;
+    size: number;
+    rot: THREE.Quaternion;
+    sagK: number;
+  }> = [];
+  private readonly m4 = new THREE.Matrix4();
+  private readonly vs = new THREE.Vector3();
 
   constructor(seed: number) {
     this.group.position.y = DELTA_Y;
@@ -301,13 +314,21 @@ void main(){
       mk(warm, 260, 220, 0, FORM_H * 0.28, -40, 0.05);
     }
 
-    // ---- the seam: the one line, in its real place
+    // ---- the seam: the one line, in its real place - old gold body
+    // with a hot core that clears the bloom threshold, so it carries
+    // the same halo the entrance's seam does
     const seam = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, FORM_H * 1.04, 1.1),
       new THREE.MeshBasicMaterial({ color: 0xcaa25e, fog: false })
     );
     seam.position.set(0, FORM_H / 2, 0);
     this.group.add(seam);
+    const seamCore = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, FORM_H * 1.04, 0.42),
+      new THREE.MeshBasicMaterial({ color: 0xf6dda6, fog: false })
+    );
+    seamCore.position.set(0, FORM_H / 2, 0.4);
+    this.group.add(seamCore);
 
     // ---- THE BLADE STATION: a carved mechanism at the hinge height.
     // Three deep sockets in a dressed panel, one gold-lit blade block
@@ -355,6 +376,78 @@ void main(){
       this.bladeMesh.position.set(bx - sgn * 1.4, by, 5);
       this.group.add(this.bladeMesh);
       this.bladeLamp.position.set(bx - sgn * 4, by + 7, 8);
+    }
+
+    // ---- THE GRIT. Control study steal 3: three tiers of debris
+    // scale, and the fine tier is what makes the big tiers feel huge.
+    // The forge's 285 chunks are all boulders; this strews ~1300 small
+    // rigid grains that fly the same detonations, one instanced draw.
+    {
+      const gr = mulberry32((seed ^ 0x9c17) | 0);
+      const jag = (): number => (gr() - 0.5) * 0.6;
+      const gpos: number[] = [];
+      const corners: number[][] = [];
+      for (let k = 0; k < 8; k++) {
+        corners.push([
+          ((k & 1 ? 0.5 : -0.5) + jag()),
+          ((k & 2 ? 0.5 : -0.5) + jag()),
+          ((k & 4 ? 0.5 : -0.5) + jag())
+        ]);
+      }
+      const F = [
+        [0, 2, 3], [0, 3, 1], [4, 5, 7], [4, 7, 6],
+        [0, 1, 5], [0, 5, 4], [2, 6, 7], [2, 7, 3],
+        [0, 4, 6], [0, 6, 2], [1, 3, 7], [1, 7, 5]
+      ];
+      for (const f of F) for (const vi of f) gpos.push(corners[vi]![0]!, corners[vi]![1]!, corners[vi]![2]!);
+      const ggeo = new THREE.BufferGeometry();
+      ggeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(gpos), 3));
+      ggeo.computeVertexNormals();
+      const gmat = new THREE.MeshStandardMaterial({
+        color: 0x11151b,
+        roughness: 0.9,
+        metalness: 0.1,
+        flatShading: true,
+        fog: false
+      });
+      const perSection = 62;
+      const live: number[] = [];
+      for (let i = 0; i < SECTIONS; i++) {
+        if (this.onsetPos[i] !== Infinity || this.onsetNeg[i] !== Infinity) live.push(i);
+      }
+      this.gritMesh = new THREE.InstancedMesh(ggeo, gmat, live.length * perSection);
+      this.gritMesh.frustumCulled = false;
+      this.group.add(this.gritMesh);
+      const e = new THREE.Euler();
+      for (const i of live) {
+        const t = (i + 0.5) / SECTIONS;
+        const side = this.mobileSide[i]! as 0 | 1;
+        const sgn = side === 0 ? -1 : 1;
+        const cx = cutPlaneX(t, side);
+        for (let k = 0; k < perSection; k++) {
+          const out = new THREE.Vector3(sgn, 0, 0);
+          const dir = new THREE.Vector3(gr() * 2 - 1, gr() * 2 - 1, gr() * 2 - 1)
+            .normalize()
+            .multiplyScalar(0.95)
+            .addScaledVector(out, 1.0)
+            .normalize();
+          this.grit.push({
+            section: i,
+            origin: new THREE.Vector3(
+              cx + sgn * gr() * 14,
+              t * FORM_H + (gr() - 0.5) * 5,
+              (gr() - 0.5) * 18
+            ),
+            dir,
+            frac: 0.2 + gr() * 0.95,
+            size: 0.35 + gr() * 1.35,
+            rot: new THREE.Quaternion().setFromEuler(
+              e.set(gr() * Math.PI, gr() * Math.PI, gr() * Math.PI)
+            ),
+            sagK: 0.12 + gr() * 0.3
+          });
+        }
+      }
     }
 
     // ---- THE FORGED STONE. One shared material wearing the cracked
@@ -595,6 +688,37 @@ vSkinSeed = aSkinSeed;`
         ch.mesh.quaternion.copy(ch.quat0);
       }
       ch.mesh.position.copy(this.v);
+    }
+
+    // the grit flies the same detonations: one instanced draw
+    {
+      let idx = 0;
+      for (const g of this.grit) {
+        let snap = 0;
+        if (gaps) {
+          const ot = onsets[g.section]!;
+          if (tf >= ot && ot !== Infinity) {
+            const raw = Math.min(1, (tf - ot) / 7);
+            snap = raw * raw * (3 - 2 * raw);
+          }
+        }
+        if (snap <= 0.001) {
+          this.m4.makeScale(0.0001, 0.0001, 0.0001);
+          this.gritMesh.setMatrixAt(idx++, this.m4);
+          continue;
+        }
+        const reach =
+          (REACH_FLOOR * 0.9 +
+            this.dispOf(gaps![(TICKS - 1) * SECTIONS + g.section]!, widest) * expand) *
+          g.frac *
+          snap;
+        this.vs.copy(g.origin).addScaledVector(g.dir, reach);
+        this.vs.y -= reach * g.sagK * snap;
+        this.vs.x += flinch;
+        this.m4.compose(this.vs, g.rot, this.v.setScalar(g.size * snap));
+        this.gritMesh.setMatrixAt(idx++, this.m4);
+      }
+      this.gritMesh.instanceMatrix.needsUpdate = true;
     }
   }
 
