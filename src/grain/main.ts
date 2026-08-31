@@ -208,15 +208,19 @@ const t0 = performance.now();
       if (t < 0.3 && Math.abs(x) < 30) x += x < 0 ? -34 : 34;
       inst.position.set(x, 0, z);
       inst.rotation.y = rnd() * Math.PI * 2;
-      const s = 0.7 + rnd() * 0.75;
-      inst.scale.set(s, 0.8 + rnd() * 0.7, s);
+      // A mass 38m wide and 16m tall is a plateau, and from any camera above
+      // its top that is exactly what it reads as. They have to stand: narrower
+      // than the source mesh and considerably taller.
+      const s = 0.42 + rnd() * 0.46;
+      inst.scale.set(s, 1.15 + rnd() * 0.95, s * (0.8 + rnd() * 0.5));
       field.add(inst);
     }
     scene.add(field);
     paint(field);
 
-    camera.position.set(6, 26, 176);
-    camera.lookAt(-10, 4, -200);
+    // low enough to look ACROSS the masses rather than down onto them
+    camera.position.set(6, 15, 168);
+    camera.lookAt(-10, 11, -220);
   }
 
   status.textContent = `${faceView ? 1 : COUNT} masses · ${Math.round(tris / 1000)}k triangles · ${Math.round(performance.now() - t0)}ms`;
