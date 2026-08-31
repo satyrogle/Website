@@ -67,7 +67,11 @@ SUN_ANGLE = float(os.environ.get("DL_ANGLE", 5.0))   # degrees. Bigger softens g
 EXPOSURE = float(os.environ.get("DL_EXPO", -1.55))
 
 WEB = bool(os.environ.get("DL_WEB"))   # build to a browser budget and export
-NX, NZ = (260, 260) if WEB else (700, 700)   # plates carry the detail
+FAR = bool(os.environ.get("DL_FAR"))   # distance tier: no plates, coarse grid
+# Twenty near-detail masses would be four million triangles. Anything more
+# than a few hundred metres away is a silhouette in fog, so it gets the
+# base form only and none of the plate layer.
+NX, NZ = (90, 90) if FAR else ((260, 260) if WEB else (700, 700))
 
 # ---- the wall --------------------------------------------------------------
 W = 26.0
@@ -260,18 +264,80 @@ def bed_uv(x, z):
 verts, faces, uvs = [], [], []
 
 
+_FZ0, _FZ1 = -3.2, H
+
+
+def _OUTLINE(x, z):
+    u = (x + 1.0) / (W + 2.0)
+    v = (z - _FZ0) / (_FZ1 - _FZ0)
+    d = math.sqrt(((u - 0.5) / 0.52) ** 2 + ((v - 0.34) / 0.62) ** 2)
+    d += (fbm(u * 3.1, v * 3.1, 4, 977) - 0.5) * 0.85
+    # NOT smoothstep(1.0, 0.42, d): this helper returns 0 on a reversed range,
+    # so that silently culled every face and exported empty meshes.
+    return 1.0 - smoothstep(0.42, 1.0, d)
+
+
 def build_face():
-    z0, z1 = -3.2, H
+    z0, z1 = _FZ0, _FZ1
     for j in range(NZ):
         z = z0 + (z1 - z0) * j / (NZ - 1)
         for i in range(NX):
             x = -1.0 + (W + 2.0) * i / (NX - 1)
-            verts.append((x, surface_y(x, z), z))
+            y = surface_y(x, z)
+            if FAR:
+                o = _OUTLINE(x, z)
+                yb = DEPTH * 0.9 - y * 0.35
+                mid = (y + yb) * 0.5
+                y = y * o + mid * (1.0 - o)
+            verts.append((x, y, z))
             uvs.append(bed_uv(x, z))
-    for j in range(NZ - 1):
-        r0, r1 = j * NX, (j + 1) * NX
-        for i in range(NX - 1):
-            faces.append((r0 + i, r0 + i + 1, r1 + i + 1, r1 + i))
+    if not FAR:
+        for j in range(NZ - 1):
+            r0, r1 = j * NX, (j + 1) * NX
+            for i in range(NX - 1):
+                faces.append((r0 + i, r0 + i + 1, r1 + i + 1, r1 + i))
+
+    if FAR:
+        # A rectangular grid has a rectangular SILHOUETTE, so closing it into a
+        # solid still read as a shipping container on the plain. The two sheets
+        # converge on a seeded outline instead, so the mass tapers to an
+        # irregular edge and has a shape you can read from any angle.
+        # The distance tier is seen from every angle on the plain, so it has to
+        # be a closed MASS, not a face. Seen edge on, a single sheet reads as a
+        # standing panel, which is what the first plain looked like: billboards.
+        # Second sheet behind, mirrored and calmer, stitched round the border.
+        back = len(verts)
+        for j in range(NZ):
+            z = z0 + (z1 - z0) * j / (NZ - 1)
+            for i in range(NX):
+                x = -1.0 + (W + 2.0) * i / (NX - 1)
+                o = _OUTLINE(x, z)
+                yf = surface_y(x, z)
+                yb = DEPTH * 0.9 - yf * 0.35
+                mid = (yf + yb) * 0.5
+                verts.append((x, yb * o + mid * (1.0 - o), z))
+                uvs.append(bed_uv(x, z))
+        # Converging the two sheets was not enough: the front sheet still
+        # spanned the full rectangle and still caught light, so the silhouette
+        # stayed a shipping container. The geometry outside the outline has to
+        # be REMOVED, not flattened. The sheets meet in a thin wedge at the
+        # boundary, which closes it well enough at a hundred metres.
+        keep = []
+        for j in range(NZ - 1):
+            for i in range(NX - 1):
+                zc = z0 + (z1 - z0) * (j + 0.5) / (NZ - 1)
+                xc = -1.0 + (W + 2.0) * (i + 0.5) / (NX - 1)
+                keep.append(_OUTLINE(xc, zc) > 0.5)
+        k = 0
+        for j in range(NZ - 1):
+            r0, r1 = back + j * NX, back + (j + 1) * NX
+            f0, f1 = j * NX, (j + 1) * NX
+            for i in range(NX - 1):
+                if keep[k]:
+                    faces.append((r1 + i, r1 + i + 1, r0 + i + 1, r0 + i))
+                    faces.append((f0 + i, f0 + i + 1, f1 + i + 1, f1 + i))
+                k += 1
+        return
 
     # A skirt straight down from the bottom row, well below the ground line.
     # Without it the camera can look UNDER the wall into brightly lit rubble,
@@ -553,9 +619,10 @@ def build_scene():
 
     build_face()
     face_polys_n = len(faces)
-    n_plates = build_plates()
+    n_plates = 0 if FAR else build_plates()
     plate_end = len(faces)
-    build_rubble()
+    if not FAR:
+        build_rubble()
     if not WEB:
         # ground and backdrop exist to seal the Blender render. The browser
         # has its own fog and ground, and shipping these wasted a third of
@@ -676,7 +743,8 @@ def export_glb(ob):
     if not os.path.isdir(out):
         out = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "public", "models"))
     os.makedirs(out, exist_ok=True)
-    path = os.path.join(out, f"grain-f3-{SEED}.glb")
+    tier = "far" if FAR else "near"
+    path = os.path.join(out, f"grain-{tier}-{SEED}.glb")
     for o in bpy.data.objects:
         o.select_set(o is ob)
     bpy.context.view_layer.objects.active = ob
