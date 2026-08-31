@@ -26,23 +26,45 @@ Run headless:
   "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe" --background \
     --factory-startup --python tools/blender/grain_face.py
 
-Determinism: one seeded stream, no clocks, no Blender randomness. Same seed,
-same wall. A different seed is a different run of the same rule, which is how
-the plain's other masses get made.
+DETERMINISM, stated precisely because it was over claimed once already.
+
+The GEOMETRY is deterministic: one seeded stream, no clocks, no Blender
+randomness. The same seed produces a byte identical vertex list, verified by
+the GEOMETRY_SHA this script prints on every run. That is the property the
+product depends on, because the mesh is what feeds Three.js.
+
+The RENDER is NOT bitwise reproducible. Two runs at the same seed differ, even
+with adaptive sampling disabled and the Cycles seed pinned, because GPU path
+tracing accumulates in a non deterministic thread order. The difference is
+denoiser level noise and invisible, but it is real, and claiming otherwise
+would be the kind of unevidenced determinism claim this project forbids.
+
+A different seed is a different run of the same rule, which is how the plain's
+other masses get made.
 """
 import bpy
 import bmesh
 import math
 import os
 import random
+import hashlib
 from bisect import bisect_right
 
 # ---- run control -----------------------------------------------------------
-SEED = 20260831
+SEED = int(os.environ.get("DL_SEED", 20260831))
 OUT_DIR = r"C:/Users/jacob/dark-lattice-journey/captures/grain"
-OUT_NAME = "f3-fold-24.png"
+OUT_NAME = os.environ.get("DL_OUT", "f3-fold-24.png")
 RES = (1586, 992)
 SAMPLES = 220
+
+# The rake is the whole lighting trick, so it is tunable without editing the
+# file. A sun striking a vertical wall head on is a floodlight; skimming it
+# means only outward facing plate edges catch and the flats fall to black.
+SUN_ENERGY = float(os.environ.get("DL_SUN", 62.0))
+SUN_RZ = float(os.environ.get("DL_RZ", -82.0))     # degrees. -90 is fully grazing.
+FILL_ENERGY = float(os.environ.get("DL_FILL", 118.0))
+SUN_ANGLE = float(os.environ.get("DL_ANGLE", 5.0))   # degrees. Bigger softens glints.
+EXPOSURE = float(os.environ.get("DL_EXPO", -1.55))
 
 NX, NZ = 700, 700          # base form only now: the plates carry the detail
 
@@ -51,20 +73,14 @@ W = 26.0
 H = 19.0
 DEPTH = 7.0
 
-SEAM_X = 0.700 * W
-SEAM_WANDER = 0.60
 SEAM_HALF = 0.075          # hairline. F4 opens this, F3 does not.
 SEAM_DEPTH = 0.52          # how far the groove cuts back
 
-FOLD_BASE = 4.2
-FOLD_TOP = 2.6
 PINCH_RANGE = 4.2
 PINCH_FLOOR = 0.24
 
 BED_MIN = 0.10             # bed thickness, strongly varied. An even run of one
 BED_MAX = 0.85             # thickness is what became courses of blocks.
-LEDGE = 0.40               # never larger than the bed it belongs to
-BREAKOUT = 0.85            # depth where a whole chunk has come away
 
 RUBBLE = 70
 PLATE = (2.2, 1.0, 0.18)   # door sized: F3's only scale cue
@@ -81,6 +97,30 @@ def smoothstep(a, b, x):
         return 0.0
     t = max(0.0, min(1.0, (x - a) / (b - a)))
     return t * t * (3.0 - 2.0 * t)
+
+
+# ---- the shape is drawn from the seed, not fixed ---------------------------
+# Checked 2026-08-31 and it was wrong. With the fold and the seam hardcoded,
+# four seeds produced four walls with the SAME silhouette and the SAME seam,
+# differing only in surface noise. That is "same outcome, different texture",
+# and a plain built from it would be twenty copies of one shape, which is the
+# opposite of what this direction claims. The shape has to come from the seed.
+#
+# The fixed values that produced captures/grain/f3-fold-24.png, kept as the
+# record: FOLD_BASE 4.2, FOLD_TOP 2.6, rise_l 1.30, rise_r 0.32,
+# SEAM_X 0.700*W, SEAM_WANDER 0.60, LEDGE 0.40.
+FOLD_BASE = rnd(2.6, 5.8)
+FOLD_TOP = FOLD_BASE * rnd(0.42, 0.82)
+RISE_L = rnd(1.05, 2.45)            # left limb, long and gentle
+RISE_R = rnd(0.20, 0.58)            # right limb, short and steep
+SEAM_X = rnd(0.34, 0.80) * W
+SEAM_WANDER = rnd(0.22, 1.05)
+SEAM_F = rnd(0.11, 0.27)
+SEAM_PH = rnd(0.0, 6.283)
+WOB_A, WOB_B = rnd(0.16, 0.48), rnd(0.06, 0.26)
+WOB_F1, WOB_F2 = rnd(0.21, 0.46), rnd(0.62, 1.15)
+LEDGE = rnd(0.28, 0.56)
+BREAKOUT = rnd(0.42, 0.82)   # deep pockets caught the rake head on and flared
 
 
 # ---- cheap deterministic value noise ---------------------------------------
@@ -118,8 +158,8 @@ def fbm(x, z, octaves=4, s=0):
 def seam_at(z):
     """The seam wanders. Dead straight reads as a control joint."""
     return (SEAM_X
-            + SEAM_WANDER * math.sin(z * 0.17 + 1.7)
-            + 0.24 * math.sin(z * 0.63 + 0.3))
+            + SEAM_WANDER * math.sin(z * SEAM_F + SEAM_PH)
+            + 0.24 * math.sin(z * 0.63 + SEAM_PH * 0.5))
 
 
 def fold(x, z):
@@ -129,11 +169,11 @@ def fold(x, z):
     amp = FOLD_BASE + (FOLD_TOP - FOLD_BASE) * min(1.0, max(0.0, z) / H)
     if x <= sx:
         u = max(0.0, x / max(sx, 0.001))
-        rise = u ** 1.30
+        rise = u ** RISE_L
     else:
         v = min(1.0, (x - sx) / max(W - sx, 0.001))
-        rise = 1.0 - v ** 0.32
-    wobble = 0.34 * math.sin(x * 0.31 + z * 0.09) + 0.16 * math.sin(x * 0.83 - 1.1)
+        rise = 1.0 - v ** RISE_R
+    wobble = WOB_A * math.sin(x * WOB_F1 + z * 0.09) + WOB_B * math.sin(x * WOB_F2 - 1.1)
     return amp * rise + wobble
 
 
@@ -220,7 +260,7 @@ verts, faces, uvs = [], [], []
 
 
 def build_face():
-    z0, z1 = -1.2, H
+    z0, z1 = -3.2, H
     for j in range(NZ):
         z = z0 + (z1 - z0) * j / (NZ - 1)
         for i in range(NX):
@@ -231,6 +271,18 @@ def build_face():
         r0, r1 = j * NX, (j + 1) * NX
         for i in range(NX - 1):
             faces.append((r0 + i, r0 + i + 1, r1 + i + 1, r1 + i))
+
+    # A skirt straight down from the bottom row, well below the ground line.
+    # Without it the camera can look UNDER the wall into brightly lit rubble,
+    # which reads as a hole punched through the rock. The alpha test says it is
+    # not a hole and it is not: it is a cavity, and a cavity has to be closed.
+    skirt = len(verts)
+    for i in range(NX):
+        x, y, _ = verts[i]
+        verts.append((x, y, -9.0))
+        uvs.append(uvs[i])
+    for i in range(NX - 1):
+        faces.append((i, skirt + i, skirt + i + 1, i + 1))
 
 
 def box(corners, uvco):
@@ -283,7 +335,7 @@ def build_plates():
             # no plates inside the seam, and fewer where a chunk tore away and
             # left fresh fracture behind
             patch = 0.30 + 1.05 * fbm(xj * 0.09, z * 0.08, 3, 401)
-            if d > SEAM_HALF * 2.2 and rng.random() < PLATE_FILL * patch * (1.0 - 0.75 * smoothstep(0.62, 0.84, br)):
+            if d > SEAM_HALF * 2.2 and rng.random() < PLATE_FILL * patch * (1.0 - 1.0 * smoothstep(0.58, 0.80, br)):
                 y = surface_y(xj, z) - rnd(0.015, 0.10)
                 ax, _, az = bed_tangent(xj, z)
                 cx, cz = az, -ax                      # across the bed, in wall
@@ -339,6 +391,23 @@ def build_rubble():
         box(o, uo)
 
 
+def build_backdrop():
+    """A dark slab right behind the face.
+
+    Solidify had to go, because it would have made every plate seven metres
+    thick. That left the wall as a single surface with nothing behind it, so a
+    deep breakout plus a deep seam groove let the camera see straight through to
+    the world background: proven by rendering the background magenta and finding
+    magenta pixels in the flare. Two guesses before that, the floor coat and the
+    plates in the breakout, were both wrong."""
+    i = len(verts)
+    y = DEPTH * 0.55
+    verts.extend([(-14.0, y, -8.0), (W + 14.0, y, -8.0),
+                  (W + 14.0, y, H + 8.0), (-14.0, y, H + 8.0)])
+    uvs.extend([(0, 0), (3, 0), (3, 8), (0, 8)])
+    faces.append((i, i + 1, i + 2, i + 3))
+
+
 def build_ground():
     """Broken plate litter, not a plane. A flat plane caught the sky and went
     pale, which inverted the frame: this world is light inside black."""
@@ -360,7 +429,7 @@ def build_ground():
 
 
 # ---- shading ---------------------------------------------------------------
-def slate_material(name="slate", lo=0.028, hi=0.095):
+def slate_material(name="slate", lo=0.028, hi=0.095, wet=True):
     """Two instances: the broken face, and the darker litter at its foot. They
     shared one material until pass 8, which made the floor impossible to
     balance against the wall."""
@@ -415,13 +484,19 @@ def slate_material(name="slate", lo=0.028, hi=0.095):
 
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     ramp.color_ramp.elements[0].position = 0.28
-    ramp.color_ramp.elements[0].color = (lo, lo, lo, 1)
     ramp.color_ramp.elements[1].position = 0.80
-    ramp.color_ramp.elements[1].color = (hi, hi, hi * 0.96, 1)
+    if os.environ.get("DL_DEBUG_MAT") and not wet:
+        # tint the floor material so it can be identified in the frame
+        ramp.color_ramp.elements[0].color = (0.35, 0.0, 0.0, 1)
+        ramp.color_ramp.elements[1].color = (0.55, 0.0, 0.0, 1)
+    else:
+        ramp.color_ramp.elements[0].color = (lo, lo, lo, 1)
+        ramp.color_ramp.elements[1].color = (hi, hi, hi * 0.96, 1)
 
     rr = nt.nodes.new("ShaderNodeValToRGB")
     rr.color_ramp.elements[0].position = 0.15
-    rr.color_ramp.elements[0].color = (0.09, 0.09, 0.09, 1)
+    _rlo = float(os.environ.get("DL_RLO", 0.09)) if wet else 0.55
+    rr.color_ramp.elements[0].color = (_rlo, _rlo, _rlo, 1)
     rr.color_ramp.elements[1].position = 0.90
     rr.color_ramp.elements[1].color = (0.38, 0.38, 0.38, 1)
 
@@ -430,23 +505,29 @@ def slate_material(name="slate", lo=0.028, hi=0.095):
 
     # a wet film, and it is patchy: uniform gloss reads as plastic, which is
     # the failure this whole surface started with
-    wet = nt.nodes.new("ShaderNodeTexNoise")
-    wet.inputs["Scale"].default_value = 1.7
-    wet.inputs["Detail"].default_value = 5.0
+    wetn = nt.nodes.new("ShaderNodeTexNoise")
+    wetn.inputs["Scale"].default_value = 1.7
+    wetn.inputs["Detail"].default_value = 5.0
     wramp = nt.nodes.new("ShaderNodeValToRGB")
     wramp.color_ramp.elements[0].position = 0.26
     wramp.color_ramp.elements[0].color = (0.12, 0.12, 0.12, 1)
     wramp.color_ramp.elements[1].position = 0.64
     wramp.color_ramp.elements[1].color = (0.88, 0.88, 0.88, 1)
     if "Coat Roughness" in bsdf.inputs:
-        bsdf.inputs["Coat Roughness"].default_value = 0.06
+        bsdf.inputs["Coat Roughness"].default_value = float(os.environ.get("DL_COAT", 0.06))
     if "Coat IOR" in bsdf.inputs:
         bsdf.inputs["Coat IOR"].default_value = 1.33
 
     L = nt.links.new
-    L(wet.outputs["Fac"], wramp.inputs["Fac"])
-    if "Coat Weight" in bsdf.inputs:
-        L(wramp.outputs["Color"], bsdf.inputs["Coat Weight"])
+    # The floor is loose fines and broken plate, not polished rock. Giving it
+    # the wall's wet coat made it a mirror for the sky light, so any gap at
+    # the foot of the wall flared white: 0.6 percent of the frame on seed 4417.
+    if wet:
+        L(wetn.outputs["Fac"], wramp.inputs["Fac"])
+        if "Coat Weight" in bsdf.inputs:
+            L(wramp.outputs["Color"], bsdf.inputs["Coat Weight"])
+    elif "Coat Weight" in bsdf.inputs:
+        bsdf.inputs["Coat Weight"].default_value = 0.0
     L(uv.outputs["UV"], mp.inputs["Vector"])
     L(mp.outputs["Vector"], lam.inputs["Vector"])
     L(mp.outputs["Vector"], lam2.inputs["Vector"])
@@ -475,6 +556,7 @@ def build_scene():
     plate_end = len(faces)
     build_rubble()
     build_ground()
+    build_backdrop()
 
     me = bpy.data.meshes.new("grain_face")
     me.from_pydata(verts, [], faces)
@@ -494,7 +576,7 @@ def build_scene():
     ob = bpy.data.objects.new("grain_face", me)
     bpy.context.collection.objects.link(ob)
     ob.data.materials.append(slate_material("slate_face"))
-    ob.data.materials.append(slate_material("slate_floor", 0.007, 0.026))
+    ob.data.materials.append(slate_material("slate_floor", 0.007, 0.026, wet=False))
     for poly in me.polygons:
         poly.material_index = 0 if poly.index < plate_end else 1
 
@@ -505,15 +587,15 @@ def build_scene():
     world.node_tree.nodes["Background"].inputs[0].default_value = (0.018, 0.020, 0.024, 1)
 
     sun = bpy.data.lights.new("rake", type="SUN")
-    sun.energy = 62.0
-    sun.angle = math.radians(5.0)
+    sun.energy = SUN_ENERGY
+    sun.angle = math.radians(SUN_ANGLE)
     sun.color = (0.99, 0.98, 0.97)
     so = bpy.data.objects.new("rake", sun)
-    so.rotation_euler = (math.radians(80.0), 0.0, math.radians(-82.0))
+    so.rotation_euler = (math.radians(80.0), 0.0, math.radians(SUN_RZ))
     bpy.context.collection.objects.link(so)
 
     fill = bpy.data.lights.new("fill", type="AREA")
-    fill.energy = 118.0
+    fill.energy = FILL_ENERGY
     fill.size = 62.0
     fill.color = (0.88, 0.90, 0.95)
     fo = bpy.data.objects.new("fill", fill)
@@ -545,15 +627,31 @@ def render(ob, n_plates):
         print("GPU unavailable, CPU:", e)
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
+    # Adaptive sampling stops each tile on a noise threshold, and tile
+    # scheduling varies run to run, so it makes the image non reproducible.
+    sc.cycles.use_adaptive_sampling = False
+    sc.cycles.seed = 0
+    # cap runaway direct samples: wet low roughness plates at a grazing sun
+    # throw fireflies, and one unlucky orientation can blow a whole pocket
+    sc.cycles.sample_clamp_direct = 12.0
+    sc.cycles.sample_clamp_indirect = 6.0
     sc.render.resolution_x, sc.render.resolution_y = RES
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
-    sc.view_settings.exposure = -1.55
+    sc.view_settings.exposure = EXPOSURE
+    # DL_HOLES renders with a transparent film, so any pixel with zero alpha
+    # is a genuine gap in the geometry. A magenta world does not work as a
+    # leak test, because it lights the scene as well as showing through.
+    if os.environ.get("DL_HOLES"):
+        sc.render.film_transparent = True
+        sc.render.image_settings.color_mode = "RGBA"
     sc.render.image_settings.file_format = "PNG"
     os.makedirs(OUT_DIR, exist_ok=True)
     sc.render.filepath = os.path.join(OUT_DIR, OUT_NAME)
     dg = bpy.context.evaluated_depsgraph_get()
     ev = ob.evaluated_get(dg).to_mesh()
+    gh = hashlib.sha256(repr([tuple(round(c, 6) for c in v) for v in verts]).encode()).hexdigest()
+    print(f"GEOMETRY_SHA {gh[:24]}")
     print(f"plates={n_plates} beds={len(BED_PROT)} "
           f"authored_faces={len(faces)} evaluated_faces={len(ev.polygons)} "
           f"uv={[l.name for l in ev.uv_layers]}")
