@@ -113,6 +113,9 @@ export class DeltaAct {
   private readonly q = new THREE.Quaternion();
   private readonly q2 = new THREE.Quaternion();
   private readonly v = new THREE.Vector3();
+  /** the ground the visitor arrives on; it dissolves as Z unfolds */
+  private readonly floorMat: THREE.MeshStandardMaterial;
+  private readonly pathMat: THREE.MeshBasicMaterial;
 
   constructor(seed: number) {
     this.group.position.y = DELTA_Y;
@@ -178,13 +181,67 @@ export class DeltaAct {
       }
     }
 
-    // ---- the interior void: inside the line there is no sky
+    // ---- THE WORLD, NOT A VOID. "Its the same" - Jacob, 2026-08-31,
+    // and the diagnosis was finally right: the rocks changed three
+    // times but the PICTURE never did, because a product floating in
+    // black is the same photo whatever the product is made of. The
+    // boards have an environment: a storm-graded sky, a ground, and
+    // the gold line running along it to the visitor's feet.
     const shell = new THREE.Mesh(
-      new THREE.SphereGeometry(1500, 24, 16),
-      new THREE.MeshBasicMaterial({ color: 0x04060a, side: THREE.BackSide, fog: false })
+      // r=900 and depth-writing: the ENTRANCE's own sky dome hangs
+      // 3200 units overhead and painted a hard black cap over the
+      // storm until this shell both sat nearer and owned the depth
+      new THREE.SphereGeometry(900, 32, 20),
+      new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        fog: false,
+        depthWrite: true,
+        uniforms: {},
+        vertexShader: `varying vec3 vP;
+void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+        fragmentShader: `varying vec3 vP;
+void main(){
+  float h = clamp(vP.y / 900.0, -1.0, 1.0);
+  // storm grade: coal at the feet, bruised slate overhead, one faint
+  // warm exhaustion where the crown's shafts fall
+  vec3 lo = vec3(0.008, 0.011, 0.016);
+  vec3 mid = vec3(0.02, 0.026, 0.035);
+  vec3 hi = vec3(0.038, 0.046, 0.058);
+  vec3 c = mix(lo, mid, smoothstep(-0.2, 0.35, h));
+  c = mix(c, hi, smoothstep(0.35, 0.9, h));
+  float warm = exp(-pow(length(vP.xz) / 380.0, 2.0)) * smoothstep(0.2, 0.9, h);
+  c += vec3(0.10, 0.075, 0.04) * warm;
+  gl_FragColor = vec4(c, 1.0);
+}`
+      })
     );
     shell.position.y = FORM_H * 0.5;
     this.group.add(shell);
+
+    // the ground: dark dressed stone, and THE PATH - the seam's gold
+    // running along the floor from the visitor's feet to the door,
+    // which is the board's whole composition in one stroke
+    this.floorMat = new THREE.MeshStandardMaterial({
+      color: 0x0b0e13,
+      roughness: 0.42,
+      metalness: 0.12,
+      flatShading: false,
+      fog: false,
+      transparent: true
+    });
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(560, 48), this.floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0.0;
+    this.group.add(floor);
+    this.pathMat = new THREE.MeshBasicMaterial({
+      color: 0xcaa25e,
+      fog: false,
+      transparent: true
+    });
+    const path = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 300), this.pathMat);
+    path.rotation.x = -Math.PI / 2;
+    path.position.set(0, 0.06, 150);
+    this.group.add(path);
 
     // ---- the light score: seam lights its canyon, cold key rakes the
     // strata, rim holds the silhouette, all dimmable for Tick Zero
@@ -238,10 +295,10 @@ export class DeltaAct {
       mk(warm, 16, 300, 10, FORM_H * 0.85, -20, 0.08, -0.045);
       mk(cold, 44, 380, -46, FORM_H * 0.8, -34, 0.05, 0.1);
       mk(cold, 36, 360, 52, FORM_H * 0.75, -30, 0.045, -0.08);
-      mk(cold, 620, 480, 0, FORM_H * 0.55, -120, 0.05);
-      mk(warm, 260, 220, 0, FORM_H * 0.28, -40, 0.07);
-      mk(cold, 520, 420, -160, FORM_H * 0.5, -90, 0.04);
-      mk(cold, 520, 420, 170, FORM_H * 0.45, -90, 0.04);
+      // the big cold pools at 0.04-0.05 fogged the entire sky grey
+      // (photographed 2026-08-31); depth-glow whispers now
+      mk(cold, 620, 480, 0, FORM_H * 0.55, -120, 0.018);
+      mk(warm, 260, 220, 0, FORM_H * 0.28, -40, 0.05);
     }
 
     // ---- the seam: the one line, in its real place
@@ -468,6 +525,12 @@ vSkinSeed = aSkinSeed;`
     this.bladeLamp.intensity = st.bladeLive ? 1.6 : st.phase === 'y' || st.phase === 'z' ? 0.25 : 0.08;
     this.bladeMesh.position.z = 5 + detent * BLADE_SLIDE;
     (this.bladeMesh.material as THREE.MeshStandardMaterial).emissiveIntensity = st.bladeLive ? 1.1 : 0.35;
+
+    // Z sheds the ground: the difference is a place with no floor and
+    // no horizon, so the world the visitor arrived through dissolves
+    // exactly as far as the field has unfolded
+    this.floorMat.opacity = 1 - st.unfold;
+    this.pathMat.opacity = 1 - st.unfold;
 
     if (!this.ready) return;
 
