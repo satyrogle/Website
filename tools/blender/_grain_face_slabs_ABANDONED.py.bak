@@ -1,0 +1,420 @@
+"""THE GRAIN, frame F3: the fold. The load-bearing surface, built for real.
+
+F3 is the frame the whole act rests on. If a visitor cannot point at the seam
+before being told, the premise dies. Every failure while designing it was this
+one surface: masonry three times, combed hair once, a feather once. So it gets
+built alone, first, before anything else in the world exists.
+
+The wall is NOT a displaced plane. It is discrete slabs with visible ends that
+stop, step and overlap, because a displaced surface is what read as hair and an
+even stack is what read as masonry. Beds bend: long and gentle sweeping up
+across the left, short and steep on the right, pinching thin where they meet a
+wandering seam about a third in from the right edge.
+
+Run headless:
+  "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe" --background \
+    --factory-startup --python tools/blender/grain_face.py
+
+Determinism: one seeded stream, no clocks, no Blender randomness. The same seed
+gives the same wall. Change SEED to get a different run of the same rule, which
+is exactly how the plain's other masses will be made.
+"""
+import bpy
+import bmesh
+import math
+import os
+import random
+import sys
+
+# ---- run control -----------------------------------------------------------
+SEED = 20260831
+OUT_DIR = r"C:/Users/jacob/dark-lattice-journey/captures/grain"
+OUT_NAME = "f3-fold-03.png"
+RES = (1586, 992)
+SAMPLES = 160
+
+# ---- the wall --------------------------------------------------------------
+W = 26.0           # metres across the visible face
+H = 19.0           # metres of stacked beds above the ground line
+DEPTH = 6.0        # how far the body runs back from the face
+
+SEAM_X = 0.720 * W       # a third in from the right edge
+SEAM_GAP = 0.055         # hairline. F4 opens this, F3 does not.
+SEAM_WANDER = 0.55       # how far the seam strays from vertical
+
+BED_MIN = 0.13           # thinnest bed
+BED_MAX = 0.92           # thickest bed
+FOLD_BASE = 3.4          # fold amplitude at the ground line
+FOLD_TOP = 2.1           # fold amplitude at the top of the stack
+PINCH_RANGE = 3.6        # how far from the seam the beds start thinning
+PINCH_FLOOR = 0.26       # how thin they get at the seam
+
+SLAB_MIN = 1.3           # shortest slab along the bed
+SLAB_MAX = 4.6           # longest
+SLAB_OVERLAP = 0.35      # slabs overrun their neighbour, so no clean joints
+PROUD_MIN = -0.34        # set back
+PROUD_MAX = 0.58         # standing out, which is what catches the raking light
+
+RUBBLE = 46              # fallen plates heaped at the foot
+PLATE = (2.15, 0.95, 0.17)   # door sized, as F3 requires for scale
+
+rng = random.Random(SEED)
+
+
+def rnd(a, b):
+    return a + (b - a) * rng.random()
+
+
+def smoothstep(a, b, x):
+    if b <= a:
+        return 0.0
+    t = max(0.0, min(1.0, (x - a) / (b - a)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+# ---- the fold --------------------------------------------------------------
+# The beds rise toward the seam from both sides. Long and gentle on the left,
+# short and steep on the right. Never a mirror: that read as a feather.
+
+def seam_at(z):
+    """The seam wanders. A dead straight line reads as a control joint."""
+    return (SEAM_X
+            + SEAM_WANDER * math.sin(z * 0.19 + 1.7)
+            + 0.22 * math.sin(z * 0.61 + 0.3))
+
+
+def fold(x, z):
+    """Vertical offset of a bed passing through x at nominal height z."""
+    sx = seam_at(z)
+    amp = FOLD_BASE + (FOLD_TOP - FOLD_BASE) * min(1.0, z / H)
+    if x <= sx:
+        u = max(0.0, x / max(sx, 0.001))
+        rise = u ** 1.85                      # long, gentle, steepening late
+    else:
+        v = min(1.0, (x - sx) / max(W - sx, 0.001))
+        rise = 1.0 - v ** 0.34                # short and steep away from seam
+    wobble = 0.30 * math.sin(x * 0.33 + z * 0.11) + 0.14 * math.sin(x * 0.87 - 1.1)
+    return amp * rise + wobble
+
+
+def pinch(x, z):
+    """Beds thin as they approach the seam. That is what makes it predictable."""
+    d = abs(x - seam_at(z))
+    return PINCH_FLOOR + (1.0 - PINCH_FLOOR) * smoothstep(0.0, PINCH_RANGE, d)
+
+
+# ---- geometry --------------------------------------------------------------
+verts = []
+faces = []
+uvs = []          # per vertex: (across the wall, UNFOLDED bed height)
+
+
+def box(corners, uvco):
+    """corners: 8 points, bottom face 0-3 then top face 4-7, same winding.
+
+    uvco carries each corner's bed coordinate BEFORE the fold is applied. The
+    shader reads it to lay fine lamination along the beds, so the laminae bend
+    with the fold instead of running flat through it."""
+    i = len(verts)
+    verts.extend(corners)
+    uvs.extend(uvco)
+    faces.extend([
+        (i + 0, i + 1, i + 2, i + 3),
+        (i + 7, i + 6, i + 5, i + 4),
+        (i + 0, i + 4, i + 5, i + 1),
+        (i + 1, i + 5, i + 6, i + 2),
+        (i + 2, i + 6, i + 7, i + 3),
+        (i + 3, i + 7, i + 4, i + 0),
+    ])
+
+
+def emit_slab(x0, x1, z_nom, thick, y_front, tilt):
+    """One slab. Its top and bottom follow the fold, so it is a bent wedge,
+    never a brick. Front corners carry their own y so the face is not flat."""
+    back = DEPTH + rnd(-0.6, 0.6)
+    pts = []
+    for (x, sign) in ((x0, 0), (x1, 1)):
+        zc = z_nom + fold(x, z_nom)
+        t = thick * pinch(x, z_nom)
+        pts.append((x, zc - t * 0.5 + tilt * (sign - 0.5), zc + t * 0.5 + tilt * (sign - 0.5)))
+    (xa, za_lo, za_hi), (xb, zb_lo, zb_hi) = pts
+    jf = lambda: rnd(-0.09, 0.09)
+    ta = thick * pinch(xa, z_nom)
+    tb = thick * pinch(xb, z_nom)
+    ua, ub = xa / W, xb / W
+    box([
+        (xa, y_front + jf(), za_lo),
+        (xb, y_front + jf(), zb_lo),
+        (xb, back, zb_lo),
+        (xa, back, za_lo),
+        (xa, y_front + jf(), za_hi),
+        (xb, y_front + jf(), zb_hi),
+        (xb, back, zb_hi),
+        (xa, back, za_hi),
+    ], [
+        (ua, z_nom - ta * 0.5), (ub, z_nom - tb * 0.5),
+        (ub, z_nom - tb * 0.5), (ua, z_nom - ta * 0.5),
+        (ua, z_nom + ta * 0.5), (ub, z_nom + tb * 0.5),
+        (ub, z_nom + tb * 0.5), (ua, z_nom + ta * 0.5),
+    ])
+
+
+def build_wall():
+    z = 0.0
+    bed = 0
+    while z < H:
+        # thickness alternates thick and thin irregularly. An even run of one
+        # thickness is what turned into courses of blocks.
+        r = rng.random()
+        base_t = BED_MIN + (BED_MAX - BED_MIN) * (r ** 2.1)
+        if rng.random() < 0.12:
+            base_t = BED_MAX * rnd(0.85, 1.25)
+
+        # every bed starts its slabs at a different offset, so no vertical
+        # joint ever lines up between beds
+        x = -rnd(0.0, SLAB_MAX)
+        while x < W:
+            sx = seam_at(z)
+            length = rnd(SLAB_MIN, SLAB_MAX) * (0.45 + 0.55 * pinch(x, z))
+            x1 = x + length
+            # slabs stop at the seam rather than crossing it
+            if x < sx < x1:
+                if sx - x > 0.35:
+                    x1 = sx - SEAM_GAP * 0.5
+                else:
+                    x = sx + SEAM_GAP * 0.5
+                    x1 = x + length
+            if x1 > x + 0.25:
+                a, b = max(x, -1.5), min(x1, W + 1.5)
+                if b - a > 0.25:
+                    emit_slab(a, b, z, base_t * rnd(0.82, 1.18),
+                              rnd(PROUD_MIN, PROUD_MAX), rnd(-0.07, 0.07))
+            x = x1 - rnd(0.0, SLAB_OVERLAP)
+        z += base_t * rnd(0.9, 1.12)
+        bed += 1
+    return bed
+
+
+def build_rubble():
+    """Door sized plates heaped at the foot. This is F3's only scale cue:
+    sand grit was tried twice and failed twice."""
+    for _ in range(RUBBLE):
+        px = rnd(-1.0, W + 1.0)
+        py = rnd(-2.6, 0.9)
+        # heaped against the foot, resting on the ground, never floating
+        pz = -1.45 + 1.5 * (rng.random() ** 2.4)
+        sx, sy, sz = (PLATE[0] * rnd(0.55, 1.25),
+                      PLATE[1] * rnd(0.6, 1.4),
+                      PLATE[2] * rnd(0.6, 1.6))
+        ang = rnd(0, math.tau)
+        lean = rnd(-0.75, 0.75)
+        ca, sa = math.cos(ang), math.sin(ang)
+        cl, sl = math.cos(lean), math.sin(lean)
+        pts = []
+        for dx in (-0.5, 0.5):
+            for dy in (-0.5, 0.5):
+                for dz in (-0.5, 0.5):
+                    lx, ly, lz = dx * sx, dy * sy, dz * sz
+                    rx = lx * ca - ly * sa
+                    ry = lx * sa + ly * ca
+                    rz = lz
+                    ry2 = ry * cl - rz * sl
+                    rz2 = ry * sl + rz * cl
+                    pts.append((px + rx, py + ry2, pz + rz2))
+        o = [pts[0], pts[2], pts[6], pts[4], pts[1], pts[3], pts[7], pts[5]]
+        # fallen plates keep their own lamination, so the debris is the same
+        # rock rather than generic gravel
+        uo = [(px / W, pz + (-0.5 if k < 4 else 0.5) * sz) for k in range(8)]
+        box(o, uo)
+
+
+def build_ground():
+    i = len(verts)
+    verts.extend([(-40, -40, -1.6), (W + 40, -40, -1.6),
+                  (W + 40, DEPTH + 30, -1.6), (-40, DEPTH + 30, -1.6)])
+    uvs.extend([(0, 0), (1, 0), (1, 1), (0, 1)])
+    faces.append((i, i + 1, i + 2, i + 3))
+
+
+# ---- scene -----------------------------------------------------------------
+def slate_material(name="slate"):
+    """Dark slate. The load-bearing part is the lamination, which is driven by
+    the UV bed coordinate so it bends with the fold. Flat boxes with a noise
+    bump read as black plastic sheet; thin sheets stacked inside each slab are
+    what makes it stone."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+
+    uv = nt.nodes.new("ShaderNodeUVMap")
+    uv.uv_map = "bed"
+    mapn = nt.nodes.new("ShaderNodeMapping")
+    mapn.inputs["Scale"].default_value = (1.4, 2.9, 1.0)
+
+    lam = nt.nodes.new("ShaderNodeTexWave")
+    lam.wave_type = "BANDS"
+    lam.bands_direction = "Y"
+    lam.wave_profile = "SAW"
+    lam.inputs["Scale"].default_value = 1.0
+    lam.inputs["Distortion"].default_value = 2.6
+    lam.inputs["Detail"].default_value = 5.0
+    lam.inputs["Detail Scale"].default_value = 1.4
+
+    grit = nt.nodes.new("ShaderNodeTexNoise")     # surface break up
+    grit.inputs["Scale"].default_value = 38.0
+    grit.inputs["Detail"].default_value = 9.0
+    grit.inputs["Roughness"].default_value = 0.72
+
+    blotch = nt.nodes.new("ShaderNodeTexNoise")   # slow value variation
+    blotch.inputs["Scale"].default_value = 2.6
+    blotch.inputs["Detail"].default_value = 6.0
+
+    b_lam = nt.nodes.new("ShaderNodeBump")
+    b_lam.inputs["Strength"].default_value = 0.95
+    b_lam.inputs["Distance"].default_value = 0.10
+    b_grit = nt.nodes.new("ShaderNodeBump")
+    b_grit.inputs["Strength"].default_value = 0.30
+    b_grit.inputs["Distance"].default_value = 0.012
+
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.30
+    ramp.color_ramp.elements[0].color = (0.021, 0.023, 0.027, 1)
+    ramp.color_ramp.elements[1].position = 0.78
+    ramp.color_ramp.elements[1].color = (0.072, 0.076, 0.086, 1)
+
+    rrmp = nt.nodes.new("ShaderNodeValToRGB")     # roughness varies with grain
+    rrmp.color_ramp.elements[0].position = 0.20
+    rrmp.color_ramp.elements[0].color = (0.62, 0.62, 0.62, 1)
+    rrmp.color_ramp.elements[1].position = 0.85
+    rrmp.color_ramp.elements[1].color = (0.88, 0.88, 0.88, 1)
+
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = 0.24
+
+    L = nt.links.new
+    L(uv.outputs["UV"], mapn.inputs["Vector"])
+    L(mapn.outputs["Vector"], lam.inputs["Vector"])
+    L(blotch.outputs["Fac"], ramp.inputs["Fac"])
+    L(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+    L(grit.outputs["Fac"], rrmp.inputs["Fac"])
+    L(rrmp.outputs["Color"], bsdf.inputs["Roughness"])
+    L(grit.outputs["Fac"], b_grit.inputs["Height"])
+    L(b_grit.outputs["Normal"], b_lam.inputs["Normal"])
+    L(lam.outputs["Fac"], b_lam.inputs["Height"])
+    L(b_lam.outputs["Normal"], bsdf.inputs["Normal"])
+    L(bsdf.outputs["BSDF"], out.inputs["Surface"])
+    return m
+
+
+def build_scene():
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+
+    beds = build_wall()
+    build_rubble()
+    build_ground()
+
+    me = bpy.data.meshes.new("grain_face")
+    me.from_pydata(verts, [], faces)
+    me.update()
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+
+    uvl = me.uv_layers.new(name="bed")
+    for loop in me.loops:
+        uvl.data[loop.index].uv = uvs[loop.vertex_index]
+
+    me.shade_flat()
+    ob = bpy.data.objects.new("grain_face", me)
+    bpy.context.collection.objects.link(ob)
+    ob.data.materials.append(slate_material())
+
+    # break every flat face. Clean quads are what read as sheet plastic.
+    sub = ob.modifiers.new("sub", "SUBSURF")
+    sub.subdivision_type = "SIMPLE"
+    sub.levels = sub.render_levels = 2
+    ntex = bpy.data.textures.new("crumble", type="CLOUDS")
+    ntex.noise_scale = 0.55
+    ntex.noise_depth = 5
+    dsp = ob.modifiers.new("crumble", "DISPLACE")
+    dsp.texture = ntex
+    dsp.texture_coords = "GLOBAL"
+    dsp.mid_level = 0.5
+    dsp.strength = 0.26
+
+    # overcast sky, cool and dim. The sky is the source everywhere in F1 to F3.
+    world = bpy.data.worlds.new("w")
+    bpy.context.scene.world = world
+    world.use_nodes = True
+    bg = world.node_tree.nodes["Background"]
+    bg.inputs[0].default_value = (0.085, 0.095, 0.115, 1)
+    bg.inputs[1].default_value = 1.0
+
+    # raking light from the left, low, so bed edges catch and flats fall dark
+    sun = bpy.data.lights.new("rake", type="SUN")
+    sun.energy = 3.6
+    sun.angle = math.radians(7.0)
+    sun.color = (0.86, 0.89, 1.0)
+    so = bpy.data.objects.new("rake", sun)
+    so.rotation_euler = (math.radians(78.0), 0.0, math.radians(-64.0))
+    bpy.context.collection.objects.link(so)
+
+    fill = bpy.data.lights.new("fill", type="AREA")
+    fill.energy = 620.0
+    fill.size = 40.0
+    fill.color = (0.72, 0.79, 0.95)
+    fo = bpy.data.objects.new("fill", fill)
+    fo.location = (W * 0.4, -26.0, 20.0)
+    fo.rotation_euler = (math.radians(62.0), 0.0, 0.0)
+    bpy.context.collection.objects.link(fo)
+
+    cam = bpy.data.cameras.new("cam")
+    cam.lens = 40.0
+    co = bpy.data.objects.new("cam", cam)
+    co.location = (W * 0.44, -21.0, 6.4)
+    co.rotation_euler = (math.radians(86.5), 0.0, 0.0)
+    bpy.context.collection.objects.link(co)
+    bpy.context.scene.camera = co
+
+    return beds, ob
+
+
+def render(beds, ob):
+    sc = bpy.context.scene
+    sc.render.engine = "CYCLES"
+    try:
+        sc.cycles.device = "GPU"
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        prefs.compute_device_type = "OPTIX"
+        prefs.get_devices()
+        for d in prefs.devices:
+            d.use = True
+    except Exception as e:
+        print("GPU unavailable, using CPU:", e)
+    sc.cycles.samples = SAMPLES
+    sc.cycles.use_denoising = True
+    sc.render.resolution_x, sc.render.resolution_y = RES
+    sc.render.film_transparent = False
+    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.look = "AgX - Base Contrast"
+    sc.render.image_settings.file_format = "PNG"
+    os.makedirs(OUT_DIR, exist_ok=True)
+    sc.render.filepath = os.path.join(OUT_DIR, OUT_NAME)
+    dg = bpy.context.evaluated_depsgraph_get()
+    ev = ob.evaluated_get(dg).to_mesh()
+    print(f"beds={beds} authored_faces={len(faces)} "
+          f"evaluated_faces={len(ev.polygons)} uv_layers={[l.name for l in ev.uv_layers]}")
+    bpy.ops.render.render(write_still=True)
+    print("WROTE", sc.render.filepath)
+
+
+if __name__ == "__main__":
+    b, o = build_scene()
+    render(b, o)

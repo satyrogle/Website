@@ -267,14 +267,25 @@ verts, faces, uvs = [], [], []
 _FZ0, _FZ1 = -3.2, H
 
 
+# An fbm-warped ellipse gave a soft rounded silhouette, and twenty of those on
+# a plain read as shrubs. Slate breaks in PLANES, so the outline is a set of
+# straight cuts: the mass is what survives all of them.
+_CUTS = []
+for _k in range(int(rnd(5, 9))):
+    _a = rnd(0.0, math.tau)
+    _CUTS.append((math.cos(_a), math.sin(_a), rnd(0.30, 0.62)))
+
+
 def _OUTLINE(x, z):
-    u = (x + 1.0) / (W + 2.0)
-    v = (z - _FZ0) / (_FZ1 - _FZ0)
-    d = math.sqrt(((u - 0.5) / 0.52) ** 2 + ((v - 0.34) / 0.62) ** 2)
-    d += (fbm(u * 3.1, v * 3.1, 4, 977) - 0.5) * 0.85
-    # NOT smoothstep(1.0, 0.42, d): this helper returns 0 on a reversed range,
-    # so that silently culled every face and exported empty meshes.
-    return 1.0 - smoothstep(0.42, 1.0, d)
+    u = (x + 1.0) / (W + 2.0) - 0.5
+    v = (z - _FZ0) / (_FZ1 - _FZ0) - 0.36
+    v *= 0.85
+    keep = 1.0
+    for cx, cz, d in _CUTS:
+        # each cut wanders a little so the edge is broken rather than sawn
+        dd = d + (fbm(u * 5.0 + cx * 9.0, v * 5.0, 3, 631) - 0.5) * 0.16
+        keep = min(keep, 1.0 - smoothstep(dd - 0.03, dd + 0.03, u * cx + v * cz))
+    return keep
 
 
 def build_face():
