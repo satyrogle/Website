@@ -1,7 +1,8 @@
 # APPROVED VISUAL JOURNEY
 
 ```text
-STATUS: APPROVED
+STATUS: DEAD. KILLED BY JACOB 2026-09-01, "bro this is dead".
+        SOURCE PATHS ARE CLOSED AGAIN.
 JOURNEY: THE GRAIN
 BOARD: docs/THE_GRAIN.md
 IMAGES: docs/frames/f1-the-plain.png .. f6-the-return.png
@@ -48,3 +49,45 @@ F2's approved image is not in the repo. The frame is locked, the file was not in
 the archive Jacob sent, and `docs/frames/f2-NOT-FINAL-hairline-pass.png` is an
 earlier pass held as a clearly named placeholder. It is not the approved frame
 and must not be matched against.
+
+
+---
+
+## Killed 2026-09-01
+
+Jacob's verdict: "bro this is dead".
+
+The six frames were approved as pictures and could not be reached in realtime.
+The plain was built five separate ways and rejected on sight every time:
+
+```text
+1  heightfield masses with a soft outline      shrubs
+2  stacked box masses, four outcomes           loose blocks
+3  heightfield with straight angular cuts       worse than both
+4  dipping strata to kill the midrib            flat boards
+5  photoscanned CC0 rock from Poly Haven        rejected
+```
+
+The diagnosis worth keeping, because it is the reason and not an excuse: the
+approved frames are AI images whose look comes from photographic grade,
+atmosphere in every pixel and micro-detail everywhere. The plain was eight
+meshes, one directional light and exponential fog. A still frame was treated as
+a realtime spec, and nobody checked whether it was reachable in that medium
+before six frames were locked to it.
+
+WHAT SURVIVES AND SHOULD NOT BE REBUILT FROM SCRATCH:
+
+- The F3 close-up surface. The only thing in the whole direction Jacob called
+  okay, and the only construction that read as stone: one folded body with
+  laminae carved out by an erosion field, plus a plate layer standing off the
+  surface. `tools/blender/grain_face.py`.
+- The rake. A sun striking a wall head on is a floodlight; skimming it at ten
+  degrees is what makes anything read.
+- Compare distributions, never means. A matched mean hid two pictures that
+  looked nothing alike.
+- The air must be lighter than the stone, or there are no silhouettes.
+- Masses go in depth bands, never on a ring.
+- The Blender headless to Draco GLB pipeline, and the browser tuning panel.
+
+THE ENTRANCE, scroll 0 to 0.34, IS UNAFFECTED. It was approved separately and
+was never part of this.
