@@ -36,7 +36,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { buildPanel, type Group as PanelGroup } from './panel';
 
-const SEEDS = [20260831, 4417, 90210, 777123, 313, 55501, 8888, 24601];
+// Four OUTCOMES of one break, two seeds each, all built by the same
+// heightfield method. Eight rotations of one silhouette read as repetition
+// and no slider fixed it, because it was the content and not the framing.
+const MODELS = [
+  'intact-11', 'intact-22', 'splinter-11', 'splinter-22',
+  'collapse-11', 'collapse-22', 'hinged-11', 'hinged-22',
+];
 const PLACE_SEED = 20260831;
 const GROUND_Y = -1.55;
 
@@ -212,7 +218,7 @@ function rebuildField() {
   const rnd = lcg(PLACE_SEED);
   const n = Math.round(P.count!);
   for (let i = 0; i < n; i++) {
-    const inst = sources[i % sources.length]!.clone(true);
+    const inst = sources[Math.floor(rnd() * sources.length)]!.clone(true);
     // Depth bands, never a ring. A ring puts every mass at one apparent size in
     // a single stripe: no near, no far, and so no scale at all.
     const t = (i + rnd() * 0.8) / n;
@@ -283,7 +289,7 @@ async function boot() {
     return;
   }
 
-  sources = await Promise.all(SEEDS.map((s) => load(`./models/grain-far-${s}.glb`)));
+  sources = await Promise.all(MODELS.map((m) => load(`./models/grain-${m}.glb`)));
   buildPanel(
     GROUPS,
     P,

@@ -67,7 +67,11 @@ SUN_ANGLE = float(os.environ.get("DL_ANGLE", 5.0))   # degrees. Bigger softens g
 EXPOSURE = float(os.environ.get("DL_EXPO", -1.55))
 
 WEB = bool(os.environ.get("DL_WEB"))   # build to a browser budget and export
-FAR = bool(os.environ.get("DL_FAR"))   # distance tier: no plates, coarse grid
+FAR = bool(os.environ.get("DL_FAR"))   # distance tier: coarse grid, coarse plates
+# Four OUTCOMES of one break, not one shape rotated. Eight copies of a single
+# silhouette on a plain reads as repetition however it is scaled, and no
+# camera or light slider can fix that: it is the content, not the framing.
+FORM = os.environ.get("DL_FORM", "intact")
 # Twenty near-detail masses would be four million triangles. Anything more
 # than a few hundred metres away is a silhouette in fog, so it gets the
 # base form only and none of the plate layer.
@@ -276,11 +280,20 @@ for _k in range(int(rnd(5, 9))):
     _CUTS.append((math.cos(_a), math.sin(_a), rnd(0.30, 0.62)))
 
 
+_STRIPES = [(rnd(-0.46, 0.46), rnd(0.020, 0.062)) for _ in range(int(rnd(4, 8)))]
+
+
 def _OUTLINE(x, z):
     u = (x + 1.0) / (W + 2.0) - 0.5
     v = (z - _FZ0) / (_FZ1 - _FZ0) - 0.36
     v *= 0.85
     keep = 1.0
+    if FORM == "splinter":
+        # the mass went to standing blades: keep only vertical strips of it
+        best = 0.0
+        for cu, hw in _STRIPES:
+            best = max(best, 1.0 - smoothstep(hw * 0.6, hw, abs(u - cu)))
+        keep = min(keep, best)
     for cx, cz, d in _CUTS:
         # each cut wanders a little so the edge is broken rather than sawn
         dd = d + (fbm(u * 5.0 + cx * 9.0, v * 5.0, 3, 631) - 0.5) * 0.16
@@ -510,6 +523,53 @@ def build_ground():
             faces.append((r0 + i, r0 + i + 1, r1 + i + 1, r1 + i))
 
 
+def _apply_form():
+    """Turn the one generated body into the outcome it is supposed to be.
+
+    intact    tall and narrow, barely opened
+    splinter  already striped into blades by the outline
+    collapse  laid flat: the wall went all the way over
+    hinged    the same body twice, leaning apart from a shared base
+    """
+    global verts, faces, uvs
+    if FORM == "intact":
+        sx, sy = rnd(0.62, 0.85), rnd(1.05, 1.35)
+        verts = [(x * sx, y * sx, z * sy) for (x, y, z) in verts]
+        return
+    if FORM == "splinter":
+        sx, sy = rnd(0.75, 1.0), rnd(1.15, 1.55)
+        verts = [(x * sx, y * sx, z * sy) for (x, y, z) in verts]
+        return
+    if FORM == "collapse":
+        # lay it down. A wall that went all the way over is wide and low, and
+        # that is a completely different silhouette from a standing one.
+        t = rnd(1.15, 1.42)          # radians from upright
+        ct, st = math.cos(t), math.sin(t)
+        out = []
+        for (x, y, z) in verts:
+            zz = z - _FZ0
+            out.append((x * rnd(0.98, 1.02), y + zz * st * 0.55, _FZ0 + zz * ct))
+        verts = out
+        return
+    if FORM == "hinged":
+        lean = rnd(0.16, 0.34)
+        base = list(verts)
+        n = len(base)
+        out = []
+        for sgn in (-1, 1):
+            cl, sl = math.cos(lean * sgn), math.sin(lean * sgn)
+            off = sgn * rnd(3.0, 7.0)
+            for (x, y, z) in base:
+                zz = z - _FZ0
+                out.append((x * 0.55 + off + zz * sl * 0.9,
+                            y * 0.55,
+                            _FZ0 + zz * cl))
+        verts = out
+        faces = faces + [tuple(i + n for i in f) for f in faces]
+        uvs = uvs + list(uvs)
+        return
+
+
 # ---- shading ---------------------------------------------------------------
 def slate_material(name="slate", lo=0.028, hi=0.095, wet=True):
     """Two instances: the broken face, and the darker litter at its foot. They
@@ -645,6 +705,9 @@ def build_scene():
         build_ground()
         build_backdrop()
 
+    if FAR:
+        _apply_form()
+
     me = bpy.data.meshes.new("grain_face")
     me.from_pydata(verts, [], faces)
     me.update()
@@ -758,7 +821,7 @@ def export_glb(ob):
     if not os.path.isdir(out):
         out = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "public", "models"))
     os.makedirs(out, exist_ok=True)
-    tier = "far" if FAR else "near"
+    tier = FORM if FAR else "near"
     path = os.path.join(out, f"grain-{tier}-{SEED}.glb")
     for o in bpy.data.objects:
         o.select_set(o is ob)
