@@ -80,7 +80,10 @@ NX, NZ = (90, 90) if FAR else ((260, 260) if WEB else (700, 700))
 # ---- the wall --------------------------------------------------------------
 W = 26.0
 H = 19.0
-DEPTH = 7.0
+# F3 only ever shows the front, so seven metres of depth was plenty there.
+# On the plain the same body is seen from every side, and 26 wide by 7 deep
+# is a plank however it is lit. A mass has to be chunky in plan.
+DEPTH = 21.0 if os.environ.get("DL_FAR") else 7.0
 
 SEAM_HALF = 0.075          # hairline. F4 opens this, F3 does not.
 SEAM_DEPTH = 0.52          # how far the groove cuts back
@@ -171,9 +174,43 @@ def seam_at(z):
             + 0.24 * math.sin(z * 0.63 + SEAM_PH * 0.5))
 
 
+DIP = rnd(-0.34, 0.34)          # strata tilt, used only at distance
+DIP_WOB = rnd(0.5, 1.6)
+# Killing the fold killed the leaf and also killed the BULK: the body went flat
+# and read as a standing board. Mass comes back as a single off-centre swell,
+# with a different falloff on each side, so the body is thick without having a
+# midrib for veins to run off.
+BULGE = rnd(2.4, 5.2)
+BULGE_U = rnd(0.24, 0.76)
+BULGE_V = rnd(0.20, 0.62)
+BULGE_RU = rnd(0.26, 0.52)
+BULGE_RV = rnd(0.30, 0.70)
+BULGE_PU = rnd(1.3, 2.6)
+BULGE_PV = rnd(1.2, 2.2)
+
+
+def bulge(x, z):
+    u = (x + 1.0) / (W + 2.0) - BULGE_U
+    v = (z - _FZ0) / (_FZ1 - _FZ0) - BULGE_V
+    du = abs(u) / (BULGE_RU * (1.25 if u > 0 else 0.8))
+    dv = abs(v) / (BULGE_RV * (1.1 if v > 0 else 0.85))
+    d = (du ** BULGE_PU + dv ** BULGE_PV) ** 0.75
+    return BULGE * max(0.0, 1.0 - min(1.0, d)) ** 1.4
+
+
 def fold(x, z):
-    """How far a bed is lifted at x. Long and gentle on the left, short and
-    steep on the right. Never a mirror: a mirror read as a feather."""
+    """How far a bed is lifted at x.
+
+    Up close: long and gentle on the left, short and steep on the right, rising
+    to the seam. Never a mirror, because a mirror read as a feather.
+
+    At DISTANCE that same arch is a midrib, the plate layer compresses into
+    fine parallel veins running off it, and the outline tapers to a point. The
+    result is a leaf, which is what the whole plain read as. So far masses get
+    dipping strata instead: a tilted plane, no centre, nothing to run off."""
+    if FAR:
+        return (x - W * 0.5) * DIP + DIP_WOB * math.sin(x * 0.21 + z * 0.07)
+
     sx = seam_at(z)
     amp = FOLD_BASE + (FOLD_TOP - FOLD_BASE) * min(1.0, max(0.0, z) / H)
     if x <= sx:
@@ -248,11 +285,16 @@ def surface_y(x, z):
     rough = (fbm(x * 1.6, z * 1.6, 4, 211) - 0.5) * 0.085
 
     y = ledge + fray + gone + rough
+    if FAR:
+        y -= bulge(x, z)
 
-    d = abs(x - seam_at(z))
-    y += SEAM_DEPTH * (1.0 - smoothstep(0.0, SEAM_HALF * 3.0, d))
-    if d < SEAM_HALF:
-        y += SEAM_DEPTH * 1.9
+    if not FAR:
+        # the seam is F3's whole subject; at distance it is just another line
+        # down the middle helping the leaf read
+        d = abs(x - seam_at(z))
+        y += SEAM_DEPTH * (1.0 - smoothstep(0.0, SEAM_HALF * 3.0, d))
+        if d < SEAM_HALF:
+            y += SEAM_DEPTH * 1.9
     return y
 
 
@@ -275,9 +317,14 @@ _FZ0, _FZ1 = -3.2, H
 # a plain read as shrubs. Slate breaks in PLANES, so the outline is a set of
 # straight cuts: the mass is what survives all of them.
 _CUTS = []
-for _k in range(int(rnd(5, 9))):
+for _k in range(int(rnd(3, 6))):
+    # cuts kept away from straight up and straight down, so the silhouette
+    # never converges to a tip. A tapered point is the other half of the
+    # leaf read.
     _a = rnd(0.0, math.tau)
-    _CUTS.append((math.cos(_a), math.sin(_a), rnd(0.30, 0.62)))
+    if abs(math.sin(_a)) > 0.72:
+        _a += 0.9
+    _CUTS.append((math.cos(_a), math.sin(_a), rnd(0.38, 0.70)))
 
 
 _STRIPES = [(rnd(-0.46, 0.46), rnd(0.020, 0.062)) for _ in range(int(rnd(4, 8)))]
@@ -337,7 +384,7 @@ def build_face():
                 x = -1.0 + (W + 2.0) * i / (NX - 1)
                 o = _OUTLINE(x, z)
                 yf = surface_y(x, z)
-                yb = DEPTH * 0.9 - yf * 0.35
+                yb = DEPTH * 0.75 - yf * 0.35 + bulge(x, z) * 0.9
                 mid = (yf + yb) * 0.5
                 verts.append((x, yb * o + mid * (1.0 - o), z))
                 uvs.append(bed_uv(x, z))
