@@ -13,6 +13,7 @@
  */
 import {
   AmbientLight,
+  Box3,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -39,10 +40,18 @@ import { buildPanel, type Group as PanelGroup } from './panel';
 // Four OUTCOMES of one break, two seeds each, all built by the same
 // heightfield method. Eight rotations of one silhouette read as repetition
 // and no slider fixed it, because it was the content and not the framing.
+// Photoscanned CC0 rock from Poly Haven. A day of generators produced shrubs,
+// then loose blocks, then leaves. These are photographs of stone. The scanned
+// surface detail is kept; the albedo is overridden to our near-black slate,
+// because scanned coastal rock is grey-brown and this world is not.
+//
+// EVALUATION ONLY at this size: 27MB of source meshes. If it works they get
+// decimated and re-exported to a web budget.
 const MODELS = [
-  'intact-11', 'intact-22', 'splinter-11', 'splinter-22',
-  'collapse-11', 'collapse-22', 'hinged-11', 'hinged-22',
+  'rock_face_01', 'rock_face_02', 'namaqualand_cliff_01',
+  'namaqualand_cliff_02', 'mountainside',
 ];
+const scanUrl = (id: string) => `./scans/${id}/${id}_1k.gltf`;
 const PLACE_SEED = 20260831;
 const GROUND_Y = -1.55;
 
@@ -54,8 +63,8 @@ const P: Record<string, number> = {
   camY: 15, camZ: 168, camTargetY: 11, camTargetZ: -220, fov: 34,
   fogDensity: 26, airLight: 26, exposure: 70, groundLight: 26,
   lightAz: -82, lightEl: 10, lightInt: 95, ambient: 14,
-  count: 22, nearZ: 62, depth: 470, spreadNear: 40, spreadFar: 300,
-  widthMin: 42, widthSpan: 46, heightMin: 115, heightSpan: 95,
+  count: 30, nearZ: 40, depth: 300, spreadNear: 55, spreadFar: 220,
+  widthMin: 42, widthSpan: 46, heightMin: 90, heightSpan: 130,
 };
 
 const GROUPS: PanelGroup[] = [
@@ -200,7 +209,19 @@ function paint(o: Object3D) {
   o.traverse((c) => {
     const m = c as Mesh;
     if (!m.isMesh) return;
-    m.material = slate;
+    // keep the scan's normal and roughness maps, take our own colour
+    const src = m.material as MeshStandardMaterial | MeshStandardMaterial[];
+    const one = Array.isArray(src) ? src[0] : src;
+    if (one instanceof MeshStandardMaterial) {
+      const mat = one.clone();
+      mat.color.copy(slate.color);
+      mat.roughness = 0.72;
+      mat.metalness = 0;
+      mat.map = null;
+      m.material = mat;
+    } else {
+      m.material = slate;
+    }
     m.castShadow = true;
     m.receiveShadow = true;
     const p = m.geometry.getAttribute('position');
@@ -227,11 +248,19 @@ function rebuildField() {
     let x = (rnd() - 0.5) * 2 * spread;
     if (t < 0.3 && Math.abs(x) < 30) x += x < 0 ? -34 : 34;
     inst.position.set(x, 0, z);
+    inst.updateMatrixWorld(true);
     inst.rotation.y = rnd() * Math.PI * 2;
-    // Taller than wide, or they read as plateaus from any camera above them.
-    const w = (P.widthMin! + rnd() * P.widthSpan!) / 100;
-    const h = (P.heightMin! + rnd() * P.heightSpan!) / 100;
-    inst.scale.set(w, h, w * (0.8 + rnd() * 0.5));
+    // UNIFORM scale only. Non-uniform scaling destroys scanned geometry, which
+    // is what turned these into wisps. And the scans are natively a few metres
+    // while the plain expects tens, so each one is normalised to a target
+    // height from its own bounding box first.
+    const box = new Box3().setFromObject(inst);
+    const nativeH = Math.max(box.max.y - box.min.y, 0.001);
+    const target = (P.heightMin! + rnd() * P.heightSpan!) / 100 * 14;
+    const s = target / nativeH;
+    inst.scale.setScalar(s);
+    // sit it on the ground whatever its own origin was
+    inst.position.y = -box.min.y * s + GROUND_Y;
     g.add(inst);
   }
   scene.add(g);
@@ -289,7 +318,7 @@ async function boot() {
     return;
   }
 
-  sources = await Promise.all(MODELS.map((m) => load(`./models/grain-${m}.glb`)));
+  sources = await Promise.all(MODELS.map((m) => load(scanUrl(m))));
   buildPanel(
     GROUPS,
     P,
