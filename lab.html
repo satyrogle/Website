@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Delta Kernel Lab</title>
+  <!--
+    AN INSTRUMENT, NOT A PAGE. Not part of the site, not in the
+    production build (vite builds the three inputs in vite.config.ts and
+    this is not one of them), not imported by src/main.ts.
+
+    It exists because the kernel is the load-bearing claim of the whole
+    piece and nobody can see it. tools/delta-verify.mjs says PASS or
+    FAIL; the delta act says nothing numeric; so tuning `advance` has
+    been done blind. This draws what the engine actually produced.
+
+    Reads the real src/core/Delta.ts and src/core/causality.ts. It
+    computes nothing of its own and decides nothing - if a number here
+    is wrong, the kernel is wrong.
+
+    Dark, single-theme, system fonts, no external requests: the same
+    constitution the site is built under.
+  -->
+  <style>
+    :root {
+      --ground:   #07090c;
+      --panel:    #0b0f14;
+      --rule:     #1a222c;
+      --rule-lit: #26313e;
+      --dim:      #7d8894;
+      --text:     #c6cfd9;
+      --gold:     #c9a227;
+      --gold-hot: #ffe4a3;
+      --slate:    #5b7fa6;
+      --rust:     #c2603f;
+
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      background: var(--ground);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: grid;
+      grid-template-columns: 232px minmax(0, 1fr);
+      min-height: 100vh;
+      align-items: start;
+    }
+
+    /* ---- the control rail ---- */
+
+    #rail {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      border-right: 1px solid var(--rule);
+      background: var(--panel);
+      padding: 20px 18px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .mark {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 620;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      line-height: 1.25;
+    }
+    .mark span { display: block; color: var(--gold); }
+
+    .sub {
+      color: var(--dim);
+      line-height: 1.55;
+      max-width: 30ch;
+    }
+
+    .grp { display: flex; flex-direction: column; gap: 8px; }
+
+    .eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .detents { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+
+    button.detent, button.step {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--rule-lit);
+      padding: 7px 0;
+      cursor: pointer;
+      transition: background 120ms, border-color 120ms, color 120ms;
+    }
+    button.detent:hover, button.step:hover { border-color: var(--dim); }
+    button.detent[aria-pressed="true"] {
+      border-color: var(--gold);
+      color: var(--gold-hot);
+      background: color-mix(in srgb, var(--gold) 14%, transparent);
+    }
+    button.detent:focus-visible, button.step:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 1px;
+    }
+
+    .seedrow { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; }
+    input[type="number"] {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      background: var(--ground);
+      border: 1px solid var(--rule-lit);
+      padding: 7px 8px;
+      width: 100%;
+    }
+    button.step { width: 30px; }
+
+    input[type="range"] { width: 100%; accent-color: var(--gold); }
+
+    .kv { display: flex; justify-content: space-between; gap: 10px; }
+    .kv dt { color: var(--dim); }
+    .kv dd { margin: 0; color: var(--text); }
+    .kv dd.flag { color: var(--rust); }
+    dl { margin: 0; display: flex; flex-direction: column; gap: 5px; }
+
+    /* ---- the instrument stack ---- */
+
+    #stack { padding: 20px 24px 64px; display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+
+    .panel { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+
+    .head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .head h2 {
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin: 0;
+      color: var(--text);
+    }
+    .head .note { color: var(--dim); font-size: 11px; }
+
+    .frame {
+      border: 1px solid var(--rule);
+      background: var(--panel);
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    canvas { display: block; width: 100%; height: auto; min-width: 560px; }
+
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--dim); font-size: 11px; }
+    .swatch { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch i { width: 10px; height: 10px; display: inline-block; }
+
+    .verdict {
+      border-left: 2px solid var(--rust);
+      padding: 9px 0 9px 12px;
+      color: var(--dim);
+      line-height: 1.6;
+      max-width: 78ch;
+    }
+    .verdict b { color: var(--text); font-weight: 600; }
+    .verdict.ok { border-left-color: var(--gold); }
+
+    footer {
+      color: var(--dim);
+      border-top: 1px solid var(--rule);
+      padding-top: 14px;
+      line-height: 1.7;
+      max-width: 90ch;
+    }
+    footer b { color: var(--text); font-weight: 600; }
+    .pass { color: var(--gold); }
+    .fail { color: var(--rust); }
+
+    @media (max-width: 860px) {
+      body { grid-template-columns: 1fr; }
+      #rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <aside id="rail">
+    <div class="mark">DARK LATTICE<span>delta kernel lab</span></div>
+    <p class="sub" id="blurb">Reading the shipped kernel. Nothing on this page is authored; every value is read back out of the two computed futures.</p>
+
+    <div class="grp">
+      <div class="eyebrow">Seed</div>
+      <div class="seedrow">
+        <input type="number" id="seed" value="20260818" step="1" aria-label="World seed" />
+        <button class="step" id="seed-" type="button" aria-label="Previous seed">&minus;</button>
+        <button class="step" id="seed+" type="button" aria-label="Next seed">+</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="eyebrow">Intervention</div>
+      <div class="detents" id="detents"></div>
+      <p class="sub" id="detent-note"></p>
+    </div>
+
+    <div class="grp">
+      <div class="eyebrow">Tick</div>
+      <input type="range" id="tick" min="0" max="239" value="239" aria-label="Tick" />
+      <div class="kv"><span id="tick-read"></span><span id="tick-phase"></span></div>
+    </div>
+
+    <div class="grp">
+      <div class="eyebrow">Reading</div>
+      <dl id="readout"></dl>
+    </div>
+  </aside>
+
+  <main id="stack">
+    <section class="panel">
+      <div class="head">
+        <h2>The two futures</h2>
+        <span class="note">section &times; tick, shaded by displacement. Same seed, same material, same rule. The gold row number is section 18, the blade.</span>
+      </div>
+      <div class="frame"><canvas id="c-futures"></canvas></div>
+      <div class="legend">
+        <span class="swatch"><i style="background:#5b7fa6"></i>baseline &mdash; nobody intervened</span>
+        <span class="swatch"><i style="background:#c9a227"></i>altered &mdash; one detent at the hinge</span>
+        <span>Two hues so the eye can hold them apart. They are very nearly the same picture &mdash; the difference between them is the panel below.</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="head">
+        <h2>The difference</h2>
+        <span class="note">|altered &minus; baseline|, log shaded. This is Z: the gaps here are the widths of the space.</span>
+      </div>
+      <div class="frame"><canvas id="c-delta"></canvas></div>
+      <div class="legend" id="delta-legend"></div>
+    </section>
+
+    <section class="panel">
+      <div class="head">
+        <h2>Reach</h2>
+        <span class="note">final gap per section, in log decades below the peak. The floor is 1% of the widest &mdash; under it, nothing a visitor can see.</span>
+      </div>
+      <div class="frame"><canvas id="c-reach"></canvas></div>
+      <p class="verdict" id="reach-verdict"></p>
+    </section>
+
+    <section class="panel">
+      <div class="head">
+        <h2>The yield ladder</h2>
+        <span class="note">the tick each section crossed its threshold, in both futures. A changed event, not a changed number.</span>
+      </div>
+      <div class="frame"><canvas id="c-ladder"></canvas></div>
+      <p class="verdict" id="ladder-verdict"></p>
+    </section>
+
+    <footer id="foot"></footer>
+  </main>
+
+  <script type="module" src="/tools/lab/main.ts"></script>
+</body>
+</html>
