@@ -224,17 +224,53 @@ export function readCausality(
   for (const i of visible) {
     if (finalGap[i]! > finalGap[peakSection]!) peakSection = i;
   }
+  // MEASURED OVER EVERY SECTION THAT CARRIES ANY GAP, NOT JUST THE
+  // VISIBLE ONES, AND FITTED RATHER THAN CHAINED. Two failures in the
+  // first version:
+  //
+  //   - it divided by the IMMEDIATELY PRECEDING section, which may be
+  //     one of the dead ones inside the run. A visible section after a
+  //     dead one gave a ratio far above 1, and seeds whose consequence
+  //     is patchy reported "2.98x" - a gap GROWING as it travels away
+  //     from the peak, which cannot happen past the peak by definition.
+  //   - the gap profile has holes in it (section 26 carries nothing
+  //     while 25 and 27 do), so a chained ratio hits a divide by zero
+  //     or an infinity depending on which side of the hole it lands.
+  //
+  // A least-squares fit of log10(gap) against section index over every
+  // section past the peak that carries a gap at all is immune to both:
+  // holes are simply absent samples, and the slope is the falloff per
+  // section whether or not the run is contiguous.
   const decay: number[] = [];
-  for (const i of visible) {
-    if (i <= peakSection) continue;
-    const prev = finalGap[i - 1]!;
-    if (prev > 0) decay.push(finalGap[i]! / prev);
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let i = peakSection + 1; i < SECTIONS; i++) {
+    const g = finalGap[i]!;
+    if (g <= 0) continue;
+    xs.push(i);
+    ys.push(Math.log10(g));
+    const prevNonZero = ys.length > 1 ? Math.pow(10, ys[ys.length - 2]!) : 0;
+    if (prevNonZero > 0) decay.push(g / prevNonZero);
   }
   let decayMean = 0;
-  if (decay.length > 0) {
-    let logSum = 0;
-    for (const r of decay) logSum += Math.log(Math.max(r, 1e-30));
-    decayMean = Math.exp(logSum / decay.length);
+  if (xs.length >= 2) {
+    let sx = 0;
+    let sy = 0;
+    for (let k = 0; k < xs.length; k++) {
+      sx += xs[k]!;
+      sy += ys[k]!;
+    }
+    const mx = sx / xs.length;
+    const my = sy / xs.length;
+    let num = 0;
+    let den = 0;
+    for (let k = 0; k < xs.length; k++) {
+      const dx = xs[k]! - mx;
+      num += dx * (ys[k]! - my);
+      den += dx * dx;
+    }
+    // slope is decades per section; 10^slope is the per-section factor
+    if (den > 0) decayMean = Math.pow(10, num / den);
   }
 
   // ---- the wavefront ----
