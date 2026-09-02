@@ -193,6 +193,17 @@ for (const d of [-1, 1]) {
 
   const firstDerived = c.dominantDerived[D.TICKS - 1];
   note('honest causal path ends at section', `${firstDerived}`);
+
+  // THE ROOT CAUSE UNDER ALL OF THE ABOVE.
+  note('the two futures are furthest apart at tick', `${c.peakTick} of ${D.TICKS}`);
+  note(
+    "the blade's own gap fades by",
+    `${c.causeWashout.toFixed(0)}x from that peak to the end`
+  );
+  note(
+    'measured relaxation of the cause per tick',
+    `${c.relaxationPerTick.toFixed(4)}   <- the rule's own 1 - 0.08`
+  );
   console.log('');
 }
 

@@ -125,6 +125,28 @@ export interface Causality {
    */
   dominantDerived: number[];
 
+  /** the tick at which the two futures are furthest apart anywhere */
+  peakTick: number;
+  /**
+   * THE INTERVENTION RELAXES AWAY. Once a section has yielded the rule
+   * is `offset += (target - offset) * 0.08`, which is a relaxation
+   * toward a target set by load and stiffness - and a relaxation
+   * forgets its initial condition, at 0.92 per tick. Measured over the
+   * tail of the run the blade's own gap decays at exactly that rate.
+   *
+   * This is why the two detents converge on the same room, why flips
+   * are rare, and why the tail of the field is float dust: the cause
+   * has to produce a threshold crossing BEFORE it fades, or it leaves
+   * no trace at all.
+   *
+   * It also has a good consequence, and it is the reason reading Z
+   * from the final frame is right rather than wrong: by the end the
+   * blade's own displacement has washed out, so what still stands
+   * apart is what the WORLD did, not what the visitor did.
+   */
+  causeWashout: number;
+  /** measured decay of the blade's gap per tick over the tail */
+  relaxationPerTick: number;
   /** the cause: the blade's own offset change at the hinge, read back */
   cause: number;
   /** the largest derived gap anywhere, ever, blade excluded */
@@ -364,8 +386,28 @@ export function readCausality(
     }
   }
 
+  // where the two futures are furthest apart, and how far the cause
+  // itself has faded by the end
+  let peakTick = 0;
+  for (let t = 0; t < TICKS; t++) {
+    if (delta.frames[t]!.peak > delta.frames[peakTick]!.peak) peakTick = t;
+  }
+  const bladePeak = delta.frames[peakTick]!.gap[BLADE]!;
+  const bladeEnd = delta.frames[TICKS - 1]!.gap[BLADE]!;
+  const causeWashout = bladeEnd > 0 ? bladePeak / bladeEnd : 0;
+  // fitted over the last quarter of the run, where the relaxation is
+  // the only thing still acting on the blade
+  const from = Math.floor(TICKS * 0.75);
+  const a = delta.frames[from]!.gap[BLADE]!;
+  const b = bladeEnd;
+  const relaxationPerTick =
+    a > 0 && b > 0 && TICKS - 1 > from ? Math.pow(b / a, 1 / (TICKS - 1 - from)) : 0;
+
   return {
     detent: delta.detent,
+    peakTick,
+    causeWashout,
+    relaxationPerTick,
     yieldBase,
     yieldAltered,
     events,

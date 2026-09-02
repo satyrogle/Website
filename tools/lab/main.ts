@@ -411,7 +411,9 @@ function drawReadout(): void {
     ['falloff', caus.decayMean > 0 ? `${caus.decayMean.toFixed(3)}×` : '—', caus.decayMean > 0 && caus.decayMean < 0.6],
     ['amplification', caus.amplification > 0 ? `${caus.amplification.toFixed(2)}×` : '—', caus.amplification <= 1],
     ['in order', caus.visible.length ? (caus.frontMonotone ? 'yes' : 'no') : '—', !caus.frontMonotone && caus.visible.length > 0],
-    ['retreated', `${caus.retreated.length}`, caus.retreated.length > 0]
+    ['retreated', `${caus.retreated.length}`, caus.retreated.length > 0],
+    ['widest at tick', caus.visible.length ? `${caus.peakTick}` : '—', false],
+    ['cause fades', caus.causeWashout > 0 ? `${caus.causeWashout.toFixed(0)}×` : '—', caus.causeWashout > 50]
   ];
   $('readout').innerHTML = rows
     .map(
