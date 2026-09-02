@@ -88,8 +88,27 @@ const CAP = { flips: 3, span: 24, variety: 2 };
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+/**
+ * Baseline and the two real interventions, without the neutral one.
+ * computeFamilies also computes detent 0, which is the baseline by
+ * construction - delta-verify asserts exactly that - so at a million
+ * seeds it is a quarter of the work thrown away. Same public API, same
+ * numbers; nothing about the kernel is bypassed.
+ */
+function families(D, seed) {
+  const baseline = D.computeSequence(seed, null);
+  const altered = new Map();
+  const delta = new Map();
+  for (const d of [-1, 1]) {
+    const seq = D.computeSequence(seed, d);
+    altered.set(d, seq);
+    delta.set(d, D.computeDelta(baseline, seq));
+  }
+  return { baseline, altered, delta };
+}
+
 function measure(D, C, seed) {
-  const fam = D.computeFamilies(seed);
+  const fam = families(D, seed);
   const per = {};
   for (const d of [-1, 1]) {
     const c = C.readCausality(fam.baseline, fam.altered.get(d), fam.delta.get(d));
@@ -157,12 +176,57 @@ function measure(D, C, seed) {
 
 // ------------------------------------------------------------- worker
 
+/** How many rows each lane keeps. Merged, this is the pool main ranks. */
+const KEEP = 400;
+
 if (!isMainThread) {
-  const { dir, from, to } = workerData;
+  const { dir, from, to, keep, siteScore } = workerData;
   const { D, C } = await loadKernel(dir);
-  const out = [];
-  for (let s = from; s < to; s++) out.push(measure(D, C, s));
-  parentPort.postMessage(out);
+
+  // A MILLION ROWS DO NOT COME BACK ACROSS THE THREAD BOUNDARY. Each
+  // lane keeps its own best and reports counters for everything else;
+  // returning every row serialised hundreds of megabytes to say almost
+  // nothing. The top-K is kept as an unsorted array and only trimmed
+  // when it grows, which is cheaper than a heap at this K.
+  let best = [];
+  let worstKept = -Infinity;
+  const tally = { total: 0, eligible: 0, aboveSite: 0, flips: {}, maxSpan: 0, maxFlips: 0 };
+  // per-dimension leaders are tracked over every eligible row, not over
+  // the kept pool: the pool is ranked by the composite, so reading
+  // "best span" out of it would only ever find the best span AMONG
+  // seeds that already scored well overall.
+  const leaders = {};
+  const lead = (k, r) => {
+    if (!leaders[k] || r[k] > leaders[k][k]) leaders[k] = r;
+  };
+
+  for (let s = from; s < to; s++) {
+    const r = measure(D, C, s);
+    tally.total++;
+    if (r.flips > tally.maxFlips) tally.maxFlips = r.flips;
+    if (!r.eligible) continue;
+    tally.eligible++;
+    if (r.score > siteScore) tally.aboveSite++;
+    if (r.span > tally.maxSpan) tally.maxSpan = r.span;
+    const key = r.flips >= 4 ? '4+' : String(r.flips);
+    tally.flips[key] = (tally.flips[key] ?? 0) + 1;
+    for (const k of ['flips', 'span', 'travel', 'variety', 'contrast']) lead(k, r);
+
+    if (best.length < keep || r.score > worstKept) {
+      best.push(r);
+      if (best.length > keep * 2) {
+        best.sort((a, b) => b.score - a.score);
+        best.length = keep;
+        worstKept = best[best.length - 1].score;
+      }
+    }
+
+    if (tally.total % 25000 === 0) {
+      parentPort.postMessage({ progress: tally.total, from });
+    }
+  }
+  best.sort((a, b) => b.score - a.score);
+  parentPort.postMessage({ best: best.slice(0, keep), tally, leaders });
 }
 
 // ------------------------------------------------------------- main
@@ -222,24 +286,55 @@ if (isMainThread && process.argv[2] === '--verify') {
   );
   const t0 = Date.now();
 
+  // the site's own score is needed before the lanes start, so each can
+  // count how many of its worlds beat it without shipping rows back
+  const { D: mainD, C: mainC } = await loadKernel(dir);
+  const site = measure(mainD, mainC, SITE_SEED);
+
+  let done = 0;
   const chunks = await Promise.all(
     Array.from({ length: lanes }, (_, k) => {
       const from = start + k * per;
       const to = Math.min(start + count, from + per);
       return new Promise((res, rej) => {
-        if (from >= to) return res([]);
-        const w = new Worker(fileURLToPath(import.meta.url), { workerData: { dir, from, to } });
-        w.on('message', res);
+        if (from >= to) return res({ best: [], tally: null, leaders: {} });
+        const w = new Worker(fileURLToPath(import.meta.url), {
+          workerData: { dir, from, to, keep: KEEP, siteScore: site.score }
+        });
+        w.on('message', (m) => {
+          if (m.progress !== undefined) {
+            done += 25000;
+            process.stdout.write(`\r  ${done.toLocaleString()} seeds swept ...`);
+            return;
+          }
+          res(m);
+        });
         w.on('error', rej);
       });
     })
   );
-  const rows = chunks.flat();
   const ms = Date.now() - t0;
+  process.stdout.write('\r');
 
-  const site = rows.find((r) => r.seed === SITE_SEED) ?? measure(...Object.values(await loadKernel(dir)), SITE_SEED);
-  const eligible = rows.filter((r) => r.eligible);
-  const ranked = [...eligible].sort((a, b) => b.score - a.score);
+  const ranked = chunks
+    .flatMap((c) => c.best)
+    .sort((a, b) => b.score - a.score);
+
+  const tally = { total: 0, eligible: 0, aboveSite: 0, flips: {}, maxSpan: 0, maxFlips: 0 };
+  const leaders = {};
+  for (const c of chunks) {
+    if (!c.tally) continue;
+    tally.total += c.tally.total;
+    tally.eligible += c.tally.eligible;
+    tally.aboveSite += c.tally.aboveSite;
+    tally.maxSpan = Math.max(tally.maxSpan, c.tally.maxSpan);
+    tally.maxFlips = Math.max(tally.maxFlips, c.tally.maxFlips);
+    for (const [k, v] of Object.entries(c.tally.flips)) tally.flips[k] = (tally.flips[k] ?? 0) + v;
+    for (const [k, r] of Object.entries(c.leaders ?? {})) {
+      if (!leaders[k] || r[k] > leaders[k][k]) leaders[k] = r;
+    }
+  }
+  const eligible = ranked;
 
   const line = (r, mark = ' ') =>
     `  ${mark} ${String(r.seed).padEnd(9)} ${r.score.toFixed(3)}   ` +
@@ -248,22 +343,25 @@ if (isMainThread && process.argv[2] === '--verify') {
     `contrast ${r.contrast.toFixed(2)}`;
 
   console.log(
-    `eligible (passes the seed-dependent shipped gates): ${eligible.length.toLocaleString()} of ${rows.length.toLocaleString()}\n`
+    `eligible (passes the seed-dependent shipped gates): ` +
+      `${tally.eligible.toLocaleString()} of ${tally.total.toLocaleString()}\n`
   );
   console.log('             score   flips  span  travel  variety  contrast');
   for (const r of ranked.slice(0, 15)) console.log(line(r));
 
   console.log('\nTHE SITE\'S SEED');
   console.log(line(site, '>'));
-  const above = ranked.filter((r) => r.score > site.score).length;
   console.log(
-    `\n  ${above.toLocaleString()} eligible seeds score above it` +
+    `\n  ${tally.aboveSite.toLocaleString()} eligible seeds score above it` +
       `${site.eligible ? '' : '   (the site seed itself is INELIGIBLE on these gates)'}.`
   );
+  console.log(`  most flips found anywhere: ${tally.maxFlips} · widest span: ${tally.maxSpan}`);
+  const fl = Object.keys(tally.flips).sort();
+  console.log(`  eligible seeds by flip count: ${fl.map((k) => `${k}=${tally.flips[k].toLocaleString()}`).join('  ')}`);
 
   // leaderboards per dimension, because the weighting is arguable
   const top = (key, label) => {
-    const b = [...eligible].sort((a, c) => c[key] - a[key])[0];
+    const b = leaders[key];
     if (b) console.log(`  best ${label.padEnd(9)} seed ${b.seed}  (${key} ${b[key].toFixed(2)}, score ${b.score.toFixed(3)})`);
   };
   console.log('\nBEST ON EACH DIMENSION ALONE');
