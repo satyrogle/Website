@@ -8,8 +8,17 @@ export class ExperienceState {
   }
 }
 
-/** One fixed default seed so every visitor sees the same world. */
-export const DEFAULT_SEED = 20260818;
+/**
+ * One fixed default seed so every visitor sees the same world.
+ *
+ * Chosen 2026-09-02 from a million-world sweep under the damage rule
+ * (docs/SEED_SEARCH.md). The previous seed, 20260818, is INELIGIBLE once
+ * a yield leaves a permanent set: its consequence covers six sections
+ * and delta-verify fails it. This world's amplifier fires twice - two
+ * sections yield in one future and never in the other - and the
+ * consequence reaches 23 sections.
+ */
+export const DEFAULT_SEED = 20569487;
 
 export function seedFromLocation(): number {
   const raw = new URLSearchParams(window.location.search).get('seed');

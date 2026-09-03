@@ -49,7 +49,7 @@ const gate = (name, ok, detail) => {
 };
 const note = (label, value) => console.log(`      ${label.padEnd(42)} ${value}`);
 
-const SEED = 20260818;
+const SEED = 20569487;
 const fam = D.computeFamilies(SEED);
 const caus = C.readAll(fam);
 const sign = (d) => (d > 0 ? '+1' : d < 0 ? '-1' : ' 0');

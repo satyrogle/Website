@@ -52,6 +52,21 @@ export const DETENTS: readonly Detent[] = [-1, 0, 1];
 /** How far one detent moves the blade, in section-local units. */
 const DETENT_STEP = 0.06;
 
+/**
+ * How much of its permanent set a section rests around, once it has
+ * one. Zero is the old elastic rule, where the section forgets. One
+ * would mean it never returns at all and stops taking part.
+ */
+const SET_HOLD = 0.35;
+
+/**
+ * Stiffness lost per unit of permanent set. A section that has been
+ * driven a long way answers later load with a longer displacement,
+ * which is what makes the stack amplify instead of damp. Bounded: the
+ * settle converges while SET_HOLD + DAMAGE_GAIN * target < 1.
+ */
+const DAMAGE_GAIN = 1.5;
+
 /** The section the visitor is allowed to touch, at Tick Zero. */
 export const BLADE = 18;
 
@@ -65,6 +80,17 @@ export interface SectionState {
   strain: number;
   /** true once this section has crossed its threshold and moved */
   yielded: boolean;
+  /**
+   * THE PERMANENT SET. The deepest displacement this section has ever
+   * reached, with the direction it was driven in. It never heals.
+   *
+   * This is where the world's memory lives. The offset is free to move
+   * every tick; what cannot be undone is that the section has been
+   * here. A section carrying a set rests around it rather than around
+   * zero, and has lost stiffness in proportion, so it answers every
+   * later load differently from one that was never touched.
+   */
+  plastic: number;
 }
 
 /** Every section at one tick. */
@@ -136,7 +162,7 @@ function material(seed: number): Material {
 function seedFrame(m: Material): Frame {
   const f: Frame = [];
   for (let i = 0; i < SECTIONS; i++) {
-    f.push({ offset: 0, load: 0, strain: 0, yielded: false });
+    f.push({ offset: 0, load: 0, strain: 0, yielded: false, plastic: 0 });
   }
   void m;
   return f;
@@ -146,7 +172,8 @@ function cloneFrame(f: Frame): Frame {
   const out: Frame = new Array(f.length);
   for (let i = 0; i < f.length; i++) {
     const s = f[i]!;
-    out[i] = { offset: s.offset, load: s.load, strain: s.strain, yielded: s.yielded };
+    out[i] = { offset: s.offset, load: s.load, strain: s.strain, yielded: s.yielded,
+               plastic: s.plastic };
   }
   return out;
 }
@@ -191,9 +218,35 @@ function advance(prev: Frame, m: Material): Frame {
       s.yielded = true;
     }
     if (s.yielded) {
-      // it settles toward a displacement its stiffness decides
+      // IT SETTLES, AND IT REMEMBERS.
+      //
+      // The settle term on its own is a relaxation, and a relaxation
+      // forgets its initial condition: at 0.08 per tick the visitor's
+      // push was down by 0.92^180 = 3e-7 by the end of the run, so a
+      // cause left no trace at all unless it crossed a threshold before
+      // it faded. docs/SEED_SEARCH.md measured that over a million
+      // worlds - one eligible world in a thousand had two threshold
+      // flips - and no amount of searching fixes it, because it is the
+      // rule and not the seed.
+      //
+      // Freezing the section at its deepest point fixes the forgetting
+      // and costs too much: a section that cannot move stops taking
+      // part in the stack, and the -1 side went from amplifying to
+      // damping. So the damage is in the MATERIAL rather than the
+      // position. The section keeps moving; what it cannot do is go
+      // back to being undamaged.
+      //
+      // Two permanent consequences of having been driven:
+      //   it rests around its set instead of around zero, and
+      //   it has lost stiffness, so it answers later load with more.
+      // The second is the amplifier the kernel always claimed to have.
       const target = (s.load / m.stiffness[i]!) * 0.22;
-      s.offset += (target - s.offset) * 0.08;
+      const soften = 1 + DAMAGE_GAIN * Math.abs(s.plastic);
+      const rest = s.plastic * SET_HOLD;
+      s.offset += (rest + target * soften - s.offset) * 0.08;
+
+      // the record itself, and the only line here that cannot be undone
+      if (Math.abs(s.offset) > Math.abs(s.plastic)) s.plastic = s.offset;
     }
   }
   return next;

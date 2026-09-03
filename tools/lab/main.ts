@@ -27,7 +27,7 @@ import { readCausality, VISIBLE_FRACTION } from '../../src/core/causality';
 import type { Causality } from '../../src/core/causality';
 
 /** delta-verify.mjs prints this for the site's seed. The page re-derives it. */
-const SITE_SEED = 20260818;
+const SITE_SEED = 20569487;
 const SITE_BASELINE_CHECKSUM = 957537948;
 
 const GROUND: RGB = [7, 9, 12];
@@ -509,6 +509,9 @@ function buildDetents(): void {
 
 function bind(): void {
   const seedInput = $<HTMLInputElement>('seed');
+  // the markup must never carry a seed of its own: an instrument that
+  // names one world while drawing another is worse than no instrument
+  seedInput.value = String(seed);
   const apply = () => {
     const v = Math.trunc(Number(seedInput.value));
     if (!Number.isFinite(v)) return;

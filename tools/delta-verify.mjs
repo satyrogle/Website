@@ -48,7 +48,7 @@ const check = (name, ok, detail) => {
   if (!ok) failures++;
 };
 
-const SEED = 20260818;
+const SEED = 20569487;
 
 // ---- THE SAME CAUSE MAKES THE SAME FUTURE ----
 

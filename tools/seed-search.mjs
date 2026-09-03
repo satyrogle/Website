@@ -57,7 +57,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const SITE_SEED = 20260818;
+const SITE_SEED = 20569487;
 
 /** Copy the kernel where Node can import it with explicit extensions. */
 function stageKernel() {

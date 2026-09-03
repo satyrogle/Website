@@ -34,7 +34,7 @@ import {
  * make an inhabitable volume, branching topology gets reconsidered.
  */
 
-const SEED = 20260818;
+const SEED = 20569487;
 const fam = computeFamilies(SEED);
 const delta = fam.delta.get(1)!;
 const finalGaps = delta.frames[TICKS - 1]!.gap;

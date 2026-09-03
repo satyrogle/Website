@@ -38,7 +38,7 @@ HALF_PROFILE = [
 
 OUT = r"C:/Users/jacob/dark-lattice-journey/public/models/delta-monolith.glb"
 RINGS = 26
-SEED = 20260818
+SEED = 20569487
 
 random.seed(SEED)
 
