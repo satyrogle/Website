@@ -1,0 +1,36 @@
+/* ============================================================
+   STATION MARGINALIA — the journey's three glyphs.
+
+   Bans on visual identity lifted by Jacob, 2026-09-03. These are the
+   board's diagrams drawn beside the stations they already describe:
+
+     X  the future cone   - the light-cone from the physics page.
+                            One worldline; the future opens after the
+                            hinge, and only there.
+     Y  the eye           - the watcher. The pupil sits at the detent.
+     Z  the observer      - the circle-and-square, with the visitor
+                            drawn inside the geometry, plates around.
+
+   Small, left channel, above the kicker: they add nothing to the
+   station's height, so the beat grid is untouched.
+   ============================================================ */
+
+.glyph {
+  grid-column: 1 / 4;
+  width: 88px;
+  height: 88px;
+  display: block;
+  margin-bottom: 1.4rem;
+  overflow: visible;
+  filter: drop-shadow(0 1px 14px rgba(2, 3, 4, 0.7));
+}
+.glyph .g-line { fill: none; stroke: rgba(233, 238, 242, 0.55); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.glyph .g-faint { fill: none; stroke: rgba(233, 238, 242, 0.22); stroke-width: 1; }
+.glyph .g-gold { fill: none; stroke: #c9a227; stroke-width: 1.5; stroke-linecap: round; }
+.glyph .g-gold-fill { fill: #c9a227; }
+.glyph .g-fill { fill: rgba(201, 162, 39, 0.14); }
+.glyph .g-dot { fill: rgba(233, 238, 242, 0.75); }
+
+@media (max-width: 860px) {
+  .glyph { grid-column: 1; width: 64px; height: 64px; }
+}
