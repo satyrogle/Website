@@ -1,0 +1,160 @@
+/* ============================================================
+   THE RECORD — plate and room.
+
+   Visual identity bans lifted by Jacob, 2026-09-03 (docs/IDENTITY.md).
+   The board is the identity: the illuminated diagram, the energy body,
+   the exploded mechanism, the observer drawn inside the geometry.
+
+   Gold leaf on graphite, and seven manuscript pigments along the spine
+   - crown to root - that only light where the kernel says the
+   intervention actually reached.
+   ============================================================ */
+
+:root {
+  --leaf: #c9a227;
+  --leaf-dim: #8a6a34;
+  --leaf-16: rgba(201, 162, 39, 0.16);
+  --leaf-08: rgba(201, 162, 39, 0.08);
+  --carbon-3: #0e1319;
+}
+
+/* ---------- record page structure ---------- */
+
+.stop--record {
+  min-height: auto;
+  align-content: start;
+  padding-top: 20vh;
+  padding-bottom: 4vh;
+}
+.stop--record + .stop--record { padding-top: 6vh; }
+
+.record-cap {
+  grid-column: 1 / 7;
+  font-size: 1.05rem;
+  font-weight: 420;
+  line-height: 1.6;
+  color: var(--bone-75);
+  max-width: var(--measure);
+}
+.record-cap + .record-cap { margin-top: 1rem; }
+
+/* ---------- the plate ---------- */
+
+.plate-wrap {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 3rem auto 0;
+  pointer-events: auto;
+}
+
+.plate {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.plate text {
+  fill: var(--bone-55);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.plate .t-dim   { fill: var(--bone-38); }
+.plate .t-bone  { fill: var(--bone); }
+.plate .t-gold  { fill: var(--leaf); }
+.plate .t-tiny  { font-size: 9.5px; }
+.plate .t-title {
+  font-family: var(--sans);
+  font-stretch: 76%;
+  font-weight: 640;
+  font-size: 24px;
+  letter-spacing: 0.24em;
+  fill: var(--peak);
+}
+.plate .t-fig {
+  font-family: var(--sans);
+  font-stretch: 80%;
+  font-weight: 560;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  fill: var(--bone-75);
+}
+.plate .t-eq {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 13px;
+  fill: var(--bone-75);
+}
+
+.plate .frame   { fill: none; stroke: var(--bone-16); stroke-width: 1; }
+.plate .frame-2 { fill: none; stroke: var(--bone-08); stroke-width: 1; }
+.plate .constr  { fill: none; stroke: var(--bone-08); stroke-width: 1; }
+.plate .figure  { fill: none; stroke: var(--bone-16); stroke-width: 1.25; stroke-linecap: round; }
+.plate .pyramid { fill: none; stroke: var(--leaf-dim); stroke-width: 1; }
+.plate .eye     { fill: none; stroke: var(--bone-55); stroke-width: 1.25; }
+.plate .pupil   { fill: var(--leaf); }
+.plate .iris    { fill: none; stroke: var(--bone-38); stroke-width: 1; }
+.plate .vert    { stroke: var(--bone-16); stroke-width: 1; }
+.plate .vert-locked { fill: none; stroke: var(--bone-38); stroke-width: 1; stroke-dasharray: 2 3; }
+.plate .vert-blade  { stroke: var(--leaf); stroke-width: 2; }
+.plate .current-base { fill: rgba(233, 238, 242, 0.09); stroke: var(--bone-38); stroke-width: 1; }
+.plate .current-alt  { fill: var(--leaf-16); stroke: var(--leaf); stroke-width: 1.25; }
+.plate .rung    { stroke: var(--leaf); stroke-width: 1; }
+.plate .leader  { fill: none; stroke: var(--bone-38); stroke-width: 1; stroke-dasharray: 1 4; stroke-linecap: round; }
+.plate .leader-dot { fill: var(--bone-55); }
+.plate .axis    { stroke: var(--bone-16); stroke-width: 1; }
+.plate .hinge   { stroke: var(--bone-38); stroke-width: 1; stroke-dasharray: 2 3; }
+.plate .cone    { fill: var(--leaf-16); stroke: var(--leaf); stroke-width: 1; }
+.plate .cone-base { fill: none; stroke: var(--bone-38); stroke-width: 1; }
+.plate .slab    { stroke: var(--bone-16); stroke-width: 1; }
+.plate .tick-base { fill: var(--bone-38); }
+.plate .tick-alt  { fill: var(--leaf); }
+.plate .shift   { stroke: var(--leaf); stroke-width: 1; }
+.plate .rule    { stroke: var(--bone-16); stroke-width: 1; }
+
+/* ---------- the room ---------- */
+
+.room {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3rem 4rem;
+  margin-top: 2.5rem;
+  max-width: 1120px;
+  pointer-events: auto;
+}
+
+.room .label { margin-bottom: 1.1rem; }
+
+.ledger {
+  list-style: none;
+  counter-reset: shelf;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  line-height: 1.55;
+  color: var(--bone-75);
+  border-top: 1px solid var(--bone-16);
+}
+.ledger li {
+  counter-increment: shelf;
+  display: grid;
+  grid-template-columns: 2.6rem 1fr;
+  gap: 0 0.5rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--bone-08);
+}
+.ledger li::before {
+  content: counter(shelf, decimal-leading-zero);
+  color: var(--leaf-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ledger em { font-style: normal; color: var(--bone-38); display: block; font-size: 0.76rem; }
+
+@media (max-width: 860px) {
+  .record-cap { grid-column: 1; }
+  .room { grid-template-columns: 1fr; gap: 2rem; }
+  .plate text { font-size: 13px; }
+}

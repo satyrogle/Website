@@ -17,6 +17,7 @@
     if (location.search.indexOf('bare') !== -1) document.documentElement.classList.add('bare');
   </script>
   <link rel="stylesheet" href="/src/styles.css" />
+  <link rel="stylesheet" href="/src/plate/glyphs.css" />
 </head>
 <body data-phase="enter">
 
@@ -55,12 +56,29 @@
     <section class="stop stop--axis" aria-hidden="true"></section>
 
     <section class="stop stop--xmark" id="xmark" aria-labelledby="x-title">
+      <svg class="glyph" viewBox="0 0 76 76" aria-hidden="true">
+        <line x1="38" y1="70" x2="38" y2="40" class="g-line"/>
+        <path d="M 38 40 L 8 8 L 68 8 Z" class="g-fill"/>
+        <path d="M 38 40 L 8 8 M 38 40 L 68 8" class="g-gold"/>
+        <path d="M 12 12 Q 38 22 64 12" class="g-faint"/>
+        <path d="M 20 20 Q 38 28 56 20" class="g-faint"/>
+        <circle cx="38" cy="40" r="2.6" class="g-dot"/>
+      </svg>
       <p class="station-kicker">X &middot; The future without you</p>
       <h2 class="display station-big" id="x-title">The same cause<br />makes the same future.</h2>
       <p class="engine-line" id="engine-line" aria-live="off"></p>
     </section>
 
     <section class="stop stop--ymark" id="ymark" aria-labelledby="y-title">
+      <svg class="glyph" viewBox="0 0 76 76" aria-hidden="true">
+        <path d="M 38 6 L 6 68 L 70 68 Z" class="g-gold"/>
+        <path d="M 18 44 Q 38 26 58 44 Q 38 62 18 44 Z" class="g-line"/>
+        <circle cx="38" cy="44" r="7" class="g-faint"/>
+        <circle cx="38" cy="44" r="3.4" class="g-gold-fill"/>
+        <line x1="26" y1="44" x2="26" y2="44" class="g-line"/>
+        <circle cx="26" cy="44" r="1.2" class="g-dot"/>
+        <circle cx="50" cy="44" r="1.2" class="g-dot"/>
+      </svg>
       <p class="station-kicker">Y &middot; One condition changes</p>
       <h2 class="display station-big" id="y-title">The intervention is chosen.<br />The consequences are not.</h2>
     </section>
@@ -68,6 +86,13 @@
     <section class="stop stop--gap" aria-hidden="true"></section>
 
     <section class="stop stop--zmark" id="zmark" aria-labelledby="z-title">
+      <svg class="glyph" viewBox="0 0 76 76" aria-hidden="true">
+        <circle cx="38" cy="38" r="34" class="g-faint"/>
+        <rect x="8" y="8" width="60" height="60" class="g-faint"/>
+        <path d="M 14 24 L 30 20 M 46 16 L 64 22 M 12 46 L 26 50 M 50 54 L 66 48 M 30 66 L 46 64" class="g-line"/>
+        <path d="M 38 38 L 30 20 M 38 38 L 46 16 M 38 38 L 26 50 M 38 38 L 50 54" class="g-gold" opacity="0.5"/>
+        <circle cx="38" cy="38" r="2.8" class="g-gold-fill"/>
+      </svg>
       <p class="station-kicker">Z &middot; Stand inside the difference</p>
       <h2 class="display station-big" id="z-title">The difference<br />has become a place.</h2>
     </section>
@@ -82,6 +107,7 @@
       <p class="station-cap">
         Below the difference, the record. Still being made.
       </p>
+      <p class="station-cap"><a class="floor-contact" href="/record.html">Plate I &middot; the body of the record</a></p>
       <p class="station-cap"><a class="floor-contact" href="mailto:contact@darklattice.co.uk">contact@darklattice.co.uk</a></p>
     </section>
 
@@ -96,6 +122,7 @@
       </p>
     </div>
     <nav class="foot-links" aria-label="Footer">
+      <a href="/record.html">Record</a>
       <a href="/privacy.html">Privacy</a>
       <a href="/terms.html">Terms</a>
       <a href="mailto:contact@darklattice.co.uk">Contact</a>
