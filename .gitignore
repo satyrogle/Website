@@ -4,3 +4,6 @@ dist/
 *.log
 captures/
 public/review/
+
+# local review page, regenerated on demand
+public/passes/

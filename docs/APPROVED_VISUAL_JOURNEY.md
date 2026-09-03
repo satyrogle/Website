@@ -1,13 +1,35 @@
 # APPROVED VISUAL JOURNEY
 
 ```text
-STATUS: DEAD. KILLED BY JACOB 2026-09-01, "bro this is dead".
-        SOURCE PATHS ARE CLOSED AGAIN.
-JOURNEY: THE GRAIN
-BOARD: docs/THE_GRAIN.md
-IMAGES: docs/frames/f1-the-plain.png .. f6-the-return.png
-DATE: 2026-08-31
+STATUS: F1 APPROVED 2026-09-03.
+JOURNEY: THE FIELD
+BOARD:   docs/THE_FIELD.md
+IMAGE:   docs/frames/f1-the-field-painted.png
 ```
+
+## F1, approved 2026-09-03
+
+Jacob's verdict, verbatim, on being shown the painted restyle he had not been
+shown before:
+
+```text
+"???????????????????????? you never showed me this"
+```
+
+The picture is a thick oil painting laid in with a palette knife. Gold grain
+against deep blue shadow, a sky of indigo, violet and crimson strokes with
+orange embers through it, and a hard vertical shaft of gold light falling into
+a near-black wedge. The composition underneath it is Jacob's own layout from
+docs/frames/f1-the-room-candidate.jpg, unchanged.
+
+It was generated as candidate C of four (docs/frames/hades/) and I recorded it
+as dead on my own judgement, describing the sky as concept-art mush, and put it
+in a file he could not open. He saw it and chose it. **The frames go in front of
+him. I do not get to reject one.**
+
+`src/field/` is open for THE FIELD, painted, and for nothing else.
+
+## Superseded record: THE GRAIN
 
 ## What was approved
 

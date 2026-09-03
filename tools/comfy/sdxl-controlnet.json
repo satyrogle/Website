@@ -1,0 +1,162 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "RealVisXL_V5.0_fp16.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "colossal graphite and carbon masses in black space, restrained bone-white light appearing only where one mass bears down on another, a series of small discrete contact points diminishing into the distance, hard void between the load paths, matte carbon surfaces with fine internal grain, volumetric haze revealing depth between the masses, monochrome, no colour cast, graphite and bone white only, strong raking light from one distant source outside the frame, bright specular highlights along the lit edges, luminous haze catching the beam, correctly exposed, rich deep shadows that still hold detail, extreme dynamic range, large format photography, long exposure, ultra fine grain, immense scale, kilometres deep, cropped by the frame edge on every side, no horizon, no visible outer edge, no complete silhouette",
+      "clip": [
+        "1",
+        1
+      ]
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "text, letters, watermark, logo, signature, people, person, figure, creature, face, animal, vehicle, machinery, pipes, conveyor, crane, tank, equipment, orb, sphere, planet, eclipse, portal, ring, halo, dome, arch, tunnel, cathedral, temple, church, altar, candle, chandelier, lantern, string lights, starfield, stars, constellation, nebula, galaxy, cemetery, gravestone, tomb, mountain, mountains, landscape, valley, cliff, snow, ice, sky, clouds, water, bridge, building, architecture render, room, floor, ceiling, wall, window, wireframe, grid lines, graph, chart, diagram, data visualisation, LED screen, glassmorphism, neon, cyberpunk, purple, teal, cyan, orange, red, rainbow, lens flare, bokeh, vignette, cartoon, illustration, painting, concept art, low contrast, washed out, flat lighting, blurry, oversaturated, muddy, uniform grey, grey mush, empty frame, blank, featureless",
+      "clip": [
+        "1",
+        1
+      ]
+    }
+  },
+  "5": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 20260818,
+      "steps": 32,
+      "cfg": 5.0,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 0.68,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "13",
+        0
+      ],
+      "negative": [
+        "13",
+        1
+      ],
+      "latent_image": [
+        "22",
+        0
+      ]
+    }
+  },
+  "6": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
+  },
+  "7": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "6",
+        0
+      ],
+      "filename_prefix": "DL_hybrid"
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dl-h1a-depth.png"
+    },
+    "is_changed": [
+      "65ec017e3fd0691b9824c7befd5101272ff2ac14e362b269ea15886cbf0a0ab9"
+    ]
+  },
+  "11": {
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "controlnet-union-sdxl-promax.safetensors"
+    }
+  },
+  "12": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": [
+        "11",
+        0
+      ],
+      "type": "depth"
+    }
+  },
+  "13": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": [
+        "2",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "control_net": [
+        "12",
+        0
+      ],
+      "image": [
+        "10",
+        0
+      ],
+      "strength": 0.75,
+      "start_percent": 0.0,
+      "end_percent": 0.8
+    }
+  },
+  "20": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dl-scalebase.png"
+    },
+    "is_changed": [
+      "35fb6f8c15ca03cc58961364d07886ce5deaf0d177a5561dd33a2d4523acf413"
+    ]
+  },
+  "21": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "20",
+        0
+      ],
+      "width": 1280,
+      "height": 800,
+      "upscale_method": "lanczos",
+      "crop": "center"
+    }
+  },
+  "22": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "21",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
+  }
+}

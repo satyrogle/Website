@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>THE FIELD — every pass</title>
+    <style>
+      html, body {
+        margin: 0;
+        background: #050505;
+        color: #e9eef2;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        background: #050505;
+        border-bottom: 1px solid #1c1c1c;
+        padding: 14px 20px;
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        color: #8b949e;
+        z-index: 2;
+      }
+      main { max-width: 1400px; margin: 0 auto; padding: 0 20px 120px; }
+      figure { margin: 40px 0 0; }
+      img { width: 100%; display: block; background: #000; }
+      figcaption {
+        padding: 10px 2px 0;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        color: #b9c2cc;
+      }
+      .n { color: #f0c26a; font-size: 18px; margin-right: 10px; }
+      .killed { color: #ff8a7d; }
+    </style>
+  </head>
+  <body>
+    <header>THE FIELD / every pass from 2026-09-03 / say a number</header>
+    <main id="list"></main>
+    <script type="module">
+      const list = document.getElementById('list');
+      const frames = await fetch('/passes/index.json').then((r) => r.json());
+      for (const f of frames) {
+        const fig = document.createElement('figure');
+        const img = document.createElement('img');
+        img.src = f.src;
+        img.alt = f.label;
+        img.loading = 'lazy';
+        const cap = document.createElement('figcaption');
+        const killed = f.label.includes('KILLED');
+        cap.innerHTML = `<span class="n">${f.n}</span><span class="${killed ? 'killed' : ''}">${f.label}</span>`;
+        fig.append(img, cap);
+        list.append(fig);
+      }
+    </script>
+  </body>
+</html>

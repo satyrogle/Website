@@ -1,0 +1,100 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "krea2_turbo_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "An immense three dimensional field of many thousands of thin pale stone plates hanging in absolute black void, receding kilometres into depth. Each plate is a substantial slab with real thickness and its own angle, and cold white light escapes only from its cracked and split edges. Their positions follow an exact grid that the plates themselves do not obey. Some positions are empty. The nearest plates are huge and cut off by the frame. Monochrome, no colour, faint haze in the void, large format, fine grain.",
+      "clip": [
+        "2",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "colour, mid grey, flat texture, close-up material sample, rubble, gravel, cracked mud, concrete blocks, coral, popcorn texture, tiling pattern, people, machinery, vehicles, text, watermark, mine, quarry, factory, bridge, cathedral, cave, dome, stadium, hangar, reactor, starfield, nebula, planet, orb, portal, tunnel, cemetery, LED wall, wireframe, grid, scaffolding, a room with a wall and a floor, mountain, landscape, sky, horizon, trees, neon, cyberpunk, cartoon, illustration, 3d render, cgi, low contrast, blurry",
+      "clip": [
+        "2",
+        0
+      ]
+    }
+  },
+  "6": {
+    "class_type": "EmptySD3LatentImage",
+    "inputs": {
+      "width": 1280,
+      "height": 800,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 20260818,
+      "steps": 8,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "8",
+        0
+      ],
+      "filename_prefix": "DL_krea"
+    }
+  }
+}
